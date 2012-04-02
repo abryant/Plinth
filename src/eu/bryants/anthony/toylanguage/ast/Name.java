@@ -36,4 +36,10 @@ public class Name
   {
     return lexicalPhrase;
   }
+
+  @Override
+  public String toString()
+  {
+    return name;
+  }
 }

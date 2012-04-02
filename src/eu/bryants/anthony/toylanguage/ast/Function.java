@@ -55,4 +55,23 @@ public class Function
   {
     return lexicalPhrase;
   }
+
+  @Override
+  public String toString()
+  {
+    StringBuffer buffer = new StringBuffer(name);
+    buffer.append('(');
+    for (int i = 0; i < parameters.length; i++)
+    {
+      buffer.append(parameters[i]);
+      if (i != parameters.length - 1)
+      {
+        buffer.append(", ");
+      }
+    }
+    buffer.append("): ");
+    buffer.append(expression);
+    buffer.append(';');
+    return buffer.toString();
+  }
 }

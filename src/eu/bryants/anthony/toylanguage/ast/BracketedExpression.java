@@ -27,4 +27,10 @@ public class BracketedExpression extends Expression
   {
     return expression;
   }
+
+  @Override
+  public String toString()
+  {
+    return "(" + expression + ")";
+  }
 }

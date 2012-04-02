@@ -35,4 +35,10 @@ public class AdditiveExpression extends Expression
   {
     return rightSubExpression;
   }
+
+  @Override
+  public String toString()
+  {
+    return leftSubExpression + " + " + rightSubExpression;
+  }
 }

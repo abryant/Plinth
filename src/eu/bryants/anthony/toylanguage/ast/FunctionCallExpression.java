@@ -36,4 +36,21 @@ public class FunctionCallExpression extends Expression
   {
     return arguments;
   }
+
+  @Override
+  public String toString()
+  {
+    StringBuffer buffer = new StringBuffer(name);
+    buffer.append('(');
+    for (int i = 0; i < arguments.length; i++)
+    {
+      buffer.append(arguments[i]);
+      if (i != arguments.length - 1)
+      {
+        buffer.append(", ");
+      }
+    }
+    buffer.append(')');
+    return buffer.toString();
+  }
 }

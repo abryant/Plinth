@@ -36,4 +36,16 @@ public class CompilationUnit
   {
     return lexicalPhrase;
   }
+
+  @Override
+  public String toString()
+  {
+    StringBuffer buffer = new StringBuffer();
+    for (Function function : functions)
+    {
+      buffer.append(function);
+      buffer.append('\n');
+    }
+    return buffer.toString();
+  }
 }
