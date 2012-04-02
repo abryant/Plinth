@@ -6,6 +6,5 @@ Function = Name LParen Parameters RParen Colon Expression Semicolon
 Parameters = Name | Parameters Comma Name
 
 Expression = Primary | Expression Plus Primary
-Primary = FunctionCall | Name | LParen Expression RParen
-FunctionCall = Name LParen Arguments RParen | Name LParen RParen
+Primary = Name | Name LParen Arguments RParen | Name LParen RParen | LParen Expression RParen
 Arguments = Expression | Arguments Comma Expression
