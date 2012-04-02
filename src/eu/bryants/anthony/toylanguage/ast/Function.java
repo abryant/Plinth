@@ -11,16 +11,26 @@ import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
  */
 public class Function
 {
+  private String name;
   private Parameter[] parameters;
   private Expression expression;
 
   private LexicalPhrase lexicalPhrase;
 
-  public Function(Parameter[] parameters, Expression expression, LexicalPhrase lexicalPhrase)
+  public Function(String name, Parameter[] parameters, Expression expression, LexicalPhrase lexicalPhrase)
   {
+    this.name = name;
     this.parameters = parameters;
     this.expression = expression;
     this.lexicalPhrase = lexicalPhrase;
+  }
+
+  /**
+   * @return the name
+   */
+  public String getName()
+  {
+    return name;
   }
 
   /**

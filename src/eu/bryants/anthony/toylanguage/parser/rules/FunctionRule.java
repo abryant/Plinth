@@ -5,6 +5,7 @@ import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.Expression;
 import eu.bryants.anthony.toylanguage.ast.Function;
+import eu.bryants.anthony.toylanguage.ast.Name;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.parser.ParseList;
@@ -38,17 +39,19 @@ public class FunctionRule extends Rule<ParseType>
   {
     if (production == PRODUCTION)
     {
+      Name name = (Name) args[0];
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[2];
       Expression expression = (Expression) args[5];
-      return new Function(parameters.toArray(new Parameter[parameters.size()]), expression, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], parameters.getLexicalPhrase(), (LexicalPhrase) args[3],
-                                                                                                                  (LexicalPhrase) args[4], expression.getLexicalPhrase(), (LexicalPhrase) args[6]));
+      return new Function(name.getName(), parameters.toArray(new Parameter[parameters.size()]), expression, LexicalPhrase.combine(name.getLexicalPhrase(), (LexicalPhrase) args[1], parameters.getLexicalPhrase(), (LexicalPhrase) args[3],
+                                                                                                                                  (LexicalPhrase) args[4], expression.getLexicalPhrase(), (LexicalPhrase) args[6]));
     }
     if (production == NO_PARAMETERS_PRODUCTION)
     {
+      Name name = (Name) args[0];
       Expression expression = (Expression) args[4];
-      return new Function(new Parameter[0], expression, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2],
-                                                                              (LexicalPhrase) args[3], expression.getLexicalPhrase(), (LexicalPhrase) args[5]));
+      return new Function(name.getName(), new Parameter[0], expression, LexicalPhrase.combine(name.getLexicalPhrase(), (LexicalPhrase) args[1], (LexicalPhrase) args[2],
+                                                                                              (LexicalPhrase) args[3], expression.getLexicalPhrase(), (LexicalPhrase) args[5]));
     }
     throw badTypeList();
   }
