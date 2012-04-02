@@ -14,6 +14,8 @@ public class FunctionCallExpression extends Expression
   private String name;
   private Expression[] arguments;
 
+  private Function resolvedFunction;
+
   public FunctionCallExpression(String name, Expression[] arguments, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
@@ -35,6 +37,22 @@ public class FunctionCallExpression extends Expression
   public Expression[] getArguments()
   {
     return arguments;
+  }
+
+  /**
+   * @return the resolvedFunction
+   */
+  public Function getResolvedFunction()
+  {
+    return resolvedFunction;
+  }
+
+  /**
+   * @param resolvedFunction - the resolvedFunction to set
+   */
+  public void setResolvedFunction(Function resolvedFunction)
+  {
+    this.resolvedFunction = resolvedFunction;
   }
 
   @Override

@@ -12,6 +12,7 @@ import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 public class Parameter
 {
   private String name;
+  private int index;
   private LexicalPhrase lexicalPhrase;
 
   public Parameter(String name, LexicalPhrase lexicalPhrase)
@@ -23,6 +24,22 @@ public class Parameter
   public String getName()
   {
     return name;
+  }
+
+  /**
+   * @return the index
+   */
+  public int getIndex()
+  {
+    return index;
+  }
+
+  /**
+   * @param index - the index to set
+   */
+  public void setIndex(int index)
+  {
+    this.index = index;
   }
 
   /**

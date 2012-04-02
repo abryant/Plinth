@@ -13,6 +13,8 @@ public class VariableExpression extends Expression
 {
   private String name;
 
+  private Parameter resolvedParameter;
+
   public VariableExpression(String name, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
@@ -25,6 +27,22 @@ public class VariableExpression extends Expression
   public String getName()
   {
     return name;
+  }
+
+  /**
+   * @return the resolvedParameter
+   */
+  public Parameter getResolvedParameter()
+  {
+    return resolvedParameter;
+  }
+
+  /**
+   * @param resolvedParameter - the resolvedParameter to set
+   */
+  public void setResolvedParameter(Parameter resolvedParameter)
+  {
+    this.resolvedParameter = resolvedParameter;
   }
 
   @Override

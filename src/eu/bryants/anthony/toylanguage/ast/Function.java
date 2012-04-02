@@ -1,5 +1,13 @@
 package eu.bryants.anthony.toylanguage.ast;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
@@ -12,7 +20,7 @@ import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 public class Function
 {
   private String name;
-  private Parameter[] parameters;
+  private Map<String, Parameter> parameters = new HashMap<String, Parameter>();
   private Expression expression;
 
   private LexicalPhrase lexicalPhrase;
@@ -20,7 +28,13 @@ public class Function
   public Function(String name, Parameter[] parameters, Expression expression, LexicalPhrase lexicalPhrase)
   {
     this.name = name;
-    this.parameters = parameters;
+    int index = 0;
+    for (Parameter p : parameters)
+    {
+      this.parameters.put(p.getName(), p);
+      p.setIndex(index);
+      index++;
+    }
     this.expression = expression;
     this.lexicalPhrase = lexicalPhrase;
   }
@@ -36,10 +50,20 @@ public class Function
   /**
    * @return the parameters
    */
-  public Parameter[] getParameters()
+  public Collection<Parameter> getParameters()
   {
-    return parameters;
+    return parameters.values();
   }
+
+  /**
+   * @param name - the name of the parameter to get
+   * @return the parameter with the specified name, or null if none exists
+   */
+  public Parameter getParameter(String name)
+  {
+    return parameters.get(name);
+  }
+
   /**
    * @return the expression
    */
@@ -61,10 +85,19 @@ public class Function
   {
     StringBuffer buffer = new StringBuffer(name);
     buffer.append('(');
-    for (int i = 0; i < parameters.length; i++)
+    List<Parameter> list = new ArrayList<Parameter>(parameters.values());
+    Collections.sort(list, new Comparator<Parameter>()
     {
-      buffer.append(parameters[i]);
-      if (i != parameters.length - 1)
+      @Override
+      public int compare(Parameter o1, Parameter o2)
+      {
+        return o1.getIndex() - o2.getIndex();
+      }
+    });
+    for (int i = 0; i < list.size(); i++)
+    {
+      buffer.append(list.get(i));
+      if (i != parameters.size() - 1)
       {
         buffer.append(", ");
       }
