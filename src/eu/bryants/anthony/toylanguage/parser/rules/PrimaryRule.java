@@ -5,6 +5,8 @@ import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.Expression;
 import eu.bryants.anthony.toylanguage.ast.FunctionCallExpression;
+import eu.bryants.anthony.toylanguage.ast.IntegerLiteral;
+import eu.bryants.anthony.toylanguage.ast.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.Name;
 import eu.bryants.anthony.toylanguage.ast.VariableExpression;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
@@ -23,6 +25,7 @@ public class PrimaryRule extends Rule<ParseType>
   private static final long serialVersionUID = 1L;
 
   private static Production<ParseType> VARIABLE_PRODUCTION = new Production<ParseType>(ParseType.NAME);
+  private static Production<ParseType> INTEGER_PRODUCTION = new Production<ParseType>(ParseType.INTEGER_LITERAL);
   private static Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.NAME, ParseType.LPAREN, ParseType.ARGUMENTS, ParseType.RPAREN);
   private static Production<ParseType> FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION = new Production<ParseType>(ParseType.NAME, ParseType.LPAREN, ParseType.RPAREN);
   private static Production<ParseType> BRACKETS_PRODUCTION =  new Production<ParseType>(ParseType.LPAREN, ParseType.EXPRESSION, ParseType.RPAREN);
@@ -30,7 +33,7 @@ public class PrimaryRule extends Rule<ParseType>
   @SuppressWarnings("unchecked")
   public PrimaryRule()
   {
-    super(ParseType.PRIMARY, VARIABLE_PRODUCTION, FUNCTION_CALL_PRODUCTION, FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION, BRACKETS_PRODUCTION);
+    super(ParseType.PRIMARY, VARIABLE_PRODUCTION, INTEGER_PRODUCTION, FUNCTION_CALL_PRODUCTION, FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION, BRACKETS_PRODUCTION);
   }
 
   /**
@@ -43,6 +46,11 @@ public class PrimaryRule extends Rule<ParseType>
     {
       Name name = (Name) args[0];
       return new VariableExpression(name.getName(), name.getLexicalPhrase());
+    }
+    if (production == INTEGER_PRODUCTION)
+    {
+      IntegerLiteral literal = (IntegerLiteral) args[0];
+      return new IntegerLiteralExpression(literal, literal.getLexicalPhrase());
     }
     if (production == FUNCTION_CALL_PRODUCTION)
     {

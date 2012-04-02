@@ -27,7 +27,8 @@ public enum ParseType
   // TERMINALS
 
   // literals
-  NAME, // Name
+  NAME,            // Name
+  INTEGER_LITERAL, // IntegerLiteral
 
   // symbols (values for these should all be LexicalPhrase)
   LPAREN,
