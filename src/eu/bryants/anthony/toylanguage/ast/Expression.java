@@ -19,14 +19,6 @@ public abstract class Expression
   }
 
   /**
-   * @param lexicalPhrase - the lexicalPhrase to set
-   */
-  public void setLexicalPhrase(LexicalPhrase lexicalPhrase)
-  {
-    this.lexicalPhrase = lexicalPhrase;
-  }
-
-  /**
    * @return the lexicalPhrase
    */
   public LexicalPhrase getLexicalPhrase()

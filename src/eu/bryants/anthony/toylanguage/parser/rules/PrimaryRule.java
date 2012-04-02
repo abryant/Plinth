@@ -3,6 +3,7 @@ package eu.bryants.anthony.toylanguage.parser.rules;
 import parser.ParseException;
 import parser.Production;
 import parser.Rule;
+import eu.bryants.anthony.toylanguage.ast.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.Expression;
 import eu.bryants.anthony.toylanguage.ast.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.IntegerLiteral;
@@ -68,8 +69,7 @@ public class PrimaryRule extends Rule<ParseType>
     if (production == BRACKETS_PRODUCTION)
     {
       Expression expression = (Expression) args[1];
-      expression.setLexicalPhrase(LexicalPhrase.combine((LexicalPhrase) args[0], expression.getLexicalPhrase(), (LexicalPhrase) args[2]));
-      return expression;
+      return new BracketedExpression(expression, LexicalPhrase.combine((LexicalPhrase) args[0], expression.getLexicalPhrase(), (LexicalPhrase) args[2]));
     }
     throw badTypeList();
   }
