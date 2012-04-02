@@ -36,7 +36,8 @@ public class FunctionsRule extends Rule<ParseType>
   {
     if (production == FUNCTION_PRODUCTION)
     {
-      return new Function[] {(Function) args[0]};
+      Function function = (Function) args[0];
+      return new ParseList<Function>(function, function.getLexicalPhrase());
     }
     if (production == FUNCTIONS_PRODUCTION)
     {
