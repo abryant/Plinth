@@ -17,7 +17,7 @@ import eu.bryants.anthony.toylanguage.parser.ToyLanguageParser;
  */
 public class Compiler
 {
-  public static void main(String... args) throws FileNotFoundException, ParseException, BadTokenException, NameNotResolvedException
+  public static void main(String... args) throws FileNotFoundException, ParseException, BadTokenException, NameNotResolvedException, ConceptualException
   {
     if (args.length != 2)
     {
@@ -41,5 +41,6 @@ public class Compiler
 
     Resolver.resolve(compilationUnit);
 
+    System.out.println(compilationUnit);
   }
 }

@@ -20,7 +20,7 @@ import eu.bryants.anthony.toylanguage.ast.VariableExpression;
 public class Resolver
 {
 
-  public static void resolve(CompilationUnit compilationUnit) throws NameNotResolvedException
+  public static void resolve(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     for (Function function : compilationUnit.getFunctions())
     {
@@ -28,7 +28,7 @@ public class Resolver
     }
   }
 
-  private static void resolve(Expression expression, Function function, CompilationUnit compilationUnit) throws NameNotResolvedException
+  private static void resolve(Expression expression, Function function, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     if (expression instanceof AdditiveExpression)
     {

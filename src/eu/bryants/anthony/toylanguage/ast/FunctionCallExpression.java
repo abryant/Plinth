@@ -1,5 +1,6 @@
 package eu.bryants.anthony.toylanguage.ast;
 
+import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
@@ -49,10 +50,15 @@ public class FunctionCallExpression extends Expression
 
   /**
    * @param resolvedFunction - the resolvedFunction to set
+   * @throws ConceptualException - if the specified function takes a different number of arguments than this call provides
    */
-  public void setResolvedFunction(Function resolvedFunction)
+  public void setResolvedFunction(Function resolvedFunction) throws ConceptualException
   {
     this.resolvedFunction = resolvedFunction;
+    if (arguments.length != resolvedFunction.getParameters().size())
+    {
+      throw new ConceptualException("Wrong number of arguments to function: " + name, getLexicalPhrase());
+    }
   }
 
   @Override
