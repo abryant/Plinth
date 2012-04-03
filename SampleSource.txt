@@ -1,5 +1,7 @@
-foo(x): x+2;
+foo(x): add(x, 2);
 
 bar(x): foo(x)+1;
 
 main(): bar(2)+5;
+
+add(x, y): add(add(1, x), add(y, 2)) + 5;
