@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
@@ -25,13 +26,17 @@ public class Function
 
   private LexicalPhrase lexicalPhrase;
 
-  public Function(String name, Parameter[] parameters, Expression expression, LexicalPhrase lexicalPhrase)
+  public Function(String name, Parameter[] parameters, Expression expression, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     this.name = name;
     int index = 0;
     for (Parameter p : parameters)
     {
-      this.parameters.put(p.getName(), p);
+      Parameter oldValue = this.parameters.put(p.getName(), p);
+      if (oldValue != null)
+      {
+        throw new LanguageParseException("Duplicated parameter: " + p.getName(), p.getLexicalPhrase());
+      }
       p.setIndex(index);
       index++;
     }

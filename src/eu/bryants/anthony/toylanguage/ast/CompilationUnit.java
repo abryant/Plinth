@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
@@ -19,11 +20,15 @@ public class CompilationUnit
 
   private LexicalPhrase lexicalPhrase;
 
-  public CompilationUnit(Function[] functions, LexicalPhrase lexicalPhrase)
+  public CompilationUnit(Function[] functions, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     for (Function f : functions)
     {
-      this.functions.put(f.getName(), f);
+      Function oldValue = this.functions.put(f.getName(), f);
+      if (oldValue != null)
+      {
+        throw new LanguageParseException("Duplicated function: " + f.getName(), f.getLexicalPhrase());
+      }
     }
     this.lexicalPhrase = lexicalPhrase;
   }
