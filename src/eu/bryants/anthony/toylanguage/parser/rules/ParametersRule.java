@@ -46,6 +46,7 @@ public class ParametersRule extends Rule<ParseType>
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[0];
       Name name = (Name) args[2];
       parameters.addLast(new Parameter(name.getName(), name.getLexicalPhrase()), LexicalPhrase.combine(parameters.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
+      return parameters;
     }
     throw badTypeList();
   }
