@@ -74,7 +74,7 @@ public class CodeGenerator
         types[i] = LLVM.LLVMInt32Type();
       }
 
-      Pointer paramTypes = C.toNativePointerArray(types, false);
+      Pointer paramTypes = C.toNativePointerArray(types, false, true);
       LLVMTypeRef functionType = LLVM.LLVMFunctionType(LLVM.LLVMInt32Type(), paramTypes, types.length, false);
       LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, function.getName(), functionType);
       LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
@@ -128,7 +128,7 @@ public class CodeGenerator
       {
         values[i] = buildExpression(llvmFunction, arguments[i]);
       }
-      Pointer llvmArguments = C.toNativePointerArray(values, false);
+      Pointer llvmArguments = C.toNativePointerArray(values, false, true);
       LLVMValueRef llvmResolvedFunction = LLVM.LLVMGetNamedFunction(module, functionExpression.getResolvedFunction().getName());
       return LLVM.LLVMBuildCall(builder, llvmResolvedFunction, llvmArguments, values.length, "");
     }
