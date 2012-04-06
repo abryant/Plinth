@@ -74,6 +74,7 @@ public class Resolver
         {
           subBlock.addVariable(v);
         }
+        resolve(subBlock, compilationUnit);
       }
     }
   }
