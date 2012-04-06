@@ -53,7 +53,7 @@ public class Checker
       }
       else if (s instanceof Block)
       {
-        returned = checkControlFlow(block);
+        returned = checkControlFlow((Block) s);
       }
     }
     return returned;
