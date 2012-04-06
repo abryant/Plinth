@@ -125,6 +125,10 @@ public class CodeGenerator
         AssignStatement assign = (AssignStatement) s;
         LLVMValueRef value = buildExpression(block, variables, assign.getExpression());
         LLVMValueRef allocaInst = variables.get(assign.getResolvedVariable());
+        if (allocaInst == null)
+        {
+          throw new IllegalStateException("Missing LLVMValueRef in variable Map: " + assign.getVariableName());
+        }
         LLVM.LLVMBuildStore(builder, value, allocaInst);
       }
       else if (s instanceof ReturnStatement)
@@ -149,7 +153,12 @@ public class CodeGenerator
     if (expression instanceof VariableExpression)
     {
       Variable variable = ((VariableExpression) expression).getResolvedVariable();
-      return LLVM.LLVMBuildLoad(builder, variables.get(variable), "");
+      LLVMValueRef value = variables.get(variable);
+      if (value == null)
+      {
+        throw new IllegalStateException("Missing LLVMValueRef in variable Map: " + ((VariableExpression) expression).getName());
+      }
+      return LLVM.LLVMBuildLoad(builder, value, "");
     }
     if (expression instanceof BracketedExpression)
     {
