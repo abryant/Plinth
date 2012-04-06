@@ -1,10 +1,13 @@
 main()
 {
   a = 2 + 3;
-  return foo(a, 2);
+  {
+    d = 5;
+    return doubleAdd(a, d);
+  }
 }
 
-foo(a, b)
+doubleAdd(a, b)
 {
   c = a + b;
   return c + add((a),b);

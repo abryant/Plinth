@@ -8,7 +8,7 @@ Parameters = Name | Parameters Comma Name
 Block = LBrace Statements RBrace
 
 Statements = epsilon | Statements Statement
-Statement = Assignment | ReturnStatement
+Statement = Assignment | Block | ReturnStatement
 
 Assignment = Name Equals Expression Semicolon
 ReturnStatement = ReturnKeyword Expression Semicolon
