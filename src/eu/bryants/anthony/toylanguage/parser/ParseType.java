@@ -19,6 +19,11 @@ public enum ParseType
   FUNCTIONS,        // ParseList<Function>
   FUNCTION,         // Function
   PARAMETERS,       // ParseList<Parameter>
+  BLOCK,            // Block
+  STATEMENTS,       // ParseList<Statement>
+  STATEMENT,        // Statement
+  ASSIGN_STATEMENT, // AssignStatement
+  RETURN_STATEMENT, // ReturnStatement
   EXPRESSION,       // Expression
   PRIMARY,          // Expression
   FUNCTION_CALL,    // FunctionCallExpression
@@ -31,12 +36,17 @@ public enum ParseType
   INTEGER_LITERAL, // IntegerLiteral
 
   // symbols (values for these should all be LexicalPhrase)
-  LPAREN,
-  RPAREN,
   COMMA,
-  COLON,
-  SEMICOLON,
+  EQUALS,
+  LBRACE,
+  LPAREN,
   PLUS,
+  RBRACE,
+  RPAREN,
+  SEMICOLON,
+
+  // keywords (values for these should all be LexicalPhrase)
+  RETURN_KEYWORD,
 
   ;
 

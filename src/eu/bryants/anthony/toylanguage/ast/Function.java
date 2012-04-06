@@ -1,14 +1,12 @@
 package eu.bryants.anthony.toylanguage.ast;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.Set;
 
-import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
@@ -21,26 +19,22 @@ import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 public class Function
 {
   private String name;
-  private Map<String, Parameter> parameters = new HashMap<String, Parameter>();
-  private Expression expression;
+  private Parameter[] parameters;
+  private Map<String, Parameter> parametersByName = new HashMap<String, Parameter>();
+  private Block block;
 
   private LexicalPhrase lexicalPhrase;
 
-  public Function(String name, Parameter[] parameters, Expression expression, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  public Function(String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
   {
     this.name = name;
-    int index = 0;
-    for (Parameter p : parameters)
+    this.parameters = parameters;
+    for (int i = 0; i < parameters.length; i++)
     {
-      Parameter oldValue = this.parameters.put(p.getName(), p);
-      if (oldValue != null)
-      {
-        throw new LanguageParseException("Duplicated parameter: " + p.getName(), p.getLexicalPhrase());
-      }
-      p.setIndex(index);
-      index++;
+      parameters[i].setIndex(i);
+      parametersByName.put(parameters[i].getName(), parameters[i]);
     }
-    this.expression = expression;
+    this.block = block;
     this.lexicalPhrase = lexicalPhrase;
   }
 
@@ -55,9 +49,9 @@ public class Function
   /**
    * @return the parameters
    */
-  public Collection<Parameter> getParameters()
+  public Parameter[] getParameters()
   {
-    return parameters.values();
+    return parameters;
   }
 
   /**
@@ -66,15 +60,38 @@ public class Function
    */
   public Parameter getParameter(String name)
   {
-    return parameters.get(name);
+    return parametersByName.get(name);
   }
 
   /**
-   * @return the expression
+   * @return the block
    */
-  public Expression getExpression()
+  public Block getBlock()
   {
-    return expression;
+    return block;
+  }
+
+  /**
+   * @return a set containing all of the variables defined in this function, including in nested blocks
+   */
+  public Set<Variable> getAllNestedVariables()
+  {
+    Set<Variable> result = new HashSet<Variable>();
+    Deque<Block> stack = new LinkedList<Block>();
+    stack.push(block);
+    while (!stack.isEmpty())
+    {
+      Block block = stack.pop();
+      result.addAll(block.getVariables());
+      for (Statement s : block.getStatements())
+      {
+        if (s instanceof Block)
+        {
+          stack.push((Block) s);
+        }
+      }
+    }
+    return result;
   }
 
   /**
@@ -90,26 +107,17 @@ public class Function
   {
     StringBuffer buffer = new StringBuffer(name);
     buffer.append('(');
-    List<Parameter> list = new ArrayList<Parameter>(parameters.values());
-    Collections.sort(list, new Comparator<Parameter>()
+    for (int i = 0; i < parameters.length; i++)
     {
-      @Override
-      public int compare(Parameter o1, Parameter o2)
-      {
-        return o1.getIndex() - o2.getIndex();
-      }
-    });
-    for (int i = 0; i < list.size(); i++)
-    {
-      buffer.append(list.get(i));
-      if (i != parameters.size() - 1)
+      buffer.append(parameters[i]);
+      if (i != parameters.length - 1)
       {
         buffer.append(", ");
       }
     }
-    buffer.append("): ");
-    buffer.append(expression);
-    buffer.append(';');
+    buffer.append(")\n");
+    buffer.append(block);
+    buffer.append('\n');
     return buffer.toString();
   }
 }

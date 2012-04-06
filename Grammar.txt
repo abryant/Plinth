@@ -1,9 +1,17 @@
 CompilationUnit = Functions
 Functions = Function | Functions Function
 
-Function = Name LParen Parameters RParen Colon Expression Semicolon
-         | Name LParen            RParen Colon Expression Semicolon
+Function = Name LParen Parameters RParen Block
+         | Name LParen            RParen Block
 Parameters = Name | Parameters Comma Name
+
+Block = LBrace Statements RBrace
+
+Statements = epsilon | Statements Statement
+Statement = Assignment | ReturnStatement
+
+Assignment = Name Equals Expression Semicolon
+ReturnStatement = ReturnKeyword Expression Semicolon
 
 Expression = Primary | Expression Plus Primary
 Primary = Name | IntegerLiteral | Name LParen Arguments RParen | Name LParen RParen | LParen Expression RParen

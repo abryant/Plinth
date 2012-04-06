@@ -1,5 +1,16 @@
-main(): foo(1, 2);
+main()
+{
+  a = 2 + 3;
+  return foo(a, 2);
+}
 
-foo(a, b): (a+b) + add((a),b);
+foo(a, b)
+{
+  c = a + b;
+  return c + add((a),b);
+}
 
-add(x, y): x + y;
+add(x, y)
+{
+  return x + y;
+}

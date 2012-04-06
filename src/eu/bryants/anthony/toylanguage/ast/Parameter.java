@@ -9,21 +9,15 @@ import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 /**
  * @author Anthony Bryant
  */
-public class Parameter
+public class Parameter extends Variable
 {
-  private String name;
   private int index;
   private LexicalPhrase lexicalPhrase;
 
   public Parameter(String name, LexicalPhrase lexicalPhrase)
   {
-    this.name = name;
+    super(name);
     this.lexicalPhrase = lexicalPhrase;
-  }
-
-  public String getName()
-  {
-    return name;
   }
 
   /**
@@ -53,6 +47,6 @@ public class Parameter
   @Override
   public String toString()
   {
-    return name;
+    return getName();
   }
 }

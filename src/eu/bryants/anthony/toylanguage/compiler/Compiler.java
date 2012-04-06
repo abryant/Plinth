@@ -41,6 +41,7 @@ public class Compiler
 
     CompilationUnit compilationUnit = ToyLanguageParser.parse(input);
 
+    Checker.checkControlFlow(compilationUnit);
     Resolver.resolve(compilationUnit);
 
     new CodeGenerator(compilationUnit).generate(output.getAbsolutePath());

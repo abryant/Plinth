@@ -4,6 +4,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.math.BigInteger;
+import java.util.HashMap;
+import java.util.Map;
 
 import parser.ParseException;
 import parser.Token;
@@ -21,6 +23,12 @@ import eu.bryants.anthony.toylanguage.ast.Name;
  */
 public class LanguageTokenizer extends Tokenizer<ParseType>
 {
+
+  private static final Map<String, ParseType> KEYWORDS = new HashMap<String, ParseType>();
+  static
+  {
+    KEYWORDS.put("return", ParseType.RETURN_KEYWORD);
+  }
 
   private RandomAccessReader reader;
   private int currentLine;
@@ -226,8 +234,15 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     // update the tokenizer's current location in the file
     currentColumn += index;
 
-    // we have a name, so return it
+    // we have a full name or keyword, so compare it against a list of keywords to find out which
     String name = buffer.toString();
+    ParseType keyword = KEYWORDS.get(name);
+    if (keyword != null)
+    {
+      return new Token<ParseType>(keyword, new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
+    }
+
+    // we have a name, so return it
     return new Token<ParseType>(ParseType.NAME, new Name(name, new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn)));
   }
 
@@ -363,21 +378,29 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       return null;
     }
 
-    if (nextChar == '+')
-    {
-      return makeSymbolToken(ParseType.PLUS, 1);
-    }
-    if (nextChar == ':')
-    {
-      return makeSymbolToken(ParseType.COLON, 1);
-    }
     if (nextChar == ',')
     {
       return makeSymbolToken(ParseType.COMMA, 1);
     }
+    if (nextChar == '=')
+    {
+      return makeSymbolToken(ParseType.EQUALS, 1);
+    }
+    if (nextChar == '{')
+    {
+      return makeSymbolToken(ParseType.LBRACE, 1);
+    }
     if (nextChar == '(')
     {
       return makeSymbolToken(ParseType.LPAREN, 1);
+    }
+    if (nextChar == '+')
+    {
+      return makeSymbolToken(ParseType.PLUS, 1);
+    }
+    if (nextChar == '}')
+    {
+      return makeSymbolToken(ParseType.RBRACE, 1);
     }
     if (nextChar == ')')
     {

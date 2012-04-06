@@ -39,7 +39,10 @@ public class LLVM
   public static native LLVMBasicBlockRef LLVMPositionBuilder(LLVMBuilderRef builder, LLVMBasicBlockRef block, LLVMValueRef instruction);
 
   public static native LLVMValueRef LLVMBuildAdd(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
+  public static native LLVMValueRef LLVMBuildAlloca(LLVMBuilderRef builder, LLVMTypeRef type, String name);
+  public static native LLVMValueRef LLVMBuildStore(LLVMBuilderRef builder, LLVMValueRef value, LLVMValueRef pointer);
   public static native LLVMValueRef LLVMBuildCall(LLVMBuilderRef builder, LLVMValueRef function, Pointer arguments, int numArgs, String name);
+  public static native LLVMValueRef LLVMBuildLoad(LLVMBuilderRef builder, LLVMValueRef pointer, String name);
   public static native LLVMValueRef LLVMBuildRet(LLVMBuilderRef builder, LLVMValueRef value);
 
   public static native LLVMValueRef LLVMConstInt(LLVMTypeRef type, long n, boolean signExtend);
