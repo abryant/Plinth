@@ -41,7 +41,7 @@ public class Compiler
 
     Resolver.resolve(compilationUnit);
 
-    new CodeGenerator().generate(compilationUnit, output.getAbsolutePath());
+    new CodeGenerator(compilationUnit).generate(output.getAbsolutePath());
     System.out.println(compilationUnit);
   }
 }

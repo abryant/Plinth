@@ -34,18 +34,21 @@ import eu.bryants.anthony.toylanguage.ast.VariableExpression;
  */
 public class CodeGenerator
 {
+  private CompilationUnit compilationUnit;
+
   private LLVMModuleRef module;
   private LLVMBuilderRef builder;
 
-  public CodeGenerator()
+  public CodeGenerator(CompilationUnit compilationUnit)
   {
+    this.compilationUnit = compilationUnit;
     module = LLVM.LLVMModuleCreateWithName("MainModule");
     builder = LLVM.LLVMCreateBuilder();
   }
 
-  public void generate(CompilationUnit compilationUnit, String outputPath)
+  public void generate(String outputPath)
   {
-    addFunctions(compilationUnit);
+    addFunctions();
 
     for (Function f : compilationUnit.getFunctions())
     {
@@ -54,7 +57,7 @@ public class CodeGenerator
     LLVM.LLVMWriteBitcodeToFile(module, outputPath);
   }
 
-  private void addFunctions(CompilationUnit compilationUnit)
+  private void addFunctions()
   {
     for (Function function : compilationUnit.getFunctions())
     {
