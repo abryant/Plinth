@@ -22,6 +22,7 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Expression;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.FunctionCallExpression;
+import eu.bryants.anthony.toylanguage.ast.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.ReturnStatement;
@@ -113,37 +114,89 @@ public class CodeGenerator
       LLVM.LLVMBuildStore(builder, LLVM.LLVMGetParam(llvmFunction, p.getIndex()), variables.get(p));
     }
 
-    buildBlock(function.getBlock(), variables);
+    buildStatement(function.getBlock(), llvmFunction, variables);
   }
 
-  private void buildBlock(Block block, Map<Variable, LLVMValueRef> variables)
+  private void buildStatement(Statement statement, LLVMValueRef llvmFunction, Map<Variable, LLVMValueRef> variables)
   {
-    for (Statement s : block.getStatements())
+    if (statement instanceof AssignStatement)
     {
-      if (s instanceof AssignStatement)
+      AssignStatement assign = (AssignStatement) statement;
+      LLVMValueRef value = buildExpression(assign.getExpression(), variables);
+      LLVMValueRef allocaInst = variables.get(assign.getResolvedVariable());
+      if (allocaInst == null)
       {
-        AssignStatement assign = (AssignStatement) s;
-        LLVMValueRef value = buildExpression(block, variables, assign.getExpression());
-        LLVMValueRef allocaInst = variables.get(assign.getResolvedVariable());
-        if (allocaInst == null)
+        throw new IllegalStateException("Missing LLVMValueRef in variable Map: " + assign.getVariableName());
+      }
+      LLVM.LLVMBuildStore(builder, value, allocaInst);
+    }
+    else if (statement instanceof Block)
+    {
+      for (Statement s : ((Block) statement).getStatements())
+      {
+        buildStatement(s, llvmFunction, variables);
+      }
+    }
+    else if (statement instanceof IfStatement)
+    {
+      IfStatement ifStatement = (IfStatement) statement;
+      LLVMValueRef expression = buildExpression(ifStatement.getExpression(), variables);
+      // compare expression to zero to decide which branch to take
+      LLVMValueRef zero = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false);
+      LLVMValueRef conditional = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntNE, expression, zero, "");
+
+      LLVMBasicBlockRef thenClause = LLVM.LLVMAppendBasicBlock(llvmFunction, "then");
+      LLVMBasicBlockRef elseClause = null;
+      if (ifStatement.getElseClause() != null)
+      {
+        elseClause = LLVM.LLVMAppendBasicBlock(llvmFunction, "else");
+      }
+      LLVMBasicBlockRef continuation = null;
+      if (!ifStatement.stopsExecution())
+      {
+        continuation = LLVM.LLVMAppendBasicBlock(llvmFunction, "continuation");
+      }
+
+      // build the branch instruction
+      if (elseClause == null)
+      {
+        // if we have no else clause, then a continuation must have been created, since the if statement cannot stop execution
+        LLVM.LLVMBuildCondBr(builder, conditional, thenClause, continuation);
+      }
+      else
+      {
+        LLVM.LLVMBuildCondBr(builder, conditional, thenClause, elseClause);
+
+        // build the else clause
+        LLVM.LLVMPositionBuilderAtEnd(builder, elseClause);
+        buildStatement(ifStatement.getElseClause(), llvmFunction, variables);
+        if (!ifStatement.getElseClause().stopsExecution())
         {
-          throw new IllegalStateException("Missing LLVMValueRef in variable Map: " + assign.getVariableName());
+          LLVM.LLVMBuildBr(builder, continuation);
         }
-        LLVM.LLVMBuildStore(builder, value, allocaInst);
       }
-      else if (s instanceof ReturnStatement)
+
+      // build the then clause
+      LLVM.LLVMPositionBuilderAtEnd(builder, thenClause);
+      buildStatement(ifStatement.getThenClause(), llvmFunction, variables);
+      if (!ifStatement.getThenClause().stopsExecution())
       {
-        LLVMValueRef value = buildExpression(block, variables, ((ReturnStatement) s).getExpression());
-        LLVM.LLVMBuildRet(builder, value);
+        LLVM.LLVMBuildBr(builder, continuation);
       }
-      else if (s instanceof Block)
+
+      if (continuation != null)
       {
-        buildBlock((Block) s, variables);
+        LLVM.LLVMPositionBuilderAtEnd(builder, continuation);
       }
+    }
+    else if (statement instanceof ReturnStatement)
+    {
+      LLVMValueRef value = buildExpression(((ReturnStatement) statement).getExpression(), variables);
+      LLVM.LLVMBuildRet(builder, value);
     }
   }
 
-  private LLVMValueRef buildExpression(Block block, Map<Variable, LLVMValueRef> variables, Expression expression)
+  private LLVMValueRef buildExpression(Expression expression, Map<Variable, LLVMValueRef> variables)
   {
     if (expression instanceof IntegerLiteralExpression)
     {
@@ -162,7 +215,7 @@ public class CodeGenerator
     }
     if (expression instanceof BracketedExpression)
     {
-      return buildExpression(block, variables, ((BracketedExpression) expression).getExpression());
+      return buildExpression(((BracketedExpression) expression).getExpression(), variables);
     }
     if (expression instanceof FunctionCallExpression)
     {
@@ -171,7 +224,7 @@ public class CodeGenerator
       LLVMValueRef[] values = new LLVMValueRef[arguments.length];
       for (int i = 0; i < arguments.length; i++)
       {
-        values[i] = buildExpression(block, variables, arguments[i]);
+        values[i] = buildExpression(arguments[i], variables);
       }
       Pointer llvmArguments = C.toNativePointerArray(values, false, true);
       LLVMValueRef llvmResolvedFunction = LLVM.LLVMGetNamedFunction(module, functionExpression.getResolvedFunction().getName());
@@ -180,8 +233,8 @@ public class CodeGenerator
     if (expression instanceof AdditiveExpression)
     {
       AdditiveExpression additiveExpression = (AdditiveExpression) expression;
-      LLVMValueRef left = buildExpression(block, variables, additiveExpression.getLeftSubExpression());
-      LLVMValueRef right = buildExpression(block, variables, additiveExpression.getRightSubExpression());
+      LLVMValueRef left = buildExpression(additiveExpression.getLeftSubExpression(), variables);
+      LLVMValueRef right = buildExpression(additiveExpression.getRightSubExpression(), variables);
       return LLVM.LLVMBuildAdd(builder, left, right, "");
     }
     throw new IllegalArgumentException("Unknown Expression type");

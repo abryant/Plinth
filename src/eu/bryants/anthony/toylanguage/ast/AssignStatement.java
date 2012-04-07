@@ -55,6 +55,15 @@ public class AssignStatement extends Statement
     this.resolvedVariable = resolvedVariable;
   }
 
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean stopsExecution()
+  {
+    return false;
+  }
+
   @Override
   public String toString()
   {

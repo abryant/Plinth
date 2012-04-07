@@ -13,6 +13,7 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Expression;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.FunctionCallExpression;
+import eu.bryants.anthony.toylanguage.ast.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.ReturnStatement;
@@ -53,6 +54,15 @@ public class Resolver
           stack.push(s);
         }
       }
+      else if (statement instanceof IfStatement)
+      {
+        IfStatement ifStatement = (IfStatement) statement;
+        stack.push(ifStatement.getThenClause());
+        if (ifStatement.getElseClause() != null)
+        {
+          stack.push(ifStatement.getElseClause());
+        }
+      }
     }
     return result;
   }
@@ -76,38 +86,51 @@ public class Resolver
         throw new ConceptualException("Duplicate parameter: " + p.getName(), p.getLexicalPhrase());
       }
     }
-    resolve(function.getBlock(), compilationUnit);
+    for (Statement s : mainBlock.getStatements())
+    {
+      resolve(s, mainBlock, compilationUnit);
+    }
   }
 
-  private static void resolve(Block block, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private static void resolve(Statement statement, Block enclosingBlock, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
-    for (Statement s : block.getStatements())
+    if (statement instanceof AssignStatement)
     {
-      if (s instanceof AssignStatement)
+      AssignStatement assign = (AssignStatement) statement;
+      resolve(assign.getExpression(), enclosingBlock, compilationUnit);
+      Variable variable = enclosingBlock.getVariable(assign.getVariableName());
+      if (variable == null)
       {
-        AssignStatement assign = (AssignStatement) s;
-        resolve(assign.getExpression(), block, compilationUnit);
-        Variable variable = block.getVariable(assign.getVariableName());
-        if (variable == null)
-        {
-          variable = new Variable(assign.getVariableName());
-          block.addVariable(variable);
-        }
-        assign.setResolvedVariable(variable);
+        variable = new Variable(assign.getVariableName());
+        enclosingBlock.addVariable(variable);
       }
-      else if (s instanceof ReturnStatement)
+      assign.setResolvedVariable(variable);
+    }
+    else if (statement instanceof Block)
+    {
+      Block subBlock = (Block) statement;
+      for (Variable v : enclosingBlock.getVariables())
       {
-        resolve(((ReturnStatement) s).getExpression(), block, compilationUnit);
+        subBlock.addVariable(v);
       }
-      else if (s instanceof Block)
+      for (Statement s : subBlock.getStatements())
       {
-        Block subBlock = (Block) s;
-        for (Variable v : block.getVariables())
-        {
-          subBlock.addVariable(v);
-        }
-        resolve(subBlock, compilationUnit);
+        resolve(s, subBlock, compilationUnit);
       }
+    }
+    else if (statement instanceof IfStatement)
+    {
+      IfStatement ifStatement = (IfStatement) statement;
+      resolve(ifStatement.getExpression(), enclosingBlock, compilationUnit);
+      resolve(ifStatement.getThenClause(), enclosingBlock, compilationUnit);
+      if (ifStatement.getElseClause() != null)
+      {
+        resolve(ifStatement.getElseClause(), enclosingBlock, compilationUnit);
+      }
+    }
+    else if (statement instanceof ReturnStatement)
+    {
+      resolve(((ReturnStatement) statement).getExpression(), enclosingBlock, compilationUnit);
     }
   }
 

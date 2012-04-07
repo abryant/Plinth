@@ -19,6 +19,11 @@ public abstract class Statement
   }
 
   /**
+   * @return true if this Statement stops execution so that any statements after it are not executed, false if execution continues after it
+   */
+  public abstract boolean stopsExecution();
+
+  /**
    * @return the lexicalPhrase
    */
   public LexicalPhrase getLexicalPhrase()

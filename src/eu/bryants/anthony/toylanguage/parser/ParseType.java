@@ -23,6 +23,7 @@ public enum ParseType
   STATEMENTS,       // ParseList<Statement>
   STATEMENT,        // Statement
   ASSIGN_STATEMENT, // AssignStatement
+  IF_STATEMENT,     // IfStatement
   RETURN_STATEMENT, // ReturnStatement
   EXPRESSION,       // Expression
   PRIMARY,          // Expression
@@ -46,6 +47,8 @@ public enum ParseType
   SEMICOLON,
 
   // keywords (values for these should all be LexicalPhrase)
+  ELSE_KEYWORD,
+  IF_KEYWORD,
   RETURN_KEYWORD,
 
   ;

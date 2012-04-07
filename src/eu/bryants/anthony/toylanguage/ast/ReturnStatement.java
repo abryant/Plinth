@@ -27,6 +27,15 @@ public class ReturnStatement extends Statement
     return expression;
   }
 
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean stopsExecution()
+  {
+    return true;
+  }
+
   @Override
   public String toString()
   {

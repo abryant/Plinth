@@ -1,9 +1,14 @@
-main()
+main(argc)
 {
-  a = 2 + 3;
+  a = argc + 0xffffffff;
+  if a
+  {
+    return a;
+  }
+  else
   {
     d = 5;
-    return doubleAdd(a, d);
+    return doubleAdd(2, d);
   }
 }
 

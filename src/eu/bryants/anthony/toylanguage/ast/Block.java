@@ -60,6 +60,16 @@ public class Block extends Statement
     return variables.values();
   }
 
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean stopsExecution()
+  {
+    // don't worry about any of the statements but the last - the control flow checker will make sure execution can always get to the last instruction
+    return statements[statements.length - 1].stopsExecution();
+  }
+
   @Override
   public String toString()
   {

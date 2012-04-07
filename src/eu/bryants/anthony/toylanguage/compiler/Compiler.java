@@ -107,10 +107,12 @@ public class Compiler
     catch (ConceptualException e)
     {
       printConceptualException(e.getMessage(), e.getLexicalPhrase());
+      System.exit(6);
     }
     catch (NameNotResolvedException e)
     {
       printConceptualException(e.getMessage(), e.getLexicalPhrase());
+      System.exit(6);
     }
 
     new CodeGenerator(compilationUnit).generate(output.getAbsolutePath());

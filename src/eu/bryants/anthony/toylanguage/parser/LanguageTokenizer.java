@@ -27,6 +27,8 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
   private static final Map<String, ParseType> KEYWORDS = new HashMap<String, ParseType>();
   static
   {
+    KEYWORDS.put("else", ParseType.ELSE_KEYWORD);
+    KEYWORDS.put("if", ParseType.IF_KEYWORD);
     KEYWORDS.put("return", ParseType.RETURN_KEYWORD);
   }
 
