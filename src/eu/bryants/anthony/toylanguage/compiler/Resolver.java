@@ -1,5 +1,10 @@
 package eu.bryants.anthony.toylanguage.compiler;
 
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.Set;
+
 import eu.bryants.anthony.toylanguage.ast.AdditiveExpression;
 import eu.bryants.anthony.toylanguage.ast.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.Block;
@@ -24,6 +29,33 @@ import eu.bryants.anthony.toylanguage.ast.VariableExpression;
  */
 public class Resolver
 {
+
+  /**
+   * Finds all of the nested variables of a function.
+   * Before calling this, resolve() must have been called on the compilation unit containing the function.
+   * @param function - the function to get all the nested variables of
+   * @return a set containing all of the variables defined in this function, including in nested blocks
+   */
+  public static Set<Variable> getAllNestedVariables(Function function)
+  {
+    Set<Variable> result = new HashSet<Variable>();
+    Deque<Statement> stack = new LinkedList<Statement>();
+    stack.push(function.getBlock());
+    while (!stack.isEmpty())
+    {
+      Statement statement = stack.pop();
+      if (statement instanceof Block)
+      {
+        // add all variables from this block to the result set
+        result.addAll(((Block) statement).getVariables());
+        for (Statement s : ((Block) statement).getStatements())
+        {
+          stack.push(s);
+        }
+      }
+    }
+    return result;
+  }
 
   public static void resolve(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {

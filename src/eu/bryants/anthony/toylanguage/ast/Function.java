@@ -1,11 +1,7 @@
 package eu.bryants.anthony.toylanguage.ast;
 
-import java.util.Deque;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.Map;
-import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
@@ -69,29 +65,6 @@ public class Function
   public Block getBlock()
   {
     return block;
-  }
-
-  /**
-   * @return a set containing all of the variables defined in this function, including in nested blocks
-   */
-  public Set<Variable> getAllNestedVariables()
-  {
-    Set<Variable> result = new HashSet<Variable>();
-    Deque<Block> stack = new LinkedList<Block>();
-    stack.push(block);
-    while (!stack.isEmpty())
-    {
-      Block block = stack.pop();
-      result.addAll(block.getVariables());
-      for (Statement s : block.getStatements())
-      {
-        if (s instanceof Block)
-        {
-          stack.push((Block) s);
-        }
-      }
-    }
-    return result;
   }
 
   /**

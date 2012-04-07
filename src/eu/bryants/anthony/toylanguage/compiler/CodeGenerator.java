@@ -99,7 +99,7 @@ public class CodeGenerator
     LLVM.LLVMPositionBuilder(builder, block, null);
 
     // create LLVMValueRefs for all of the variables, including parameters
-    Set<Variable> allVariables = function.getAllNestedVariables();
+    Set<Variable> allVariables = Resolver.getAllNestedVariables(function);
     Map<Variable, LLVMValueRef> variables = new HashMap<Variable, LLVM.LLVMValueRef>();
     for (Variable v : allVariables)
     {
