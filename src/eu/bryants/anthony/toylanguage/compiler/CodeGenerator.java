@@ -29,6 +29,7 @@ import eu.bryants.anthony.toylanguage.ast.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.Statement;
 import eu.bryants.anthony.toylanguage.ast.Variable;
 import eu.bryants.anthony.toylanguage.ast.VariableExpression;
+import eu.bryants.anthony.toylanguage.ast.WhileStatement;
 
 /*
  * Created on 5 Apr 2012
@@ -193,6 +194,33 @@ public class CodeGenerator
     {
       LLVMValueRef value = buildExpression(((ReturnStatement) statement).getExpression(), variables);
       LLVM.LLVMBuildRet(builder, value);
+    }
+    else if (statement instanceof WhileStatement)
+    {
+      WhileStatement whileStatement = (WhileStatement) statement;
+
+      LLVMBasicBlockRef loopCheck = LLVM.LLVMAppendBasicBlock(llvmFunction, "loopCheck");
+      LLVM.LLVMBuildBr(builder, loopCheck);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, loopCheck);
+      LLVMValueRef expression = buildExpression(whileStatement.getExpression(), variables);
+      // compare expression to zero to decide which branch to take
+      LLVMValueRef zero = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false);
+      LLVMValueRef conditional = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntNE, expression, zero, "");
+
+      LLVMBasicBlockRef loopBodyBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "loopBody");
+      LLVMBasicBlockRef afterLoopBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "afterLoop");
+      LLVM.LLVMBuildCondBr(builder, conditional, loopBodyBlock, afterLoopBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, loopBodyBlock);
+      buildStatement(whileStatement.getStatement(), llvmFunction, variables);
+
+      if (!whileStatement.stopsExecution())
+      {
+        LLVM.LLVMBuildBr(builder, loopCheck);
+      }
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, afterLoopBlock);
     }
   }
 

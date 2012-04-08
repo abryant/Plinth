@@ -15,6 +15,7 @@ import eu.bryants.anthony.toylanguage.parser.rules.PrimaryRule;
 import eu.bryants.anthony.toylanguage.parser.rules.ReturnStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.StatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.StatementsRule;
+import eu.bryants.anthony.toylanguage.parser.rules.WhileStatementRule;
 
 /*
  * Created on 2 Apr 2012
@@ -43,6 +44,7 @@ public class ToyLanguageRules
     new ReturnStatementRule(),
     new StatementRule(),
     new StatementsRule(),
+    new WhileStatementRule(),
   };
 
   @SuppressWarnings("unchecked")

@@ -1,9 +1,15 @@
 main(argc)
 {
   a = argc + 0xffffffff;
-  if a
+  c = 0;
+  while a
   {
-    return a;
+    a = a + 0xffffffff;
+    c = c + 1;
+  }
+  if c
+  {
+    return c;
   }
   else
   {

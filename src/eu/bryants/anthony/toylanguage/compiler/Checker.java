@@ -7,6 +7,7 @@ import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.Statement;
+import eu.bryants.anthony.toylanguage.ast.WhileStatement;
 
 /*
  * Created on 6 Apr 2012
@@ -74,6 +75,10 @@ public class Checker
     else if (statement instanceof ReturnStatement)
     {
       return true;
+    }
+    else if (statement instanceof WhileStatement)
+    {
+      return checkControlFlow(((WhileStatement) statement).getStatement());
     }
     else
     {

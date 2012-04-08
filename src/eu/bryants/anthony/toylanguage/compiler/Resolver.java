@@ -20,6 +20,7 @@ import eu.bryants.anthony.toylanguage.ast.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.Statement;
 import eu.bryants.anthony.toylanguage.ast.Variable;
 import eu.bryants.anthony.toylanguage.ast.VariableExpression;
+import eu.bryants.anthony.toylanguage.ast.WhileStatement;
 
 /*
  * Created on 2 Apr 2012
@@ -62,6 +63,10 @@ public class Resolver
         {
           stack.push(ifStatement.getElseClause());
         }
+      }
+      else if (statement instanceof WhileStatement)
+      {
+        stack.push(((WhileStatement) statement).getStatement());
       }
     }
     return result;
@@ -131,6 +136,12 @@ public class Resolver
     else if (statement instanceof ReturnStatement)
     {
       resolve(((ReturnStatement) statement).getExpression(), enclosingBlock, compilationUnit);
+    }
+    else if (statement instanceof WhileStatement)
+    {
+      WhileStatement whileStatement = (WhileStatement) statement;
+      resolve(whileStatement.getExpression(), enclosingBlock, compilationUnit);
+      resolve(whileStatement.getStatement(), enclosingBlock, compilationUnit);
     }
   }
 

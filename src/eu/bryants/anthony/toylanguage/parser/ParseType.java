@@ -25,6 +25,7 @@ public enum ParseType
   ASSIGN_STATEMENT, // AssignStatement
   IF_STATEMENT,     // IfStatement
   RETURN_STATEMENT, // ReturnStatement
+  WHILE_STATEMENT,  // WhileStatement
   EXPRESSION,       // Expression
   PRIMARY,          // Expression
   FUNCTION_CALL,    // FunctionCallExpression
@@ -50,6 +51,7 @@ public enum ParseType
   ELSE_KEYWORD,
   IF_KEYWORD,
   RETURN_KEYWORD,
+  WHILE_KEYWORD,
 
   ;
 
