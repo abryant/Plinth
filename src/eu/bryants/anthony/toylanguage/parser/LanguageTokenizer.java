@@ -28,12 +28,15 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
   private static final Map<String, ParseType> KEYWORDS = new HashMap<String, ParseType>();
   static
   {
-    KEYWORDS.put("double", ParseType.DOUBLE_KEYWORD);
-    KEYWORDS.put("else",   ParseType.ELSE_KEYWORD);
-    KEYWORDS.put("if",     ParseType.IF_KEYWORD);
-    KEYWORDS.put("int",    ParseType.INT_KEYWORD);
-    KEYWORDS.put("return", ParseType.RETURN_KEYWORD);
-    KEYWORDS.put("while",  ParseType.WHILE_KEYWORD);
+    KEYWORDS.put("boolean", ParseType.BOOLEAN_KEYWORD);
+    KEYWORDS.put("double",  ParseType.DOUBLE_KEYWORD);
+    KEYWORDS.put("else",    ParseType.ELSE_KEYWORD);
+    KEYWORDS.put("false",   ParseType.FALSE_KEYWORD);
+    KEYWORDS.put("if",      ParseType.IF_KEYWORD);
+    KEYWORDS.put("int",     ParseType.INT_KEYWORD);
+    KEYWORDS.put("return",  ParseType.RETURN_KEYWORD);
+    KEYWORDS.put("true",    ParseType.TRUE_KEYWORD);
+    KEYWORDS.put("while",   ParseType.WHILE_KEYWORD);
   }
 
   private RandomAccessReader reader;

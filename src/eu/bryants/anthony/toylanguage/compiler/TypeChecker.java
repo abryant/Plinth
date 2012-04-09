@@ -3,6 +3,7 @@ package eu.bryants.anthony.toylanguage.compiler;
 import eu.bryants.anthony.toylanguage.ast.AdditiveExpression;
 import eu.bryants.anthony.toylanguage.ast.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.Block;
+import eu.bryants.anthony.toylanguage.ast.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Expression;
@@ -60,9 +61,9 @@ public class TypeChecker
     {
       IfStatement ifStatement = (IfStatement) statement;
       Type exprType = checkTypes(ifStatement.getExpression(), compilationUnit);
-      if (!(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.INT)
+      if (!(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
       {
-        throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.INT.name + "', not '" + exprType + "'", exprType.getLexicalPhrase());
+        throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", ifStatement.getExpression().getLexicalPhrase());
       }
       checkTypes(ifStatement.getThenClause(), function, compilationUnit);
       if (ifStatement.getElseClause() != null)
@@ -95,9 +96,9 @@ public class TypeChecker
     {
       WhileStatement whileStatement = (WhileStatement) statement;
       Type exprType = checkTypes(whileStatement.getExpression(), compilationUnit);
-      if (!(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.INT)
+      if (!(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
       {
-        throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.INT.name + "', not '" + exprType + "'", exprType.getLexicalPhrase());
+        throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", whileStatement.getExpression().getLexicalPhrase());
       }
     }
     else
@@ -124,6 +125,10 @@ public class TypeChecker
         }
       }
       throw new ConceptualException("Addition is not defined for types '" + leftType + "' and '" + rightType + "'", additiveExpression.getLexicalPhrase());
+    }
+    else if (expression instanceof BooleanLiteralExpression)
+    {
+      return new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
     }
     else if (expression instanceof BracketedExpression)
     {

@@ -6,6 +6,7 @@ import java.util.Set;
 import eu.bryants.anthony.toylanguage.ast.AdditiveExpression;
 import eu.bryants.anthony.toylanguage.ast.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.Block;
+import eu.bryants.anthony.toylanguage.ast.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Expression;
@@ -139,6 +140,10 @@ public class ControlFlowChecker
       AdditiveExpression additiveExpression = (AdditiveExpression) expression;
       checkUninitializedVariables(additiveExpression.getLeftSubExpression(), initializedVariables);
       checkUninitializedVariables(additiveExpression.getRightSubExpression(), initializedVariables);
+    }
+    else if (expression instanceof BooleanLiteralExpression)
+    {
+      // do nothing
     }
     else if (expression instanceof BracketedExpression)
     {

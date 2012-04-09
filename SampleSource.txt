@@ -1,11 +1,12 @@
 int main(int argc)
 {
+  boolean b = true;
   int x = argc + 0xffffffff;
   int result;
-  if x
+  if true
   {
     double d = 0.1;
-    while x
+    while false
     {
       x = x + 0xffffffff;
       d = d + 0.5;

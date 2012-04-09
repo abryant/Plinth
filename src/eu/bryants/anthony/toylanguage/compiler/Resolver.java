@@ -8,9 +8,11 @@ import java.util.Set;
 import eu.bryants.anthony.toylanguage.ast.AdditiveExpression;
 import eu.bryants.anthony.toylanguage.ast.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.Block;
+import eu.bryants.anthony.toylanguage.ast.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Expression;
+import eu.bryants.anthony.toylanguage.ast.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.IfStatement;
@@ -157,6 +159,10 @@ public class Resolver
       resolve(whileStatement.getExpression(), enclosingBlock, compilationUnit);
       resolve(whileStatement.getStatement(), enclosingBlock, compilationUnit);
     }
+    else
+    {
+      throw new ConceptualException("Internal name resolution error: Unknown statement type", statement.getLexicalPhrase());
+    }
   }
 
   private static void resolve(Expression expression, Block block, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
@@ -166,9 +172,17 @@ public class Resolver
       resolve(((AdditiveExpression) expression).getLeftSubExpression(), block, compilationUnit);
       resolve(((AdditiveExpression) expression).getRightSubExpression(), block, compilationUnit);
     }
+    else if (expression instanceof BooleanLiteralExpression)
+    {
+      // do nothing
+    }
     else if (expression instanceof BracketedExpression)
     {
       resolve(((BracketedExpression) expression).getExpression(), block, compilationUnit);
+    }
+    else if (expression instanceof FloatingLiteralExpression)
+    {
+      // do nothing
     }
     else if (expression instanceof FunctionCallExpression)
     {
@@ -200,6 +214,10 @@ public class Resolver
         throw new NameNotResolvedException("Unable to resolve \"" + expr.getName() + "\"", expr.getLexicalPhrase());
       }
       expr.setResolvedVariable(var);
+    }
+    else
+    {
+      throw new ConceptualException("Internal name resolution error: Unknown expression type", expression.getLexicalPhrase());
     }
   }
 

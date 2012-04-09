@@ -17,6 +17,7 @@ import com.sun.jna.Pointer;
 import eu.bryants.anthony.toylanguage.ast.AdditiveExpression;
 import eu.bryants.anthony.toylanguage.ast.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.Block;
+import eu.bryants.anthony.toylanguage.ast.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Expression;
@@ -104,10 +105,12 @@ public class CodeGenerator
     {
       switch (((PrimitiveType) type).getPrimitiveTypeType())
       {
-      case INT:
-        return LLVM.LLVMInt32Type();
+      case BOOLEAN:
+        return LLVM.LLVMInt1Type();
       case DOUBLE:
         return LLVM.LLVMDoubleType();
+      case INT:
+        return LLVM.LLVMInt32Type();
       }
     }
     throw new IllegalStateException("Unexpected Type: " + type);
@@ -161,10 +164,7 @@ public class CodeGenerator
     else if (statement instanceof IfStatement)
     {
       IfStatement ifStatement = (IfStatement) statement;
-      LLVMValueRef expression = buildExpression(ifStatement.getExpression(), variables);
-      // compare expression to zero to decide which branch to take
-      LLVMValueRef zero = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false);
-      LLVMValueRef conditional = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntNE, expression, zero, "");
+      LLVMValueRef conditional = buildExpression(ifStatement.getExpression(), variables);
 
       LLVMBasicBlockRef thenClause = LLVM.LLVMAppendBasicBlock(llvmFunction, "then");
       LLVMBasicBlockRef elseClause = null;
@@ -237,10 +237,7 @@ public class CodeGenerator
       LLVM.LLVMBuildBr(builder, loopCheck);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, loopCheck);
-      LLVMValueRef expression = buildExpression(whileStatement.getExpression(), variables);
-      // compare expression to zero to decide which branch to take
-      LLVMValueRef zero = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false);
-      LLVMValueRef conditional = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntNE, expression, zero, "");
+      LLVMValueRef conditional = buildExpression(whileStatement.getExpression(), variables);
 
       LLVMBasicBlockRef loopBodyBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "loopBody");
       LLVMBasicBlockRef afterLoopBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "afterLoop");
@@ -266,6 +263,10 @@ public class CodeGenerator
       LLVMValueRef left = buildExpression(additiveExpression.getLeftSubExpression(), variables);
       LLVMValueRef right = buildExpression(additiveExpression.getRightSubExpression(), variables);
       return LLVM.LLVMBuildAdd(builder, left, right, "");
+    }
+    if (expression instanceof BooleanLiteralExpression)
+    {
+      return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), ((BooleanLiteralExpression) expression).getValue() ? 1 : 0, false);
     }
     if (expression instanceof BracketedExpression)
     {

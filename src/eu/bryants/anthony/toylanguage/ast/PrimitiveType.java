@@ -17,8 +17,9 @@ public class PrimitiveType extends Type
    */
   public enum PrimitiveTypeType
   {
-    INT("int"),
+    BOOLEAN("boolean"),
     DOUBLE("double"),
+    INT("int"),
     ;
 
     public final String name;

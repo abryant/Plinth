@@ -3,6 +3,7 @@ package eu.bryants.anthony.toylanguage.parser.rules;
 import parser.ParseException;
 import parser.Production;
 import parser.Rule;
+import eu.bryants.anthony.toylanguage.ast.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.Expression;
 import eu.bryants.anthony.toylanguage.ast.FloatingLiteral;
@@ -27,9 +28,11 @@ public class PrimaryRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static Production<ParseType> VARIABLE_PRODUCTION = new Production<ParseType>(ParseType.NAME);
-  private static Production<ParseType> INTEGER_PRODUCTION = new Production<ParseType>(ParseType.INTEGER_LITERAL);
+  private static Production<ParseType> TRUE_PRODUCTION = new Production<ParseType>(ParseType.TRUE_KEYWORD);
+  private static Production<ParseType> FALSE_PRODUCTION = new Production<ParseType>(ParseType.FALSE_KEYWORD);
   private static Production<ParseType> FLOATING_PRODUCTION = new Production<ParseType>(ParseType.FLOATING_LITERAL);
+  private static Production<ParseType> INTEGER_PRODUCTION = new Production<ParseType>(ParseType.INTEGER_LITERAL);
+  private static Production<ParseType> VARIABLE_PRODUCTION = new Production<ParseType>(ParseType.NAME);
   private static Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.NAME, ParseType.LPAREN, ParseType.ARGUMENTS, ParseType.RPAREN);
   private static Production<ParseType> FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION = new Production<ParseType>(ParseType.NAME, ParseType.LPAREN, ParseType.RPAREN);
   private static Production<ParseType> BRACKETS_PRODUCTION =  new Production<ParseType>(ParseType.LPAREN, ParseType.EXPRESSION, ParseType.RPAREN);
@@ -37,7 +40,7 @@ public class PrimaryRule extends Rule<ParseType>
   @SuppressWarnings("unchecked")
   public PrimaryRule()
   {
-    super(ParseType.PRIMARY, VARIABLE_PRODUCTION, INTEGER_PRODUCTION, FLOATING_PRODUCTION, FUNCTION_CALL_PRODUCTION, FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION, BRACKETS_PRODUCTION);
+    super(ParseType.PRIMARY, TRUE_PRODUCTION, FALSE_PRODUCTION, FLOATING_PRODUCTION, INTEGER_PRODUCTION, VARIABLE_PRODUCTION, FUNCTION_CALL_PRODUCTION, FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION, BRACKETS_PRODUCTION);
   }
 
   /**
@@ -46,20 +49,28 @@ public class PrimaryRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == VARIABLE_PRODUCTION)
+    if (production == TRUE_PRODUCTION)
     {
-      Name name = (Name) args[0];
-      return new VariableExpression(name.getName(), name.getLexicalPhrase());
+      return new BooleanLiteralExpression(true, (LexicalPhrase) args[0]);
+    }
+    if (production == FALSE_PRODUCTION)
+    {
+      return new BooleanLiteralExpression(false, (LexicalPhrase) args[0]);
+    }
+    if (production == FLOATING_PRODUCTION)
+    {
+      FloatingLiteral literal = (FloatingLiteral) args[0];
+      return new FloatingLiteralExpression(literal, literal.getLexicalPhrase());
     }
     if (production == INTEGER_PRODUCTION)
     {
       IntegerLiteral literal = (IntegerLiteral) args[0];
       return new IntegerLiteralExpression(literal, literal.getLexicalPhrase());
     }
-    if (production == FLOATING_PRODUCTION)
+    if (production == VARIABLE_PRODUCTION)
     {
-      FloatingLiteral literal = (FloatingLiteral) args[0];
-      return new FloatingLiteralExpression(literal, literal.getLexicalPhrase());
+      Name name = (Name) args[0];
+      return new VariableExpression(name.getName(), name.getLexicalPhrase());
     }
     if (production == FUNCTION_CALL_PRODUCTION)
     {

@@ -19,13 +19,14 @@ public class TypeRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> INT_PRODUCTION = new Production<ParseType>(ParseType.INT_KEYWORD);
+  private static final Production<ParseType> BOOLEAN_PRODUCTION = new Production<ParseType>(ParseType.BOOLEAN_KEYWORD);
   private static final Production<ParseType> DOUBLE_PRODUCTION = new Production<ParseType>(ParseType.DOUBLE_KEYWORD);
+  private static final Production<ParseType> INT_PRODUCTION = new Production<ParseType>(ParseType.INT_KEYWORD);
 
   @SuppressWarnings("unchecked")
   public TypeRule()
   {
-    super(ParseType.TYPE, INT_PRODUCTION, DOUBLE_PRODUCTION);
+    super(ParseType.TYPE, BOOLEAN_PRODUCTION, DOUBLE_PRODUCTION, INT_PRODUCTION);
   }
 
   /**
@@ -34,13 +35,17 @@ public class TypeRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == INT_PRODUCTION)
+    if (production == BOOLEAN_PRODUCTION)
     {
-      return new PrimitiveType(PrimitiveTypeType.INT, (LexicalPhrase) args[0]);
+      return new PrimitiveType(PrimitiveTypeType.BOOLEAN, (LexicalPhrase) args[0]);
     }
     if (production == DOUBLE_PRODUCTION)
     {
       return new PrimitiveType(PrimitiveTypeType.DOUBLE, (LexicalPhrase) args[0]);
+    }
+    if (production == INT_PRODUCTION)
+    {
+      return new PrimitiveType(PrimitiveTypeType.INT, (LexicalPhrase) args[0]);
     }
     throw badTypeList();
   }

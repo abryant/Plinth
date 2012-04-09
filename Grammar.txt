@@ -16,8 +16,11 @@ ReturnStatement = ReturnKeyword Expression Semicolon
 VariableDefinition = Type Name Semicolon | Type Name Equals Expression Semicolon
 WhileStatement = WhileKeyword Expression Block
 
-Type = IntKeyword | DoubleKeyword
+Type = BooleanKeyword | DoubleKeyword | IntKeyword
 
 Expression = Primary | Expression Plus Primary
-Primary = Name | IntegerLiteral | DoubleLiteral | Name LParen Arguments RParen | Name LParen RParen | LParen Expression RParen
+Primary = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword |
+          Name |
+          Name LParen Arguments RParen | Name LParen RParen |
+          LParen Expression RParen
 Arguments = Expression | Arguments Comma Expression

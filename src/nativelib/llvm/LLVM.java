@@ -83,6 +83,7 @@ public class LLVM
 
   public static native LLVMTypeRef LLVMFunctionType(LLVMTypeRef returnType, Pointer paramTypes, int paramCount, boolean isVarArg);
   public static native LLVMTypeRef LLVMDoubleType();
+  public static native LLVMTypeRef LLVMInt1Type();
   public static native LLVMTypeRef LLVMInt32Type();
   public static native LLVMTypeRef LLVMIntType(int bits);
 

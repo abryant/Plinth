@@ -51,11 +51,14 @@ public enum ParseType
   SEMICOLON,
 
   // keywords (values for these should all be LexicalPhrase)
+  BOOLEAN_KEYWORD,
   DOUBLE_KEYWORD,
   ELSE_KEYWORD,
+  FALSE_KEYWORD,
   IF_KEYWORD,
   INT_KEYWORD,
   RETURN_KEYWORD,
+  TRUE_KEYWORD,
   WHILE_KEYWORD,
 
   ;
