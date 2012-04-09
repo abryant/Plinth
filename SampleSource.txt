@@ -1,7 +1,7 @@
 int main(int argc)
 {
   boolean b = true;
-  int x = argc + 0xffffffff;
+  int x = argc - 1;
   int result;
   if true
   {

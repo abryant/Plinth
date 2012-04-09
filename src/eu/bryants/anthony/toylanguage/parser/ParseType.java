@@ -45,6 +45,7 @@ public enum ParseType
   EQUALS,
   LBRACE,
   LPAREN,
+  MINUS,
   PLUS,
   RBRACE,
   RPAREN,

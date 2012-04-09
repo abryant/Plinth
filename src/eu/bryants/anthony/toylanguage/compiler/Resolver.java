@@ -8,13 +8,14 @@ import java.util.Set;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
-import eu.bryants.anthony.toylanguage.ast.expression.AdditiveExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.AdditionExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.SubtractionExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
@@ -167,10 +168,10 @@ public class Resolver
 
   private static void resolve(Expression expression, Block block, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
-    if (expression instanceof AdditiveExpression)
+    if (expression instanceof AdditionExpression)
     {
-      resolve(((AdditiveExpression) expression).getLeftSubExpression(), block, compilationUnit);
-      resolve(((AdditiveExpression) expression).getRightSubExpression(), block, compilationUnit);
+      resolve(((AdditionExpression) expression).getLeftSubExpression(), block, compilationUnit);
+      resolve(((AdditionExpression) expression).getRightSubExpression(), block, compilationUnit);
     }
     else if (expression instanceof BooleanLiteralExpression)
     {
@@ -204,6 +205,11 @@ public class Resolver
     else if (expression instanceof IntegerLiteralExpression)
     {
       // do nothing
+    }
+    else if (expression instanceof SubtractionExpression)
+    {
+      resolve(((SubtractionExpression) expression).getLeftSubExpression(), block, compilationUnit);
+      resolve(((SubtractionExpression) expression).getRightSubExpression(), block, compilationUnit);
     }
     else if (expression instanceof VariableExpression)
     {

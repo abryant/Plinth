@@ -510,6 +510,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     {
       return makeSymbolToken(ParseType.LPAREN, 1);
     }
+    if (nextChar == '-')
+    {
+      return makeSymbolToken(ParseType.MINUS, 1);
+    }
     if (nextChar == '+')
     {
       return makeSymbolToken(ParseType.PLUS, 1);

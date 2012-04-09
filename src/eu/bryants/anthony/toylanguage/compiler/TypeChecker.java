@@ -3,13 +3,14 @@ package eu.bryants.anthony.toylanguage.compiler;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
-import eu.bryants.anthony.toylanguage.ast.expression.AdditiveExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.AdditionExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.SubtractionExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
@@ -19,8 +20,8 @@ import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.VariableDefinition;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
-import eu.bryants.anthony.toylanguage.ast.type.Type;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
+import eu.bryants.anthony.toylanguage.ast.type.Type;
 
 /*
  * Created on 8 Apr 2012
@@ -109,11 +110,11 @@ public class TypeChecker
 
   private static Type checkTypes(Expression expression, CompilationUnit compilationUnit) throws ConceptualException
   {
-    if (expression instanceof AdditiveExpression)
+    if (expression instanceof AdditionExpression)
     {
-      AdditiveExpression additiveExpression = (AdditiveExpression) expression;
-      Type leftType = checkTypes(additiveExpression.getLeftSubExpression(), compilationUnit);
-      Type rightType = checkTypes(additiveExpression.getRightSubExpression(), compilationUnit);
+      AdditionExpression additionExpression = (AdditionExpression) expression;
+      Type leftType = checkTypes(additionExpression.getLeftSubExpression(), compilationUnit);
+      Type rightType = checkTypes(additionExpression.getRightSubExpression(), compilationUnit);
       if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType))
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
@@ -124,7 +125,7 @@ public class TypeChecker
           return leftType;
         }
       }
-      throw new ConceptualException("Addition is not defined for types '" + leftType + "' and '" + rightType + "'", additiveExpression.getLexicalPhrase());
+      throw new ConceptualException("Addition is not defined for types '" + leftType + "' and '" + rightType + "'", additionExpression.getLexicalPhrase());
     }
     else if (expression instanceof BooleanLiteralExpression)
     {
@@ -161,6 +162,23 @@ public class TypeChecker
     else if (expression instanceof IntegerLiteralExpression)
     {
       return new PrimitiveType(PrimitiveTypeType.INT, null);
+    }
+    else if (expression instanceof SubtractionExpression)
+    {
+      SubtractionExpression subtractionExpression = (SubtractionExpression) expression;
+      Type leftType = checkTypes(subtractionExpression.getLeftSubExpression(), compilationUnit);
+      Type rightType = checkTypes(subtractionExpression.getRightSubExpression(), compilationUnit);
+      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType))
+      {
+        PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
+        PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
+        if (leftPrimitiveType == PrimitiveTypeType.INT    && rightPrimitiveType == PrimitiveTypeType.INT ||
+            leftPrimitiveType == PrimitiveTypeType.DOUBLE && rightPrimitiveType == PrimitiveTypeType.DOUBLE)
+        {
+          return leftType;
+        }
+      }
+      throw new ConceptualException("Subtraction is not defined for types '" + leftType + "' and '" + rightType + "'", subtractionExpression.getLexicalPhrase());
     }
     else if (expression instanceof VariableExpression)
     {

@@ -17,13 +17,14 @@ import com.sun.jna.Pointer;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
-import eu.bryants.anthony.toylanguage.ast.expression.AdditiveExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.AdditionExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.SubtractionExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
@@ -257,11 +258,11 @@ public class CodeGenerator
 
   private LLVMValueRef buildExpression(Expression expression, Map<Variable, LLVMValueRef> variables)
   {
-    if (expression instanceof AdditiveExpression)
+    if (expression instanceof AdditionExpression)
     {
-      AdditiveExpression additiveExpression = (AdditiveExpression) expression;
-      LLVMValueRef left = buildExpression(additiveExpression.getLeftSubExpression(), variables);
-      LLVMValueRef right = buildExpression(additiveExpression.getRightSubExpression(), variables);
+      AdditionExpression additionExpression = (AdditionExpression) expression;
+      LLVMValueRef left = buildExpression(additionExpression.getLeftSubExpression(), variables);
+      LLVMValueRef right = buildExpression(additionExpression.getRightSubExpression(), variables);
       return LLVM.LLVMBuildAdd(builder, left, right, "");
     }
     if (expression instanceof BooleanLiteralExpression)
@@ -294,6 +295,13 @@ public class CodeGenerator
     {
       int n = ((IntegerLiteralExpression) expression).getLiteral().getValue().intValue();
       return LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), n, false);
+    }
+    if (expression instanceof SubtractionExpression)
+    {
+      SubtractionExpression subtractionExpression = (SubtractionExpression) expression;
+      LLVMValueRef left = buildExpression(subtractionExpression.getLeftSubExpression(), variables);
+      LLVMValueRef right = buildExpression(subtractionExpression.getRightSubExpression(), variables);
+      return LLVM.LLVMBuildSub(builder, left, right, "");
     }
     if (expression instanceof VariableExpression)
     {
