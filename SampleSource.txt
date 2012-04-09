@@ -1,6 +1,7 @@
 int main(int argc)
 {
   int x = argc + 0xffffffff;
+  int result;
   if x
   {
     double d = 0.1;
@@ -9,12 +10,13 @@ int main(int argc)
       x = x + 0xffffffff;
       d = d + 0.5;
     }
-    return x;
+    result = x;
   }
   else
   {
-    return doubleAdd(5, 2);
+    result = doubleAdd(5, 2);
   }
+  return result;
 }
 
 double foo(double x, double y)
