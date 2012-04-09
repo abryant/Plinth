@@ -3,21 +3,21 @@ package eu.bryants.anthony.toylanguage.parser;
 import parser.Rule;
 import parser.lalr.LALRRuleSet;
 import eu.bryants.anthony.toylanguage.parser.rules.ArgumentsRule;
-import eu.bryants.anthony.toylanguage.parser.rules.AssignStatementRule;
-import eu.bryants.anthony.toylanguage.parser.rules.BlockRule;
 import eu.bryants.anthony.toylanguage.parser.rules.CompilationUnitRule;
-import eu.bryants.anthony.toylanguage.parser.rules.ExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.FunctionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.FunctionsRule;
-import eu.bryants.anthony.toylanguage.parser.rules.IfStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.ParametersRule;
-import eu.bryants.anthony.toylanguage.parser.rules.PrimaryRule;
-import eu.bryants.anthony.toylanguage.parser.rules.ReturnStatementRule;
-import eu.bryants.anthony.toylanguage.parser.rules.StatementRule;
-import eu.bryants.anthony.toylanguage.parser.rules.StatementsRule;
-import eu.bryants.anthony.toylanguage.parser.rules.TypeRule;
-import eu.bryants.anthony.toylanguage.parser.rules.VariableDefinitionRule;
-import eu.bryants.anthony.toylanguage.parser.rules.WhileStatementRule;
+import eu.bryants.anthony.toylanguage.parser.rules.expression.ExpressionRule;
+import eu.bryants.anthony.toylanguage.parser.rules.expression.PrimaryRule;
+import eu.bryants.anthony.toylanguage.parser.rules.statement.AssignStatementRule;
+import eu.bryants.anthony.toylanguage.parser.rules.statement.BlockRule;
+import eu.bryants.anthony.toylanguage.parser.rules.statement.IfStatementRule;
+import eu.bryants.anthony.toylanguage.parser.rules.statement.ReturnStatementRule;
+import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementRule;
+import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementsRule;
+import eu.bryants.anthony.toylanguage.parser.rules.statement.VariableDefinitionRule;
+import eu.bryants.anthony.toylanguage.parser.rules.statement.WhileStatementRule;
+import eu.bryants.anthony.toylanguage.parser.rules.type.TypeRule;
 
 /*
  * Created on 2 Apr 2012
@@ -33,22 +33,29 @@ public class ToyLanguageRules
   @SuppressWarnings("rawtypes")
   public static final Rule[] RULES = new Rule[]
   {
-    new ArgumentsRule(),
+    // expression
+    new ExpressionRule(),
+    new PrimaryRule(),
+
+    // statement
     new AssignStatementRule(),
     new BlockRule(),
-    // startRule does not need to be included here: new CompilationUnitRule(),
-    new ExpressionRule(),
-    new FunctionRule(),
-    new FunctionsRule(),
     new IfStatementRule(),
-    new ParametersRule(),
-    new PrimaryRule(),
     new ReturnStatementRule(),
     new StatementRule(),
     new StatementsRule(),
-    new TypeRule(),
     new VariableDefinitionRule(),
     new WhileStatementRule(),
+
+    // type
+    new TypeRule(),
+
+    // top level
+    new ArgumentsRule(),
+    // startRule does not need to be included here: new CompilationUnitRule(),
+    new FunctionRule(),
+    new FunctionsRule(),
+    new ParametersRule(),
   };
 
   @SuppressWarnings("unchecked")

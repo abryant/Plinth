@@ -1,6 +1,6 @@
 package eu.bryants.anthony.toylanguage.ast.metadata;
 
-import eu.bryants.anthony.toylanguage.ast.Type;
+import eu.bryants.anthony.toylanguage.ast.type.Type;
 
 /*
  * Created on 6 Apr 2012

@@ -3,7 +3,7 @@ package eu.bryants.anthony.toylanguage.parser.rules;
 import parser.ParseException;
 import parser.Production;
 import parser.Rule;
-import eu.bryants.anthony.toylanguage.ast.Expression;
+import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.parser.ParseList;
 import eu.bryants.anthony.toylanguage.parser.ParseType;

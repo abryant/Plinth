@@ -14,27 +14,27 @@ import nativelib.llvm.LLVM.LLVMValueRef;
 
 import com.sun.jna.Pointer;
 
-import eu.bryants.anthony.toylanguage.ast.AdditiveExpression;
-import eu.bryants.anthony.toylanguage.ast.AssignStatement;
-import eu.bryants.anthony.toylanguage.ast.Block;
-import eu.bryants.anthony.toylanguage.ast.BooleanLiteralExpression;
-import eu.bryants.anthony.toylanguage.ast.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
-import eu.bryants.anthony.toylanguage.ast.Expression;
-import eu.bryants.anthony.toylanguage.ast.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.Function;
-import eu.bryants.anthony.toylanguage.ast.FunctionCallExpression;
-import eu.bryants.anthony.toylanguage.ast.IfStatement;
-import eu.bryants.anthony.toylanguage.ast.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
-import eu.bryants.anthony.toylanguage.ast.PrimitiveType;
-import eu.bryants.anthony.toylanguage.ast.ReturnStatement;
-import eu.bryants.anthony.toylanguage.ast.Statement;
-import eu.bryants.anthony.toylanguage.ast.Type;
-import eu.bryants.anthony.toylanguage.ast.VariableDefinition;
-import eu.bryants.anthony.toylanguage.ast.VariableExpression;
-import eu.bryants.anthony.toylanguage.ast.WhileStatement;
+import eu.bryants.anthony.toylanguage.ast.expression.AdditiveExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.Expression;
+import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
+import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.Block;
+import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.Statement;
+import eu.bryants.anthony.toylanguage.ast.statement.VariableDefinition;
+import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
+import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
+import eu.bryants.anthony.toylanguage.ast.type.Type;
 
 /*
  * Created on 5 Apr 2012

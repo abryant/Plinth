@@ -10,9 +10,9 @@ import java.util.Map;
 import parser.ParseException;
 import parser.Token;
 import parser.Tokenizer;
-import eu.bryants.anthony.toylanguage.ast.FloatingLiteral;
-import eu.bryants.anthony.toylanguage.ast.IntegerLiteral;
-import eu.bryants.anthony.toylanguage.ast.Name;
+import eu.bryants.anthony.toylanguage.ast.terminal.FloatingLiteral;
+import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
+import eu.bryants.anthony.toylanguage.ast.terminal.Name;
 
 /*
  * Created on 30 Jun 2010
