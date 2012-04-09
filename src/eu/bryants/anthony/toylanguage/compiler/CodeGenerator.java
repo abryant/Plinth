@@ -218,13 +218,16 @@ public class CodeGenerator
     else if (statement instanceof VariableDefinition)
     {
       VariableDefinition definition = (VariableDefinition) statement;
-      LLVMValueRef value = buildExpression(definition.getExpression(), variables);
-      LLVMValueRef allocaInst = variables.get(definition.getVariable());
-      if (allocaInst == null)
+      if (definition.getExpression() != null)
       {
-        throw new IllegalStateException("Missing LLVMValueRef in variable Map: " + definition.getName().getName());
+        LLVMValueRef allocaInst = variables.get(definition.getVariable());
+        if (allocaInst == null)
+        {
+          throw new IllegalStateException("Missing LLVMValueRef in variable Map: " + definition.getName().getName());
+        }
+        LLVMValueRef value = buildExpression(definition.getExpression(), variables);
+        LLVM.LLVMBuildStore(builder, value, allocaInst);
       }
-      LLVM.LLVMBuildStore(builder, value, allocaInst);
     }
     else if (statement instanceof WhileStatement)
     {
@@ -268,7 +271,7 @@ public class CodeGenerator
     {
       return buildExpression(((BracketedExpression) expression).getExpression(), variables);
     }
-    else if (expression instanceof FloatingLiteralExpression)
+    if (expression instanceof FloatingLiteralExpression)
     {
       double value = Double.parseDouble(((FloatingLiteralExpression) expression).getLiteral().toString());
       return LLVM.LLVMConstReal(LLVM.LLVMDoubleType(), value);
