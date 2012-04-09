@@ -1,5 +1,6 @@
 package eu.bryants.anthony.toylanguage.ast;
 
+import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
@@ -11,12 +12,12 @@ import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
  */
 public class AssignStatement extends Statement
 {
-  private String variableName;
+  private Name variableName;
   private Expression expression;
 
   private Variable resolvedVariable;
 
-  public AssignStatement(String variableName, Expression expression, LexicalPhrase lexicalPhrase)
+  public AssignStatement(Name variableName, Expression expression, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.variableName = variableName;
@@ -26,7 +27,7 @@ public class AssignStatement extends Statement
   /**
    * @return the variableName
    */
-  public String getVariableName()
+  public Name getVariableName()
   {
     return variableName;
   }

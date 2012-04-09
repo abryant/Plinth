@@ -67,6 +67,7 @@ public class LLVM
   public static native LLVMValueRef LLVMBuildRet(LLVMBuilderRef builder, LLVMValueRef value);
 
   public static native LLVMValueRef LLVMConstInt(LLVMTypeRef type, long n, boolean signExtend);
+  public static native LLVMValueRef LLVMConstReal(LLVMTypeRef type, double n);
 
   public static native LLVMModuleRef LLVMModuleCreateWithName(String name);
   public static native LLVMValueRef LLVMAddFunction(LLVMModuleRef module, String name, LLVMTypeRef type);
@@ -81,7 +82,9 @@ public class LLVM
   public static native LLVMValueRef LLVMGetParam(LLVMValueRef function, int index);
 
   public static native LLVMTypeRef LLVMFunctionType(LLVMTypeRef returnType, Pointer paramTypes, int paramCount, boolean isVarArg);
+  public static native LLVMTypeRef LLVMDoubleType();
   public static native LLVMTypeRef LLVMInt32Type();
+  public static native LLVMTypeRef LLVMIntType(int bits);
 
   public static native int LLVMWriteBitcodeToFile(LLVMModuleRef module, String path);
 

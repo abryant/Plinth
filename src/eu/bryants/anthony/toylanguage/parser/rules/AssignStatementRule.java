@@ -38,8 +38,8 @@ public class AssignStatementRule extends Rule<ParseType>
     {
       Name name = (Name) args[0];
       Expression expression = (Expression) args[2];
-      return new AssignStatement(name.getName(), expression,
-                                     LexicalPhrase.combine(name.getLexicalPhrase(), (LexicalPhrase) args[1], expression.getLexicalPhrase(), (LexicalPhrase) args[3]));
+      return new AssignStatement(name, expression,
+                                 LexicalPhrase.combine(name.getLexicalPhrase(), (LexicalPhrase) args[1], expression.getLexicalPhrase(), (LexicalPhrase) args[3]));
     }
     throw badTypeList();
   }

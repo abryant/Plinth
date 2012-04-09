@@ -101,8 +101,9 @@ public class Compiler
 
     try
     {
-      Checker.checkControlFlow(compilationUnit);
       Resolver.resolve(compilationUnit);
+      ControlFlowChecker.checkControlFlow(compilationUnit);
+      TypeChecker.checkTypes(compilationUnit);
     }
     catch (ConceptualException e)
     {

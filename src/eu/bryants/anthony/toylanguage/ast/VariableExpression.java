@@ -1,5 +1,6 @@
 package eu.bryants.anthony.toylanguage.ast;
 
+import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*

@@ -7,6 +7,7 @@ import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.Statement;
+import eu.bryants.anthony.toylanguage.ast.VariableDefinition;
 import eu.bryants.anthony.toylanguage.ast.WhileStatement;
 
 /*
@@ -16,7 +17,7 @@ import eu.bryants.anthony.toylanguage.ast.WhileStatement;
 /**
  * @author Anthony Bryant
  */
-public class Checker
+public class ControlFlowChecker
 {
   /**
    * Checks that the control flow of the specified compilation unit is well defined.
@@ -76,13 +77,14 @@ public class Checker
     {
       return true;
     }
+    else if (statement instanceof VariableDefinition)
+    {
+      return false;
+    }
     else if (statement instanceof WhileStatement)
     {
       return checkControlFlow(((WhileStatement) statement).getStatement());
     }
-    else
-    {
-      throw new ConceptualException("Internal control flow checking error: Unknown statement type", statement.getLexicalPhrase());
-    }
+    throw new ConceptualException("Internal control flow checking error: Unknown statement type", statement.getLexicalPhrase());
   }
 }

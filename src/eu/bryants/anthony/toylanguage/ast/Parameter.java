@@ -1,5 +1,6 @@
 package eu.bryants.anthony.toylanguage.ast;
 
+import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
@@ -9,15 +10,54 @@ import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 /**
  * @author Anthony Bryant
  */
-public class Parameter extends Variable
+public class Parameter
 {
-  private int index;
+  private Type type;
+  private String name;
   private LexicalPhrase lexicalPhrase;
 
-  public Parameter(String name, LexicalPhrase lexicalPhrase)
+  private Variable variable;
+  private int index;
+
+  public Parameter(Type type, String name, LexicalPhrase lexicalPhrase)
   {
-    super(name);
+    this.type = type;
+    this.name = name;
     this.lexicalPhrase = lexicalPhrase;
+
+    variable = new Variable(type, name);
+  }
+
+  /**
+   * @return the type
+   */
+  public Type getType()
+  {
+    return type;
+  }
+
+  /**
+   * @return the name
+   */
+  public String getName()
+  {
+    return name;
+  }
+
+  /**
+   * @return the lexicalPhrase
+   */
+  public LexicalPhrase getLexicalPhrase()
+  {
+    return lexicalPhrase;
+  }
+
+  /**
+   * @return the variable
+   */
+  public Variable getVariable()
+  {
+    return variable;
   }
 
   /**
@@ -36,17 +76,9 @@ public class Parameter extends Variable
     this.index = index;
   }
 
-  /**
-   * @return the lexicalPhrase
-   */
-  public LexicalPhrase getLexicalPhrase()
-  {
-    return lexicalPhrase;
-  }
-
   @Override
   public String toString()
   {
-    return getName();
+    return type + " " + name;
   }
 }

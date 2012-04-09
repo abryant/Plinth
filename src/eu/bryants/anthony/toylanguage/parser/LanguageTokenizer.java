@@ -10,6 +10,7 @@ import java.util.Map;
 import parser.ParseException;
 import parser.Token;
 import parser.Tokenizer;
+import eu.bryants.anthony.toylanguage.ast.FloatingLiteral;
 import eu.bryants.anthony.toylanguage.ast.IntegerLiteral;
 import eu.bryants.anthony.toylanguage.ast.Name;
 
@@ -27,8 +28,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
   private static final Map<String, ParseType> KEYWORDS = new HashMap<String, ParseType>();
   static
   {
+    KEYWORDS.put("double", ParseType.DOUBLE_KEYWORD);
     KEYWORDS.put("else",   ParseType.ELSE_KEYWORD);
     KEYWORDS.put("if",     ParseType.IF_KEYWORD);
+    KEYWORDS.put("int",    ParseType.INT_KEYWORD);
     KEYWORDS.put("return", ParseType.RETURN_KEYWORD);
     KEYWORDS.put("while",  ParseType.WHILE_KEYWORD);
   }
@@ -210,7 +213,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
    * @throws IOException - if an error occurs while reading from the stream
    * @throws LanguageParseException - if an invalid character sequence is detected
    */
-  private Token<ParseType> readName() throws IOException, LanguageParseException
+  private Token<ParseType> readNameOrKeyword() throws IOException, LanguageParseException
   {
     int nextChar = reader.read(0);
     if (nextChar < 0 || (!Character.isLetter(nextChar) && nextChar != '_'))
@@ -365,6 +368,113 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     return null;
   }
 
+
+  /**
+   * Reads a floating literal from the start of the reader.
+   * This method assumes that all whitespace and comments have just been discarded,
+   * and the currentLine and currentColumn are up to date.
+   * @return a Token read from the input stream, or null if no Token could be read
+   * @throws IOException - if an error occurs while reading from the stream
+   */
+  private Token<ParseType> readFloatingLiteral() throws IOException
+  {
+    int nextChar;
+    int index = 0;
+    StringBuffer buffer = new StringBuffer();
+    boolean hasInitialNumber = false;
+    while (true)
+    {
+      nextChar = reader.read(index);
+      int digitValue = Character.digit(nextChar, 10);
+      if (digitValue < 0)
+      {
+        // we do not have a digit in the range 0-9
+        break;
+      }
+      hasInitialNumber = true;
+      buffer.append((char) nextChar);
+      index++;
+    }
+    boolean hasFractionalPart = false;
+    if (nextChar == '.')
+    {
+      buffer.append('.');
+      index++;
+
+      while (true)
+      {
+        nextChar = reader.read(index);
+        int digitValue = Character.digit(nextChar, 10);
+        if (digitValue < 0)
+        {
+          // we do not have a digit in the range 0-9
+          if (!hasFractionalPart)
+          {
+            // there is no fractional part to this number, so it is not a valid floating point literal
+            return null;
+          }
+          break;
+        }
+        hasFractionalPart = true;
+        buffer.append((char) nextChar);
+        index++;
+      }
+    }
+
+    boolean hasExponent = false;
+    if (nextChar == 'e' || nextChar == 'E')
+    {
+      int indexBeforeExponent = index;
+
+      StringBuffer exponentialBuffer = new StringBuffer();
+      exponentialBuffer.append((char) nextChar);
+      index++;
+
+      nextChar = reader.read(index);
+      if (nextChar == '+' || nextChar == '-')
+      {
+        exponentialBuffer.append((char) nextChar);
+        index++;
+      }
+
+      while (true)
+      {
+        nextChar = reader.read(index);
+        int digitValue = Character.digit(nextChar, 10);
+        if (digitValue < 0)
+        {
+          // we do not have a digit in the range 0-9
+          break;
+        }
+        hasExponent = true;
+        exponentialBuffer.append((char) nextChar);
+        index++;
+      }
+      // only add the exponent if it all exists
+      if (hasExponent)
+      {
+        buffer.append(exponentialBuffer);
+      }
+      else
+      {
+        index = indexBeforeExponent;
+      }
+    }
+
+    if (hasFractionalPart || (hasInitialNumber && hasExponent))
+    {
+      String floatingPointText = buffer.toString();
+      reader.discard(index);
+      currentColumn += index;
+      FloatingLiteral literal = new FloatingLiteral(floatingPointText, new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
+      return new Token<ParseType>(ParseType.FLOATING_LITERAL, literal);
+    }
+
+    // there was no valid floating literal, so do not return a Token
+    return null;
+  }
+
+
   /**
    * Reads a symbol token from the start of the reader.
    * This method assumes that all whitespace and comments have just been discarded,
@@ -442,7 +552,12 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     {
       skipWhitespaceAndComments();
 
-      Token<ParseType> token = readName();
+      Token<ParseType> token = readNameOrKeyword();
+      if (token != null)
+      {
+        return token;
+      }
+      token = readFloatingLiteral();
       if (token != null)
       {
         return token;

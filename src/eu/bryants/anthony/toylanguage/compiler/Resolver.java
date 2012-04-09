@@ -18,9 +18,10 @@ import eu.bryants.anthony.toylanguage.ast.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.Statement;
-import eu.bryants.anthony.toylanguage.ast.Variable;
+import eu.bryants.anthony.toylanguage.ast.VariableDefinition;
 import eu.bryants.anthony.toylanguage.ast.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.WhileStatement;
+import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 
 /*
  * Created on 2 Apr 2012
@@ -85,7 +86,7 @@ public class Resolver
     Block mainBlock = function.getBlock();
     for (Parameter p : function.getParameters())
     {
-      Variable oldVar = mainBlock.addVariable(p);
+      Variable oldVar = mainBlock.addVariable(p.getVariable());
       if (oldVar != null)
       {
         throw new ConceptualException("Duplicate parameter: " + p.getName(), p.getLexicalPhrase());
@@ -103,11 +104,10 @@ public class Resolver
     {
       AssignStatement assign = (AssignStatement) statement;
       resolve(assign.getExpression(), enclosingBlock, compilationUnit);
-      Variable variable = enclosingBlock.getVariable(assign.getVariableName());
+      Variable variable = enclosingBlock.getVariable(assign.getVariableName().getName());
       if (variable == null)
       {
-        variable = new Variable(assign.getVariableName());
-        enclosingBlock.addVariable(variable);
+        throw new NameNotResolvedException("Unable to resolve: " + assign.getVariableName(), assign.getVariableName().getLexicalPhrase());
       }
       assign.setResolvedVariable(variable);
     }
@@ -136,6 +136,20 @@ public class Resolver
     else if (statement instanceof ReturnStatement)
     {
       resolve(((ReturnStatement) statement).getExpression(), enclosingBlock, compilationUnit);
+    }
+    else if (statement instanceof VariableDefinition)
+    {
+      VariableDefinition definition = (VariableDefinition) statement;
+      Variable variable = enclosingBlock.getVariable(definition.getName().getName());
+      if (variable != null)
+      {
+        throw new NameNotResolvedException("Variable already defined: " + definition.getName().getName(), definition.getName().getLexicalPhrase());
+      }
+      enclosingBlock.addVariable(definition.getVariable());
+      if (definition.getExpression() != null)
+      {
+        resolve(definition.getExpression(), enclosingBlock, compilationUnit);
+      }
     }
     else if (statement instanceof WhileStatement)
     {

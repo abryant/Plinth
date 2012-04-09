@@ -14,6 +14,7 @@ import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
  */
 public class Function
 {
+  private Type type;
   private String name;
   private Parameter[] parameters;
   private Map<String, Parameter> parametersByName = new HashMap<String, Parameter>();
@@ -21,8 +22,9 @@ public class Function
 
   private LexicalPhrase lexicalPhrase;
 
-  public Function(String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
+  public Function(Type type, String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
   {
+    this.type = type;
     this.name = name;
     this.parameters = parameters;
     for (int i = 0; i < parameters.length; i++)
@@ -32,6 +34,14 @@ public class Function
     }
     this.block = block;
     this.lexicalPhrase = lexicalPhrase;
+  }
+
+  /**
+   * @return the type
+   */
+  public Type getType()
+  {
+    return type;
   }
 
   /**
@@ -78,7 +88,9 @@ public class Function
   @Override
   public String toString()
   {
-    StringBuffer buffer = new StringBuffer(name);
+    StringBuffer buffer = new StringBuffer(type.toString());
+    buffer.append(' ');
+    buffer.append(name);
     buffer.append('(');
     for (int i = 0; i < parameters.length; i++)
     {

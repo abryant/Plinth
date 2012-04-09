@@ -55,10 +55,6 @@ public class FunctionCallExpression extends Expression
   public void setResolvedFunction(Function resolvedFunction) throws ConceptualException
   {
     this.resolvedFunction = resolvedFunction;
-    if (arguments.length != resolvedFunction.getParameters().length)
-    {
-      throw new ConceptualException("Wrong number of arguments to function: " + name, getLexicalPhrase());
-    }
   }
 
   @Override

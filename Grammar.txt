@@ -1,20 +1,23 @@
 CompilationUnit = Functions
 Functions = Function | Functions Function
 
-Function = Name LParen Parameters RParen Block
-         | Name LParen            RParen Block
-Parameters = Name | Parameters Comma Name
+Function = Type Name LParen Parameters RParen Block
+         | Type Name LParen            RParen Block
+Parameters = Type Name | Parameters Comma Type Name
 
 Block = LBrace Statements RBrace
 
 Statements = epsilon | Statements Statement
-Statement = Assignment | Block | IfStatement | ReturnStatement | WhileStatement
+Statement = Assignment | Block | IfStatement | ReturnStatement | VariableDefinition | WhileStatement
 
 Assignment = Name Equals Expression Semicolon
 IfStatement = IfKeyword Expression Block | IfKeyword Expression Block ElseKeyword Block | IfKeyword Expression Block ElseKeyword IfStatement
 ReturnStatement = ReturnKeyword Expression Semicolon
+VariableDefinition = Type Name Semicolon | Type Name Equals Expression Semicolon
 WhileStatement = WhileKeyword Expression Block
 
+Type = IntKeyword | DoubleKeyword
+
 Expression = Primary | Expression Plus Primary
-Primary = Name | IntegerLiteral | Name LParen Arguments RParen | Name LParen RParen | LParen Expression RParen
+Primary = Name | IntegerLiteral | DoubleLiteral | Name LParen Arguments RParen | Name LParen RParen | LParen Expression RParen
 Arguments = Expression | Arguments Comma Expression

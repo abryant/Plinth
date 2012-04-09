@@ -25,7 +25,9 @@ public enum ParseType
   ASSIGN_STATEMENT, // AssignStatement
   IF_STATEMENT,     // IfStatement
   RETURN_STATEMENT, // ReturnStatement
+  VARIABLE_DEFINITION_STATEMENT, // VariableDefinition
   WHILE_STATEMENT,  // WhileStatement
+  TYPE,             // Type
   EXPRESSION,       // Expression
   PRIMARY,          // Expression
   FUNCTION_CALL,    // FunctionCallExpression
@@ -34,8 +36,9 @@ public enum ParseType
   // TERMINALS
 
   // literals
-  NAME,            // Name
-  INTEGER_LITERAL, // IntegerLiteral
+  NAME,             // Name
+  INTEGER_LITERAL,  // IntegerLiteral
+  FLOATING_LITERAL, // FloatingLiteral
 
   // symbols (values for these should all be LexicalPhrase)
   COMMA,
@@ -48,8 +51,10 @@ public enum ParseType
   SEMICOLON,
 
   // keywords (values for these should all be LexicalPhrase)
+  DOUBLE_KEYWORD,
   ELSE_KEYWORD,
   IF_KEYWORD,
+  INT_KEYWORD,
   RETURN_KEYWORD,
   WHILE_KEYWORD,
 

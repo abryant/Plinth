@@ -5,6 +5,7 @@ import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.Name;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
+import eu.bryants.anthony.toylanguage.ast.Type;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.parser.ParseList;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
@@ -20,8 +21,8 @@ public class ParametersRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static Production<ParseType> START_PRODUCTION = new Production<ParseType>(ParseType.NAME);
-  private static Production<ParseType> CONTINUATION_PRODUCTION = new Production<ParseType>(ParseType.PARAMETERS, ParseType.COMMA, ParseType.NAME);
+  private static Production<ParseType> START_PRODUCTION = new Production<ParseType>(ParseType.TYPE, ParseType.NAME);
+  private static Production<ParseType> CONTINUATION_PRODUCTION = new Production<ParseType>(ParseType.PARAMETERS, ParseType.COMMA, ParseType.TYPE, ParseType.NAME);
 
   @SuppressWarnings("unchecked")
   public ParametersRule()
@@ -37,15 +38,19 @@ public class ParametersRule extends Rule<ParseType>
   {
     if (production == START_PRODUCTION)
     {
-      Name name = (Name) args[0];
-      return new ParseList<Parameter>(new Parameter(name.getName(), name.getLexicalPhrase()), name.getLexicalPhrase());
+      Type type = (Type) args[0];
+      Name name = (Name) args[1];
+      LexicalPhrase lexicalPhrase = LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase());
+      return new ParseList<Parameter>(new Parameter(type, name.getName(), lexicalPhrase), lexicalPhrase);
     }
     if (production == CONTINUATION_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[0];
-      Name name = (Name) args[2];
-      parameters.addLast(new Parameter(name.getName(), name.getLexicalPhrase()), LexicalPhrase.combine(parameters.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
+      Type type = (Type) args[2];
+      Name name = (Name) args[3];
+      LexicalPhrase parameterPhrase = LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase());
+      parameters.addLast(new Parameter(type, name.getName(), parameterPhrase), LexicalPhrase.combine(parameters.getLexicalPhrase(), (LexicalPhrase) args[1], parameterPhrase));
       return parameters;
     }
     throw badTypeList();

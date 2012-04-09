@@ -7,6 +7,7 @@ import eu.bryants.anthony.toylanguage.ast.Block;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Name;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
+import eu.bryants.anthony.toylanguage.ast.Type;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.parser.ParseList;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
@@ -22,8 +23,8 @@ public class FunctionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static Production<ParseType> PRODUCTION               = new Production<ParseType>(ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
-  private static Production<ParseType> NO_PARAMETERS_PRODUCTION = new Production<ParseType>(ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
+  private static Production<ParseType> PRODUCTION               = new Production<ParseType>(ParseType.TYPE, ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
+  private static Production<ParseType> NO_PARAMETERS_PRODUCTION = new Production<ParseType>(ParseType.TYPE, ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
 
   @SuppressWarnings("unchecked")
   public FunctionRule()
@@ -39,24 +40,28 @@ public class FunctionRule extends Rule<ParseType>
   {
     if (production == PRODUCTION)
     {
-      Name name = (Name) args[0];
+      Type type = (Type) args[0];
+      Name name = (Name) args[1];
       @SuppressWarnings("unchecked")
-      ParseList<Parameter> parameters = (ParseList<Parameter>) args[2];
-      Block block = (Block) args[4];
-      return new Function(name.getName(),
+      ParseList<Parameter> parameters = (ParseList<Parameter>) args[3];
+      Block block = (Block) args[5];
+      return new Function(type,
+                          name.getName(),
                           parameters.toArray(new Parameter[parameters.size()]),
                           block,
-                          LexicalPhrase.combine(name.getLexicalPhrase(), (LexicalPhrase) args[1], parameters.getLexicalPhrase(), (LexicalPhrase) args[3],
+                          LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], parameters.getLexicalPhrase(), (LexicalPhrase) args[4],
                                                 block.getLexicalPhrase()));
     }
     if (production == NO_PARAMETERS_PRODUCTION)
     {
-      Name name = (Name) args[0];
-      Block block = (Block) args[3];
-      return new Function(name.getName(),
+      Type type = (Type) args[0];
+      Name name = (Name) args[1];
+      Block block = (Block) args[4];
+      return new Function(type,
+                          name.getName(),
                           new Parameter[0],
                           block,
-                          LexicalPhrase.combine(name.getLexicalPhrase(), (LexicalPhrase) args[1], (LexicalPhrase) args[2],
+                          LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3],
                                                 block.getLexicalPhrase()));
     }
     throw badTypeList();
