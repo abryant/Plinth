@@ -500,7 +500,30 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     }
     if (nextChar == '=')
     {
+      int secondChar = reader.read(1);
+      if (secondChar == '=')
+      {
+        return makeSymbolToken(ParseType.DOUBLE_EQUALS, 2);
+      }
       return makeSymbolToken(ParseType.EQUALS, 1);
+    }
+    if (nextChar == '!')
+    {
+      int secondChar = reader.read(1);
+      if (secondChar == '=')
+      {
+        return makeSymbolToken(ParseType.EXCLAIMATION_MARK_EQUALS, 2);
+      }
+      return makeSymbolToken(ParseType.EXCLAIMATION_MARK, 1);
+    }
+    if (nextChar == '<')
+    {
+      int secondChar = reader.read(1);
+      if (secondChar == '=')
+      {
+        return makeSymbolToken(ParseType.LANGLE_EQUALS, 2);
+      }
+      return makeSymbolToken(ParseType.LANGLE, 1);
     }
     if (nextChar == '{')
     {
@@ -517,6 +540,15 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     if (nextChar == '+')
     {
       return makeSymbolToken(ParseType.PLUS, 1);
+    }
+    if (nextChar == '>')
+    {
+      int secondChar = reader.read(1);
+      if (secondChar == '=')
+      {
+        return makeSymbolToken(ParseType.RANGLE_EQUALS, 2);
+      }
+      return makeSymbolToken(ParseType.RANGLE, 1);
     }
     if (nextChar == '}')
     {

@@ -47,6 +47,26 @@ public class LLVM
     public static final int LLVMIntSLE = 41;
   }
 
+  public static class LLVMRealPredicate
+  {
+    public static final int LLVMRealPredicateFalse = 0;
+    public static final int LLVMRealOEQ = 1;
+    public static final int LLVMRealOGT = 2;
+    public static final int LLVMRealOGE = 3;
+    public static final int LLVMRealOLT = 4;
+    public static final int LLVMRealOLE = 5;
+    public static final int LLVMRealONE = 6;
+    public static final int LLVMRealORD = 7;
+    public static final int LLVMRealUNO = 8;
+    public static final int LLVMRealUEQ = 9;
+    public static final int LLVMRealUGT = 10;
+    public static final int LLVMRealUGE = 11;
+    public static final int LLVMRealULT = 12;
+    public static final int LLVMRealULE = 13;
+    public static final int LLVMRealUNE = 14;
+    public static final int LLVMRealPredicateTrue = 15;
+  }
+
   public static native LLVMBasicBlockRef LLVMAppendBasicBlock(LLVMValueRef function, String name);
   public static native LLVMBasicBlockRef LLVMInsertBasicBlock(LLVMBasicBlockRef insertBeforeBlock, String name);
 
@@ -60,11 +80,16 @@ public class LLVM
   public static native LLVMValueRef LLVMBuildAlloca(LLVMBuilderRef builder, LLVMTypeRef type, String name);
   public static native LLVMValueRef LLVMBuildBr(LLVMBuilderRef builder, LLVMBasicBlockRef dest);
   public static native LLVMValueRef LLVMBuildCondBr(LLVMBuilderRef builder, LLVMValueRef conditional, LLVMBasicBlockRef trueDest, LLVMBasicBlockRef falseDest);
-  public static native LLVMValueRef LLVMBuildStore(LLVMBuilderRef builder, LLVMValueRef value, LLVMValueRef pointer);
   public static native LLVMValueRef LLVMBuildCall(LLVMBuilderRef builder, LLVMValueRef function, Pointer arguments, int numArgs, String name);
+  public static native LLVMValueRef LLVMBuildFAdd(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
+  public static native LLVMValueRef LLVMBuildFCmp(LLVMBuilderRef builder, int realPredicate, LLVMValueRef lhs, LLVMValueRef rhs, String name);
+  public static native LLVMValueRef LLVMBuildFSub(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
+  public static native LLVMValueRef LLVMBuildFPToSI(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
   public static native LLVMValueRef LLVMBuildICmp(LLVMBuilderRef builder, int intPredicate, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildLoad(LLVMBuilderRef builder, LLVMValueRef pointer, String name);
   public static native LLVMValueRef LLVMBuildRet(LLVMBuilderRef builder, LLVMValueRef value);
+  public static native LLVMValueRef LLVMBuildSIToFP(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
+  public static native LLVMValueRef LLVMBuildStore(LLVMBuilderRef builder, LLVMValueRef value, LLVMValueRef pointer);
   public static native LLVMValueRef LLVMBuildSub(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
 
   public static native LLVMValueRef LLVMConstInt(LLVMTypeRef type, long n, boolean signExtend);

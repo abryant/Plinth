@@ -18,7 +18,16 @@ WhileStatement = WhileKeyword Expression Block
 
 Type = BooleanKeyword | DoubleKeyword | IntKeyword
 
-Expression = Primary | Expression Plus Primary | Expression Minus Primary
+Expression = AdditiveExpression |
+             AdditiveExpression DoubleEquals          AdditiveExpression |
+             AdditiveExpression ExclamationMarkEquals AdditiveExpression |
+             AdditiveExpression LAngle                AdditiveExpression |
+             AdditiveExpression LAngleEquals          AdditiveExpression |
+             AdditiveExpression RAngle                AdditiveExpression |
+             AdditiveExpression RAngleEquals          AdditiveExpression
+AdditiveExpression = Primary |
+                     AdditiveExpression Plus Primary |
+                     AdditiveExpression Minus Primary
 Primary = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword |
           Name |
           Name LParen Arguments RParen | Name LParen RParen |

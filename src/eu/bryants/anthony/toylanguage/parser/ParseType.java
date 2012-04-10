@@ -29,6 +29,7 @@ public enum ParseType
   WHILE_STATEMENT,  // WhileStatement
   TYPE,             // Type
   EXPRESSION,       // Expression
+  ADDITIVE_EXPRESSION, // Expression
   PRIMARY,          // Expression
   FUNCTION_CALL,    // FunctionCallExpression
   ARGUMENTS,        // ParseList<Expression>
@@ -42,11 +43,18 @@ public enum ParseType
 
   // symbols (values for these should all be LexicalPhrase)
   COMMA,
+  DOUBLE_EQUALS,
   EQUALS,
+  EXCLAIMATION_MARK,
+  EXCLAIMATION_MARK_EQUALS,
+  LANGLE,
+  LANGLE_EQUALS,
   LBRACE,
   LPAREN,
   MINUS,
   PLUS,
+  RANGLE,
+  RANGLE_EQUALS,
   RBRACE,
   RPAREN,
   SEMICOLON,

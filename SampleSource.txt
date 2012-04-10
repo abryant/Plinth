@@ -1,17 +1,16 @@
 int main(int argc)
 {
   boolean b = true;
-  int x = argc - 1;
   int result;
-  if true
+  if argc > 1
   {
-    double d = 0.1;
-    while false
+    double d = 0.0;
+    result = 0;
+    while d != 3.0
     {
-      x = x + 0xffffffff;
-      d = d + 0.5;
+      result = result + 1;
+      d = foo(d, 0.75);
     }
-    result = x;
   }
   else
   {

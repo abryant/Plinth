@@ -9,6 +9,7 @@ import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.AdditionExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
@@ -149,6 +150,12 @@ public class ControlFlowChecker
     else if (expression instanceof BracketedExpression)
     {
       checkUninitializedVariables(((BracketedExpression) expression).getExpression(), initializedVariables);
+    }
+    else if (expression instanceof ComparisonExpression)
+    {
+      ComparisonExpression comparisonExpression = (ComparisonExpression) expression;
+      checkUninitializedVariables(comparisonExpression.getLeftSubExpression(), initializedVariables);
+      checkUninitializedVariables(comparisonExpression.getRightSubExpression(), initializedVariables);
     }
     else if (expression instanceof FloatingLiteralExpression)
     {

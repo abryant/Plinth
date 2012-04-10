@@ -20,6 +20,8 @@ import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.AdditionExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression.ComparisonOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
@@ -35,6 +37,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.VariableDefinition;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
+import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
 
 /*
@@ -256,6 +259,75 @@ public class CodeGenerator
     }
   }
 
+  private PrimitiveType findArithmeticResultType(PrimitiveType left, PrimitiveType right)
+  {
+    // if either type is DOUBLE, then return DOUBLE
+    // otherwise, return INT
+    if (right.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE)
+    {
+      return right;
+    }
+    return left;
+  }
+
+  private LLVMValueRef convertNumericType(LLVMValueRef value, PrimitiveType from, PrimitiveType to)
+  {
+    if (from.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE && to.getPrimitiveTypeType() == PrimitiveTypeType.INT)
+    {
+      return LLVM.LLVMBuildFPToSI(builder, value, findNativeType(to), "");
+    }
+    if (from.getPrimitiveTypeType() == PrimitiveTypeType.INT && to.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE)
+    {
+      return LLVM.LLVMBuildSIToFP(builder, value, findNativeType(to), "");
+    }
+    if (from.getPrimitiveTypeType() == to.getPrimitiveTypeType())
+    {
+      return value;
+    }
+    throw new IllegalArgumentException("Unknown type conversion, from '" + from + "' to '" + to + "'");
+  }
+
+  private int getPredicate(ComparisonOperator operator, PrimitiveTypeType type)
+  {
+    if (type == PrimitiveTypeType.DOUBLE)
+    {
+      switch (operator)
+      {
+      case EQUAL:
+        return LLVM.LLVMRealPredicate.LLVMRealOEQ;
+      case LESS_THAN:
+        return LLVM.LLVMRealPredicate.LLVMRealOLT;
+      case LESS_THAN_EQUAL:
+        return LLVM.LLVMRealPredicate.LLVMRealOLE;
+      case MORE_THAN:
+        return LLVM.LLVMRealPredicate.LLVMRealOGT;
+      case MORE_THAN_EQUAL:
+        return LLVM.LLVMRealPredicate.LLVMRealOGE;
+      case NOT_EQUAL:
+        return LLVM.LLVMRealPredicate.LLVMRealONE;
+      }
+    }
+    else if (type == PrimitiveTypeType.INT)
+    {
+      switch (operator)
+      {
+      case EQUAL:
+        return LLVM.LLVMIntPredicate.LLVMIntEQ;
+      case LESS_THAN:
+        return LLVM.LLVMIntPredicate.LLVMIntSLT;
+      case LESS_THAN_EQUAL:
+        return LLVM.LLVMIntPredicate.LLVMIntSLE;
+      case MORE_THAN:
+        return LLVM.LLVMIntPredicate.LLVMIntSGT;
+      case MORE_THAN_EQUAL:
+        return LLVM.LLVMIntPredicate.LLVMIntSGE;
+      case NOT_EQUAL:
+        return LLVM.LLVMIntPredicate.LLVMIntNE;
+      }
+    }
+    throw new IllegalArgumentException("Unknown predicate '" + operator + "' for type '" + type + "'");
+  }
+
   private LLVMValueRef buildExpression(Expression expression, Map<Variable, LLVMValueRef> variables)
   {
     if (expression instanceof AdditionExpression)
@@ -263,6 +335,16 @@ public class CodeGenerator
       AdditionExpression additionExpression = (AdditionExpression) expression;
       LLVMValueRef left = buildExpression(additionExpression.getLeftSubExpression(), variables);
       LLVMValueRef right = buildExpression(additionExpression.getRightSubExpression(), variables);
+      PrimitiveType leftType = (PrimitiveType) additionExpression.getLeftSubExpression().getType();
+      PrimitiveType rightType = (PrimitiveType) additionExpression.getRightSubExpression().getType();
+      // cast if necessary
+      PrimitiveType resultType = findArithmeticResultType(leftType, rightType);
+      left = convertNumericType(left, leftType, resultType);
+      right = convertNumericType(right, rightType, resultType);
+      if (resultType.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE)
+      {
+        return LLVM.LLVMBuildFAdd(builder, left, right, "");
+      }
       return LLVM.LLVMBuildAdd(builder, left, right, "");
     }
     if (expression instanceof BooleanLiteralExpression)
@@ -272,6 +354,23 @@ public class CodeGenerator
     if (expression instanceof BracketedExpression)
     {
       return buildExpression(((BracketedExpression) expression).getExpression(), variables);
+    }
+    if (expression instanceof ComparisonExpression)
+    {
+      ComparisonExpression comparisonExpression = (ComparisonExpression) expression;
+      LLVMValueRef left = buildExpression(comparisonExpression.getLeftSubExpression(), variables);
+      LLVMValueRef right = buildExpression(comparisonExpression.getRightSubExpression(), variables);
+      PrimitiveType leftType = (PrimitiveType) comparisonExpression.getLeftSubExpression().getType();
+      PrimitiveType rightType = (PrimitiveType) comparisonExpression.getRightSubExpression().getType();
+      // cast if necessary
+      PrimitiveType resultType = findArithmeticResultType(leftType, rightType);
+      left = convertNumericType(left, leftType, resultType);
+      right = convertNumericType(right, rightType, resultType);
+      if (resultType.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE)
+      {
+        return LLVM.LLVMBuildFCmp(builder, getPredicate(comparisonExpression.getOperator(), resultType.getPrimitiveTypeType()), left, right, "");
+      }
+      return LLVM.LLVMBuildICmp(builder, getPredicate(comparisonExpression.getOperator(), resultType.getPrimitiveTypeType()), left, right, "");
     }
     if (expression instanceof FloatingLiteralExpression)
     {
@@ -301,6 +400,16 @@ public class CodeGenerator
       SubtractionExpression subtractionExpression = (SubtractionExpression) expression;
       LLVMValueRef left = buildExpression(subtractionExpression.getLeftSubExpression(), variables);
       LLVMValueRef right = buildExpression(subtractionExpression.getRightSubExpression(), variables);
+      PrimitiveType leftType = (PrimitiveType) subtractionExpression.getLeftSubExpression().getType();
+      PrimitiveType rightType = (PrimitiveType) subtractionExpression.getRightSubExpression().getType();
+      // cast if necessary
+      PrimitiveType resultType = findArithmeticResultType(leftType, rightType);
+      left = convertNumericType(left, leftType, resultType);
+      right = convertNumericType(right, rightType, resultType);
+      if (resultType.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE)
+      {
+        return LLVM.LLVMBuildFSub(builder, left, right, "");
+      }
       return LLVM.LLVMBuildSub(builder, left, right, "");
     }
     if (expression instanceof VariableExpression)

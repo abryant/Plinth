@@ -6,6 +6,8 @@ import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.AdditionExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression.ComparisonOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
@@ -120,9 +122,14 @@ public class TypeChecker
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
         PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
-        if (leftPrimitiveType == PrimitiveTypeType.INT    && rightPrimitiveType == PrimitiveTypeType.INT ||
-            leftPrimitiveType == PrimitiveTypeType.DOUBLE && rightPrimitiveType == PrimitiveTypeType.DOUBLE)
+        if (leftPrimitiveType != PrimitiveTypeType.BOOLEAN && rightPrimitiveType != PrimitiveTypeType.BOOLEAN)
         {
+          if (rightPrimitiveType == PrimitiveTypeType.DOUBLE)
+          {
+            additionExpression.setType(rightType);
+            return rightType;
+          }
+          additionExpression.setType(leftType);
           return leftType;
         }
       }
@@ -130,15 +137,49 @@ public class TypeChecker
     }
     else if (expression instanceof BooleanLiteralExpression)
     {
-      return new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
+      Type type = new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
+      expression.setType(type);
+      return type;
     }
     else if (expression instanceof BracketedExpression)
     {
-      return checkTypes(((BracketedExpression) expression).getExpression(), compilationUnit);
+      Type type = checkTypes(((BracketedExpression) expression).getExpression(), compilationUnit);
+      expression.setType(type);
+      return type;
+    }
+    else if (expression instanceof ComparisonExpression)
+    {
+      ComparisonExpression comparisonExpression = (ComparisonExpression) expression;
+      ComparisonOperator operator = comparisonExpression.getOperator();
+      Type leftType = checkTypes(comparisonExpression.getLeftSubExpression(), compilationUnit);
+      Type rightType = checkTypes(comparisonExpression.getRightSubExpression(), compilationUnit);
+      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType))
+      {
+        PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
+        PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
+        if (leftPrimitiveType == PrimitiveTypeType.BOOLEAN && rightPrimitiveType == PrimitiveTypeType.BOOLEAN &&
+            (comparisonExpression.getOperator() == ComparisonOperator.EQUAL || comparisonExpression.getOperator() == ComparisonOperator.NOT_EQUAL))
+        {
+          // comparing booleans is only valid when using '==' or '!='
+          Type type = new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
+          comparisonExpression.setType(type);
+          return type;
+        }
+        if (leftPrimitiveType != PrimitiveTypeType.BOOLEAN && rightPrimitiveType != PrimitiveTypeType.BOOLEAN)
+        {
+          // comparing any numeric types is always valid
+          Type type = new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
+          comparisonExpression.setType(type);
+          return type;
+        }
+      }
+      throw new ConceptualException("The '" + operator + "' operator is not defined for types '" + leftType + "' and '" + rightType + "'", comparisonExpression.getLexicalPhrase());
     }
     else if (expression instanceof FloatingLiteralExpression)
     {
-      return new PrimitiveType(PrimitiveTypeType.DOUBLE, null);
+      Type type = new PrimitiveType(PrimitiveTypeType.DOUBLE, null);
+      expression.setType(type);
+      return type;
     }
     else if (expression instanceof FunctionCallExpression)
     {
@@ -158,11 +199,15 @@ public class TypeChecker
           throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameters[i].getType() + "'", arguments[i].getLexicalPhrase());
         }
       }
-      return resolvedFunction.getType();
+      Type type = resolvedFunction.getType();
+      functionCallExpression.setType(type);
+      return type;
     }
     else if (expression instanceof IntegerLiteralExpression)
     {
-      return new PrimitiveType(PrimitiveTypeType.INT, null);
+      Type type = new PrimitiveType(PrimitiveTypeType.INT, null);
+      expression.setType(type);
+      return type;
     }
     else if (expression instanceof SubtractionExpression)
     {
@@ -176,6 +221,7 @@ public class TypeChecker
         if (leftPrimitiveType == PrimitiveTypeType.INT    && rightPrimitiveType == PrimitiveTypeType.INT ||
             leftPrimitiveType == PrimitiveTypeType.DOUBLE && rightPrimitiveType == PrimitiveTypeType.DOUBLE)
         {
+          subtractionExpression.setType(leftType);
           return leftType;
         }
       }
@@ -183,7 +229,9 @@ public class TypeChecker
     }
     else if (expression instanceof VariableExpression)
     {
-      return ((VariableExpression) expression).getResolvedVariable().getType();
+      Type type = ((VariableExpression) expression).getResolvedVariable().getType();
+      expression.setType(type);
+      return type;
     }
     throw new ConceptualException("Internal type checking error: Unknown expression type", expression.getLexicalPhrase());
   }

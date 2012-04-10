@@ -3,9 +3,9 @@ package eu.bryants.anthony.toylanguage.parser.rules.expression;
 import parser.ParseException;
 import parser.Production;
 import parser.Rule;
-import eu.bryants.anthony.toylanguage.ast.expression.AdditionExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression.ComparisonOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
-import eu.bryants.anthony.toylanguage.ast.expression.SubtractionExpression;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
 
@@ -20,14 +20,21 @@ public class ExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static Production<ParseType> START_PRODUCTION =  new Production<ParseType>(ParseType.PRIMARY);
-  private static Production<ParseType> ADDITION_PRODUCTION =  new Production<ParseType>(ParseType.EXPRESSION, ParseType.PLUS, ParseType.PRIMARY);
-  private static Production<ParseType> SUBTRACTION_PRODUCTION =  new Production<ParseType>(ParseType.EXPRESSION, ParseType.MINUS, ParseType.PRIMARY);
+  private static Production<ParseType> NORMAL_PRODUCTION          = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION);
+  private static Production<ParseType> EQUAL_PRODUCTION           = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.DOUBLE_EQUALS,            ParseType.ADDITIVE_EXPRESSION);
+  private static Production<ParseType> NOT_EQUAL_PRODUCTION       = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.EXCLAIMATION_MARK_EQUALS, ParseType.ADDITIVE_EXPRESSION);
+  private static Production<ParseType> LESS_THAN_PRODUCTION       = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.LANGLE,                   ParseType.ADDITIVE_EXPRESSION);
+  private static Production<ParseType> LESS_THAN_EQUAL_PRODUCTION = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.LANGLE_EQUALS,            ParseType.ADDITIVE_EXPRESSION);
+  private static Production<ParseType> MORE_THAN_PRODUCTION       = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.RANGLE,                   ParseType.ADDITIVE_EXPRESSION);
+  private static Production<ParseType> MORE_THAN_EQUAL_PRODUCTION = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.RANGLE_EQUALS,            ParseType.ADDITIVE_EXPRESSION);
 
   @SuppressWarnings("unchecked")
   public ExpressionRule()
   {
-    super(ParseType.EXPRESSION, START_PRODUCTION, ADDITION_PRODUCTION, SUBTRACTION_PRODUCTION);
+    super(ParseType.EXPRESSION, NORMAL_PRODUCTION,
+                                EQUAL_PRODUCTION, NOT_EQUAL_PRODUCTION,
+                                LESS_THAN_PRODUCTION, LESS_THAN_EQUAL_PRODUCTION,
+                                MORE_THAN_PRODUCTION, MORE_THAN_EQUAL_PRODUCTION);
   }
 
   /**
@@ -36,23 +43,22 @@ public class ExpressionRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == START_PRODUCTION)
+    if (production == NORMAL_PRODUCTION)
     {
       return args[0];
     }
-    if (production == ADDITION_PRODUCTION)
-    {
-      Expression left = (Expression) args[0];
-      Expression right = (Expression) args[2];
-      return new AdditionExpression(left, right, LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase()));
-    }
-    if (production == SUBTRACTION_PRODUCTION)
-    {
-      Expression left = (Expression) args[0];
-      Expression right = (Expression) args[2];
-      return new SubtractionExpression(left, right, LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase()));
-    }
-    throw badTypeList();
+    Expression left = (Expression) args[0];
+    Expression right = (Expression) args[2];
+    LexicalPhrase lexicalPhrase = LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase());
+    ComparisonOperator operator;
+    if (production == EQUAL_PRODUCTION) { operator = ComparisonOperator.EQUAL; }
+    else if (production == NOT_EQUAL_PRODUCTION) { operator = ComparisonOperator.NOT_EQUAL; }
+    else if (production == LESS_THAN_PRODUCTION) { operator = ComparisonOperator.LESS_THAN; }
+    else if (production == LESS_THAN_EQUAL_PRODUCTION) { operator = ComparisonOperator.LESS_THAN_EQUAL; }
+    else if (production == MORE_THAN_PRODUCTION) { operator = ComparisonOperator.MORE_THAN; }
+    else if (production == MORE_THAN_EQUAL_PRODUCTION) { operator = ComparisonOperator.MORE_THAN_EQUAL; }
+    else { throw badTypeList(); }
+    return new ComparisonExpression(left, right, operator, lexicalPhrase);
   }
 
 }
