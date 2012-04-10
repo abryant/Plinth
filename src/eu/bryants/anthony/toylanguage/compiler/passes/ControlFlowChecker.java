@@ -1,4 +1,4 @@
-package eu.bryants.anthony.toylanguage.compiler;
+package eu.bryants.anthony.toylanguage.compiler.passes;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -24,6 +24,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.VariableDefinition;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
+import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
 
 /*
  * Created on 6 Apr 2012

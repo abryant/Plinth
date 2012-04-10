@@ -1,4 +1,4 @@
-package eu.bryants.anthony.toylanguage.compiler;
+package eu.bryants.anthony.toylanguage.compiler.passes;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
@@ -24,6 +24,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
+import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
 
 /*
  * Created on 8 Apr 2012

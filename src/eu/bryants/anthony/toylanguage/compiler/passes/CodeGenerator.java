@@ -1,4 +1,4 @@
-package eu.bryants.anthony.toylanguage.compiler;
+package eu.bryants.anthony.toylanguage.compiler.passes;
 
 import java.util.HashMap;
 import java.util.Map;

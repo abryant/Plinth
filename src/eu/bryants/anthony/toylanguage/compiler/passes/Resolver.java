@@ -1,4 +1,4 @@
-package eu.bryants.anthony.toylanguage.compiler;
+package eu.bryants.anthony.toylanguage.compiler.passes;
 
 import java.util.Deque;
 import java.util.HashSet;
@@ -26,6 +26,8 @@ import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.VariableDefinition;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
+import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
+import eu.bryants.anthony.toylanguage.compiler.NameNotResolvedException;
 
 /*
  * Created on 2 Apr 2012
