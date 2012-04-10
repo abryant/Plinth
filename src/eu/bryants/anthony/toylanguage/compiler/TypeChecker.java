@@ -101,6 +101,7 @@ public class TypeChecker
       {
         throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", whileStatement.getExpression().getLexicalPhrase());
       }
+      checkTypes(whileStatement.getStatement(), function, compilationUnit);
     }
     else
     {
