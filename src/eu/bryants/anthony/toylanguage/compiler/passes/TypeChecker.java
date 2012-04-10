@@ -6,6 +6,7 @@ import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.AdditionExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression.ComparisonOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
@@ -147,6 +148,18 @@ public class TypeChecker
       Type type = checkTypes(((BracketedExpression) expression).getExpression(), compilationUnit);
       expression.setType(type);
       return type;
+    }
+    else if (expression instanceof CastExpression)
+    {
+      Type exprType = checkTypes(((CastExpression) expression).getExpression(), compilationUnit);
+      Type castedType = expression.getType();
+      if (exprType.canAssign(castedType) || castedType.canAssign(exprType))
+      {
+        // if the assignment works in reverse (i.e. the casted type can be assigned to the expression) then it can be casted back
+        // (also allow it if the assignment works forwards, although really that should be a warning about an unnecessary cast)
+        return expression.getType();
+      }
+      throw new ConceptualException("Cannot cast from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
     }
     else if (expression instanceof ComparisonExpression)
     {

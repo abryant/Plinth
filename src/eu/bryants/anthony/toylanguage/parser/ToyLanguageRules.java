@@ -10,6 +10,7 @@ import eu.bryants.anthony.toylanguage.parser.rules.ParametersRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.AdditiveExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.ExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.PrimaryRule;
+import eu.bryants.anthony.toylanguage.parser.rules.expression.UnaryExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.AssignStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.BlockRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.IfStatementRule;
@@ -38,6 +39,7 @@ public class ToyLanguageRules
     new AdditiveExpressionRule(),
     new ExpressionRule(),
     new PrimaryRule(),
+    new UnaryExpressionRule(),
 
     // statement
     new AssignStatementRule(),

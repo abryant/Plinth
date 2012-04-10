@@ -57,7 +57,23 @@ public class PrimitiveType extends Type
       return false;
     }
     PrimitiveType primitive = (PrimitiveType) type;
-    return primitive.getPrimitiveTypeType() == primitiveTypeType;
+    if (primitive.getPrimitiveTypeType() == primitiveTypeType)
+    {
+      // a variable of one type can always be assigned to itself
+      return true;
+    }
+    if (primitiveTypeType == PrimitiveTypeType.BOOLEAN)
+    {
+      // nothing can be assigned to a boolean except another boolean
+      return false;
+    }
+    if (primitiveTypeType == PrimitiveTypeType.DOUBLE && primitive.getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+    {
+      // all numeric types can be assigned to a double
+      return true;
+    }
+    // disallow all other assignments else
+    return false;
   }
 
   @Override

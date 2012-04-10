@@ -4,7 +4,10 @@ int main(int argc)
   int result;
   if argc > 2
   {
-    return 123;
+    double d = 3.0;
+    int i = cast<int> d;
+    double d2 = cast<double> i;
+    return cast<int> d2;
   }
   else if argc > 1
   {

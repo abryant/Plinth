@@ -25,9 +25,11 @@ Expression = AdditiveExpression |
              AdditiveExpression LAngleEquals          AdditiveExpression |
              AdditiveExpression RAngle                AdditiveExpression |
              AdditiveExpression RAngleEquals          AdditiveExpression
-AdditiveExpression = Primary |
-                     AdditiveExpression Plus Primary |
-                     AdditiveExpression Minus Primary
+AdditiveExpression = UnaryExpression |
+                     AdditiveExpression Plus UnaryExpression |
+                     AdditiveExpression Minus UnaryExpression
+UnaryExpression = Primary |
+                  CastKeyword LAngle Type RAngle UnaryExpression
 Primary = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword |
           Name |
           Name LParen Arguments RParen | Name LParen RParen |

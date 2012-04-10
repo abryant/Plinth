@@ -20,9 +20,9 @@ public class AdditiveExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static Production<ParseType> START_PRODUCTION =  new Production<ParseType>(ParseType.PRIMARY);
-  private static Production<ParseType> ADDITION_PRODUCTION =  new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.PLUS, ParseType.PRIMARY);
-  private static Production<ParseType> SUBTRACTION_PRODUCTION =  new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.MINUS, ParseType.PRIMARY);
+  private static Production<ParseType> START_PRODUCTION =  new Production<ParseType>(ParseType.UNARY_EXPRESSION);
+  private static Production<ParseType> ADDITION_PRODUCTION =  new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.PLUS, ParseType.UNARY_EXPRESSION);
+  private static Production<ParseType> SUBTRACTION_PRODUCTION =  new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.MINUS, ParseType.UNARY_EXPRESSION);
 
   @SuppressWarnings("unchecked")
   public AdditiveExpressionRule()

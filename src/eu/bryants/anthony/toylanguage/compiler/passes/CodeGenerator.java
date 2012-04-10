@@ -20,6 +20,7 @@ import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.AdditionExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression.ComparisonOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
@@ -142,27 +143,28 @@ public class CodeGenerator
       LLVM.LLVMBuildStore(builder, LLVM.LLVMGetParam(llvmFunction, p.getIndex()), variables.get(p.getVariable()));
     }
 
-    buildStatement(function.getBlock(), llvmFunction, variables);
+    buildStatement(function.getBlock(), function, llvmFunction, variables);
   }
 
-  private void buildStatement(Statement statement, LLVMValueRef llvmFunction, Map<Variable, LLVMValueRef> variables)
+  private void buildStatement(Statement statement, Function function, LLVMValueRef llvmFunction, Map<Variable, LLVMValueRef> variables)
   {
     if (statement instanceof AssignStatement)
     {
       AssignStatement assign = (AssignStatement) statement;
       LLVMValueRef value = buildExpression(assign.getExpression(), variables);
+      LLVMValueRef convertedValue = convertType(value, assign.getExpression().getType(), assign.getResolvedVariable().getType());
       LLVMValueRef allocaInst = variables.get(assign.getResolvedVariable());
       if (allocaInst == null)
       {
         throw new IllegalStateException("Missing LLVMValueRef in variable Map: " + assign.getVariableName());
       }
-      LLVM.LLVMBuildStore(builder, value, allocaInst);
+      LLVM.LLVMBuildStore(builder, convertedValue, allocaInst);
     }
     else if (statement instanceof Block)
     {
       for (Statement s : ((Block) statement).getStatements())
       {
-        buildStatement(s, llvmFunction, variables);
+        buildStatement(s, function, llvmFunction, variables);
       }
     }
     else if (statement instanceof IfStatement)
@@ -194,7 +196,7 @@ public class CodeGenerator
 
         // build the else clause
         LLVM.LLVMPositionBuilderAtEnd(builder, elseClause);
-        buildStatement(ifStatement.getElseClause(), llvmFunction, variables);
+        buildStatement(ifStatement.getElseClause(), function, llvmFunction, variables);
         if (!ifStatement.getElseClause().stopsExecution())
         {
           LLVM.LLVMBuildBr(builder, continuation);
@@ -203,7 +205,7 @@ public class CodeGenerator
 
       // build the then clause
       LLVM.LLVMPositionBuilderAtEnd(builder, thenClause);
-      buildStatement(ifStatement.getThenClause(), llvmFunction, variables);
+      buildStatement(ifStatement.getThenClause(), function, llvmFunction, variables);
       if (!ifStatement.getThenClause().stopsExecution())
       {
         LLVM.LLVMBuildBr(builder, continuation);
@@ -217,7 +219,8 @@ public class CodeGenerator
     else if (statement instanceof ReturnStatement)
     {
       LLVMValueRef value = buildExpression(((ReturnStatement) statement).getExpression(), variables);
-      LLVM.LLVMBuildRet(builder, value);
+      LLVMValueRef convertedValue = convertType(value, ((ReturnStatement) statement).getExpression().getType(), function.getType());
+      LLVM.LLVMBuildRet(builder, convertedValue);
     }
     else if (statement instanceof VariableDefinition)
     {
@@ -230,7 +233,8 @@ public class CodeGenerator
           throw new IllegalStateException("Missing LLVMValueRef in variable Map: " + definition.getName().getName());
         }
         LLVMValueRef value = buildExpression(definition.getExpression(), variables);
-        LLVM.LLVMBuildStore(builder, value, allocaInst);
+        LLVMValueRef convertedValue = convertType(value, definition.getExpression().getType(), definition.getType());
+        LLVM.LLVMBuildStore(builder, convertedValue, allocaInst);
       }
     }
     else if (statement instanceof WhileStatement)
@@ -248,7 +252,7 @@ public class CodeGenerator
       LLVM.LLVMBuildCondBr(builder, conditional, loopBodyBlock, afterLoopBlock);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, loopBodyBlock);
-      buildStatement(whileStatement.getStatement(), llvmFunction, variables);
+      buildStatement(whileStatement.getStatement(), function, llvmFunction, variables);
 
       if (!whileStatement.stopsExecution())
       {
@@ -268,6 +272,15 @@ public class CodeGenerator
       return right;
     }
     return left;
+  }
+
+  private LLVMValueRef convertType(LLVMValueRef value, Type from, Type to)
+  {
+    if (from instanceof PrimitiveType && to instanceof PrimitiveType)
+    {
+      return convertNumericType(value, (PrimitiveType) from, (PrimitiveType) to);
+    }
+    throw new IllegalArgumentException("Unknown type conversion, from '" + from + "' to '" + to + "'");
   }
 
   private LLVMValueRef convertNumericType(LLVMValueRef value, PrimitiveType from, PrimitiveType to)
@@ -355,6 +368,12 @@ public class CodeGenerator
     {
       return buildExpression(((BracketedExpression) expression).getExpression(), variables);
     }
+    if (expression instanceof CastExpression)
+    {
+      CastExpression castExpression = (CastExpression) expression;
+      LLVMValueRef value = buildExpression(castExpression.getExpression(), variables);
+      return convertType(value, castExpression.getExpression().getType(), castExpression.getType());
+    }
     if (expression instanceof ComparisonExpression)
     {
       ComparisonExpression comparisonExpression = (ComparisonExpression) expression;
@@ -380,11 +399,13 @@ public class CodeGenerator
     if (expression instanceof FunctionCallExpression)
     {
       FunctionCallExpression functionExpression = (FunctionCallExpression) expression;
+      Parameter[] parameters = functionExpression.getResolvedFunction().getParameters();
       Expression[] arguments = functionExpression.getArguments();
       LLVMValueRef[] values = new LLVMValueRef[arguments.length];
       for (int i = 0; i < arguments.length; i++)
       {
-        values[i] = buildExpression(arguments[i], variables);
+        LLVMValueRef arg = buildExpression(arguments[i], variables);
+        values[i] = convertType(arg, arguments[i].getType(), parameters[i].getType());
       }
       Pointer llvmArguments = C.toNativePointerArray(values, false, true);
       LLVMValueRef llvmResolvedFunction = LLVM.LLVMGetNamedFunction(module, functionExpression.getResolvedFunction().getName());

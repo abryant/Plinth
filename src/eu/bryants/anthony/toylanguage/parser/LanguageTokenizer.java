@@ -29,6 +29,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
   static
   {
     KEYWORDS.put("boolean", ParseType.BOOLEAN_KEYWORD);
+    KEYWORDS.put("cast", ParseType.CAST_KEYWORD);
     KEYWORDS.put("double",  ParseType.DOUBLE_KEYWORD);
     KEYWORDS.put("else",    ParseType.ELSE_KEYWORD);
     KEYWORDS.put("false",   ParseType.FALSE_KEYWORD);

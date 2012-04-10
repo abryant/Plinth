@@ -30,6 +30,7 @@ public enum ParseType
   TYPE,             // Type
   EXPRESSION,       // Expression
   ADDITIVE_EXPRESSION, // Expression
+  UNARY_EXPRESSION, // Expression
   PRIMARY,          // Expression
   FUNCTION_CALL,    // FunctionCallExpression
   ARGUMENTS,        // ParseList<Expression>
@@ -61,6 +62,7 @@ public enum ParseType
 
   // keywords (values for these should all be LexicalPhrase)
   BOOLEAN_KEYWORD,
+  CAST_KEYWORD,
   DOUBLE_KEYWORD,
   ELSE_KEYWORD,
   FALSE_KEYWORD,

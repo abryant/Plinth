@@ -11,6 +11,7 @@ import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.AdditionExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
@@ -183,6 +184,10 @@ public class Resolver
     else if (expression instanceof BracketedExpression)
     {
       resolve(((BracketedExpression) expression).getExpression(), block, compilationUnit);
+    }
+    else if (expression instanceof CastExpression)
+    {
+      resolve(((CastExpression) expression).getExpression(), block, compilationUnit);
     }
     else if (expression instanceof ComparisonExpression)
     {
