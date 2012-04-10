@@ -2,7 +2,11 @@ int main(int argc)
 {
   boolean b = true;
   int result;
-  if argc > 1
+  if argc > 2
+  {
+    return 123;
+  }
+  else if argc > 1
   {
     double d = 0.0;
     result = 0;

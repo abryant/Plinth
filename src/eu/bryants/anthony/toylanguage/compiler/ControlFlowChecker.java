@@ -98,16 +98,27 @@ public class ControlFlowChecker
       }
       Set<Variable> thenClauseVariables = new HashSet<Variable>(initializedVariables);
       Set<Variable> elseClauseVariables = new HashSet<Variable>(initializedVariables);
-      // don't use a short circuit and ('&&') here, as it could cause elseClauseVariables not to be populated
-      boolean returned = checkControlFlow(thenClause, thenClauseVariables) & checkControlFlow(elseClause, elseClauseVariables);
-      for (Variable var : thenClauseVariables)
+      boolean thenReturned = checkControlFlow(thenClause, thenClauseVariables);
+      boolean elseReturned = checkControlFlow(elseClause, elseClauseVariables);
+      if (!thenReturned && !elseReturned)
       {
-        if (elseClauseVariables.contains(var))
+        for (Variable var : thenClauseVariables)
         {
-          initializedVariables.add(var);
+          if (elseClauseVariables.contains(var))
+          {
+            initializedVariables.add(var);
+          }
         }
       }
-      return returned;
+      else if (!thenReturned && elseReturned)
+      {
+        initializedVariables.addAll(thenClauseVariables);
+      }
+      else if (thenReturned && !elseReturned)
+      {
+        initializedVariables.addAll(elseClauseVariables);
+      }
+      return thenReturned && elseReturned;
     }
     else if (statement instanceof ReturnStatement)
     {
