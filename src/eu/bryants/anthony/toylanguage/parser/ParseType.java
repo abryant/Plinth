@@ -30,6 +30,7 @@ public enum ParseType
   TYPE,             // Type
   EXPRESSION,       // Expression
   ADDITIVE_EXPRESSION, // Expression
+  MULTIPLICATIVE_EXPRESSION, // Expression
   UNARY_EXPRESSION, // Expression
   PRIMARY,          // Expression
   FUNCTION_CALL,    // FunctionCallExpression
@@ -45,20 +46,24 @@ public enum ParseType
   // symbols (values for these should all be LexicalPhrase)
   COMMA,
   DOUBLE_EQUALS,
+  DOUBLE_PERCENT,
   EQUALS,
   EXCLAIMATION_MARK,
   EXCLAIMATION_MARK_EQUALS,
+  FORWARD_SLASH,
   LANGLE,
   LANGLE_EQUALS,
   LBRACE,
   LPAREN,
   MINUS,
+  PERCENT,
   PLUS,
   RANGLE,
   RANGLE_EQUALS,
   RBRACE,
   RPAREN,
   SEMICOLON,
+  STAR,
 
   // keywords (values for these should all be LexicalPhrase)
   BOOLEAN_KEYWORD,

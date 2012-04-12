@@ -3,9 +3,9 @@ package eu.bryants.anthony.toylanguage.parser.rules.expression;
 import parser.ParseException;
 import parser.Production;
 import parser.Rule;
-import eu.bryants.anthony.toylanguage.ast.expression.AdditionExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression.ArithmeticOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
-import eu.bryants.anthony.toylanguage.ast.expression.SubtractionExpression;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
 
@@ -20,9 +20,9 @@ public class AdditiveExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static Production<ParseType> START_PRODUCTION =  new Production<ParseType>(ParseType.UNARY_EXPRESSION);
-  private static Production<ParseType> ADDITION_PRODUCTION =  new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.PLUS, ParseType.UNARY_EXPRESSION);
-  private static Production<ParseType> SUBTRACTION_PRODUCTION =  new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.MINUS, ParseType.UNARY_EXPRESSION);
+  private static Production<ParseType> START_PRODUCTION =  new Production<ParseType>(ParseType.MULTIPLICATIVE_EXPRESSION);
+  private static Production<ParseType> ADDITION_PRODUCTION =  new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.PLUS, ParseType.MULTIPLICATIVE_EXPRESSION);
+  private static Production<ParseType> SUBTRACTION_PRODUCTION =  new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.MINUS, ParseType.MULTIPLICATIVE_EXPRESSION);
 
   @SuppressWarnings("unchecked")
   public AdditiveExpressionRule()
@@ -44,13 +44,13 @@ public class AdditiveExpressionRule extends Rule<ParseType>
     {
       Expression left = (Expression) args[0];
       Expression right = (Expression) args[2];
-      return new AdditionExpression(left, right, LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase()));
+      return new ArithmeticExpression(ArithmeticOperator.ADD, left, right, LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase()));
     }
     if (production == SUBTRACTION_PRODUCTION)
     {
       Expression left = (Expression) args[0];
       Expression right = (Expression) args[2];
-      return new SubtractionExpression(left, right, LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase()));
+      return new ArithmeticExpression(ArithmeticOperator.SUBTRACT, left, right, LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase()));
     }
     throw badTypeList();
   }

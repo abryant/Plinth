@@ -517,6 +517,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       }
       return makeSymbolToken(ParseType.EXCLAIMATION_MARK, 1);
     }
+    if (nextChar == '/')
+    {
+      return makeSymbolToken(ParseType.FORWARD_SLASH, 1);
+    }
     if (nextChar == '<')
     {
       int secondChar = reader.read(1);
@@ -537,6 +541,15 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     if (nextChar == '-')
     {
       return makeSymbolToken(ParseType.MINUS, 1);
+    }
+    if (nextChar == '%')
+    {
+      int secondChar = reader.read(1);
+      if (secondChar == '%')
+      {
+        return makeSymbolToken(ParseType.DOUBLE_PERCENT, 2);
+      }
+      return makeSymbolToken(ParseType.PERCENT, 1);
     }
     if (nextChar == '+')
     {
@@ -562,6 +575,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     if (nextChar == ';')
     {
       return makeSymbolToken(ParseType.SEMICOLON, 1);
+    }
+    if (nextChar == '*')
+    {
+      return makeSymbolToken(ParseType.STAR, 1);
     }
     // none of the symbols matched, so return null
     return null;

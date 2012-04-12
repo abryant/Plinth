@@ -17,7 +17,7 @@ import com.sun.jna.Pointer;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
-import eu.bryants.anthony.toylanguage.ast.expression.AdditionExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
@@ -27,7 +27,6 @@ import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
-import eu.bryants.anthony.toylanguage.ast.expression.SubtractionExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
@@ -343,22 +342,42 @@ public class CodeGenerator
 
   private LLVMValueRef buildExpression(Expression expression, Map<Variable, LLVMValueRef> variables)
   {
-    if (expression instanceof AdditionExpression)
+    if (expression instanceof ArithmeticExpression)
     {
-      AdditionExpression additionExpression = (AdditionExpression) expression;
-      LLVMValueRef left = buildExpression(additionExpression.getLeftSubExpression(), variables);
-      LLVMValueRef right = buildExpression(additionExpression.getRightSubExpression(), variables);
-      PrimitiveType leftType = (PrimitiveType) additionExpression.getLeftSubExpression().getType();
-      PrimitiveType rightType = (PrimitiveType) additionExpression.getRightSubExpression().getType();
+      ArithmeticExpression arithmeticExpression = (ArithmeticExpression) expression;
+      LLVMValueRef left = buildExpression(arithmeticExpression.getLeftSubExpression(), variables);
+      LLVMValueRef right = buildExpression(arithmeticExpression.getRightSubExpression(), variables);
+      PrimitiveType leftType = (PrimitiveType) arithmeticExpression.getLeftSubExpression().getType();
+      PrimitiveType rightType = (PrimitiveType) arithmeticExpression.getRightSubExpression().getType();
       // cast if necessary
       PrimitiveType resultType = findArithmeticResultType(leftType, rightType);
       left = convertNumericType(left, leftType, resultType);
       right = convertNumericType(right, rightType, resultType);
-      if (resultType.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE)
+      boolean floating = resultType.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE;
+      switch (arithmeticExpression.getOperator())
       {
-        return LLVM.LLVMBuildFAdd(builder, left, right, "");
+      case ADD:
+        return floating ? LLVM.LLVMBuildFAdd(builder, left, right, "") : LLVM.LLVMBuildAdd(builder, left, right, "");
+      case SUBTRACT:
+        return floating ? LLVM.LLVMBuildFSub(builder, left, right, "") : LLVM.LLVMBuildSub(builder, left, right, "");
+      case MULTIPLY:
+        return floating ? LLVM.LLVMBuildFMul(builder, left, right, "") : LLVM.LLVMBuildMul(builder, left, right, "");
+      case DIVIDE:
+        return floating ? LLVM.LLVMBuildFDiv(builder, left, right, "") : LLVM.LLVMBuildSDiv(builder, left, right, "");
+      case REMAINDER:
+        return floating ? LLVM.LLVMBuildFRem(builder, left, right, "") : LLVM.LLVMBuildSRem(builder, left, right, "");
+      case MODULO:
+        if (floating)
+        {
+          LLVMValueRef rem = LLVM.LLVMBuildFRem(builder, left, right, "");
+          LLVMValueRef add = LLVM.LLVMBuildFAdd(builder, rem, right, "");
+          return LLVM.LLVMBuildFRem(builder, add, right, "");
+        }
+        LLVMValueRef rem = LLVM.LLVMBuildSRem(builder, left, right, "");
+        LLVMValueRef add = LLVM.LLVMBuildAdd(builder, rem, right, "");
+        return LLVM.LLVMBuildSRem(builder, add, right, "");
       }
-      return LLVM.LLVMBuildAdd(builder, left, right, "");
+      throw new IllegalArgumentException("Unknown arithmetic operator: " + arithmeticExpression.getOperator());
     }
     if (expression instanceof BooleanLiteralExpression)
     {
@@ -415,23 +434,6 @@ public class CodeGenerator
     {
       int n = ((IntegerLiteralExpression) expression).getLiteral().getValue().intValue();
       return LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), n, false);
-    }
-    if (expression instanceof SubtractionExpression)
-    {
-      SubtractionExpression subtractionExpression = (SubtractionExpression) expression;
-      LLVMValueRef left = buildExpression(subtractionExpression.getLeftSubExpression(), variables);
-      LLVMValueRef right = buildExpression(subtractionExpression.getRightSubExpression(), variables);
-      PrimitiveType leftType = (PrimitiveType) subtractionExpression.getLeftSubExpression().getType();
-      PrimitiveType rightType = (PrimitiveType) subtractionExpression.getRightSubExpression().getType();
-      // cast if necessary
-      PrimitiveType resultType = findArithmeticResultType(leftType, rightType);
-      left = convertNumericType(left, leftType, resultType);
-      right = convertNumericType(right, rightType, resultType);
-      if (resultType.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE)
-      {
-        return LLVM.LLVMBuildFSub(builder, left, right, "");
-      }
-      return LLVM.LLVMBuildSub(builder, left, right, "");
     }
     if (expression instanceof VariableExpression)
     {

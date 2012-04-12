@@ -21,7 +21,7 @@ int main(int argc)
   }
   else
   {
-    result = doubleAdd(5, 2);
+    result = cast<int> (10.5 + ((0-4.5) %% 3));
   }
   return result;
 }
@@ -29,12 +29,6 @@ int main(int argc)
 double foo(double x, double y)
 {
   return x + y;
-}
-
-int doubleAdd(int a, int b)
-{
-  int c = a + b;
-  return c + add((a),b);
 }
 
 int add(int x, int y)

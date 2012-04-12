@@ -25,9 +25,14 @@ Expression = AdditiveExpression |
              AdditiveExpression LAngleEquals          AdditiveExpression |
              AdditiveExpression RAngle                AdditiveExpression |
              AdditiveExpression RAngleEquals          AdditiveExpression
-AdditiveExpression = UnaryExpression |
-                     AdditiveExpression Plus UnaryExpression |
-                     AdditiveExpression Minus UnaryExpression
+AdditiveExpression = MultiplicativeExpression |
+                     AdditiveExpression Plus MultiplicativeExpression |
+                     AdditiveExpression Minus MultiplicativeExpression
+MultiplicativeExpression = UnaryExpression |
+                           MultiplicativeExpression Star          UnaryExpression |
+                           MultiplicativeExpression ForwardSlash  UnaryExpression |
+                           MultiplicativeExpression Percent       UnaryExpression |
+                           MultiplicativeExpression DoublePercent UnaryExpression
 UnaryExpression = Primary |
                   CastKeyword LAngle Type RAngle UnaryExpression
 Primary = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword |

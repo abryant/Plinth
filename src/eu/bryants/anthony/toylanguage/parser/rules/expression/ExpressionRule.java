@@ -47,9 +47,6 @@ public class ExpressionRule extends Rule<ParseType>
     {
       return args[0];
     }
-    Expression left = (Expression) args[0];
-    Expression right = (Expression) args[2];
-    LexicalPhrase lexicalPhrase = LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase());
     ComparisonOperator operator;
     if (production == EQUAL_PRODUCTION) { operator = ComparisonOperator.EQUAL; }
     else if (production == NOT_EQUAL_PRODUCTION) { operator = ComparisonOperator.NOT_EQUAL; }
@@ -58,6 +55,9 @@ public class ExpressionRule extends Rule<ParseType>
     else if (production == MORE_THAN_PRODUCTION) { operator = ComparisonOperator.MORE_THAN; }
     else if (production == MORE_THAN_EQUAL_PRODUCTION) { operator = ComparisonOperator.MORE_THAN_EQUAL; }
     else { throw badTypeList(); }
+    Expression left = (Expression) args[0];
+    Expression right = (Expression) args[2];
+    LexicalPhrase lexicalPhrase = LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase());
     return new ComparisonExpression(left, right, operator, lexicalPhrase);
   }
 
