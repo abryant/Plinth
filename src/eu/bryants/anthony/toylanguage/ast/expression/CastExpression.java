@@ -28,4 +28,10 @@ public class CastExpression extends Expression
   {
     return expression;
   }
+
+  @Override
+  public String toString()
+  {
+    return "cast<" + getType() + "> " + expression;
+  }
 }
