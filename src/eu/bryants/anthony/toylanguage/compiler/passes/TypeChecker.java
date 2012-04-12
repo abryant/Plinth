@@ -174,16 +174,25 @@ public class TypeChecker
             (comparisonExpression.getOperator() == ComparisonOperator.EQUAL || comparisonExpression.getOperator() == ComparisonOperator.NOT_EQUAL))
         {
           // comparing booleans is only valid when using '==' or '!='
-          Type type = new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
+          PrimitiveType type = new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
+          comparisonExpression.setComparisonType(type);
           comparisonExpression.setType(type);
           return type;
         }
         if (leftPrimitiveType != PrimitiveTypeType.BOOLEAN && rightPrimitiveType != PrimitiveTypeType.BOOLEAN)
         {
+          if (rightPrimitiveType == PrimitiveTypeType.DOUBLE)
+          {
+            comparisonExpression.setComparisonType((PrimitiveType) rightType);
+          }
+          else
+          {
+            comparisonExpression.setComparisonType((PrimitiveType) leftType);
+          }
           // comparing any numeric types is always valid
-          Type type = new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
-          comparisonExpression.setType(type);
-          return type;
+          Type resultType = new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
+          comparisonExpression.setType(resultType);
+          return resultType;
         }
       }
       throw new ConceptualException("The '" + operator + "' operator is not defined for types '" + leftType + "' and '" + rightType + "'", comparisonExpression.getLexicalPhrase());

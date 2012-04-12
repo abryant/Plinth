@@ -262,17 +262,6 @@ public class CodeGenerator
     }
   }
 
-  private PrimitiveType findArithmeticResultType(PrimitiveType left, PrimitiveType right)
-  {
-    // if either type is DOUBLE, then return DOUBLE
-    // otherwise, return INT
-    if (right.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE)
-    {
-      return right;
-    }
-    return left;
-  }
-
   private LLVMValueRef convertType(LLVMValueRef value, Type from, Type to)
   {
     if (from instanceof PrimitiveType && to instanceof PrimitiveType)
@@ -350,7 +339,7 @@ public class CodeGenerator
       PrimitiveType leftType = (PrimitiveType) arithmeticExpression.getLeftSubExpression().getType();
       PrimitiveType rightType = (PrimitiveType) arithmeticExpression.getRightSubExpression().getType();
       // cast if necessary
-      PrimitiveType resultType = findArithmeticResultType(leftType, rightType);
+      PrimitiveType resultType = (PrimitiveType) arithmeticExpression.getType();
       left = convertNumericType(left, leftType, resultType);
       right = convertNumericType(right, rightType, resultType);
       boolean floating = resultType.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE;
@@ -401,7 +390,7 @@ public class CodeGenerator
       PrimitiveType leftType = (PrimitiveType) comparisonExpression.getLeftSubExpression().getType();
       PrimitiveType rightType = (PrimitiveType) comparisonExpression.getRightSubExpression().getType();
       // cast if necessary
-      PrimitiveType resultType = findArithmeticResultType(leftType, rightType);
+      PrimitiveType resultType = comparisonExpression.getComparisonType();
       left = convertNumericType(left, leftType, resultType);
       right = convertNumericType(right, rightType, resultType);
       if (resultType.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE)
