@@ -27,6 +27,8 @@ import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
@@ -150,7 +152,7 @@ public class CodeGenerator
     if (statement instanceof AssignStatement)
     {
       AssignStatement assign = (AssignStatement) statement;
-      LLVMValueRef value = buildExpression(assign.getExpression(), variables);
+      LLVMValueRef value = buildExpression(assign.getExpression(), llvmFunction, variables);
       LLVMValueRef convertedValue = convertType(value, assign.getExpression().getType(), assign.getResolvedVariable().getType());
       LLVMValueRef allocaInst = variables.get(assign.getResolvedVariable());
       if (allocaInst == null)
@@ -169,7 +171,7 @@ public class CodeGenerator
     else if (statement instanceof IfStatement)
     {
       IfStatement ifStatement = (IfStatement) statement;
-      LLVMValueRef conditional = buildExpression(ifStatement.getExpression(), variables);
+      LLVMValueRef conditional = buildExpression(ifStatement.getExpression(), llvmFunction, variables);
 
       LLVMBasicBlockRef thenClause = LLVM.LLVMAppendBasicBlock(llvmFunction, "then");
       LLVMBasicBlockRef elseClause = null;
@@ -217,7 +219,7 @@ public class CodeGenerator
     }
     else if (statement instanceof ReturnStatement)
     {
-      LLVMValueRef value = buildExpression(((ReturnStatement) statement).getExpression(), variables);
+      LLVMValueRef value = buildExpression(((ReturnStatement) statement).getExpression(), llvmFunction, variables);
       LLVMValueRef convertedValue = convertType(value, ((ReturnStatement) statement).getExpression().getType(), function.getType());
       LLVM.LLVMBuildRet(builder, convertedValue);
     }
@@ -231,7 +233,7 @@ public class CodeGenerator
         {
           throw new IllegalStateException("Missing LLVMValueRef in variable Map: " + definition.getName().getName());
         }
-        LLVMValueRef value = buildExpression(definition.getExpression(), variables);
+        LLVMValueRef value = buildExpression(definition.getExpression(), llvmFunction, variables);
         LLVMValueRef convertedValue = convertType(value, definition.getExpression().getType(), definition.getType());
         LLVM.LLVMBuildStore(builder, convertedValue, allocaInst);
       }
@@ -244,7 +246,7 @@ public class CodeGenerator
       LLVM.LLVMBuildBr(builder, loopCheck);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, loopCheck);
-      LLVMValueRef conditional = buildExpression(whileStatement.getExpression(), variables);
+      LLVMValueRef conditional = buildExpression(whileStatement.getExpression(), llvmFunction, variables);
 
       LLVMBasicBlockRef loopBodyBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "loopBody");
       LLVMBasicBlockRef afterLoopBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "afterLoop");
@@ -266,12 +268,12 @@ public class CodeGenerator
   {
     if (from instanceof PrimitiveType && to instanceof PrimitiveType)
     {
-      return convertNumericType(value, (PrimitiveType) from, (PrimitiveType) to);
+      return convertPrimitiveType(value, (PrimitiveType) from, (PrimitiveType) to);
     }
     throw new IllegalArgumentException("Unknown type conversion, from '" + from + "' to '" + to + "'");
   }
 
-  private LLVMValueRef convertNumericType(LLVMValueRef value, PrimitiveType from, PrimitiveType to)
+  private LLVMValueRef convertPrimitiveType(LLVMValueRef value, PrimitiveType from, PrimitiveType to)
   {
     if (from.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE && to.getPrimitiveTypeType() == PrimitiveTypeType.INT)
     {
@@ -329,19 +331,19 @@ public class CodeGenerator
     throw new IllegalArgumentException("Unknown predicate '" + operator + "' for type '" + type + "'");
   }
 
-  private LLVMValueRef buildExpression(Expression expression, Map<Variable, LLVMValueRef> variables)
+  private LLVMValueRef buildExpression(Expression expression, LLVMValueRef llvmFunction, Map<Variable, LLVMValueRef> variables)
   {
     if (expression instanceof ArithmeticExpression)
     {
       ArithmeticExpression arithmeticExpression = (ArithmeticExpression) expression;
-      LLVMValueRef left = buildExpression(arithmeticExpression.getLeftSubExpression(), variables);
-      LLVMValueRef right = buildExpression(arithmeticExpression.getRightSubExpression(), variables);
+      LLVMValueRef left = buildExpression(arithmeticExpression.getLeftSubExpression(), llvmFunction, variables);
+      LLVMValueRef right = buildExpression(arithmeticExpression.getRightSubExpression(), llvmFunction, variables);
       PrimitiveType leftType = (PrimitiveType) arithmeticExpression.getLeftSubExpression().getType();
       PrimitiveType rightType = (PrimitiveType) arithmeticExpression.getRightSubExpression().getType();
       // cast if necessary
       PrimitiveType resultType = (PrimitiveType) arithmeticExpression.getType();
-      left = convertNumericType(left, leftType, resultType);
-      right = convertNumericType(right, rightType, resultType);
+      left = convertPrimitiveType(left, leftType, resultType);
+      right = convertPrimitiveType(right, rightType, resultType);
       boolean floating = resultType.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE;
       switch (arithmeticExpression.getOperator())
       {
@@ -374,25 +376,25 @@ public class CodeGenerator
     }
     if (expression instanceof BracketedExpression)
     {
-      return buildExpression(((BracketedExpression) expression).getExpression(), variables);
+      return buildExpression(((BracketedExpression) expression).getExpression(), llvmFunction, variables);
     }
     if (expression instanceof CastExpression)
     {
       CastExpression castExpression = (CastExpression) expression;
-      LLVMValueRef value = buildExpression(castExpression.getExpression(), variables);
+      LLVMValueRef value = buildExpression(castExpression.getExpression(), llvmFunction, variables);
       return convertType(value, castExpression.getExpression().getType(), castExpression.getType());
     }
     if (expression instanceof ComparisonExpression)
     {
       ComparisonExpression comparisonExpression = (ComparisonExpression) expression;
-      LLVMValueRef left = buildExpression(comparisonExpression.getLeftSubExpression(), variables);
-      LLVMValueRef right = buildExpression(comparisonExpression.getRightSubExpression(), variables);
+      LLVMValueRef left = buildExpression(comparisonExpression.getLeftSubExpression(), llvmFunction, variables);
+      LLVMValueRef right = buildExpression(comparisonExpression.getRightSubExpression(), llvmFunction, variables);
       PrimitiveType leftType = (PrimitiveType) comparisonExpression.getLeftSubExpression().getType();
       PrimitiveType rightType = (PrimitiveType) comparisonExpression.getRightSubExpression().getType();
       // cast if necessary
       PrimitiveType resultType = comparisonExpression.getComparisonType();
-      left = convertNumericType(left, leftType, resultType);
-      right = convertNumericType(right, rightType, resultType);
+      left = convertPrimitiveType(left, leftType, resultType);
+      right = convertPrimitiveType(right, rightType, resultType);
       if (resultType.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE)
       {
         return LLVM.LLVMBuildFCmp(builder, getPredicate(comparisonExpression.getOperator(), resultType.getPrimitiveTypeType()), left, right, "");
@@ -412,7 +414,7 @@ public class CodeGenerator
       LLVMValueRef[] values = new LLVMValueRef[arguments.length];
       for (int i = 0; i < arguments.length; i++)
       {
-        LLVMValueRef arg = buildExpression(arguments[i], variables);
+        LLVMValueRef arg = buildExpression(arguments[i], llvmFunction, variables);
         values[i] = convertType(arg, arguments[i].getType(), parameters[i].getType());
       }
       Pointer llvmArguments = C.toNativePointerArray(values, false, true);
@@ -423,6 +425,53 @@ public class CodeGenerator
     {
       int n = ((IntegerLiteralExpression) expression).getLiteral().getValue().intValue();
       return LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), n, false);
+    }
+    if (expression instanceof LogicalExpression)
+    {
+      LogicalExpression logicalExpression = (LogicalExpression) expression;
+      LLVMValueRef left = buildExpression(logicalExpression.getLeftSubExpression(), llvmFunction, variables);
+      PrimitiveType leftType = (PrimitiveType) logicalExpression.getLeftSubExpression().getType();
+      PrimitiveType rightType = (PrimitiveType) logicalExpression.getRightSubExpression().getType();
+      // cast if necessary
+      PrimitiveType resultType = (PrimitiveType) logicalExpression.getType();
+      left = convertPrimitiveType(left, leftType, resultType);
+      LogicalOperator operator = logicalExpression.getOperator();
+      if (operator != LogicalOperator.SHORT_CIRCUIT_AND && operator != LogicalOperator.SHORT_CIRCUIT_OR)
+      {
+        LLVMValueRef right = buildExpression(logicalExpression.getRightSubExpression(), llvmFunction, variables);
+        right = convertPrimitiveType(right, rightType, resultType);
+        switch (operator)
+        {
+        case AND:
+          return LLVM.LLVMBuildAnd(builder, left, right, "");
+        case OR:
+          return LLVM.LLVMBuildOr(builder, left, right, "");
+        case XOR:
+          return LLVM.LLVMBuildXor(builder, left, right, "");
+        default:
+          throw new IllegalStateException("Unexpected non-short-circuit operator: " + logicalExpression.getOperator());
+        }
+      }
+      LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVMBasicBlockRef rightCheckBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "shortCircuitCheck");
+      LLVMBasicBlockRef continuationBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "shortCircuitContinue");
+      // the only difference between short circuit AND and OR is whether they jump to the check block when the left hand side is true or false
+      LLVMBasicBlockRef trueDest = operator == LogicalOperator.SHORT_CIRCUIT_AND ? rightCheckBlock : continuationBlock;
+      LLVMBasicBlockRef falseDest = operator == LogicalOperator.SHORT_CIRCUIT_AND ? continuationBlock : rightCheckBlock;
+      LLVM.LLVMBuildCondBr(builder, left, trueDest, falseDest);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, rightCheckBlock);
+      LLVMValueRef right = buildExpression(logicalExpression.getRightSubExpression(), llvmFunction, variables);
+      right = convertPrimitiveType(right, rightType, resultType);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+      // create a phi node for the result, and return it
+      LLVMValueRef phi = LLVM.LLVMBuildPhi(builder, findNativeType(resultType), "");
+      LLVMValueRef[] incomingValues = new LLVMValueRef[] {left, right};
+      LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {currentBlock, rightCheckBlock};
+      LLVM.LLVMAddIncoming(phi, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), 2);
+      return phi;
     }
     if (expression instanceof VariableExpression)
     {

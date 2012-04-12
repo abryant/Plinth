@@ -15,6 +15,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
@@ -187,6 +188,12 @@ public class ControlFlowChecker
     else if (expression instanceof IntegerLiteralExpression)
     {
       // do nothing
+    }
+    else if (expression instanceof LogicalExpression)
+    {
+      LogicalExpression logicalExpression = (LogicalExpression) expression;
+      checkUninitializedVariables(logicalExpression.getLeftSubExpression(), initializedVariables);
+      checkUninitializedVariables(logicalExpression.getRightSubExpression(), initializedVariables);
     }
     else if (expression instanceof VariableExpression)
     {

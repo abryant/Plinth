@@ -2,14 +2,14 @@ int main(int argc)
 {
   boolean b = true;
   int result;
-  if argc > 2
+  if argc > 2 || false
   {
     double d = 3.0;
     int i = cast<int> d;
     double d2 = cast<double> i;
     return cast<int> d2;
   }
-  else if argc > 1
+  else if argc > 1 && true
   {
     double d = 0.0;
     result = 0;

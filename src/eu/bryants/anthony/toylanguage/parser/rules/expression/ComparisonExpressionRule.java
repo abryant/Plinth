@@ -16,7 +16,7 @@ import eu.bryants.anthony.toylanguage.parser.ParseType;
 /**
  * @author Anthony Bryant
  */
-public class ExpressionRule extends Rule<ParseType>
+public class ComparisonExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
@@ -29,12 +29,12 @@ public class ExpressionRule extends Rule<ParseType>
   private static Production<ParseType> MORE_THAN_EQUAL_PRODUCTION = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.RANGLE_EQUALS,            ParseType.ADDITIVE_EXPRESSION);
 
   @SuppressWarnings("unchecked")
-  public ExpressionRule()
+  public ComparisonExpressionRule()
   {
-    super(ParseType.EXPRESSION, NORMAL_PRODUCTION,
-                                EQUAL_PRODUCTION, NOT_EQUAL_PRODUCTION,
-                                LESS_THAN_PRODUCTION, LESS_THAN_EQUAL_PRODUCTION,
-                                MORE_THAN_PRODUCTION, MORE_THAN_EQUAL_PRODUCTION);
+    super(ParseType.COMPARISON_EXPRESSION, NORMAL_PRODUCTION,
+                                           EQUAL_PRODUCTION, NOT_EQUAL_PRODUCTION,
+                                           LESS_THAN_PRODUCTION, LESS_THAN_EQUAL_PRODUCTION,
+                                           MORE_THAN_PRODUCTION, MORE_THAN_EQUAL_PRODUCTION);
   }
 
   /**

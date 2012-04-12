@@ -495,6 +495,19 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       return null;
     }
 
+    if (nextChar == '&')
+    {
+      int secondChar = reader.read(1);
+      if (secondChar == '&')
+      {
+        return makeSymbolToken(ParseType.DOUBLE_AMPERSAND, 2);
+      }
+      return makeSymbolToken(ParseType.AMPERSAND, 1);
+    }
+    if (nextChar == '^')
+    {
+      return makeSymbolToken(ParseType.CARET, 1);
+    }
     if (nextChar == ',')
     {
       return makeSymbolToken(ParseType.COMMA, 1);
@@ -550,6 +563,15 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
         return makeSymbolToken(ParseType.DOUBLE_PERCENT, 2);
       }
       return makeSymbolToken(ParseType.PERCENT, 1);
+    }
+    if (nextChar == '|')
+    {
+      int secondChar = reader.read(1);
+      if (secondChar == '|')
+      {
+        return makeSymbolToken(ParseType.DOUBLE_PIPE, 2);
+      }
+      return makeSymbolToken(ParseType.PIPE, 1);
     }
     if (nextChar == '+')
     {

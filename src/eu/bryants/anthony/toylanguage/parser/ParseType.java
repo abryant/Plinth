@@ -29,6 +29,7 @@ public enum ParseType
   WHILE_STATEMENT,  // WhileStatement
   TYPE,             // Type
   EXPRESSION,       // Expression
+  COMPARISON_EXPRESSION, // Expression
   ADDITIVE_EXPRESSION, // Expression
   MULTIPLICATIVE_EXPRESSION, // Expression
   UNARY_EXPRESSION, // Expression
@@ -44,9 +45,13 @@ public enum ParseType
   FLOATING_LITERAL, // FloatingLiteral
 
   // symbols (values for these should all be LexicalPhrase)
+  AMPERSAND,
+  CARET,
   COMMA,
+  DOUBLE_AMPERSAND,
   DOUBLE_EQUALS,
   DOUBLE_PERCENT,
+  DOUBLE_PIPE,
   EQUALS,
   EXCLAIMATION_MARK,
   EXCLAIMATION_MARK_EQUALS,
@@ -57,6 +62,7 @@ public enum ParseType
   LPAREN,
   MINUS,
   PERCENT,
+  PIPE,
   PLUS,
   RANGLE,
   RANGLE_EQUALS,

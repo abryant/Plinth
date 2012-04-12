@@ -13,6 +13,8 @@ import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
@@ -230,6 +232,39 @@ public class TypeChecker
       Type type = new PrimitiveType(PrimitiveTypeType.INT, null);
       expression.setType(type);
       return type;
+    }
+    else if (expression instanceof LogicalExpression)
+    {
+      LogicalExpression logicalExpression = (LogicalExpression) expression;
+      Type leftType = checkTypes(logicalExpression.getLeftSubExpression(), compilationUnit);
+      Type rightType = checkTypes(logicalExpression.getRightSubExpression(), compilationUnit);
+      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType))
+      {
+        PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
+        PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
+        // disallow all floating types
+        if (leftPrimitiveType != PrimitiveTypeType.DOUBLE && rightPrimitiveType != PrimitiveTypeType.DOUBLE)
+        {
+          // disallow short-circuit operators for any types but boolean
+          if (logicalExpression.getOperator() == LogicalOperator.SHORT_CIRCUIT_AND || logicalExpression.getOperator() == LogicalOperator.SHORT_CIRCUIT_OR)
+          {
+            if (leftPrimitiveType == PrimitiveTypeType.BOOLEAN && rightPrimitiveType == PrimitiveTypeType.BOOLEAN)
+            {
+              logicalExpression.setType(leftType);
+              return leftType;
+            }
+            throw new ConceptualException("The short-circuit operator '" + logicalExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", logicalExpression.getLexicalPhrase());
+          }
+          // allow all (non-short-circuit) boolean/integer operations if the types match
+          if (leftPrimitiveType == rightPrimitiveType)
+          {
+            logicalExpression.setType(leftType);
+            return leftType;
+          }
+          // TODO: when multiple integer types exist, allow converting between integer operations by taking the longer integer type
+        }
+      }
+      throw new ConceptualException("The operator '" + logicalExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", logicalExpression.getLexicalPhrase());
     }
     else if (expression instanceof VariableExpression)
     {

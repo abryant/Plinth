@@ -18,13 +18,19 @@ WhileStatement = WhileKeyword Expression Block
 
 Type = BooleanKeyword | DoubleKeyword | IntKeyword
 
-Expression = AdditiveExpression |
-             AdditiveExpression DoubleEquals          AdditiveExpression |
-             AdditiveExpression ExclamationMarkEquals AdditiveExpression |
-             AdditiveExpression LAngle                AdditiveExpression |
-             AdditiveExpression LAngleEquals          AdditiveExpression |
-             AdditiveExpression RAngle                AdditiveExpression |
-             AdditiveExpression RAngleEquals          AdditiveExpression
+Expression = ComparisonExpression |
+             Expression Ampersand       ComparisonExpression |
+             Expression Pipe            ComparisonExpression |
+             Expression Caret           ComparisonExpression |
+             Expression DoubleAmpersand ComparisonExpression |
+             Expression DoublePipe      ComparisonExpression
+ComparisonExpression = AdditiveExpression |
+                       AdditiveExpression DoubleEquals          AdditiveExpression |
+                       AdditiveExpression ExclamationMarkEquals AdditiveExpression |
+                       AdditiveExpression LAngle                AdditiveExpression |
+                       AdditiveExpression LAngleEquals          AdditiveExpression |
+                       AdditiveExpression RAngle                AdditiveExpression |
+                       AdditiveExpression RAngleEquals          AdditiveExpression
 AdditiveExpression = MultiplicativeExpression |
                      AdditiveExpression Plus MultiplicativeExpression |
                      AdditiveExpression Minus MultiplicativeExpression
