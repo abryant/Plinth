@@ -15,28 +15,28 @@ public enum ParseType
 
   // NON-TERMINALS:
 
-  COMPILATION_UNIT, // CompilationUnit
-  FUNCTIONS,        // ParseList<Function>
-  FUNCTION,         // Function
-  PARAMETERS,       // ParseList<Parameter>
-  BLOCK,            // Block
-  STATEMENTS,       // ParseList<Statement>
-  STATEMENT,        // Statement
-  ASSIGN_STATEMENT, // AssignStatement
-  BREAK_STATEMENT,  // BreakStatement
-  IF_STATEMENT,     // IfStatement
-  RETURN_STATEMENT, // ReturnStatement
+  COMPILATION_UNIT,              // CompilationUnit
+  FUNCTIONS,                     // ParseList<Function>
+  FUNCTION,                      // Function
+  PARAMETERS,                    // ParseList<Parameter>
+  BLOCK,                         // Block
+  STATEMENTS,                    // ParseList<Statement>
+  STATEMENT,                     // Statement
+  ASSIGN_STATEMENT,              // AssignStatement
+  BREAK_STATEMENT,               // BreakStatement
+  CONTINUE_STATEMENT,            // ContinueStatement
+  IF_STATEMENT,                  // IfStatement
+  RETURN_STATEMENT,              // ReturnStatement
   VARIABLE_DEFINITION_STATEMENT, // VariableDefinition
-  WHILE_STATEMENT,  // WhileStatement
-  TYPE,             // Type
-  EXPRESSION,       // Expression
-  COMPARISON_EXPRESSION, // Expression
-  ADDITIVE_EXPRESSION, // Expression
-  MULTIPLICATIVE_EXPRESSION, // Expression
-  UNARY_EXPRESSION, // Expression
-  PRIMARY,          // Expression
-  FUNCTION_CALL,    // FunctionCallExpression
-  ARGUMENTS,        // ParseList<Expression>
+  WHILE_STATEMENT,               // WhileStatement
+  TYPE,                          // Type
+  EXPRESSION,                    // Expression
+  COMPARISON_EXPRESSION,         // Expression
+  ADDITIVE_EXPRESSION,           // Expression
+  MULTIPLICATIVE_EXPRESSION,     // Expression
+  UNARY_EXPRESSION,              // Expression
+  PRIMARY,                       // Expression
+  ARGUMENTS,                     // ParseList<Expression>
 
   // TERMINALS
 
@@ -77,6 +77,7 @@ public enum ParseType
   BOOLEAN_KEYWORD,
   BREAK_KEYWORD,
   CAST_KEYWORD,
+  CONTINUE_KEYWORD,
   DOUBLE_KEYWORD,
   ELSE_KEYWORD,
   FALSE_KEYWORD,

@@ -38,6 +38,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakableStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ContinueStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
@@ -149,10 +150,11 @@ public class CodeGenerator
       LLVM.LLVMBuildStore(builder, LLVM.LLVMGetParam(llvmFunction, p.getIndex()), variables.get(p.getVariable()));
     }
 
-    buildStatement(function.getBlock(), function, llvmFunction, variables, new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>());
+    buildStatement(function.getBlock(), function, llvmFunction, variables, new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>());
   }
 
-  private void buildStatement(Statement statement, Function function, LLVMValueRef llvmFunction, Map<Variable, LLVMValueRef> variables, Map<BreakableStatement, LLVMBasicBlockRef> breakBlocks)
+  private void buildStatement(Statement statement, Function function, LLVMValueRef llvmFunction, Map<Variable, LLVMValueRef> variables,
+                              Map<BreakableStatement, LLVMBasicBlockRef> breakBlocks, Map<BreakableStatement, LLVMBasicBlockRef> continueBlocks)
   {
     if (statement instanceof AssignStatement)
     {
@@ -170,7 +172,7 @@ public class CodeGenerator
     {
       for (Statement s : ((Block) statement).getStatements())
       {
-        buildStatement(s, function, llvmFunction, variables, breakBlocks);
+        buildStatement(s, function, llvmFunction, variables, breakBlocks, continueBlocks);
       }
     }
     else if (statement instanceof BreakStatement)
@@ -179,6 +181,15 @@ public class CodeGenerator
       if (block == null)
       {
         throw new IllegalStateException("Break statement leads to a null block during code generation: " + statement);
+      }
+      LLVM.LLVMBuildBr(builder, block);
+    }
+    else if (statement instanceof ContinueStatement)
+    {
+      LLVMBasicBlockRef block = continueBlocks.get(((ContinueStatement) statement).getResolvedBreakable());
+      if (block == null)
+      {
+        throw new IllegalStateException("Continue statement leads to a null block during code generation: " + statement);
       }
       LLVM.LLVMBuildBr(builder, block);
     }
@@ -211,7 +222,7 @@ public class CodeGenerator
 
         // build the else clause
         LLVM.LLVMPositionBuilderAtEnd(builder, elseClause);
-        buildStatement(ifStatement.getElseClause(), function, llvmFunction, variables, breakBlocks);
+        buildStatement(ifStatement.getElseClause(), function, llvmFunction, variables, breakBlocks, continueBlocks);
         if (!ifStatement.getElseClause().stopsExecution())
         {
           LLVM.LLVMBuildBr(builder, continuation);
@@ -220,7 +231,7 @@ public class CodeGenerator
 
       // build the then clause
       LLVM.LLVMPositionBuilderAtEnd(builder, thenClause);
-      buildStatement(ifStatement.getThenClause(), function, llvmFunction, variables, breakBlocks);
+      buildStatement(ifStatement.getThenClause(), function, llvmFunction, variables, breakBlocks, continueBlocks);
       if (!ifStatement.getThenClause().stopsExecution())
       {
         LLVM.LLVMBuildBr(builder, continuation);
@@ -269,7 +280,8 @@ public class CodeGenerator
       LLVM.LLVMPositionBuilderAtEnd(builder, loopBodyBlock);
       // add the while statement's afterLoop block to the breakBlocks map before it's statement is built
       breakBlocks.put(whileStatement, afterLoopBlock);
-      buildStatement(whileStatement.getStatement(), function, llvmFunction, variables, breakBlocks);
+      continueBlocks.put(whileStatement, loopCheck);
+      buildStatement(whileStatement.getStatement(), function, llvmFunction, variables, breakBlocks, continueBlocks);
 
       if (!whileStatement.getStatement().stopsExecution())
       {

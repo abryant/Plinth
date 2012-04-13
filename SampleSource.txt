@@ -36,7 +36,17 @@ int main(int argc)
   }
   if result == 4
   {
-    while true {}
+    int i = 0;
+    while true
+    {
+      if i < 7
+      {
+        i = i + 1;
+        continue;
+      }
+      result = i;
+      break;
+    }
   }
   return ~result;
 }

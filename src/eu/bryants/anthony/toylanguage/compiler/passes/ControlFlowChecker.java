@@ -27,6 +27,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakableStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ContinueStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
@@ -121,6 +122,33 @@ public class ControlFlowChecker
       BreakableStatement breakable = enclosingBreakableStack.get(breakCount - 1);
       breakStatement.setResolvedBreakable(breakable);
       breakable.setBrokenOutOf(true);
+      return true;
+    }
+    else if (statement instanceof ContinueStatement)
+    {
+      if (enclosingBreakableStack.isEmpty())
+      {
+        throw new ConceptualException("Nothing to continue through", statement.getLexicalPhrase());
+      }
+      ContinueStatement continueStatement = (ContinueStatement) statement;
+      IntegerLiteral stepsLiteral = continueStatement.getContinueSteps();
+      int continueCount = 1;
+      if (stepsLiteral != null)
+      {
+        BigInteger value = stepsLiteral.getValue();
+        if (value.signum() < 1)
+        {
+          throw new ConceptualException("Cannot continue through less than one statement", continueStatement.getLexicalPhrase());
+        }
+        if (value.bitLength() > Integer.SIZE || value.intValue() > enclosingBreakableStack.size())
+        {
+          throw new ConceptualException("Cannot continue through more than " + enclosingBreakableStack.size() + " statement" + (enclosingBreakableStack.size() == 1 ? "" : "s") + " at this point", continueStatement.getLexicalPhrase());
+        }
+        continueCount = value.intValue();
+      }
+      BreakableStatement breakable = enclosingBreakableStack.get(continueCount - 1);
+      continueStatement.setResolvedBreakable(breakable);
+      // TODO: when we get switch statements, make sure continue is forbidden for them
       return true;
     }
     else if (statement instanceof IfStatement)
