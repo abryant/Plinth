@@ -602,6 +602,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     {
       return makeSymbolToken(ParseType.STAR, 1);
     }
+    if (nextChar == '~')
+    {
+      return makeSymbolToken(ParseType.TILDE, 1);
+    }
     // none of the symbols matched, so return null
     return null;
   }

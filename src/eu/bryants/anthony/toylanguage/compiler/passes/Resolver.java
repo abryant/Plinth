@@ -9,7 +9,9 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.BitwiseNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
@@ -18,6 +20,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
@@ -177,9 +180,17 @@ public class Resolver
       resolve(((ArithmeticExpression) expression).getLeftSubExpression(), block, compilationUnit);
       resolve(((ArithmeticExpression) expression).getRightSubExpression(), block, compilationUnit);
     }
+    else if (expression instanceof BitwiseNotExpression)
+    {
+      resolve(((BitwiseNotExpression) expression).getExpression(), block, compilationUnit);
+    }
     else if (expression instanceof BooleanLiteralExpression)
     {
       // do nothing
+    }
+    else if (expression instanceof BooleanNotExpression)
+    {
+      resolve(((BooleanNotExpression) expression).getExpression(), block, compilationUnit);
     }
     else if (expression instanceof BracketedExpression)
     {
@@ -223,6 +234,10 @@ public class Resolver
     {
       resolve(((LogicalExpression) expression).getLeftSubExpression(), block, compilationUnit);
       resolve(((LogicalExpression) expression).getRightSubExpression(), block, compilationUnit);
+    }
+    else if (expression instanceof MinusExpression)
+    {
+      resolve(((MinusExpression) expression).getExpression(), block, compilationUnit);
     }
     else if (expression instanceof VariableExpression)
     {

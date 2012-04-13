@@ -18,7 +18,9 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.BitwiseNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
@@ -29,6 +31,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
+import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
@@ -370,9 +373,19 @@ public class CodeGenerator
       }
       throw new IllegalArgumentException("Unknown arithmetic operator: " + arithmeticExpression.getOperator());
     }
+    if (expression instanceof BitwiseNotExpression)
+    {
+      LLVMValueRef value = buildExpression(((BitwiseNotExpression) expression).getExpression(), llvmFunction, variables);
+      return LLVM.LLVMBuildNot(builder, value, "");
+    }
     if (expression instanceof BooleanLiteralExpression)
     {
       return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), ((BooleanLiteralExpression) expression).getValue() ? 1 : 0, false);
+    }
+    if (expression instanceof BooleanNotExpression)
+    {
+      LLVMValueRef value = buildExpression(((BooleanNotExpression) expression).getExpression(), llvmFunction, variables);
+      return LLVM.LLVMBuildNot(builder, value, "");
     }
     if (expression instanceof BracketedExpression)
     {
@@ -472,6 +485,17 @@ public class CodeGenerator
       LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {currentBlock, rightCheckBlock};
       LLVM.LLVMAddIncoming(phi, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), 2);
       return phi;
+    }
+    if (expression instanceof MinusExpression)
+    {
+      MinusExpression minusExpression = (MinusExpression) expression;
+      LLVMValueRef value = buildExpression(minusExpression.getExpression(), llvmFunction, variables);
+      PrimitiveTypeType primitiveTypeType = ((PrimitiveType) minusExpression.getType()).getPrimitiveTypeType();
+      if (primitiveTypeType == PrimitiveTypeType.DOUBLE)
+      {
+        return LLVM.LLVMBuildFNeg(builder, value, "");
+      }
+      return LLVM.LLVMBuildNeg(builder, value, "");
     }
     if (expression instanceof VariableExpression)
     {

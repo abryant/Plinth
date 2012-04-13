@@ -7,7 +7,9 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.BitwiseNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
@@ -16,6 +18,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
@@ -156,9 +159,17 @@ public class ControlFlowChecker
       checkUninitializedVariables(arithmeticExpression.getLeftSubExpression(), initializedVariables);
       checkUninitializedVariables(arithmeticExpression.getRightSubExpression(), initializedVariables);
     }
+    else if (expression instanceof BitwiseNotExpression)
+    {
+      checkUninitializedVariables(((BitwiseNotExpression) expression).getExpression(), initializedVariables);
+    }
     else if (expression instanceof BooleanLiteralExpression)
     {
       // do nothing
+    }
+    else if (expression instanceof BooleanNotExpression)
+    {
+      checkUninitializedVariables(((BooleanNotExpression) expression).getExpression(), initializedVariables);
     }
     else if (expression instanceof BracketedExpression)
     {
@@ -194,6 +205,10 @@ public class ControlFlowChecker
       LogicalExpression logicalExpression = (LogicalExpression) expression;
       checkUninitializedVariables(logicalExpression.getLeftSubExpression(), initializedVariables);
       checkUninitializedVariables(logicalExpression.getRightSubExpression(), initializedVariables);
+    }
+    else if (expression instanceof MinusExpression)
+    {
+      checkUninitializedVariables(((MinusExpression) expression).getExpression(), initializedVariables);
     }
     else if (expression instanceof VariableExpression)
     {

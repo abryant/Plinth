@@ -4,7 +4,9 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.BitwiseNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
@@ -15,6 +17,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
+import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
@@ -138,11 +141,35 @@ public class TypeChecker
       }
       throw new ConceptualException("The operator '" + arithmeticExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", arithmeticExpression.getLexicalPhrase());
     }
+    else if (expression instanceof BitwiseNotExpression)
+    {
+      Type type = checkTypes(((BitwiseNotExpression) expression).getExpression(), compilationUnit);
+      if (type instanceof PrimitiveType)
+      {
+        PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
+        if (primitiveTypeType != PrimitiveTypeType.DOUBLE)
+        {
+          expression.setType(type);
+          return type;
+        }
+      }
+      throw new ConceptualException("The operator '~' is not defined for type '" + type + "'", expression.getLexicalPhrase());
+    }
     else if (expression instanceof BooleanLiteralExpression)
     {
       Type type = new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
       expression.setType(type);
       return type;
+    }
+    else if (expression instanceof BooleanNotExpression)
+    {
+      Type type = checkTypes(((BooleanNotExpression) expression).getExpression(), compilationUnit);
+      if (type instanceof PrimitiveType && ((PrimitiveType) type).getPrimitiveTypeType() == PrimitiveTypeType.BOOLEAN)
+      {
+        expression.setType(type);
+        return type;
+      }
+      throw new ConceptualException("The operator '!' is not defined for type '" + type + "'", expression.getLexicalPhrase());
     }
     else if (expression instanceof BracketedExpression)
     {
@@ -265,6 +292,16 @@ public class TypeChecker
         }
       }
       throw new ConceptualException("The operator '" + logicalExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", logicalExpression.getLexicalPhrase());
+    }
+    else if (expression instanceof MinusExpression)
+    {
+      Type type = checkTypes(((MinusExpression) expression).getExpression(), compilationUnit);
+      if (type instanceof PrimitiveType && ((PrimitiveType) type).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+      {
+        expression.setType(type);
+        return type;
+      }
+      throw new ConceptualException("The unary operator '-' is not defined for type '" + type + "'", expression.getLexicalPhrase());
     }
     else if (expression instanceof VariableExpression)
     {

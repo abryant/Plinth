@@ -70,6 +70,7 @@ public enum ParseType
   RPAREN,
   SEMICOLON,
   STAR,
+  TILDE,
 
   // keywords (values for these should all be LexicalPhrase)
   BOOLEAN_KEYWORD,

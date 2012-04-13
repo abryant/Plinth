@@ -2,7 +2,7 @@ int main(int argc)
 {
   boolean b = true;
   int result;
-  if argc > 2 || false
+  if argc > 2 || !true
   {
     double d = 3.0;
     int i = cast<int> d;
@@ -21,9 +21,9 @@ int main(int argc)
   }
   else
   {
-    result = cast<int> (10.5 + ((0-4.5) %% 3));
+    result = cast<int> (10.5 + (-4.5 %% 3));
   }
-  return result;
+  return ~result;
 }
 
 double foo(double x, double y)

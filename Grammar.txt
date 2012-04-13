@@ -40,7 +40,10 @@ MultiplicativeExpression = UnaryExpression |
                            MultiplicativeExpression Percent       UnaryExpression |
                            MultiplicativeExpression DoublePercent UnaryExpression
 UnaryExpression = Primary |
-                  CastKeyword LAngle Type RAngle UnaryExpression
+                  CastKeyword LAngle Type RAngle UnaryExpression |
+                  Minus UnaryExpression |
+                  Tilde UnaryExpression |
+                  ExclaimationMark UnaryExpression
 Primary = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword |
           Name |
           Name LParen Arguments RParen | Name LParen RParen |
