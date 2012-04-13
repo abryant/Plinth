@@ -8,9 +8,10 @@ Parameters = Type Name | Parameters Comma Type Name
 Block = LBrace Statements RBrace
 
 Statements = epsilon | Statements Statement
-Statement = Assignment | Block | IfStatement | ReturnStatement | VariableDefinition | WhileStatement
+Statement = Assignment | Block | BreakStatement | IfStatement | ReturnStatement | VariableDefinition | WhileStatement
 
 Assignment = Name Equals Expression Semicolon
+BreakStatement = Break Semicolon | Break IntegerLiteral Semicolon
 IfStatement = IfKeyword Expression Block | IfKeyword Expression Block ElseKeyword Block | IfKeyword Expression Block ElseKeyword IfStatement
 ReturnStatement = ReturnKeyword Expression Semicolon
 VariableDefinition = Type Name Semicolon | Type Name Equals Expression Semicolon

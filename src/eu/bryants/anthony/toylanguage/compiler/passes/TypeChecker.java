@@ -21,6 +21,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
+import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
@@ -65,6 +66,10 @@ public class TypeChecker
       {
         checkTypes(s, function, compilationUnit);
       }
+    }
+    else if (statement instanceof BreakStatement)
+    {
+      // do nothing
     }
     else if (statement instanceof IfStatement)
     {

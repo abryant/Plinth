@@ -10,7 +10,7 @@ import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 /**
  * @author Anthony Bryant
  */
-public class WhileStatement extends Statement
+public class WhileStatement extends BreakableStatement
 {
 
   private Expression expression;

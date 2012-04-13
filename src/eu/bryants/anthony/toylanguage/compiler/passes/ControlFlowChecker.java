@@ -1,6 +1,8 @@
 package eu.bryants.anthony.toylanguage.compiler.passes;
 
+import java.math.BigInteger;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
@@ -23,11 +25,14 @@ import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
+import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.BreakableStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.VariableDefinition;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
+import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
 
 /*
@@ -53,7 +58,7 @@ public class ControlFlowChecker
       {
         initializedVariables.add(p.getVariable());
       }
-      boolean returned = checkControlFlow(f.getBlock(), initializedVariables);
+      boolean returned = checkControlFlow(f.getBlock(), initializedVariables, new LinkedList<BreakableStatement>());
       if (!returned)
       {
         throw new ConceptualException("Function does not always return a value", f.getLexicalPhrase());
@@ -64,10 +69,12 @@ public class ControlFlowChecker
   /**
    * Checks that the control flow of the specified statement is well defined.
    * @param statement - the statement to check
+   * @param initializedVariables - the set of variables which have definitely been initialized before the specified statement is executed
+   * @param enclosingBreakableStack - the stack of statements that can be broken out of that enclose this statement
    * @return true if the statement returns from its enclosing function, false if control flow continues after it
    * @throws ConceptualException - if any unreachable code is detected
    */
-  private static boolean checkControlFlow(Statement statement, Set<Variable> initializedVariables) throws ConceptualException
+  private static boolean checkControlFlow(Statement statement, Set<Variable> initializedVariables, LinkedList<BreakableStatement> enclosingBreakableStack) throws ConceptualException
   {
     if (statement instanceof AssignStatement)
     {
@@ -85,9 +92,36 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Unreachable code", s.getLexicalPhrase());
         }
-        returned = checkControlFlow(s, initializedVariables);
+        returned = checkControlFlow(s, initializedVariables, enclosingBreakableStack);
       }
       return returned;
+    }
+    else if (statement instanceof BreakStatement)
+    {
+      if (enclosingBreakableStack.isEmpty())
+      {
+        throw new ConceptualException("Nothing to break out of", statement.getLexicalPhrase());
+      }
+      BreakStatement breakStatement = (BreakStatement) statement;
+      IntegerLiteral stepsLiteral = breakStatement.getBreakSteps();
+      int breakCount = 1;
+      if (stepsLiteral != null)
+      {
+        BigInteger value = stepsLiteral.getValue();
+        if (value.signum() < 1)
+        {
+          throw new ConceptualException("Cannot break out of less than one statement", breakStatement.getLexicalPhrase());
+        }
+        if (value.bitLength() > Integer.SIZE || value.intValue() > enclosingBreakableStack.size())
+        {
+          throw new ConceptualException("Cannot break out of more than " + enclosingBreakableStack.size() + " statement" + (enclosingBreakableStack.size() == 1 ? "" : "s") + " at this point", breakStatement.getLexicalPhrase());
+        }
+        breakCount = value.intValue();
+      }
+      BreakableStatement breakable = enclosingBreakableStack.get(breakCount - 1);
+      breakStatement.setResolvedBreakable(breakable);
+      breakable.setBrokenOutOf(true);
+      return true;
     }
     else if (statement instanceof IfStatement)
     {
@@ -98,13 +132,13 @@ public class ControlFlowChecker
       if (elseClause == null)
       {
         Set<Variable> thenClauseVariables = new HashSet<Variable>(initializedVariables);
-        checkControlFlow(thenClause, thenClauseVariables);
+        checkControlFlow(thenClause, thenClauseVariables, enclosingBreakableStack);
         return false;
       }
       Set<Variable> thenClauseVariables = new HashSet<Variable>(initializedVariables);
       Set<Variable> elseClauseVariables = new HashSet<Variable>(initializedVariables);
-      boolean thenReturned = checkControlFlow(thenClause, thenClauseVariables);
-      boolean elseReturned = checkControlFlow(elseClause, elseClauseVariables);
+      boolean thenReturned = checkControlFlow(thenClause, thenClauseVariables, enclosingBreakableStack);
+      boolean elseReturned = checkControlFlow(elseClause, elseClauseVariables, enclosingBreakableStack);
       if (!thenReturned && !elseReturned)
       {
         for (Variable var : thenClauseVariables)
@@ -147,8 +181,10 @@ public class ControlFlowChecker
 
       Set<Variable> loopVariables = new HashSet<Variable>(initializedVariables);
       // we don't care about the result of this, as the loop could execute zero times
-      checkControlFlow(whileStatement.getStatement(), loopVariables);
-      return false;
+      enclosingBreakableStack.push(whileStatement);
+      checkControlFlow(whileStatement.getStatement(), loopVariables, enclosingBreakableStack);
+      enclosingBreakableStack.pop();
+      return whileStatement.stopsExecution();
     }
     throw new ConceptualException("Internal control flow checking error: Unknown statement type", statement.getLexicalPhrase());
   }

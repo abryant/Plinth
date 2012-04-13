@@ -23,6 +23,7 @@ public enum ParseType
   STATEMENTS,       // ParseList<Statement>
   STATEMENT,        // Statement
   ASSIGN_STATEMENT, // AssignStatement
+  BREAK_STATEMENT,  // BreakStatement
   IF_STATEMENT,     // IfStatement
   RETURN_STATEMENT, // ReturnStatement
   VARIABLE_DEFINITION_STATEMENT, // VariableDefinition
@@ -74,6 +75,7 @@ public enum ParseType
 
   // keywords (values for these should all be LexicalPhrase)
   BOOLEAN_KEYWORD,
+  BREAK_KEYWORD,
   CAST_KEYWORD,
   DOUBLE_KEYWORD,
   ELSE_KEYWORD,

@@ -25,6 +25,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
+import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
@@ -132,6 +133,10 @@ public class Resolver
       {
         resolve(s, subBlock, compilationUnit);
       }
+    }
+    else if (statement instanceof BreakStatement)
+    {
+      // do nothing
     }
     else if (statement instanceof IfStatement)
     {

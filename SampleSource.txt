@@ -23,9 +23,20 @@ int main(int argc)
   {
     result = cast<int> (10.5 + (-4.5 %% 3));
   }
-  while false
+  while true
   {
-    return 2;
+    while true
+    {
+      int asdf = 12;
+      if asdf == 12
+      {
+        break 2;
+      }
+    }
+  }
+  if result == 4
+  {
+    while true {}
   }
   return ~result;
 }

@@ -36,6 +36,8 @@ import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
+import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.BreakableStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
@@ -147,10 +149,10 @@ public class CodeGenerator
       LLVM.LLVMBuildStore(builder, LLVM.LLVMGetParam(llvmFunction, p.getIndex()), variables.get(p.getVariable()));
     }
 
-    buildStatement(function.getBlock(), function, llvmFunction, variables);
+    buildStatement(function.getBlock(), function, llvmFunction, variables, new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>());
   }
 
-  private void buildStatement(Statement statement, Function function, LLVMValueRef llvmFunction, Map<Variable, LLVMValueRef> variables)
+  private void buildStatement(Statement statement, Function function, LLVMValueRef llvmFunction, Map<Variable, LLVMValueRef> variables, Map<BreakableStatement, LLVMBasicBlockRef> breakBlocks)
   {
     if (statement instanceof AssignStatement)
     {
@@ -168,8 +170,17 @@ public class CodeGenerator
     {
       for (Statement s : ((Block) statement).getStatements())
       {
-        buildStatement(s, function, llvmFunction, variables);
+        buildStatement(s, function, llvmFunction, variables, breakBlocks);
       }
+    }
+    else if (statement instanceof BreakStatement)
+    {
+      LLVMBasicBlockRef block = breakBlocks.get(((BreakStatement) statement).getResolvedBreakable());
+      if (block == null)
+      {
+        throw new IllegalStateException("Break statement leads to a null block during code generation: " + statement);
+      }
+      LLVM.LLVMBuildBr(builder, block);
     }
     else if (statement instanceof IfStatement)
     {
@@ -200,7 +211,7 @@ public class CodeGenerator
 
         // build the else clause
         LLVM.LLVMPositionBuilderAtEnd(builder, elseClause);
-        buildStatement(ifStatement.getElseClause(), function, llvmFunction, variables);
+        buildStatement(ifStatement.getElseClause(), function, llvmFunction, variables, breakBlocks);
         if (!ifStatement.getElseClause().stopsExecution())
         {
           LLVM.LLVMBuildBr(builder, continuation);
@@ -209,7 +220,7 @@ public class CodeGenerator
 
       // build the then clause
       LLVM.LLVMPositionBuilderAtEnd(builder, thenClause);
-      buildStatement(ifStatement.getThenClause(), function, llvmFunction, variables);
+      buildStatement(ifStatement.getThenClause(), function, llvmFunction, variables, breakBlocks);
       if (!ifStatement.getThenClause().stopsExecution())
       {
         LLVM.LLVMBuildBr(builder, continuation);
@@ -256,7 +267,9 @@ public class CodeGenerator
       LLVM.LLVMBuildCondBr(builder, conditional, loopBodyBlock, afterLoopBlock);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, loopBodyBlock);
-      buildStatement(whileStatement.getStatement(), function, llvmFunction, variables);
+      // add the while statement's afterLoop block to the breakBlocks map before it's statement is built
+      breakBlocks.put(whileStatement, afterLoopBlock);
+      buildStatement(whileStatement.getStatement(), function, llvmFunction, variables, breakBlocks);
 
       if (!whileStatement.getStatement().stopsExecution())
       {
