@@ -115,15 +115,16 @@ public class CodeGenerator
   {
     if (type instanceof PrimitiveType)
     {
-      switch (((PrimitiveType) type).getPrimitiveTypeType())
+      PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
+      if (primitiveTypeType == PrimitiveTypeType.DOUBLE)
       {
-      case BOOLEAN:
-        return LLVM.LLVMInt1Type();
-      case DOUBLE:
         return LLVM.LLVMDoubleType();
-      case INT:
-        return LLVM.LLVMInt32Type();
       }
+      if (primitiveTypeType == PrimitiveTypeType.FLOAT)
+      {
+        return LLVM.LLVMFloatType();
+      }
+      return LLVM.LLVMIntType(primitiveTypeType.getBitCount());
     }
     throw new IllegalStateException("Unexpected Type: " + type);
   }
@@ -303,24 +304,53 @@ public class CodeGenerator
 
   private LLVMValueRef convertPrimitiveType(LLVMValueRef value, PrimitiveType from, PrimitiveType to)
   {
-    if (from.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE && to.getPrimitiveTypeType() == PrimitiveTypeType.INT)
-    {
-      return LLVM.LLVMBuildFPToSI(builder, value, findNativeType(to), "");
-    }
-    if (from.getPrimitiveTypeType() == PrimitiveTypeType.INT && to.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE)
-    {
-      return LLVM.LLVMBuildSIToFP(builder, value, findNativeType(to), "");
-    }
-    if (from.getPrimitiveTypeType() == to.getPrimitiveTypeType())
+    PrimitiveTypeType fromType = from.getPrimitiveTypeType();
+    PrimitiveTypeType toType = to.getPrimitiveTypeType();
+    if (fromType == toType)
     {
       return value;
     }
-    throw new IllegalArgumentException("Unknown type conversion, from '" + from + "' to '" + to + "'");
+    LLVMTypeRef toNativeType = findNativeType(to);
+    if (fromType.isFloating() && toType.isFloating())
+    {
+      return LLVM.LLVMBuildFPCast(builder, value, toNativeType, "");
+    }
+    if (fromType.isFloating() && !toType.isFloating())
+    {
+      if (toType.isSigned())
+      {
+        return LLVM.LLVMBuildFPToSI(builder, value, toNativeType, "");
+      }
+      return LLVM.LLVMBuildFPToUI(builder, value, toNativeType, "");
+    }
+    if (!fromType.isFloating() && toType.isFloating())
+    {
+      if (fromType.isSigned())
+      {
+        return LLVM.LLVMBuildSIToFP(builder, value, toNativeType, "");
+      }
+      return LLVM.LLVMBuildUIToFP(builder, value, toNativeType, "");
+    }
+    // both integer types, so perform a sign-extend, zero-extend, or truncation
+    if (fromType.getBitCount() > toType.getBitCount())
+    {
+      return LLVM.LLVMBuildTrunc(builder, value, toNativeType, "");
+    }
+    if (fromType.getBitCount() == toType.getBitCount() && fromType.isSigned() != toType.isSigned())
+    {
+      return LLVM.LLVMBuildBitCast(builder, value, toNativeType, "");
+    }
+    // the value needs extending, so decide whether to do a sign-extend or a zero-extend based on whether the from type is signed
+    if (fromType.isSigned())
+    {
+      return LLVM.LLVMBuildSExt(builder, value, toNativeType, "");
+    }
+    return LLVM.LLVMBuildZExt(builder, value, toNativeType, "");
   }
 
-  private int getPredicate(ComparisonOperator operator, PrimitiveTypeType type)
+  private int getPredicate(ComparisonOperator operator, boolean floating, boolean signed)
   {
-    if (type == PrimitiveTypeType.DOUBLE)
+    if (floating)
     {
       switch (operator)
       {
@@ -338,25 +368,25 @@ public class CodeGenerator
         return LLVM.LLVMRealPredicate.LLVMRealONE;
       }
     }
-    else if (type == PrimitiveTypeType.INT)
+    else
     {
       switch (operator)
       {
       case EQUAL:
         return LLVM.LLVMIntPredicate.LLVMIntEQ;
       case LESS_THAN:
-        return LLVM.LLVMIntPredicate.LLVMIntSLT;
+        return signed ? LLVM.LLVMIntPredicate.LLVMIntSLT : LLVM.LLVMIntPredicate.LLVMIntULT;
       case LESS_THAN_EQUAL:
-        return LLVM.LLVMIntPredicate.LLVMIntSLE;
+        return signed ? LLVM.LLVMIntPredicate.LLVMIntSLE : LLVM.LLVMIntPredicate.LLVMIntULE;
       case MORE_THAN:
-        return LLVM.LLVMIntPredicate.LLVMIntSGT;
+        return signed ? LLVM.LLVMIntPredicate.LLVMIntSGT : LLVM.LLVMIntPredicate.LLVMIntUGT;
       case MORE_THAN_EQUAL:
-        return LLVM.LLVMIntPredicate.LLVMIntSGE;
+        return signed ? LLVM.LLVMIntPredicate.LLVMIntSGE : LLVM.LLVMIntPredicate.LLVMIntUGE;
       case NOT_EQUAL:
         return LLVM.LLVMIntPredicate.LLVMIntNE;
       }
     }
-    throw new IllegalArgumentException("Unknown predicate '" + operator + "' for type '" + type + "'");
+    throw new IllegalArgumentException("Unknown predicate '" + operator + "'");
   }
 
   private LLVMValueRef buildExpression(Expression expression, LLVMValueRef llvmFunction, Map<Variable, LLVMValueRef> variables)
@@ -372,7 +402,8 @@ public class CodeGenerator
       PrimitiveType resultType = (PrimitiveType) arithmeticExpression.getType();
       left = convertPrimitiveType(left, leftType, resultType);
       right = convertPrimitiveType(right, rightType, resultType);
-      boolean floating = resultType.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE;
+      boolean floating = resultType.getPrimitiveTypeType().isFloating();
+      boolean signed = resultType.getPrimitiveTypeType().isSigned();
       switch (arithmeticExpression.getOperator())
       {
       case ADD:
@@ -382,9 +413,9 @@ public class CodeGenerator
       case MULTIPLY:
         return floating ? LLVM.LLVMBuildFMul(builder, left, right, "") : LLVM.LLVMBuildMul(builder, left, right, "");
       case DIVIDE:
-        return floating ? LLVM.LLVMBuildFDiv(builder, left, right, "") : LLVM.LLVMBuildSDiv(builder, left, right, "");
+        return floating ? LLVM.LLVMBuildFDiv(builder, left, right, "") : signed ? LLVM.LLVMBuildSDiv(builder, left, right, "") : LLVM.LLVMBuildUDiv(builder, left, right, "");
       case REMAINDER:
-        return floating ? LLVM.LLVMBuildFRem(builder, left, right, "") : LLVM.LLVMBuildSRem(builder, left, right, "");
+        return floating ? LLVM.LLVMBuildFRem(builder, left, right, "") : signed ? LLVM.LLVMBuildSRem(builder, left, right, "") : LLVM.LLVMBuildURem(builder, left, right, "");
       case MODULO:
         if (floating)
         {
@@ -392,9 +423,14 @@ public class CodeGenerator
           LLVMValueRef add = LLVM.LLVMBuildFAdd(builder, rem, right, "");
           return LLVM.LLVMBuildFRem(builder, add, right, "");
         }
-        LLVMValueRef rem = LLVM.LLVMBuildSRem(builder, left, right, "");
-        LLVMValueRef add = LLVM.LLVMBuildAdd(builder, rem, right, "");
-        return LLVM.LLVMBuildSRem(builder, add, right, "");
+        if (signed)
+        {
+          LLVMValueRef rem = LLVM.LLVMBuildSRem(builder, left, right, "");
+          LLVMValueRef add = LLVM.LLVMBuildAdd(builder, rem, right, "");
+          return LLVM.LLVMBuildSRem(builder, add, right, "");
+        }
+        // unsigned modulo is the same as unsigned remainder
+        return LLVM.LLVMBuildURem(builder, left, right, "");
       }
       throw new IllegalArgumentException("Unknown arithmetic operator: " + arithmeticExpression.getOperator());
     }
@@ -431,18 +467,42 @@ public class CodeGenerator
       PrimitiveType rightType = (PrimitiveType) comparisonExpression.getRightSubExpression().getType();
       // cast if necessary
       PrimitiveType resultType = comparisonExpression.getComparisonType();
+      if (resultType == null)
+      {
+        PrimitiveTypeType leftTypeType = leftType.getPrimitiveTypeType();
+        PrimitiveTypeType rightTypeType = rightType.getPrimitiveTypeType();
+        if (!leftTypeType.isFloating() && !rightTypeType.isFloating() &&
+            leftTypeType.getBitCount() == rightTypeType.getBitCount() &&
+            leftTypeType.isSigned() != rightTypeType.isSigned())
+        {
+          // compare the signed and non-signed integers as (bitCount + 1) bit numbers, since they will not fit in bitCount bits
+          LLVMTypeRef comparisonType = LLVM.LLVMIntType(leftType.getPrimitiveTypeType().getBitCount() + 1);
+          if (leftTypeType.isSigned())
+          {
+            left = LLVM.LLVMBuildSExt(builder, left, comparisonType, "");
+            right = LLVM.LLVMBuildZExt(builder, right, comparisonType, "");
+          }
+          else
+          {
+            left = LLVM.LLVMBuildZExt(builder, left, comparisonType, "");
+            right = LLVM.LLVMBuildSExt(builder, right, comparisonType, "");
+          }
+          return LLVM.LLVMBuildICmp(builder, getPredicate(comparisonExpression.getOperator(), false, true), left, right, "");
+        }
+        throw new IllegalArgumentException("Unknown result type, unable to generate comparison expression: " + expression);
+      }
       left = convertPrimitiveType(left, leftType, resultType);
       right = convertPrimitiveType(right, rightType, resultType);
-      if (resultType.getPrimitiveTypeType() == PrimitiveTypeType.DOUBLE)
+      if (resultType.getPrimitiveTypeType().isFloating())
       {
-        return LLVM.LLVMBuildFCmp(builder, getPredicate(comparisonExpression.getOperator(), resultType.getPrimitiveTypeType()), left, right, "");
+        return LLVM.LLVMBuildFCmp(builder, getPredicate(comparisonExpression.getOperator(), true, true), left, right, "");
       }
-      return LLVM.LLVMBuildICmp(builder, getPredicate(comparisonExpression.getOperator(), resultType.getPrimitiveTypeType()), left, right, "");
+      return LLVM.LLVMBuildICmp(builder, getPredicate(comparisonExpression.getOperator(), false, resultType.getPrimitiveTypeType().isSigned()), left, right, "");
     }
     if (expression instanceof FloatingLiteralExpression)
     {
       double value = Double.parseDouble(((FloatingLiteralExpression) expression).getLiteral().toString());
-      return LLVM.LLVMConstReal(LLVM.LLVMDoubleType(), value);
+      return LLVM.LLVMConstReal(findNativeType(expression.getType()), value);
     }
     if (expression instanceof FunctionCallExpression)
     {
@@ -462,7 +522,7 @@ public class CodeGenerator
     if (expression instanceof IntegerLiteralExpression)
     {
       int n = ((IntegerLiteralExpression) expression).getLiteral().getValue().intValue();
-      return LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), n, false);
+      return LLVM.LLVMConstInt(findNativeType(expression.getType()), n, false);
     }
     if (expression instanceof LogicalExpression)
     {
@@ -515,8 +575,9 @@ public class CodeGenerator
     {
       MinusExpression minusExpression = (MinusExpression) expression;
       LLVMValueRef value = buildExpression(minusExpression.getExpression(), llvmFunction, variables);
+      value = convertPrimitiveType(value, (PrimitiveType) minusExpression.getExpression().getType(), (PrimitiveType) minusExpression.getType());
       PrimitiveTypeType primitiveTypeType = ((PrimitiveType) minusExpression.getType()).getPrimitiveTypeType();
-      if (primitiveTypeType == PrimitiveTypeType.DOUBLE)
+      if (primitiveTypeType.isFloating())
       {
         return LLVM.LLVMBuildFNeg(builder, value, "");
       }

@@ -18,7 +18,12 @@ ReturnStatement = ReturnKeyword Expression Semicolon
 VariableDefinition = Type Name Semicolon | Type Name Equals Expression Semicolon
 WhileStatement = WhileKeyword Expression Block
 
-Type = BooleanKeyword | DoubleKeyword | IntKeyword
+Type = BooleanKeyword |
+       DoubleKeyword  | FloatKeyword  |
+       ULongKeyword   | LongKeyword   |
+       UIntKeyword    | IntKeyword    |
+       UShortKeyword  | ShortKeyword  |
+       UByteKeyword   | ByteKeyword
 
 Expression = ComparisonExpression |
              Expression Ampersand       ComparisonExpression |

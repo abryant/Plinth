@@ -79,6 +79,7 @@ public class LLVM
   public static native LLVMValueRef LLVMBuildAdd(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildAlloca(LLVMBuilderRef builder, LLVMTypeRef type, String name);
   public static native LLVMValueRef LLVMBuildAnd(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
+  public static native LLVMValueRef LLVMBuildBitCast(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
   public static native LLVMValueRef LLVMBuildBr(LLVMBuilderRef builder, LLVMBasicBlockRef dest);
   public static native LLVMValueRef LLVMBuildCondBr(LLVMBuilderRef builder, LLVMValueRef conditional, LLVMBasicBlockRef trueDest, LLVMBasicBlockRef falseDest);
   public static native LLVMValueRef LLVMBuildCall(LLVMBuilderRef builder, LLVMValueRef function, Pointer arguments, int numArgs, String name);
@@ -89,7 +90,9 @@ public class LLVM
   public static native LLVMValueRef LLVMBuildFNeg(LLVMBuilderRef builder, LLVMValueRef value, String name);
   public static native LLVMValueRef LLVMBuildFRem(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildFSub(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
+  public static native LLVMValueRef LLVMBuildFPCast(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
   public static native LLVMValueRef LLVMBuildFPToSI(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
+  public static native LLVMValueRef LLVMBuildFPToUI(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
   public static native LLVMValueRef LLVMBuildICmp(LLVMBuilderRef builder, int intPredicate, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildLoad(LLVMBuilderRef builder, LLVMValueRef pointer, String name);
   public static native LLVMValueRef LLVMBuildMul(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
@@ -99,10 +102,14 @@ public class LLVM
   public static native LLVMValueRef LLVMBuildPhi(LLVMBuilderRef builder, LLVMTypeRef type, String name);
   public static native LLVMValueRef LLVMBuildRet(LLVMBuilderRef builder, LLVMValueRef value);
   public static native LLVMValueRef LLVMBuildSDiv(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
+  public static native LLVMValueRef LLVMBuildSExt(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
+  public static native LLVMValueRef LLVMBuildZExt(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
   public static native LLVMValueRef LLVMBuildSIToFP(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
+  public static native LLVMValueRef LLVMBuildUIToFP(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
   public static native LLVMValueRef LLVMBuildSRem(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildStore(LLVMBuilderRef builder, LLVMValueRef value, LLVMValueRef pointer);
   public static native LLVMValueRef LLVMBuildSub(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
+  public static native LLVMValueRef LLVMBuildTrunc(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
   public static native LLVMValueRef LLVMBuildUDiv(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildURem(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildXor(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
@@ -126,8 +133,12 @@ public class LLVM
 
   public static native LLVMTypeRef LLVMFunctionType(LLVMTypeRef returnType, Pointer paramTypes, int paramCount, boolean isVarArg);
   public static native LLVMTypeRef LLVMDoubleType();
+  public static native LLVMTypeRef LLVMFloatType();
   public static native LLVMTypeRef LLVMInt1Type();
+  public static native LLVMTypeRef LLVMInt8Type();
+  public static native LLVMTypeRef LLVMInt16Type();
   public static native LLVMTypeRef LLVMInt32Type();
+  public static native LLVMTypeRef LLVMInt64Type();
   public static native LLVMTypeRef LLVMIntType(int bits);
 
   public static native int LLVMWriteBitcodeToFile(LLVMModuleRef module, String path);

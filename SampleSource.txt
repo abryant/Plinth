@@ -1,11 +1,11 @@
-int main(int argc)
+int main(uint argc)
 {
   boolean b = true;
   int result;
   if argc > 2 || !true
   {
     double d = 3.0;
-    int i = cast<int> d;
+    short i = cast<short> d;
     double d2 = cast<double> i;
     return cast<int> d2;
   }
@@ -34,7 +34,7 @@ int main(int argc)
       }
     }
   }
-  if result == 4
+  if result == 4.0
   {
     int i = 0;
     while true

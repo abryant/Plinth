@@ -1,5 +1,7 @@
 package eu.bryants.anthony.toylanguage.compiler.passes;
 
+import java.math.BigInteger;
+
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
@@ -140,13 +142,17 @@ public class TypeChecker
         PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
         if (leftPrimitiveType != PrimitiveTypeType.BOOLEAN && rightPrimitiveType != PrimitiveTypeType.BOOLEAN)
         {
-          if (rightPrimitiveType == PrimitiveTypeType.DOUBLE)
+          if (leftType.canAssign(rightType))
+          {
+            arithmeticExpression.setType(leftType);
+            return leftType;
+          }
+          if (rightType.canAssign(leftType))
           {
             arithmeticExpression.setType(rightType);
             return rightType;
           }
-          arithmeticExpression.setType(leftType);
-          return leftType;
+          // the type will now only be null if no conversion can be done, e.g. if leftType is UINT and rightType is INT
         }
       }
       throw new ConceptualException("The operator '" + arithmeticExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", arithmeticExpression.getLexicalPhrase());
@@ -157,7 +163,7 @@ public class TypeChecker
       if (type instanceof PrimitiveType)
       {
         PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
-        if (primitiveTypeType != PrimitiveTypeType.DOUBLE)
+        if (!primitiveTypeType.isFloating())
         {
           expression.setType(type);
           return type;
@@ -195,7 +201,21 @@ public class TypeChecker
       {
         // if the assignment works in reverse (i.e. the casted type can be assigned to the expression) then it can be casted back
         // (also allow it if the assignment works forwards, although really that should be a warning about an unnecessary cast)
+
+        // return the type of the cast expression (it has already been set during parsing)
         return expression.getType();
+      }
+      if (exprType instanceof PrimitiveType && castedType instanceof PrimitiveType)
+      {
+        // allow non-floating primitive types with the same bit count to be casted to each other
+        PrimitiveTypeType exprPrimitiveTypeType = ((PrimitiveType) exprType).getPrimitiveTypeType();
+        PrimitiveTypeType castedPrimitiveTypeType = ((PrimitiveType) castedType).getPrimitiveTypeType();
+        if (!exprPrimitiveTypeType.isFloating() && !castedPrimitiveTypeType.isFloating() &&
+            exprPrimitiveTypeType.getBitCount() == castedPrimitiveTypeType.getBitCount())
+        {
+          // return the type of the cast expression (it has already been set during parsing)
+          return expression.getType();
+        }
       }
       throw new ConceptualException("Cannot cast from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
     }
@@ -213,21 +233,29 @@ public class TypeChecker
             (comparisonExpression.getOperator() == ComparisonOperator.EQUAL || comparisonExpression.getOperator() == ComparisonOperator.NOT_EQUAL))
         {
           // comparing booleans is only valid when using '==' or '!='
+          comparisonExpression.setComparisonType((PrimitiveType) leftType);
           PrimitiveType type = new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
-          comparisonExpression.setComparisonType(type);
           comparisonExpression.setType(type);
           return type;
         }
         if (leftPrimitiveType != PrimitiveTypeType.BOOLEAN && rightPrimitiveType != PrimitiveTypeType.BOOLEAN)
         {
-          if (rightPrimitiveType == PrimitiveTypeType.DOUBLE)
+          if (leftType.canAssign(rightType))
+          {
+            comparisonExpression.setComparisonType((PrimitiveType) leftType);
+          }
+          else if (rightType.canAssign(leftType))
           {
             comparisonExpression.setComparisonType((PrimitiveType) rightType);
           }
           else
           {
-            comparisonExpression.setComparisonType((PrimitiveType) leftType);
+            // comparisonType will be null if no conversion can be done, e.g. if leftType is UINT and rightType is INT
+            // but since comparing numeric types should always be valid, we just set the comparisonType to null anyway
+            // and let the code generator handle it by converting to larger signed types first
+            comparisonExpression.setComparisonType(null);
           }
+
           // comparing any numeric types is always valid
           Type resultType = new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
           comparisonExpression.setType(resultType);
@@ -238,6 +266,14 @@ public class TypeChecker
     }
     else if (expression instanceof FloatingLiteralExpression)
     {
+      String floatingString = ((FloatingLiteralExpression) expression).getLiteral().toString();
+      if (Float.parseFloat(floatingString) == Double.parseDouble(floatingString))
+      {
+        // the value fits in a float, so that is its initial type (which will automatically be casted to double if necessary)
+        Type type = new PrimitiveType(PrimitiveTypeType.FLOAT, null);
+        expression.setType(type);
+        return type;
+      }
       Type type = new PrimitiveType(PrimitiveTypeType.DOUBLE, null);
       expression.setType(type);
       return type;
@@ -266,7 +302,52 @@ public class TypeChecker
     }
     else if (expression instanceof IntegerLiteralExpression)
     {
-      Type type = new PrimitiveType(PrimitiveTypeType.INT, null);
+      BigInteger value = ((IntegerLiteralExpression) expression).getLiteral().getValue();
+      PrimitiveTypeType primitiveTypeType;
+      if (value.signum() < 0)
+      {
+        // the number must be signed
+        // check that bitLength() < SIZE to find out which signed type to use
+        // use strictly less than because bitLength() excludes the sign bit
+        if (value.bitLength() < Byte.SIZE)
+        {
+          primitiveTypeType = PrimitiveTypeType.BYTE;
+        }
+        else if (value.bitLength() < Short.SIZE)
+        {
+          primitiveTypeType = PrimitiveTypeType.SHORT;
+        }
+        else if (value.bitLength() < Integer.SIZE)
+        {
+          primitiveTypeType = PrimitiveTypeType.INT;
+        }
+        else
+        {
+          primitiveTypeType = PrimitiveTypeType.LONG;
+        }
+      }
+      else
+      {
+        // the number is assumed to be unsigned
+        // use a '<=' check against the size this time, because we don't need to store a sign bit
+        if (value.bitLength() <= Byte.SIZE)
+        {
+          primitiveTypeType = PrimitiveTypeType.UBYTE;
+        }
+        else if (value.bitLength() <= Short.SIZE)
+        {
+          primitiveTypeType = PrimitiveTypeType.USHORT;
+        }
+        else if (value.bitLength() <= Integer.SIZE)
+        {
+          primitiveTypeType = PrimitiveTypeType.UINT;
+        }
+        else
+        {
+          primitiveTypeType = PrimitiveTypeType.ULONG;
+        }
+      }
+      Type type = new PrimitiveType(primitiveTypeType, null);
       expression.setType(type);
       return type;
     }
@@ -280,7 +361,7 @@ public class TypeChecker
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
         PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
         // disallow all floating types
-        if (leftPrimitiveType != PrimitiveTypeType.DOUBLE && rightPrimitiveType != PrimitiveTypeType.DOUBLE)
+        if (!leftPrimitiveType.isFloating() && !rightPrimitiveType.isFloating())
         {
           // disallow short-circuit operators for any types but boolean
           if (logicalExpression.getOperator() == LogicalOperator.SHORT_CIRCUIT_AND || logicalExpression.getOperator() == LogicalOperator.SHORT_CIRCUIT_OR)
@@ -298,7 +379,32 @@ public class TypeChecker
             logicalExpression.setType(leftType);
             return leftType;
           }
-          // TODO: when multiple integer types exist, allow converting between integer operations by taking the longer integer type
+          // both types are now integers or booleans
+          // if one can be converted to the other (left -> right or right -> left), then do the conversion
+          if (leftType.canAssign(rightType))
+          {
+            logicalExpression.setType(leftType);
+            return leftType;
+          }
+          if (rightType.canAssign(leftType))
+          {
+            logicalExpression.setType(rightType);
+            return rightType;
+          }
+          // allow conversion from signed to unsigned values of the same bit length here
+          if (leftPrimitiveType.getBitCount() == rightPrimitiveType.getBitCount())
+          {
+            if (leftPrimitiveType.isSigned() && !rightPrimitiveType.isSigned())
+            {
+              logicalExpression.setType(rightType);
+              return rightType;
+            }
+            if (!leftPrimitiveType.isSigned() && rightPrimitiveType.isSigned())
+            {
+              logicalExpression.setType(leftType);
+              return leftType;
+            }
+          }
         }
       }
       throw new ConceptualException("The operator '" + logicalExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", logicalExpression.getLexicalPhrase());
@@ -306,10 +412,40 @@ public class TypeChecker
     else if (expression instanceof MinusExpression)
     {
       Type type = checkTypes(((MinusExpression) expression).getExpression(), compilationUnit);
-      if (type instanceof PrimitiveType && ((PrimitiveType) type).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+      if (type instanceof PrimitiveType)
       {
-        expression.setType(type);
-        return type;
+        PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
+        // allow the unary minus operator to automatically convert from unsigned to signed integer values
+        if (primitiveTypeType == PrimitiveTypeType.UBYTE)
+        {
+          PrimitiveType signedType = new PrimitiveType(PrimitiveTypeType.BYTE, null);
+          expression.setType(signedType);
+          return signedType;
+        }
+        if (primitiveTypeType == PrimitiveTypeType.USHORT)
+        {
+          PrimitiveType signedType = new PrimitiveType(PrimitiveTypeType.SHORT, null);
+          expression.setType(signedType);
+          return signedType;
+        }
+        if (primitiveTypeType == PrimitiveTypeType.UINT)
+        {
+          PrimitiveType signedType = new PrimitiveType(PrimitiveTypeType.INT, null);
+          expression.setType(signedType);
+          return signedType;
+        }
+        if (primitiveTypeType == PrimitiveTypeType.ULONG)
+        {
+          PrimitiveType signedType = new PrimitiveType(PrimitiveTypeType.LONG, null);
+          expression.setType(signedType);
+          return signedType;
+        }
+
+        if (primitiveTypeType != PrimitiveTypeType.BOOLEAN)
+        {
+          expression.setType(type);
+          return type;
+        }
       }
       throw new ConceptualException("The unary operator '-' is not defined for type '" + type + "'", expression.getLexicalPhrase());
     }

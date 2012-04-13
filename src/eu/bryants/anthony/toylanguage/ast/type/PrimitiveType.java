@@ -17,16 +17,54 @@ public class PrimitiveType extends Type
    */
   public enum PrimitiveTypeType
   {
-    BOOLEAN("boolean"),
-    DOUBLE("double"),
-    INT("int"),
+    BOOLEAN("boolean", false, 1,  false),
+    UBYTE  ("ubyte",   false, 8,  false),
+    USHORT ("ushort",  false, 16, false),
+    UINT   ("uint",    false, 32, false),
+    ULONG  ("ulong",   false, 64, false),
+    BYTE   ("byte",    false, 8,  true),
+    SHORT  ("short",   false, 16, true),
+    INT    ("int",     false, 32, true),
+    LONG   ("long",    false, 64, true),
+    FLOAT  ("float",   true,  32, true),
+    DOUBLE ("double",  true,  64, true),
     ;
 
     public final String name;
+    private boolean floating;
+    private int bitCount;
+    private boolean signed;
 
-    PrimitiveTypeType(String name)
+    PrimitiveTypeType(String name, boolean floating, int bitCount, boolean signed)
     {
       this.name = name;
+      this.floating = floating;
+      this.bitCount = bitCount;
+      this.signed = signed;
+    }
+
+    /**
+     * @return the floating
+     */
+    public boolean isFloating()
+    {
+      return floating;
+    }
+
+    /**
+     * @return the bitCount
+     */
+    public int getBitCount()
+    {
+      return bitCount;
+    }
+
+    /**
+     * @return the signed
+     */
+    public boolean isSigned()
+    {
+      return signed;
     }
   }
 
@@ -56,24 +94,89 @@ public class PrimitiveType extends Type
     {
       return false;
     }
-    PrimitiveType primitive = (PrimitiveType) type;
-    if (primitive.getPrimitiveTypeType() == primitiveTypeType)
+    PrimitiveTypeType otherType = ((PrimitiveType) type).getPrimitiveTypeType();
+    // a boolean can only be assigned to a boolean
+    // also, only a boolean can be assigned to a boolean
+    // (if either of them are booleans, they must both be booleans to be assignment compatible)
+    if (primitiveTypeType == PrimitiveTypeType.BOOLEAN || otherType == PrimitiveTypeType.BOOLEAN)
     {
-      // a variable of one type can always be assigned to itself
+      return primitiveTypeType == PrimitiveTypeType.BOOLEAN && otherType == PrimitiveTypeType.BOOLEAN;
+    }
+    // floating point types are only assign-compatible if a smaller type is being assigned to a larger type (or they are equal sizes)
+    if (primitiveTypeType.isFloating() && otherType.isFloating())
+    {
+      return primitiveTypeType.getBitCount() >= otherType.getBitCount();
+    }
+    // integer types can always be assigned to floating point types
+    if (primitiveTypeType.isFloating())
+    {
       return true;
     }
-    if (primitiveTypeType == PrimitiveTypeType.BOOLEAN)
+    // floating point types can never be assigned to integer types
+    if (otherType.isFloating())
     {
-      // nothing can be assigned to a boolean except another boolean
       return false;
     }
-    if (primitiveTypeType == PrimitiveTypeType.DOUBLE && primitive.getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+    // both types are now integers
+    // smaller integers can always be assigned to larger integers
+    if (primitiveTypeType.getBitCount() > otherType.getBitCount())
     {
-      // all numeric types can be assigned to a double
       return true;
     }
-    // disallow all other assignments else
-    return false;
+    if (primitiveTypeType.getBitCount() < otherType.getBitCount())
+    {
+      return false;
+    }
+    return primitiveTypeType.isSigned() == otherType.isSigned();
+
+    /* or, as a lookup table:
+    switch (primitiveTypeType)
+    {
+    case BOOLEAN:
+      return otherType == PrimitiveTypeType.BOOLEAN;
+    case DOUBLE:
+      return otherType == PrimitiveTypeType.DOUBLE || otherType == PrimitiveTypeType.FLOAT  ||
+             otherType == PrimitiveTypeType.LONG   || otherType == PrimitiveTypeType.ULONG  ||
+             otherType == PrimitiveTypeType.INT    || otherType == PrimitiveTypeType.UINT   ||
+             otherType == PrimitiveTypeType.SHORT  || otherType == PrimitiveTypeType.USHORT ||
+             otherType == PrimitiveTypeType.BYTE   || otherType == PrimitiveTypeType.UBYTE;
+    case FLOAT:
+      return otherType == PrimitiveTypeType.FLOAT ||
+             otherType == PrimitiveTypeType.LONG  || otherType == PrimitiveTypeType.ULONG  ||
+             otherType == PrimitiveTypeType.INT   || otherType == PrimitiveTypeType.UINT   ||
+             otherType == PrimitiveTypeType.SHORT || otherType == PrimitiveTypeType.USHORT ||
+             otherType == PrimitiveTypeType.BYTE  || otherType == PrimitiveTypeType.UBYTE;
+    case ULONG:
+      return otherType == PrimitiveTypeType.ULONG ||
+             otherType == PrimitiveTypeType.INT   || otherType == PrimitiveTypeType.UINT   ||
+             otherType == PrimitiveTypeType.SHORT || otherType == PrimitiveTypeType.USHORT ||
+             otherType == PrimitiveTypeType.BYTE  || otherType == PrimitiveTypeType.UBYTE;
+    case LONG:
+      return otherType == PrimitiveTypeType.LONG  ||
+             otherType == PrimitiveTypeType.INT   || otherType == PrimitiveTypeType.UINT   ||
+             otherType == PrimitiveTypeType.SHORT || otherType == PrimitiveTypeType.USHORT ||
+             otherType == PrimitiveTypeType.BYTE  || otherType == PrimitiveTypeType.UBYTE;
+    case UINT:
+      return otherType == PrimitiveTypeType.UINT  ||
+             otherType == PrimitiveTypeType.SHORT || otherType == PrimitiveTypeType.USHORT ||
+             otherType == PrimitiveTypeType.BYTE  || otherType == PrimitiveTypeType.UBYTE;
+    case INT:
+      return otherType == PrimitiveTypeType.INT   ||
+             otherType == PrimitiveTypeType.SHORT || otherType == PrimitiveTypeType.USHORT ||
+             otherType == PrimitiveTypeType.BYTE  || otherType == PrimitiveTypeType.UBYTE;
+    case USHORT:
+      return otherType == PrimitiveTypeType.USHORT ||
+             otherType == PrimitiveTypeType.BYTE   || otherType == PrimitiveTypeType.UBYTE;
+    case SHORT:
+      return otherType == PrimitiveTypeType.SHORT ||
+             otherType == PrimitiveTypeType.BYTE  || otherType == PrimitiveTypeType.UBYTE;
+    case UBYTE:
+      return otherType == PrimitiveTypeType.UBYTE;
+    case BYTE:
+      return otherType == PrimitiveTypeType.BYTE;
+    }
+    throw new IllegalStateException("Unknown primitive type: " + primitiveTypeType);
+    */
   }
 
   @Override
