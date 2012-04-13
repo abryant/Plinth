@@ -68,7 +68,7 @@ public class Block extends Statement
   public boolean stopsExecution()
   {
     // don't worry about any of the statements but the last - the control flow checker will make sure execution can always get to the last instruction
-    return statements[statements.length - 1].stopsExecution();
+    return statements.length > 0 && statements[statements.length - 1].stopsExecution();
   }
 
   @Override
