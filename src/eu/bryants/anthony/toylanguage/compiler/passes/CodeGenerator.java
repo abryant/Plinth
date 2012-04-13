@@ -258,7 +258,7 @@ public class CodeGenerator
       LLVM.LLVMPositionBuilderAtEnd(builder, loopBodyBlock);
       buildStatement(whileStatement.getStatement(), function, llvmFunction, variables);
 
-      if (!whileStatement.stopsExecution())
+      if (!whileStatement.getStatement().stopsExecution())
       {
         LLVM.LLVMBuildBr(builder, loopCheck);
       }

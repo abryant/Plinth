@@ -23,6 +23,10 @@ int main(int argc)
   {
     result = cast<int> (10.5 + (-4.5 %% 3));
   }
+  while false
+  {
+    return 2;
+  }
   return ~result;
 }
 

@@ -146,7 +146,9 @@ public class ControlFlowChecker
       checkUninitializedVariables(whileStatement.getExpression(), initializedVariables);
 
       Set<Variable> loopVariables = new HashSet<Variable>(initializedVariables);
-      return checkControlFlow(whileStatement.getStatement(), loopVariables);
+      // we don't care about the result of this, as the loop could execute zero times
+      checkControlFlow(whileStatement.getStatement(), loopVariables);
+      return false;
     }
     throw new ConceptualException("Internal control flow checking error: Unknown statement type", statement.getLexicalPhrase());
   }

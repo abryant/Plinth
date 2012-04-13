@@ -45,7 +45,7 @@ public class WhileStatement extends Statement
   @Override
   public boolean stopsExecution()
   {
-    return statement.stopsExecution();
+    return false;
   }
 
   @Override
