@@ -18,7 +18,7 @@ public class ArithmeticExpression extends Expression
     MULTIPLY("*"),
     DIVIDE("/"),
     REMAINDER("%"),
-    MODULO("%"),
+    MODULO("%%"),
     ;
     private String stringRepresentation;
 
