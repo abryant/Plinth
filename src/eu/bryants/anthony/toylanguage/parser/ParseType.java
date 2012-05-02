@@ -19,6 +19,8 @@ public enum ParseType
   FUNCTIONS,                     // ParseList<Function>
   FUNCTION,                      // Function
   PARAMETERS,                    // ParseList<Parameter>
+
+  // Statements
   BLOCK,                         // Block
   STATEMENTS,                    // ParseList<Statement>
   STATEMENT,                     // Statement
@@ -29,13 +31,18 @@ public enum ParseType
   RETURN_STATEMENT,              // ReturnStatement
   VARIABLE_DEFINITION_STATEMENT, // VariableDefinition
   WHILE_STATEMENT,               // WhileStatement
+
+  // Types
   TYPE,                          // Type
+
+  // Expressions
   EXPRESSION,                    // Expression
   COMPARISON_EXPRESSION,         // Expression
   ADDITIVE_EXPRESSION,           // Expression
   MULTIPLICATIVE_EXPRESSION,     // Expression
   UNARY_EXPRESSION,              // Expression
   PRIMARY,                       // Expression
+  FUNCTION_CALL_EXPRESSION,      // FunctionCallExpression
   ARGUMENTS,                     // ParseList<Expression>
 
   // TERMINALS

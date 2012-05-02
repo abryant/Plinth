@@ -8,7 +8,8 @@ Parameters = Type Name | Parameters Comma Type Name
 Block = LBrace Statements RBrace
 
 Statements = epsilon | Statements Statement
-Statement = Assignment | Block | BreakStatement | ContinueStatement | IfStatement | ReturnStatement | VariableDefinition | WhileStatement
+Statement = Assignment | Block | BreakStatement | ContinueStatement | IfStatement | ReturnStatement | VariableDefinition | WhileStatement |
+            FunctionCallExpression Semicolon
 
 Assignment = Name Equals Expression Semicolon
 BreakStatement = BreakKeyword Semicolon | BreakKeyword IntegerLiteral Semicolon
@@ -53,6 +54,7 @@ UnaryExpression = Primary |
                   ExclaimationMark UnaryExpression
 Primary = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword |
           Name |
-          Name LParen Arguments RParen | Name LParen RParen |
+          FunctionCallExpression |
           LParen Expression RParen
+FunctionCallExpression = Name LParen Arguments RParen | Name LParen RParen
 Arguments = Expression | Arguments Comma Expression

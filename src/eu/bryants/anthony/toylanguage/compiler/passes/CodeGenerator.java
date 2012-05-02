@@ -39,6 +39,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakableStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ContinueStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
@@ -193,6 +194,10 @@ public class CodeGenerator
         throw new IllegalStateException("Continue statement leads to a null block during code generation: " + statement);
       }
       LLVM.LLVMBuildBr(builder, block);
+    }
+    else if (statement instanceof ExpressionStatement)
+    {
+      buildExpression(((ExpressionStatement) statement).getExpression(), llvmFunction, variables);
     }
     else if (statement instanceof IfStatement)
     {

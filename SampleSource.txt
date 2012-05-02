@@ -1,5 +1,6 @@
 int main(uint argc)
 {
+  //blah();
   boolean b = true;
   int result;
   if argc > 2 || !true
@@ -49,6 +50,14 @@ int main(uint argc)
     }
   }
   return ~result;
+}
+
+int blah()
+{
+  while true
+  {
+  }
+  return 1;
 }
 
 double foo(double x, double y)

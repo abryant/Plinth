@@ -28,6 +28,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakableStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ContinueStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
@@ -150,6 +151,11 @@ public class ControlFlowChecker
       continueStatement.setResolvedBreakable(breakable);
       // TODO: when we get switch statements, make sure continue is forbidden for them
       return true;
+    }
+    else if (statement instanceof ExpressionStatement)
+    {
+      checkUninitializedVariables(((ExpressionStatement) statement).getExpression(), initializedVariables);
+      return false;
     }
     else if (statement instanceof IfStatement)
     {

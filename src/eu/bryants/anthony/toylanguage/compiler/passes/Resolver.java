@@ -27,6 +27,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ContinueStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
@@ -142,6 +143,10 @@ public class Resolver
     else if (statement instanceof ContinueStatement)
     {
       // do nothing
+    }
+    else if (statement instanceof ExpressionStatement)
+    {
+      resolve(((ExpressionStatement) statement).getExpression(), enclosingBlock, compilationUnit);
     }
     else if (statement instanceof IfStatement)
     {
