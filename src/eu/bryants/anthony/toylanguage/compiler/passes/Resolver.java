@@ -16,12 +16,14 @@ import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
+import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
+import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
@@ -33,6 +35,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.VariableDefinition;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
+import eu.bryants.anthony.toylanguage.ast.type.Type;
 import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
 import eu.bryants.anthony.toylanguage.compiler.NameNotResolvedException;
 
@@ -219,6 +222,22 @@ public class Resolver
     {
       resolve(((ComparisonExpression) expression).getLeftSubExpression(), block, compilationUnit);
       resolve(((ComparisonExpression) expression).getRightSubExpression(), block, compilationUnit);
+    }
+    else if (expression instanceof FieldAccessExpression)
+    {
+      FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
+      String fieldName = fieldAccessExpression.getFieldName();
+      resolve(fieldAccessExpression.getExpression(), block, compilationUnit);
+
+      // find the type of the sub-expression, by calling the type checker
+      // this is fine as long as we resolve all of the sub-expression first
+      Type expressionType = TypeChecker.checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
+      Member member = expressionType.getMember(fieldName);
+      if (member == null)
+      {
+        throw new NameNotResolvedException("No such member \"" + fieldName + "\" for type " + expressionType, expression.getLexicalPhrase());
+      }
+      fieldAccessExpression.setResolvedMember(member);
     }
     else if (expression instanceof FloatingLiteralExpression)
     {

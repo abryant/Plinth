@@ -14,6 +14,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression.ComparisonOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
+import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
@@ -21,6 +22,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
+import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
@@ -134,7 +136,15 @@ public class TypeChecker
     }
   }
 
-  private static Type checkTypes(Expression expression, CompilationUnit compilationUnit) throws ConceptualException
+  /**
+   * Checks the types on an Expression recursively.
+   * This method should only be called on an Expression after the resolver has been run over that Expression
+   * @param expression - the Expression to check the types on
+   * @param compilationUnit - the compilation unit containing the expression
+   * @return the Type of the Expression
+   * @throws ConceptualException - if a conceptual problem is encountered while checking the types
+   */
+  public static Type checkTypes(Expression expression, CompilationUnit compilationUnit) throws ConceptualException
   {
     if (expression instanceof ArithmeticExpression)
     {
@@ -268,6 +278,15 @@ public class TypeChecker
         }
       }
       throw new ConceptualException("The '" + operator + "' operator is not defined for types '" + leftType + "' and '" + rightType + "'", comparisonExpression.getLexicalPhrase());
+    }
+    else if (expression instanceof FieldAccessExpression)
+    {
+      FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
+      // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member
+      // Type type = checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
+      Member member = fieldAccessExpression.getResolvedMember();
+      fieldAccessExpression.setType(member.getType());
+      return member.getType();
     }
     else if (expression instanceof FloatingLiteralExpression)
     {

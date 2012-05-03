@@ -1,5 +1,6 @@
 package eu.bryants.anthony.toylanguage.ast.type;
 
+import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
@@ -32,4 +33,11 @@ public abstract class Type
    * @return true iff the specified type can be assigned to a variable of this type
    */
   public abstract boolean canAssign(Type type);
+
+  /**
+   * Returns the Member of this type with the specified name
+   * @param name - the name of the Member to get
+   * @return the Member with the specified name, or null if none exists
+   */
+  public abstract Member getMember(String name);
 }

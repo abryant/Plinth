@@ -6,6 +6,7 @@ import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
+import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
@@ -31,13 +32,14 @@ public class PrimaryRule extends Rule<ParseType>
   private static Production<ParseType> FLOATING_PRODUCTION = new Production<ParseType>(ParseType.FLOATING_LITERAL);
   private static Production<ParseType> INTEGER_PRODUCTION = new Production<ParseType>(ParseType.INTEGER_LITERAL);
   private static Production<ParseType> VARIABLE_PRODUCTION = new Production<ParseType>(ParseType.NAME);
+  private static Production<ParseType> FIELD_ACCESS_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.DOT, ParseType.NAME);
   private static Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION);
   private static Production<ParseType> BRACKETS_PRODUCTION =  new Production<ParseType>(ParseType.LPAREN, ParseType.EXPRESSION, ParseType.RPAREN);
 
   @SuppressWarnings("unchecked")
   public PrimaryRule()
   {
-    super(ParseType.PRIMARY, TRUE_PRODUCTION, FALSE_PRODUCTION, FLOATING_PRODUCTION, INTEGER_PRODUCTION, VARIABLE_PRODUCTION, FUNCTION_CALL_PRODUCTION, BRACKETS_PRODUCTION);
+    super(ParseType.PRIMARY, TRUE_PRODUCTION, FALSE_PRODUCTION, FLOATING_PRODUCTION, INTEGER_PRODUCTION, VARIABLE_PRODUCTION, FIELD_ACCESS_PRODUCTION, FUNCTION_CALL_PRODUCTION, BRACKETS_PRODUCTION);
   }
 
   /**
@@ -68,6 +70,12 @@ public class PrimaryRule extends Rule<ParseType>
     {
       Name name = (Name) args[0];
       return new VariableExpression(name.getName(), name.getLexicalPhrase());
+    }
+    if (production == FIELD_ACCESS_PRODUCTION)
+    {
+      Expression expression = (Expression) args[0];
+      Name name = (Name) args[2];
+      return new FieldAccessExpression(expression, name.getName(), LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
     }
     if (production == FUNCTION_CALL_PRODUCTION)
     {

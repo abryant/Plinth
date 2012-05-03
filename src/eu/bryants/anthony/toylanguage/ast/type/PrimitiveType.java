@@ -1,5 +1,6 @@
 package eu.bryants.anthony.toylanguage.ast.type;
 
+import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
@@ -177,6 +178,16 @@ public class PrimitiveType extends Type
     }
     throw new IllegalStateException("Unknown primitive type: " + primitiveTypeType);
     */
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public Member getMember(String name)
+  {
+    // primitive types currently have no members
+    return null;
   }
 
   @Override

@@ -16,6 +16,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
+import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
@@ -256,6 +257,11 @@ public class ControlFlowChecker
       ComparisonExpression comparisonExpression = (ComparisonExpression) expression;
       checkUninitializedVariables(comparisonExpression.getLeftSubExpression(), initializedVariables);
       checkUninitializedVariables(comparisonExpression.getRightSubExpression(), initializedVariables);
+    }
+    else if (expression instanceof FieldAccessExpression)
+    {
+      checkUninitializedVariables(((FieldAccessExpression) expression).getExpression(), initializedVariables);
+      // we don't care about the field of this expression, we assume that all fields are initialised when they are defined
     }
     else if (expression instanceof FloatingLiteralExpression)
     {

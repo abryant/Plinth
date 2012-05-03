@@ -522,6 +522,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     {
       return makeSymbolToken(ParseType.COMMA, 1);
     }
+    if (nextChar == '.')
+    {
+      return makeSymbolToken(ParseType.DOT, 1);
+    }
     if (nextChar == '=')
     {
       int secondChar = reader.read(1);
