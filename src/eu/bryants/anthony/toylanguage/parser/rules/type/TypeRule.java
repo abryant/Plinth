@@ -3,8 +3,10 @@ package eu.bryants.anthony.toylanguage.parser.rules.type;
 import parser.ParseException;
 import parser.Production;
 import parser.Rule;
+import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
+import eu.bryants.anthony.toylanguage.ast.type.Type;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
 
@@ -31,6 +33,8 @@ public class TypeRule extends Rule<ParseType>
   private static final Production<ParseType>    BYTE_PRODUCTION = new Production<ParseType>(ParseType.   BYTE_KEYWORD);
   private static final Production<ParseType>   UBYTE_PRODUCTION = new Production<ParseType>(ParseType.  UBYTE_KEYWORD);
 
+  private static final Production<ParseType> ARRAY_PRODUCTION = new Production<ParseType>(ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE);
+
   @SuppressWarnings("unchecked")
   public TypeRule()
   {
@@ -39,7 +43,8 @@ public class TypeRule extends Rule<ParseType>
                              LONG_PRODUCTION,  ULONG_PRODUCTION,
                               INT_PRODUCTION,   UINT_PRODUCTION,
                             SHORT_PRODUCTION, USHORT_PRODUCTION,
-                             BYTE_PRODUCTION,  UBYTE_PRODUCTION);
+                             BYTE_PRODUCTION,  UBYTE_PRODUCTION,
+                          ARRAY_PRODUCTION);
   }
 
   /**
@@ -48,6 +53,12 @@ public class TypeRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
+    if (production == ARRAY_PRODUCTION)
+    {
+      Type baseType = (Type) args[2];
+      return new ArrayType(baseType, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], baseType.getLexicalPhrase()));
+    }
+
     PrimitiveTypeType type;
          if (production == BOOLEAN_PRODUCTION) { type = PrimitiveTypeType.BOOLEAN; }
     else if (production ==  DOUBLE_PRODUCTION) { type = PrimitiveTypeType.DOUBLE;  }

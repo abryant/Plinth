@@ -6,6 +6,7 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BitwiseNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
@@ -171,6 +172,34 @@ public class TypeChecker
         }
       }
       throw new ConceptualException("The operator '" + arithmeticExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", arithmeticExpression.getLexicalPhrase());
+    }
+    else if (expression instanceof ArrayCreationExpression)
+    {
+      ArrayCreationExpression creationExpression = (ArrayCreationExpression) expression;
+      if (creationExpression.getDimensionExpressions() != null)
+      {
+        for (Expression e : creationExpression.getDimensionExpressions())
+        {
+          Type type = checkTypes(e, compilationUnit);
+          if (!new PrimitiveType(PrimitiveTypeType.UINT, null).canAssign(type))
+          {
+            throw new ConceptualException("Cannot use expression as an array dimension, bad type: " + type, e.getLexicalPhrase());
+          }
+        }
+      }
+      if (creationExpression.getValueExpressions() != null)
+      {
+        Type baseType = creationExpression.getType().getBaseType();
+        for (Expression e : creationExpression.getValueExpressions())
+        {
+          Type type = checkTypes(e, compilationUnit);
+          if (!baseType.canAssign(type))
+          {
+            throw new ConceptualException("Cannot add an expression of type " + type + " to an array of type " + baseType, e.getLexicalPhrase());
+          }
+        }
+      }
+      return creationExpression.getType();
     }
     else if (expression instanceof BitwiseNotExpression)
     {

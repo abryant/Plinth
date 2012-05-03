@@ -24,7 +24,8 @@ Type = BooleanKeyword |
        ULongKeyword   | LongKeyword   |
        UIntKeyword    | IntKeyword    |
        UShortKeyword  | ShortKeyword  |
-       UByteKeyword   | ByteKeyword
+       UByteKeyword   | ByteKeyword   |
+       LSquare RSquare Type
 
 Expression = ComparisonExpression |
              Expression Ampersand       ComparisonExpression |
@@ -54,8 +55,13 @@ UnaryExpression = Primary |
                   ExclaimationMark UnaryExpression
 Primary = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword |
           Name |
+          NewKeyword Dimensions Type |
+          NewKeyword LSquare RSquare Type LBrace RBrace |
+          NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace |
           Primary Dot Name |
           FunctionCallExpression |
           LParen Expression RParen
-FunctionCallExpression = Name LParen Arguments RParen | Name LParen RParen
-Arguments = Expression | Arguments Comma Expression
+FunctionCallExpression = Name LParen ExpressionList RParen | Name LParen RParen
+ExpressionList = Expression | ExpressionList Comma Expression
+
+Dimensions = LSquare Expression RSquare | Dimensions LSquare Expression RSquare

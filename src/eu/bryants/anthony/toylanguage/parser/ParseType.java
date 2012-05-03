@@ -43,7 +43,8 @@ public enum ParseType
   UNARY_EXPRESSION,              // Expression
   PRIMARY,                       // Expression
   FUNCTION_CALL_EXPRESSION,      // FunctionCallExpression
-  ARGUMENTS,                     // ParseList<Expression>
+  EXPRESSION_LIST,               // ParseList<Expression>
+  DIMENSIONS,                    // ParseList<Expression>
 
   // TERMINALS
 
@@ -69,6 +70,7 @@ public enum ParseType
   LANGLE_EQUALS,
   LBRACE,
   LPAREN,
+  LSQUARE,
   MINUS,
   PERCENT,
   PIPE,
@@ -77,6 +79,7 @@ public enum ParseType
   RANGLE_EQUALS,
   RBRACE,
   RPAREN,
+  RSQUARE,
   SEMICOLON,
   STAR,
   TILDE,
@@ -94,6 +97,7 @@ public enum ParseType
   IF_KEYWORD,
   INT_KEYWORD,
   LONG_KEYWORD,
+  NEW_KEYWORD,
   RETURN_KEYWORD,
   SHORT_KEYWORD,
   TRUE_KEYWORD,

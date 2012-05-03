@@ -18,6 +18,7 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BitwiseNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
@@ -26,6 +27,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression.ComparisonOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
+import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
@@ -33,6 +35,8 @@ import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
+import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
+import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
@@ -45,6 +49,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.VariableDefinition;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
+import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
@@ -83,6 +88,11 @@ public class CodeGenerator
 
   private void addFunctions()
   {
+    // add malloc() as an external function
+    LLVMTypeRef mallocReturnType = LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0);
+    LLVMTypeRef[] mallocParamTypes = new LLVMTypeRef[] {LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount())};
+    LLVM.LLVMAddFunction(module, "malloc", LLVM.LLVMFunctionType(mallocReturnType, C.toNativePointerArray(mallocParamTypes, false, true), mallocParamTypes.length, false));
+
     for (Function function : compilationUnit.getFunctions())
     {
       Parameter[] params = function.getParameters();
@@ -126,6 +136,15 @@ public class CodeGenerator
         return LLVM.LLVMFloatType();
       }
       return LLVM.LLVMIntType(primitiveTypeType.getBitCount());
+    }
+    if (type instanceof ArrayType)
+    {
+      ArrayType arrayType = (ArrayType) type;
+      LLVMTypeRef baseType = findNativeType(arrayType.getBaseType());
+      LLVMTypeRef llvmArray = LLVM.LLVMArrayType(baseType, 0);
+      LLVMTypeRef[] structureTypes = new LLVMTypeRef[] {LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), llvmArray};
+      LLVMTypeRef llvmStructure = LLVM.LLVMStructType(C.toNativePointerArray(structureTypes, false, true), 2, false);
+      return LLVM.LLVMPointerType(llvmStructure, 0);
     }
     throw new IllegalStateException("Unexpected Type: " + type);
   }
@@ -304,6 +323,11 @@ public class CodeGenerator
     {
       return convertPrimitiveType(value, (PrimitiveType) from, (PrimitiveType) to);
     }
+    if (from instanceof ArrayType && to instanceof ArrayType)
+    {
+      // array casts are illegal unless from and to types are the same, so they must have the same type
+      return value;
+    }
     throw new IllegalArgumentException("Unknown type conversion, from '" + from + "' to '" + to + "'");
   }
 
@@ -394,6 +418,63 @@ public class CodeGenerator
     throw new IllegalArgumentException("Unknown predicate '" + operator + "'");
   }
 
+  private LLVMValueRef buildArrayCreation(LLVMValueRef llvmFunction, LLVMValueRef[] llvmLengths, ArrayType type)
+  {
+    LLVMTypeRef llvmArrayType = findNativeType(type);
+    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false), // go into the pointer to the {i32, [0 x <type>]}
+                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false), // go into the structure to get the [0 x <type>]
+                                                 llvmLengths[0]};                                                                     // go length elements along the array, to get the byte directly after the whole structure, which is also our size
+    LLVMValueRef llvmArraySize = LLVM.LLVMBuildGEP(builder, LLVM.LLVMConstNull(llvmArrayType), C.toNativePointerArray(indices, false, true), indices.length, "");
+    LLVMValueRef llvmSize = LLVM.LLVMBuildPtrToInt(builder, llvmArraySize, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
+
+    LLVMValueRef mallocFunction = LLVM.LLVMGetNamedFunction(module, "malloc");
+
+    LLVMValueRef[] arguments = new LLVMValueRef[] {llvmSize};
+    LLVMValueRef memoryPointer = LLVM.LLVMBuildCall(builder, mallocFunction, C.toNativePointerArray(arguments, false, true), 1, "");
+    LLVMValueRef allocatedPointer = LLVM.LLVMBuildBitCast(builder, memoryPointer, llvmArrayType, "");
+
+    LLVMValueRef[] sizeIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                     LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
+    LLVMValueRef sizeElementPointer = LLVM.LLVMBuildGEP(builder, allocatedPointer, C.toNativePointerArray(sizeIndices, false, true), sizeIndices.length, "");
+    LLVM.LLVMBuildStore(builder, llvmLengths[0], sizeElementPointer);
+
+    if (llvmLengths.length > 1)
+    {
+      ArrayType subType = (ArrayType) type.getBaseType();
+
+      LLVMBasicBlockRef startBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVMBasicBlockRef loopBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "arrayCreation");
+      LLVM.LLVMBuildBr(builder, loopBlock);
+      LLVM.LLVMPositionBuilderAtEnd(builder, loopBlock);
+      LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "arrayCounter");
+
+      // recurse to create this element of the array
+      LLVMValueRef[] subLengths = new LLVMValueRef[llvmLengths.length - 1];
+      System.arraycopy(llvmLengths, 1, subLengths, 0, subLengths.length);
+      LLVMValueRef subArray = buildArrayCreation(llvmFunction, subLengths, subType);
+
+      // find the indices for the current location in the array
+      LLVMValueRef[] assignmentIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                   LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
+                                                   phiNode};
+      LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, allocatedPointer, C.toNativePointerArray(assignmentIndices, false, true), assignmentIndices.length, "");
+      LLVM.LLVMBuildStore(builder, subArray, elementPointer);
+      LLVMValueRef nextCounterValue = LLVM.LLVMBuildAdd(builder, phiNode, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false), "");
+      LLVMValueRef breakBoolean = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntULT, phiNode, llvmLengths[0], "");
+
+      // add the incoming values to the phi node
+      LLVMValueRef[] incomingValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false), nextCounterValue};
+      LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, LLVM.LLVMGetInsertBlock(builder)};
+      LLVM.LLVMAddIncoming(phiNode, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), 2);
+
+      LLVMBasicBlockRef exitBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "arrayCreationEnd");
+      LLVM.LLVMBuildCondBr(builder, breakBoolean, loopBlock, exitBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, exitBlock);
+    }
+    return allocatedPointer;
+  }
+
   private LLVMValueRef buildExpression(Expression expression, LLVMValueRef llvmFunction, Map<Variable, LLVMValueRef> variables)
   {
     if (expression instanceof ArithmeticExpression)
@@ -438,6 +519,38 @@ public class CodeGenerator
         return LLVM.LLVMBuildURem(builder, left, right, "");
       }
       throw new IllegalArgumentException("Unknown arithmetic operator: " + arithmeticExpression.getOperator());
+    }
+    if (expression instanceof ArrayCreationExpression)
+    {
+      ArrayCreationExpression arrayCreationExpression = (ArrayCreationExpression) expression;
+      ArrayType type = arrayCreationExpression.getType();
+      Expression[] dimensionExpressions = arrayCreationExpression.getDimensionExpressions();
+
+      if (dimensionExpressions == null)
+      {
+        Expression[] valueExpressions = arrayCreationExpression.getValueExpressions();
+        LLVMValueRef llvmLength = LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), valueExpressions.length, false);
+        LLVMValueRef array = buildArrayCreation(llvmFunction, new LLVMValueRef[] {llvmLength}, type);
+        for (int i = 0; i < valueExpressions.length; i++)
+        {
+          LLVMValueRef expressionValue = buildExpression(valueExpressions[i], llvmFunction, variables);
+          LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), i, false)};
+
+          LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
+          LLVM.LLVMBuildStore(builder, expressionValue, elementPointer);
+        }
+        return array;
+      }
+
+      LLVMValueRef[] llvmLengths = new LLVMValueRef[dimensionExpressions.length];
+      for (int i = 0; i < llvmLengths.length; i++)
+      {
+        LLVMValueRef expressionValue = buildExpression(dimensionExpressions[i], llvmFunction, variables);
+        llvmLengths[i] = convertType(expressionValue, dimensionExpressions[i].getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE);
+      }
+      return buildArrayCreation(llvmFunction, llvmLengths, type);
     }
     if (expression instanceof BitwiseNotExpression)
     {
@@ -503,6 +616,19 @@ public class CodeGenerator
         return LLVM.LLVMBuildFCmp(builder, getPredicate(comparisonExpression.getOperator(), true, true), left, right, "");
       }
       return LLVM.LLVMBuildICmp(builder, getPredicate(comparisonExpression.getOperator(), false, resultType.getPrimitiveTypeType().isSigned()), left, right, "");
+    }
+    if (expression instanceof FieldAccessExpression)
+    {
+      FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
+      Member member = fieldAccessExpression.getResolvedMember();
+      if (member instanceof ArrayLengthMember)
+      {
+        LLVMValueRef array = buildExpression(fieldAccessExpression.getExpression(), llvmFunction, variables);
+        LLVMValueRef[] sizeIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                         LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
+        LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(sizeIndices, false, true), sizeIndices.length, "");
+        return LLVM.LLVMBuildLoad(builder, elementPointer, "");
+      }
     }
     if (expression instanceof FloatingLiteralExpression)
     {
@@ -598,6 +724,6 @@ public class CodeGenerator
       }
       return LLVM.LLVMBuildLoad(builder, value, "");
     }
-    throw new IllegalArgumentException("Unknown Expression type");
+    throw new IllegalArgumentException("Unknown Expression type: " + expression);
   }
 }

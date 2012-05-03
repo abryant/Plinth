@@ -2,13 +2,14 @@ package eu.bryants.anthony.toylanguage.parser;
 
 import parser.Rule;
 import parser.lalr.LALRRuleSet;
-import eu.bryants.anthony.toylanguage.parser.rules.ArgumentsRule;
 import eu.bryants.anthony.toylanguage.parser.rules.CompilationUnitRule;
 import eu.bryants.anthony.toylanguage.parser.rules.FunctionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.FunctionsRule;
 import eu.bryants.anthony.toylanguage.parser.rules.ParametersRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.AdditiveExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.ComparisonExpressionRule;
+import eu.bryants.anthony.toylanguage.parser.rules.expression.DimensionsRule;
+import eu.bryants.anthony.toylanguage.parser.rules.expression.ExpressionListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.FunctionCallExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.LogicalExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.MultiplicativeExpressionRule;
@@ -43,6 +44,8 @@ public class ToyLanguageRules
     // expression
     new AdditiveExpressionRule(),
     new ComparisonExpressionRule(),
+    new DimensionsRule(),
+    new ExpressionListRule(),
     new FunctionCallExpressionRule(),
     new LogicalExpressionRule(),
     new MultiplicativeExpressionRule(),
@@ -65,7 +68,6 @@ public class ToyLanguageRules
     new TypeRule(),
 
     // top level
-    new ArgumentsRule(),
     // startRule does not need to be included here: new CompilationUnitRule(),
     new FunctionRule(),
     new FunctionsRule(),

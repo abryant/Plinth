@@ -1,6 +1,12 @@
-int main(uint argc)
+uint main(uint argc)
 {
-  //blah();
+  [][]long longs = new [123][4]long;
+  []boolean bools = new []boolean {true, false};
+  return longs.length + bools.length;
+}
+
+int oldmain(uint argc)
+{
   boolean b = true;
   int result;
   if argc > 2 || !true

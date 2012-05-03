@@ -1,4 +1,4 @@
-package eu.bryants.anthony.toylanguage.parser.rules;
+package eu.bryants.anthony.toylanguage.parser.rules.expression;
 
 import parser.ParseException;
 import parser.Production;
@@ -15,17 +15,17 @@ import eu.bryants.anthony.toylanguage.parser.ParseType;
 /**
  * @author Anthony Bryant
  */
-public class ArgumentsRule extends Rule<ParseType>
+public class ExpressionListRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
   private static Production<ParseType> START_PRODUCTION = new Production<ParseType>(ParseType.EXPRESSION);
-  private static Production<ParseType> CONTINUATION_PRODUCTION = new Production<ParseType>(ParseType.ARGUMENTS, ParseType.COMMA, ParseType.EXPRESSION);
+  private static Production<ParseType> CONTINUATION_PRODUCTION = new Production<ParseType>(ParseType.EXPRESSION_LIST, ParseType.COMMA, ParseType.EXPRESSION);
 
   @SuppressWarnings("unchecked")
-  public ArgumentsRule()
+  public ExpressionListRule()
   {
-    super(ParseType.ARGUMENTS, START_PRODUCTION, CONTINUATION_PRODUCTION);
+    super(ParseType.EXPRESSION_LIST, START_PRODUCTION, CONTINUATION_PRODUCTION);
   }
 
   /**
@@ -42,10 +42,10 @@ public class ArgumentsRule extends Rule<ParseType>
     if (production == CONTINUATION_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
-      ParseList<Expression> arguments = (ParseList<Expression>) args[0];
+      ParseList<Expression> expressions = (ParseList<Expression>) args[0];
       Expression expression = (Expression) args[2];
-      arguments.addLast(expression, LexicalPhrase.combine(arguments.getLexicalPhrase(), (LexicalPhrase) args[1], expression.getLexicalPhrase()));
-      return arguments;
+      expressions.addLast(expression, LexicalPhrase.combine(expressions.getLexicalPhrase(), (LexicalPhrase) args[1], expression.getLexicalPhrase()));
+      return expressions;
     }
     throw badTypeList();
   }

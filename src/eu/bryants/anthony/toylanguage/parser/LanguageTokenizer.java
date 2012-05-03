@@ -40,6 +40,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("if",       ParseType.IF_KEYWORD);
     KEYWORDS.put("int",      ParseType.INT_KEYWORD);
     KEYWORDS.put("long",     ParseType.LONG_KEYWORD);
+    KEYWORDS.put("new",      ParseType.NEW_KEYWORD);
     KEYWORDS.put("return",   ParseType.RETURN_KEYWORD);
     KEYWORDS.put("short",    ParseType.SHORT_KEYWORD);
     KEYWORDS.put("true",     ParseType.TRUE_KEYWORD);
@@ -565,6 +566,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     {
       return makeSymbolToken(ParseType.LPAREN, 1);
     }
+    if (nextChar == '[')
+    {
+      return makeSymbolToken(ParseType.LSQUARE, 1);
+    }
     if (nextChar == '-')
     {
       return makeSymbolToken(ParseType.MINUS, 1);
@@ -607,6 +612,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     if (nextChar == ')')
     {
       return makeSymbolToken(ParseType.RPAREN, 1);
+    }
+    if (nextChar == ']')
+    {
+      return makeSymbolToken(ParseType.RSQUARE, 1);
     }
     if (nextChar == ';')
     {
