@@ -3,6 +3,7 @@ uint main(uint argc)
   [][]long longs = new [123][4]long;
   []boolean bools = new []boolean {true, false};
   bools[0] = false;
+  (uint, []long) tuple;
 
   []uint temp = new [1]uint;
   []long arr = new [2]long;

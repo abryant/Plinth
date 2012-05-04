@@ -6,8 +6,10 @@ import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
+import eu.bryants.anthony.toylanguage.ast.type.TupleType;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.parser.ParseList;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
 
 /*
@@ -34,6 +36,7 @@ public class TypeRule extends Rule<ParseType>
   private static final Production<ParseType>   UBYTE_PRODUCTION = new Production<ParseType>(ParseType.  UBYTE_KEYWORD);
 
   private static final Production<ParseType> ARRAY_PRODUCTION = new Production<ParseType>(ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE);
+  private static final Production<ParseType> TUPLE_PRODUCTION = new Production<ParseType>(ParseType.LPAREN, ParseType.TYPE_LIST, ParseType.RPAREN);
 
   @SuppressWarnings("unchecked")
   public TypeRule()
@@ -44,7 +47,8 @@ public class TypeRule extends Rule<ParseType>
                               INT_PRODUCTION,   UINT_PRODUCTION,
                             SHORT_PRODUCTION, USHORT_PRODUCTION,
                              BYTE_PRODUCTION,  UBYTE_PRODUCTION,
-                          ARRAY_PRODUCTION);
+                          ARRAY_PRODUCTION,
+                          TUPLE_PRODUCTION);
   }
 
   /**
@@ -57,6 +61,13 @@ public class TypeRule extends Rule<ParseType>
     {
       Type baseType = (Type) args[2];
       return new ArrayType(baseType, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], baseType.getLexicalPhrase()));
+    }
+    if (production == TUPLE_PRODUCTION)
+    {
+      @SuppressWarnings("unchecked")
+      ParseList<Type> subTypes = (ParseList<Type>) args[1];
+      return new TupleType(subTypes.toArray(new Type[subTypes.size()]),
+                                            LexicalPhrase.combine((LexicalPhrase) args[0], subTypes.getLexicalPhrase(), (LexicalPhrase) args[2]));
     }
 
     PrimitiveTypeType type;

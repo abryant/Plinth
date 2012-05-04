@@ -25,6 +25,7 @@ import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementsRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.VariableDefinitionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.WhileStatementRule;
+import eu.bryants.anthony.toylanguage.parser.rules.type.TypeListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.type.TypeRule;
 
 /*
@@ -65,6 +66,7 @@ public class ToyLanguageRules
     new WhileStatementRule(),
 
     // type
+    new TypeListRule(),
     new TypeRule(),
 
     // top level

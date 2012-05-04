@@ -34,6 +34,7 @@ public enum ParseType
 
   // Types
   TYPE,                          // Type
+  TYPE_LIST,                     // ParseList<Type>
 
   // Expressions
   EXPRESSION,                    // Expression

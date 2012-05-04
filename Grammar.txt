@@ -26,7 +26,9 @@ Type = BooleanKeyword |
        UIntKeyword    | IntKeyword    |
        UShortKeyword  | ShortKeyword  |
        UByteKeyword   | ByteKeyword   |
-       LSquare RSquare Type
+       LSquare RSquare Type |
+       LParen TypeList RParen
+TypeList = Type | TypeList Comma Type
 
 Expression = ComparisonExpression |
              Expression Ampersand       ComparisonExpression |

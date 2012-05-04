@@ -54,6 +54,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
+import eu.bryants.anthony.toylanguage.ast.type.TupleType;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
 
 /*
@@ -147,6 +148,17 @@ public class CodeGenerator
       LLVMTypeRef[] structureTypes = new LLVMTypeRef[] {LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), llvmArray};
       LLVMTypeRef llvmStructure = LLVM.LLVMStructType(C.toNativePointerArray(structureTypes, false, true), 2, false);
       return LLVM.LLVMPointerType(llvmStructure, 0);
+    }
+    if (type instanceof TupleType)
+    {
+      TupleType tupleType = (TupleType) type;
+      Type[] subTypes = tupleType.getSubTypes();
+      LLVMTypeRef[] llvmSubTypes = new LLVMTypeRef[subTypes.length];
+      for (int i = 0; i < subTypes.length; i++)
+      {
+        llvmSubTypes[i] = findNativeType(subTypes[i]);
+      }
+      return LLVM.LLVMStructType(C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
     }
     throw new IllegalStateException("Unexpected Type: " + type);
   }
