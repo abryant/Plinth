@@ -184,6 +184,15 @@ public class PrimitiveType extends Type
    * {@inheritDoc}
    */
   @Override
+  public boolean isEquivalent(Type type)
+  {
+    return type instanceof PrimitiveType && ((PrimitiveType) type).getPrimitiveTypeType() == primitiveTypeType;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public Member getMember(String name)
   {
     // primitive types currently have no members

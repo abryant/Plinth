@@ -24,6 +24,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.statement.ArrayAssignStatement;
@@ -322,6 +323,15 @@ public class ControlFlowChecker
     else if (expression instanceof MinusExpression)
     {
       checkUninitializedVariables(((MinusExpression) expression).getExpression(), initializedVariables);
+    }
+    else if (expression instanceof TupleExpression)
+    {
+      TupleExpression tupleExpression = (TupleExpression) expression;
+      Expression[] subExpressions = tupleExpression.getSubExpressions();
+      for (int i = 0; i < subExpressions.length; i++)
+      {
+        checkUninitializedVariables(subExpressions[i], initializedVariables);
+      }
     }
     else if (expression instanceof VariableExpression)
     {

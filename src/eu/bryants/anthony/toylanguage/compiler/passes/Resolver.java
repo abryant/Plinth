@@ -24,6 +24,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
@@ -306,6 +307,15 @@ public class Resolver
     else if (expression instanceof MinusExpression)
     {
       resolve(((MinusExpression) expression).getExpression(), block, compilationUnit);
+    }
+    else if (expression instanceof TupleExpression)
+    {
+      TupleExpression tupleExpression = (TupleExpression) expression;
+      Expression[] subExpressions = tupleExpression.getSubExpressions();
+      for (int i = 0; i < subExpressions.length; i++)
+      {
+        resolve(subExpressions[i], block, compilationUnit);
+      }
     }
     else if (expression instanceof VariableExpression)
     {

@@ -35,6 +35,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
@@ -357,6 +358,43 @@ public class CodeGenerator
     {
       // array casts are illegal unless from and to types are the same, so they must have the same type
       return value;
+    }
+    if (from instanceof TupleType && !(to instanceof TupleType))
+    {
+      TupleType fromTuple = (TupleType) from;
+      if (fromTuple.getSubTypes().length != 1)
+      {
+        throw new IllegalArgumentException("Cannot convert from a " + from + " to a " + to);
+      }
+      return LLVM.LLVMBuildExtractValue(builder, value, 0, "");
+    }
+    if (!(from instanceof TupleType) && to instanceof TupleType)
+    {
+      TupleType toTuple = (TupleType) to;
+      if (toTuple.getSubTypes().length != 1)
+      {
+        throw new IllegalArgumentException("Cannot convert from a " + from + " to a " + to);
+      }
+      return LLVM.LLVMBuildInsertValue(builder, LLVM.LLVMGetUndef(findNativeType(to)), value, 0, "");
+    }
+    if (from instanceof TupleType && to instanceof TupleType)
+    {
+      TupleType fromTuple = (TupleType) from;
+      TupleType toTuple = (TupleType) to;
+      if (fromTuple.isEquivalent(toTuple))
+      {
+        return value;
+      }
+      Type[] fromSubTypes = fromTuple.getSubTypes();
+      Type[] toSubTypes = toTuple.getSubTypes();
+      LLVMValueRef currentValue = LLVM.LLVMGetUndef(findNativeType(toTuple));
+      for (int i = 0; i < fromTuple.getSubTypes().length; i++)
+      {
+        LLVMValueRef current = LLVM.LLVMBuildExtractValue(builder, value, i, "");
+        LLVMValueRef converted = convertType(current, fromSubTypes[i], toSubTypes[i]);
+        currentValue = LLVM.LLVMBuildInsertValue(builder, currentValue, converted, i, "");
+      }
+      return currentValue;
     }
     throw new IllegalArgumentException("Unknown type conversion, from '" + from + "' to '" + to + "'");
   }
@@ -756,6 +794,18 @@ public class CodeGenerator
         return LLVM.LLVMBuildFNeg(builder, value, "");
       }
       return LLVM.LLVMBuildNeg(builder, value, "");
+    }
+    if (expression instanceof TupleExpression)
+    {
+      TupleExpression tupleExpression = (TupleExpression) expression;
+      Expression[] subExpressions = tupleExpression.getSubExpressions();
+      LLVMValueRef currentValue = LLVM.LLVMGetUndef(findNativeType(tupleExpression.getType()));
+      for (int i = 0; i < subExpressions.length; i++)
+      {
+        LLVMValueRef value = buildExpression(subExpressions[i], llvmFunction, variables);
+        currentValue = LLVM.LLVMBuildInsertValue(builder, currentValue, value, i, "");
+      }
+      return currentValue;
     }
     if (expression instanceof VariableExpression)
     {

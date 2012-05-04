@@ -37,6 +37,7 @@ public enum ParseType
   TYPE_LIST,                     // ParseList<Type>
 
   // Expressions
+  TUPLE_EXPRESSION,              // Expression
   EXPRESSION,                    // Expression
   COMPARISON_EXPRESSION,         // Expression
   ADDITIVE_EXPRESSION,           // Expression

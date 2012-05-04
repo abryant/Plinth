@@ -19,7 +19,7 @@ public class ReturnStatementRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.RETURN_KEYWORD, ParseType.EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.RETURN_KEYWORD, ParseType.TUPLE_EXPRESSION, ParseType.SEMICOLON);
 
   @SuppressWarnings("unchecked")
   public ReturnStatementRule()

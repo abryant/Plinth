@@ -35,6 +35,13 @@ public abstract class Type
   public abstract boolean canAssign(Type type);
 
   /**
+   * Checks whether the specified type is absolutely equivalent to the specified type.
+   * @param type - the type to check
+   * @return true iff this type and the specified type are equivalent
+   */
+  public abstract boolean isEquivalent(Type type);
+
+  /**
    * Returns the Member of this type with the specified name
    * @param name - the name of the Member to get
    * @return the Member with the specified name, or null if none exists

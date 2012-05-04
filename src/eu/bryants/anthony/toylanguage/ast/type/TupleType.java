@@ -58,6 +58,31 @@ public class TupleType extends Type
    * {@inheritDoc}
    */
   @Override
+  public boolean isEquivalent(Type type)
+  {
+    if (!(type instanceof TupleType))
+    {
+      return false;
+    }
+    TupleType otherType = (TupleType) type;
+    if (subTypes.length != otherType.subTypes.length)
+    {
+      return false;
+    }
+    for (int i = 0; i < subTypes.length; i++)
+    {
+      if (!subTypes[i].isEquivalent(otherType.getSubTypes()[i]))
+      {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public Member getMember(String name)
   {
     // tuple types currently have no members

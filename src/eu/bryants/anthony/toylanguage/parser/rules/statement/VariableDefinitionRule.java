@@ -22,7 +22,7 @@ public class VariableDefinitionRule extends Rule<ParseType>
   private static final long serialVersionUID = 1L;
 
   private static final Production<ParseType> DECLARATION_PRODUCTION = new Production<ParseType>(ParseType.TYPE, ParseType.NAME, ParseType.SEMICOLON);
-  private static final Production<ParseType> DEFINTION_PRODUCTION = new Production<ParseType>(ParseType.TYPE, ParseType.NAME, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> DEFINTION_PRODUCTION = new Production<ParseType>(ParseType.TYPE, ParseType.NAME, ParseType.EQUALS, ParseType.TUPLE_EXPRESSION, ParseType.SEMICOLON);
 
   @SuppressWarnings("unchecked")
   public VariableDefinitionRule()

@@ -23,6 +23,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
@@ -40,6 +41,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
+import eu.bryants.anthony.toylanguage.ast.type.TupleType;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
 import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
 
@@ -542,6 +544,19 @@ public class TypeChecker
         }
       }
       throw new ConceptualException("The unary operator '-' is not defined for type '" + type + "'", expression.getLexicalPhrase());
+    }
+    else if (expression instanceof TupleExpression)
+    {
+      TupleExpression tupleExpression = (TupleExpression) expression;
+      Expression[] subExpressions = tupleExpression.getSubExpressions();
+      Type[] subTypes = new Type[subExpressions.length];
+      for (int i = 0; i < subTypes.length; i++)
+      {
+        subTypes[i] = checkTypes(subExpressions[i], compilationUnit);
+      }
+      TupleType type = new TupleType(subTypes, null);
+      tupleExpression.setType(type);
+      return type;
     }
     else if (expression instanceof VariableExpression)
     {

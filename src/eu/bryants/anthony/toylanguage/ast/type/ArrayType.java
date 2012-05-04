@@ -53,6 +53,15 @@ public class ArrayType extends Type
   }
 
   /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean isEquivalent(Type type)
+  {
+    return type instanceof ArrayType && baseType.isEquivalent(((ArrayType) type).getBaseType());
+  }
+
+  /**
    * @return the baseType
    */
   public Type getBaseType()
