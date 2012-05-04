@@ -55,6 +55,7 @@ UnaryExpression = Primary |
                   ExclaimationMark UnaryExpression
 Primary = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword |
           Name |
+          Primary LSquare Expression RSquare |
           NewKeyword Dimensions Type |
           NewKeyword LSquare RSquare Type LBrace RBrace |
           NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace |

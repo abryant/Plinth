@@ -2,7 +2,8 @@ uint main(uint argc)
 {
   [][]long longs = new [123][4]long;
   []boolean bools = new []boolean {true, false};
-  return longs.length + bools.length;
+
+  return longs.length + bools.length + cast<uint> longs[120][2];
 }
 
 int oldmain(uint argc)

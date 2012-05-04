@@ -9,6 +9,7 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BitwiseNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
@@ -198,6 +199,12 @@ public class Resolver
     {
       resolve(((ArithmeticExpression) expression).getLeftSubExpression(), block, compilationUnit);
       resolve(((ArithmeticExpression) expression).getRightSubExpression(), block, compilationUnit);
+    }
+    else if (expression instanceof ArrayAccessExpression)
+    {
+      ArrayAccessExpression arrayAccessExpression = (ArrayAccessExpression) expression;
+      resolve(arrayAccessExpression.getArrayExpression(), block, compilationUnit);
+      resolve(arrayAccessExpression.getDimensionExpression(), block, compilationUnit);
     }
     else if (expression instanceof ArrayCreationExpression)
     {

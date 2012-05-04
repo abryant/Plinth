@@ -6,6 +6,7 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BitwiseNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
@@ -23,6 +24,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
+import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
@@ -34,6 +36,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.VariableDefinition;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
+import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
@@ -173,6 +176,23 @@ public class TypeChecker
       }
       throw new ConceptualException("The operator '" + arithmeticExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", arithmeticExpression.getLexicalPhrase());
     }
+    else if (expression instanceof ArrayAccessExpression)
+    {
+      ArrayAccessExpression arrayAccessExpression = (ArrayAccessExpression) expression;
+      Type type = checkTypes(arrayAccessExpression.getArrayExpression(), compilationUnit);
+      if (!(type instanceof ArrayType))
+      {
+        throw new ConceptualException("Array accesses are not defined for type " + type, arrayAccessExpression.getLexicalPhrase());
+      }
+      Type dimensionType = checkTypes(arrayAccessExpression.getDimensionExpression(), compilationUnit);
+      if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
+      {
+        throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, dimensionType.getLexicalPhrase());
+      }
+      Type baseType = ((ArrayType) type).getBaseType();
+      arrayAccessExpression.setType(baseType);
+      return baseType;
+    }
     else if (expression instanceof ArrayCreationExpression)
     {
       ArrayCreationExpression creationExpression = (ArrayCreationExpression) expression;
@@ -183,7 +203,7 @@ public class TypeChecker
           Type type = checkTypes(e, compilationUnit);
           if (!new PrimitiveType(PrimitiveTypeType.UINT, null).canAssign(type))
           {
-            throw new ConceptualException("Cannot use expression as an array dimension, bad type: " + type, e.getLexicalPhrase());
+            throw new ConceptualException("Cannot use an expression of type " + type + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, e.getLexicalPhrase());
           }
         }
       }

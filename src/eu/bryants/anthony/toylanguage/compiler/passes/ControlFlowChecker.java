@@ -9,6 +9,7 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BitwiseNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
@@ -232,6 +233,12 @@ public class ControlFlowChecker
       ArithmeticExpression arithmeticExpression = (ArithmeticExpression) expression;
       checkUninitializedVariables(arithmeticExpression.getLeftSubExpression(), initializedVariables);
       checkUninitializedVariables(arithmeticExpression.getRightSubExpression(), initializedVariables);
+    }
+    else if (expression instanceof ArrayAccessExpression)
+    {
+      ArrayAccessExpression arrayAccessExpression = (ArrayAccessExpression) expression;
+      checkUninitializedVariables(arrayAccessExpression.getArrayExpression(), initializedVariables);
+      checkUninitializedVariables(arrayAccessExpression.getDimensionExpression(), initializedVariables);
     }
     else if (expression instanceof ArrayCreationExpression)
     {

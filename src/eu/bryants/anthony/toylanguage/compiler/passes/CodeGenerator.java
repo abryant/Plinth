@@ -18,6 +18,7 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BitwiseNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
@@ -440,6 +441,7 @@ public class CodeGenerator
 
     if (llvmLengths.length > 1)
     {
+      // build a loop to create all of the elements of this array by recursively calling buildArrayCreation()
       ArrayType subType = (ArrayType) type.getBaseType();
 
       LLVMBasicBlockRef startBlock = LLVM.LLVMGetInsertBlock(builder);
@@ -519,6 +521,18 @@ public class CodeGenerator
         return LLVM.LLVMBuildURem(builder, left, right, "");
       }
       throw new IllegalArgumentException("Unknown arithmetic operator: " + arithmeticExpression.getOperator());
+    }
+    if (expression instanceof ArrayAccessExpression)
+    {
+      ArrayAccessExpression arrayAccessExpression = (ArrayAccessExpression) expression;
+      LLVMValueRef arrayValue = buildExpression(arrayAccessExpression.getArrayExpression(), llvmFunction, variables);
+      LLVMValueRef dimensionValue = buildExpression(arrayAccessExpression.getDimensionExpression(), llvmFunction, variables);
+      LLVMValueRef convertedDimensionValue = convertType(dimensionValue, arrayAccessExpression.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE);
+      LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                                     LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
+                                                                     convertedDimensionValue};
+      LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, arrayValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+      return LLVM.LLVMBuildLoad(builder, elementPointer, "");
     }
     if (expression instanceof ArrayCreationExpression)
     {

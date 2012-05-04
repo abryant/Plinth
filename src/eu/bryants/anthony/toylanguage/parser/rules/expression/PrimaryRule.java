@@ -3,6 +3,7 @@ package eu.bryants.anthony.toylanguage.parser.rules.expression;
 import parser.ParseException;
 import parser.Production;
 import parser.Rule;
+import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
@@ -37,6 +38,7 @@ public class PrimaryRule extends Rule<ParseType>
   private static Production<ParseType> INTEGER_PRODUCTION = new Production<ParseType>(ParseType.INTEGER_LITERAL);
   private static Production<ParseType> VARIABLE_PRODUCTION = new Production<ParseType>(ParseType.NAME);
   private static Production<ParseType> FIELD_ACCESS_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.DOT, ParseType.NAME);
+  private static Production<ParseType> ARRAY_ACCESS_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.LSQUARE, ParseType.EXPRESSION, ParseType.RSQUARE);
   private static Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION);
   private static Production<ParseType> BRACKETS_PRODUCTION =  new Production<ParseType>(ParseType.LPAREN, ParseType.EXPRESSION, ParseType.RPAREN);
   private static Production<ParseType> ARRAY_CREATION_PRODUCTION = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.DIMENSIONS, ParseType.TYPE);
@@ -46,7 +48,7 @@ public class PrimaryRule extends Rule<ParseType>
   @SuppressWarnings("unchecked")
   public PrimaryRule()
   {
-    super(ParseType.PRIMARY, TRUE_PRODUCTION, FALSE_PRODUCTION, FLOATING_PRODUCTION, INTEGER_PRODUCTION, VARIABLE_PRODUCTION, FIELD_ACCESS_PRODUCTION, FUNCTION_CALL_PRODUCTION, BRACKETS_PRODUCTION,
+    super(ParseType.PRIMARY, TRUE_PRODUCTION, FALSE_PRODUCTION, FLOATING_PRODUCTION, INTEGER_PRODUCTION, VARIABLE_PRODUCTION, FIELD_ACCESS_PRODUCTION, ARRAY_ACCESS_PRODUCTION, FUNCTION_CALL_PRODUCTION, BRACKETS_PRODUCTION,
                              ARRAY_CREATION_PRODUCTION, ARRAY_CREATION_EMPTY_LIST_PRODUCTION, ARRAY_CREATION_LIST_PRODUCTION);
   }
 
@@ -84,6 +86,12 @@ public class PrimaryRule extends Rule<ParseType>
       Expression expression = (Expression) args[0];
       Name name = (Name) args[2];
       return new FieldAccessExpression(expression, name.getName(), LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
+    }
+    if (production == ARRAY_ACCESS_PRODUCTION)
+    {
+      Expression expression = (Expression) args[0];
+      Expression dimensionExpression = (Expression) args[2];
+      return new ArrayAccessExpression(expression, dimensionExpression, LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1], dimensionExpression.getLexicalPhrase(), (LexicalPhrase) args[3]));
     }
     if (production == FUNCTION_CALL_PRODUCTION)
     {
