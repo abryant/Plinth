@@ -26,6 +26,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
+import eu.bryants.anthony.toylanguage.ast.statement.ArrayAssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
@@ -81,7 +82,15 @@ public class ControlFlowChecker
    */
   private static boolean checkControlFlow(Statement statement, Set<Variable> initializedVariables, LinkedList<BreakableStatement> enclosingBreakableStack) throws ConceptualException
   {
-    if (statement instanceof AssignStatement)
+    if (statement instanceof ArrayAssignStatement)
+    {
+      ArrayAssignStatement arrayAssign = (ArrayAssignStatement) statement;
+      checkUninitializedVariables(arrayAssign.getArrayExpression(), initializedVariables);
+      checkUninitializedVariables(arrayAssign.getDimensionExpression(), initializedVariables);
+      checkUninitializedVariables(arrayAssign.getValueExpression(), initializedVariables);
+      return false;
+    }
+    else if (statement instanceof AssignStatement)
     {
       AssignStatement assign = (AssignStatement) statement;
       checkUninitializedVariables(assign.getExpression(), initializedVariables);

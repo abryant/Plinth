@@ -26,6 +26,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
+import eu.bryants.anthony.toylanguage.ast.statement.ArrayAssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
@@ -61,13 +62,33 @@ public class TypeChecker
 
   private static void checkTypes(Statement statement, Function function, CompilationUnit compilationUnit) throws ConceptualException
   {
-    if (statement instanceof AssignStatement)
+    if (statement instanceof ArrayAssignStatement)
+    {
+      ArrayAssignStatement arrayAssign = (ArrayAssignStatement) statement;
+      Type type = checkTypes(arrayAssign.getArrayExpression(), compilationUnit);
+      if (!(type instanceof ArrayType))
+      {
+        throw new ConceptualException("Array assignments are not defined for the type " + type, arrayAssign.getArrayExpression().getLexicalPhrase());
+      }
+      Type dimensionType = checkTypes(arrayAssign.getDimensionExpression(), compilationUnit);
+      if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
+      {
+        throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, dimensionType.getLexicalPhrase());
+      }
+      Type valueType = checkTypes(arrayAssign.getValueExpression(), compilationUnit);
+      Type baseType = ((ArrayType) type).getBaseType();
+      if (!baseType.canAssign(valueType))
+      {
+        throw new ConceptualException("Cannot assign an expression of type " + valueType + " to an array element of type " + baseType, arrayAssign.getLexicalPhrase());
+      }
+    }
+    else if (statement instanceof AssignStatement)
     {
       AssignStatement assign = (AssignStatement) statement;
       Type exprType = checkTypes(assign.getExpression(), compilationUnit);
       if (!assign.getResolvedVariable().getType().canAssign(exprType))
       {
-        throw new ConceptualException("Cannot assign an expression of type '" + exprType + "' to a variable of type '" + assign.getResolvedVariable().getType() + "'", assign.getLexicalPhrase());
+        throw new ConceptualException("Cannot assign an expression of type " + exprType + " to a variable of type " + assign.getResolvedVariable().getType(), assign.getLexicalPhrase());
       }
     }
     else if (statement instanceof Block)

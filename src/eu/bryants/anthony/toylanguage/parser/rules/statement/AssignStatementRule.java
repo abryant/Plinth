@@ -4,6 +4,7 @@ import parser.ParseException;
 import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
+import eu.bryants.anthony.toylanguage.ast.statement.ArrayAssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.terminal.Name;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
@@ -21,11 +22,12 @@ public class AssignStatementRule extends Rule<ParseType>
   private static final long serialVersionUID = 1L;
 
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.NAME, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> ARRAY_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.LSQUARE, ParseType.EXPRESSION, ParseType.RSQUARE, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
 
   @SuppressWarnings("unchecked")
   public AssignStatementRule()
   {
-    super(ParseType.ASSIGN_STATEMENT, PRODUCTION);
+    super(ParseType.ASSIGN_STATEMENT, PRODUCTION, ARRAY_PRODUCTION);
   }
 
   /**
@@ -40,6 +42,14 @@ public class AssignStatementRule extends Rule<ParseType>
       Expression expression = (Expression) args[2];
       return new AssignStatement(name, expression,
                                  LexicalPhrase.combine(name.getLexicalPhrase(), (LexicalPhrase) args[1], expression.getLexicalPhrase(), (LexicalPhrase) args[3]));
+    }
+    if (production == ARRAY_PRODUCTION)
+    {
+      Expression arrayExpression = (Expression) args[0];
+      Expression dimensionExpression = (Expression) args[2];
+      Expression valueExpression = (Expression) args[5];
+      return new ArrayAssignStatement(arrayExpression, dimensionExpression, valueExpression,
+                                      LexicalPhrase.combine(arrayExpression.getLexicalPhrase(), (LexicalPhrase) args[1], dimensionExpression.getLexicalPhrase(), (LexicalPhrase) args[3], (LexicalPhrase) args[4], valueExpression.getLexicalPhrase(), (LexicalPhrase) args[6]));
     }
     throw badTypeList();
   }

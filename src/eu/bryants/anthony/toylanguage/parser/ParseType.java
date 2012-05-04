@@ -24,7 +24,7 @@ public enum ParseType
   BLOCK,                         // Block
   STATEMENTS,                    // ParseList<Statement>
   STATEMENT,                     // Statement
-  ASSIGN_STATEMENT,              // AssignStatement
+  ASSIGN_STATEMENT,              // Statement
   BREAK_STATEMENT,               // BreakStatement
   CONTINUE_STATEMENT,            // ContinueStatement
   IF_STATEMENT,                  // IfStatement

@@ -39,6 +39,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
+import eu.bryants.anthony.toylanguage.ast.statement.ArrayAssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
@@ -178,6 +179,22 @@ public class CodeGenerator
   private void buildStatement(Statement statement, Function function, LLVMValueRef llvmFunction, Map<Variable, LLVMValueRef> variables,
                               Map<BreakableStatement, LLVMBasicBlockRef> breakBlocks, Map<BreakableStatement, LLVMBasicBlockRef> continueBlocks)
   {
+    if (statement instanceof ArrayAssignStatement)
+    {
+      ArrayAssignStatement arrayAssign = (ArrayAssignStatement) statement;
+      LLVMValueRef array = buildExpression(arrayAssign.getArrayExpression(), llvmFunction, variables);
+      LLVMValueRef dimension = buildExpression(arrayAssign.getDimensionExpression(), llvmFunction, variables);
+      LLVMValueRef convertedDimension = convertType(dimension, arrayAssign.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE);
+      LLVMValueRef value = buildExpression(arrayAssign.getValueExpression(), llvmFunction, variables);
+      Type baseType = ((ArrayType) arrayAssign.getArrayExpression().getType()).getBaseType();
+      LLVMValueRef convertedValue = convertType(value, arrayAssign.getValueExpression().getType(), baseType);
+
+      LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                   LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
+                                                   convertedDimension};
+      LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
+      LLVM.LLVMBuildStore(builder, convertedValue, elementPointer);
+    }
     if (statement instanceof AssignStatement)
     {
       AssignStatement assign = (AssignStatement) statement;

@@ -11,7 +11,8 @@ Statements = epsilon | Statements Statement
 Statement = Assignment | Block | BreakStatement | ContinueStatement | IfStatement | ReturnStatement | VariableDefinition | WhileStatement |
             FunctionCallExpression Semicolon
 
-Assignment = Name Equals Expression Semicolon
+Assignment = Name Equals Expression Semicolon |
+             Primary LSquare Expression RSquare Equals Expression Semicolon
 BreakStatement = BreakKeyword Semicolon | BreakKeyword IntegerLiteral Semicolon
 ContinueStatement = ContinueKeyword Semicolon | ContinueKeyword IntegerLiteral Semicolon
 IfStatement = IfKeyword Expression Block | IfKeyword Expression Block ElseKeyword Block | IfKeyword Expression Block ElseKeyword IfStatement

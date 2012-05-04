@@ -27,6 +27,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
+import eu.bryants.anthony.toylanguage.ast.statement.ArrayAssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
@@ -118,7 +119,14 @@ public class Resolver
 
   private static void resolve(Statement statement, Block enclosingBlock, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
-    if (statement instanceof AssignStatement)
+    if (statement instanceof ArrayAssignStatement)
+    {
+      ArrayAssignStatement arrayAssign = (ArrayAssignStatement) statement;
+      resolve(arrayAssign.getArrayExpression(), enclosingBlock, compilationUnit);
+      resolve(arrayAssign.getDimensionExpression(), enclosingBlock, compilationUnit);
+      resolve(arrayAssign.getValueExpression(), enclosingBlock, compilationUnit);
+    }
+    else if (statement instanceof AssignStatement)
     {
       AssignStatement assign = (AssignStatement) statement;
       resolve(assign.getExpression(), enclosingBlock, compilationUnit);
