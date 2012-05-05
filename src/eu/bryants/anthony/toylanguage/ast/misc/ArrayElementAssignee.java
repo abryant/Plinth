@@ -1,4 +1,4 @@
-package eu.bryants.anthony.toylanguage.ast.statement;
+package eu.bryants.anthony.toylanguage.ast.misc;
 
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
@@ -10,19 +10,16 @@ import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 /**
  * @author Anthony Bryant
  */
-public class ArrayAssignStatement extends Statement
+public class ArrayElementAssignee extends Assignee
 {
-
   private Expression arrayExpression;
   private Expression dimensionExpression;
-  private Expression valueExpression;
 
-  public ArrayAssignStatement(Expression arrayExpression, Expression dimensionExpression, Expression valueExpression, LexicalPhrase lexicalPhrase)
+  public ArrayElementAssignee(Expression arrayExpression, Expression dimensionExpression, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.arrayExpression = arrayExpression;
     this.dimensionExpression = dimensionExpression;
-    this.valueExpression = valueExpression;
   }
 
   /**
@@ -42,26 +39,11 @@ public class ArrayAssignStatement extends Statement
   }
 
   /**
-   * @return the valueExpression
-   */
-  public Expression getValueExpression()
-  {
-    return valueExpression;
-  }
-
-  /**
    * {@inheritDoc}
    */
   @Override
-  public boolean stopsExecution()
-  {
-    return false;
-  }
-
-  @Override
   public String toString()
   {
-    return arrayExpression + "[" + dimensionExpression + "] = " + valueExpression + ";";
+    return arrayExpression + "[" + dimensionExpression + "]";
   }
-
 }

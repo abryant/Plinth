@@ -16,7 +16,6 @@ import com.sun.jna.Pointer;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
-import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
@@ -40,7 +39,10 @@ import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
-import eu.bryants.anthony.toylanguage.ast.statement.ArrayAssignStatement;
+import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
+import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
+import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
+import eu.bryants.anthony.toylanguage.ast.misc.VariableAssignee;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
@@ -50,7 +52,6 @@ import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
-import eu.bryants.anthony.toylanguage.ast.statement.VariableDefinition;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
@@ -192,33 +193,54 @@ public class CodeGenerator
   private void buildStatement(Statement statement, Function function, LLVMValueRef llvmFunction, Map<Variable, LLVMValueRef> variables,
                               Map<BreakableStatement, LLVMBasicBlockRef> breakBlocks, Map<BreakableStatement, LLVMBasicBlockRef> continueBlocks)
   {
-    if (statement instanceof ArrayAssignStatement)
-    {
-      ArrayAssignStatement arrayAssign = (ArrayAssignStatement) statement;
-      LLVMValueRef array = buildExpression(arrayAssign.getArrayExpression(), llvmFunction, variables);
-      LLVMValueRef dimension = buildExpression(arrayAssign.getDimensionExpression(), llvmFunction, variables);
-      LLVMValueRef convertedDimension = convertType(dimension, arrayAssign.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE);
-      LLVMValueRef value = buildExpression(arrayAssign.getValueExpression(), llvmFunction, variables);
-      Type baseType = ((ArrayType) arrayAssign.getArrayExpression().getType()).getBaseType();
-      LLVMValueRef convertedValue = convertType(value, arrayAssign.getValueExpression().getType(), baseType);
-
-      LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                   LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
-                                                   convertedDimension};
-      LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
-      LLVM.LLVMBuildStore(builder, convertedValue, elementPointer);
-    }
     if (statement instanceof AssignStatement)
     {
-      AssignStatement assign = (AssignStatement) statement;
-      LLVMValueRef value = buildExpression(assign.getExpression(), llvmFunction, variables);
-      LLVMValueRef convertedValue = convertType(value, assign.getExpression().getType(), assign.getResolvedVariable().getType());
-      LLVMValueRef allocaInst = variables.get(assign.getResolvedVariable());
-      if (allocaInst == null)
+      AssignStatement assignStatement = (AssignStatement) statement;
+      Assignee[] assignees = assignStatement.getAssignees();
+      LLVMValueRef[] llvmAssigneePointers = new LLVMValueRef[assignees.length];
+      for (int i = 0; i < assignees.length; i++)
       {
-        throw new IllegalStateException("Missing LLVMValueRef in variable Map: " + assign.getVariableName());
+        if (assignees[i] instanceof VariableAssignee)
+        {
+          llvmAssigneePointers[i] = variables.get(((VariableAssignee) assignees[i]).getResolvedVariable());
+        }
+        else if (assignees[i] instanceof ArrayElementAssignee)
+        {
+          ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
+          LLVMValueRef array = buildExpression(arrayElementAssignee.getArrayExpression(), llvmFunction, variables);
+          LLVMValueRef dimension = buildExpression(arrayElementAssignee.getDimensionExpression(), llvmFunction, variables);
+          LLVMValueRef convertedDimension = convertType(dimension, arrayElementAssignee.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE);
+          LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
+                                                       convertedDimension};
+          llvmAssigneePointers[i] = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
+        }
+        else
+        {
+          throw new IllegalStateException("Unknown Assignee type: " + assignees[i]);
+        }
       }
-      LLVM.LLVMBuildStore(builder, convertedValue, allocaInst);
+
+      if (assignStatement.getExpression() != null)
+      {
+        LLVMValueRef value = buildExpression(assignStatement.getExpression(), llvmFunction, variables);
+        LLVMValueRef convertedValue = convertType(value, assignStatement.getExpression().getType(), assignStatement.getType());
+        if (llvmAssigneePointers.length == 1)
+        {
+          LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[0]);
+        }
+        else
+        {
+          for (int i = 0; i < llvmAssigneePointers.length; i++)
+          {
+            if (llvmAssigneePointers[i] != null)
+            {
+              LLVMValueRef extracted = LLVM.LLVMBuildExtractValue(builder, convertedValue, i, "");
+              LLVM.LLVMBuildStore(builder, extracted, llvmAssigneePointers[i]);
+            }
+          }
+        }
+      }
     }
     else if (statement instanceof Block)
     {
@@ -303,21 +325,6 @@ public class CodeGenerator
       LLVMValueRef value = buildExpression(((ReturnStatement) statement).getExpression(), llvmFunction, variables);
       LLVMValueRef convertedValue = convertType(value, ((ReturnStatement) statement).getExpression().getType(), function.getType());
       LLVM.LLVMBuildRet(builder, convertedValue);
-    }
-    else if (statement instanceof VariableDefinition)
-    {
-      VariableDefinition definition = (VariableDefinition) statement;
-      if (definition.getExpression() != null)
-      {
-        LLVMValueRef allocaInst = variables.get(definition.getVariable());
-        if (allocaInst == null)
-        {
-          throw new IllegalStateException("Missing LLVMValueRef in variable Map: " + definition.getName().getName());
-        }
-        LLVMValueRef value = buildExpression(definition.getExpression(), llvmFunction, variables);
-        LLVMValueRef convertedValue = convertType(value, definition.getExpression().getType(), definition.getType());
-        LLVM.LLVMBuildStore(builder, convertedValue, allocaInst);
-      }
     }
     else if (statement instanceof WhileStatement)
     {

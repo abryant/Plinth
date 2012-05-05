@@ -1,8 +1,8 @@
 package eu.bryants.anthony.toylanguage.ast.statement;
 
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
-import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
-import eu.bryants.anthony.toylanguage.ast.terminal.Name;
+import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
+import eu.bryants.anthony.toylanguage.ast.type.Type;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
@@ -14,24 +14,40 @@ import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
  */
 public class AssignStatement extends Statement
 {
-  private Name variableName;
+  private Type type;
+  private Assignee[] assignees;
   private Expression expression;
 
-  private Variable resolvedVariable;
-
-  public AssignStatement(Name variableName, Expression expression, LexicalPhrase lexicalPhrase)
+  public AssignStatement(Type type, Assignee[] assignees, Expression expression, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
-    this.variableName = variableName;
+    this.type = type;
+    this.assignees = assignees;
     this.expression = expression;
   }
 
   /**
-   * @return the variableName
+   * @param type - the type to set
    */
-  public Name getVariableName()
+  public void setType(Type type)
   {
-    return variableName;
+    this.type = type;
+  }
+
+  /**
+   * @return the type
+   */
+  public Type getType()
+  {
+    return type;
+  }
+
+  /**
+   * @return the assignees
+   */
+  public Assignee[] getAssignees()
+  {
+    return assignees;
   }
 
   /**
@@ -43,22 +59,6 @@ public class AssignStatement extends Statement
   }
 
   /**
-   * @return the resolvedVariable
-   */
-  public Variable getResolvedVariable()
-  {
-    return resolvedVariable;
-  }
-
-  /**
-   * @param resolvedVariable - the resolvedVariable to set
-   */
-  public void setResolvedVariable(Variable resolvedVariable)
-  {
-    this.resolvedVariable = resolvedVariable;
-  }
-
-  /**
    * {@inheritDoc}
    */
   @Override
@@ -67,9 +67,32 @@ public class AssignStatement extends Statement
     return false;
   }
 
+  /**
+   * {@inheritDoc}
+   */
   @Override
   public String toString()
   {
-    return variableName + " = " + expression + ";";
+    StringBuffer buffer = new StringBuffer();
+    if (type != null)
+    {
+      buffer.append(type);
+      buffer.append(" ");
+    }
+    for (int i = 0; i < assignees.length; i++)
+    {
+      buffer.append(assignees[i]);
+      if (i != assignees.length - 1)
+      {
+        buffer.append(", ");
+      }
+    }
+    if (expression != null)
+    {
+      buffer.append(" = ");
+      buffer.append(expression);
+    }
+    buffer.append(";");
+    return buffer.toString();
   }
 }

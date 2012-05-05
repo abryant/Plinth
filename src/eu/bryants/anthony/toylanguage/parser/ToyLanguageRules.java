@@ -5,7 +5,6 @@ import parser.lalr.LALRRuleSet;
 import eu.bryants.anthony.toylanguage.parser.rules.CompilationUnitRule;
 import eu.bryants.anthony.toylanguage.parser.rules.FunctionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.FunctionsRule;
-import eu.bryants.anthony.toylanguage.parser.rules.ParametersRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.AdditiveExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.ComparisonExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.DimensionsRule;
@@ -16,6 +15,8 @@ import eu.bryants.anthony.toylanguage.parser.rules.expression.MultiplicativeExpr
 import eu.bryants.anthony.toylanguage.parser.rules.expression.PrimaryRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.TupleExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.UnaryExpressionRule;
+import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeListRule;
+import eu.bryants.anthony.toylanguage.parser.rules.misc.ParametersRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.AssignStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.BlockRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.BreakStatementRule;
@@ -24,7 +25,6 @@ import eu.bryants.anthony.toylanguage.parser.rules.statement.IfStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.ReturnStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementsRule;
-import eu.bryants.anthony.toylanguage.parser.rules.statement.VariableDefinitionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.WhileStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.type.TypeListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.type.TypeRule;
@@ -55,6 +55,10 @@ public class ToyLanguageRules
     new TupleExpressionRule(),
     new UnaryExpressionRule(),
 
+    // misc
+    new AssigneeListRule(),
+    new ParametersRule(),
+
     // statement
     new AssignStatementRule(),
     new BlockRule(),
@@ -64,7 +68,6 @@ public class ToyLanguageRules
     new ReturnStatementRule(),
     new StatementRule(),
     new StatementsRule(),
-    new VariableDefinitionRule(),
     new WhileStatementRule(),
 
     // type
@@ -75,7 +78,6 @@ public class ToyLanguageRules
     // startRule does not need to be included here: new CompilationUnitRule(),
     new FunctionRule(),
     new FunctionsRule(),
-    new ParametersRule(),
   };
 
   @SuppressWarnings("unchecked")

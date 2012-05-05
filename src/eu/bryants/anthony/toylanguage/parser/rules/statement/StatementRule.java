@@ -25,7 +25,6 @@ public class StatementRule extends Rule<ParseType>
   private static final Production<ParseType> CONTINUE_PRODUCTION  = new Production<ParseType>(ParseType.CONTINUE_STATEMENT);
   private static final Production<ParseType> IF_PRODUCTION  = new Production<ParseType>(ParseType.IF_STATEMENT);
   private static final Production<ParseType> RETURN_PRODUCTION = new Production<ParseType>(ParseType.RETURN_STATEMENT);
-  private static final Production<ParseType> VARIABLE_DEFINITION_PRODUCTION  = new Production<ParseType>(ParseType.VARIABLE_DEFINITION_STATEMENT);
   private static final Production<ParseType> WHILE_PRODUCTION  = new Production<ParseType>(ParseType.WHILE_STATEMENT);
 
   private static final Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION, ParseType.SEMICOLON);
@@ -33,7 +32,7 @@ public class StatementRule extends Rule<ParseType>
   @SuppressWarnings("unchecked")
   public StatementRule()
   {
-    super(ParseType.STATEMENT, ASSIGN_PRODUCTION, BLOCK_PRODUCTION, BREAK_PRODUCTION, CONTINUE_PRODUCTION, IF_PRODUCTION, RETURN_PRODUCTION, VARIABLE_DEFINITION_PRODUCTION, WHILE_PRODUCTION, FUNCTION_CALL_PRODUCTION);
+    super(ParseType.STATEMENT, ASSIGN_PRODUCTION, BLOCK_PRODUCTION, BREAK_PRODUCTION, CONTINUE_PRODUCTION, IF_PRODUCTION, RETURN_PRODUCTION, WHILE_PRODUCTION, FUNCTION_CALL_PRODUCTION);
   }
 
   /**
@@ -44,7 +43,7 @@ public class StatementRule extends Rule<ParseType>
   {
     if (production == ASSIGN_PRODUCTION || production == BLOCK_PRODUCTION || production == BREAK_PRODUCTION ||
         production == CONTINUE_PRODUCTION || production == IF_PRODUCTION || production == RETURN_PRODUCTION ||
-        production == VARIABLE_DEFINITION_PRODUCTION || production == WHILE_PRODUCTION)
+        production == WHILE_PRODUCTION)
     {
       return args[0];
     }

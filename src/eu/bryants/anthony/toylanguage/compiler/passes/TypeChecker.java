@@ -4,7 +4,6 @@ import java.math.BigInteger;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
-import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
@@ -27,7 +26,10 @@ import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
-import eu.bryants.anthony.toylanguage.ast.statement.ArrayAssignStatement;
+import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
+import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
+import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
+import eu.bryants.anthony.toylanguage.ast.misc.VariableAssignee;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
@@ -36,7 +38,6 @@ import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
-import eu.bryants.anthony.toylanguage.ast.statement.VariableDefinition;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
@@ -64,33 +65,102 @@ public class TypeChecker
 
   private static void checkTypes(Statement statement, Function function, CompilationUnit compilationUnit) throws ConceptualException
   {
-    if (statement instanceof ArrayAssignStatement)
+    if (statement instanceof AssignStatement)
     {
-      ArrayAssignStatement arrayAssign = (ArrayAssignStatement) statement;
-      Type type = checkTypes(arrayAssign.getArrayExpression(), compilationUnit);
-      if (!(type instanceof ArrayType))
+      AssignStatement assignStatement = (AssignStatement) statement;
+      Type declaredType = assignStatement.getType();
+      Assignee[] assignees = assignStatement.getAssignees();
+      boolean distributedTupleType = declaredType != null && declaredType instanceof TupleType && ((TupleType) declaredType).getSubTypes().length == assignees.length;
+      Type[] tupledSubTypes;
+      if (distributedTupleType)
       {
-        throw new ConceptualException("Array assignments are not defined for the type " + type, arrayAssign.getArrayExpression().getLexicalPhrase());
+        // the type is distributed, so in the following statement:
+        // (int, long) a, b;
+        // a has type int, and b has type long
+        // so set the tupledSubTypes array to the declared subTypes array
+        tupledSubTypes = ((TupleType) declaredType).getSubTypes();
       }
-      Type dimensionType = checkTypes(arrayAssign.getDimensionExpression(), compilationUnit);
-      if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
+      else
       {
-        throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, dimensionType.getLexicalPhrase());
+        tupledSubTypes = new Type[assignees.length];
       }
-      Type valueType = checkTypes(arrayAssign.getValueExpression(), compilationUnit);
-      Type baseType = ((ArrayType) type).getBaseType();
-      if (!baseType.canAssign(valueType))
+
+      for (int i = 0; i < assignees.length; i++)
       {
-        throw new ConceptualException("Cannot assign an expression of type " + valueType + " to an array element of type " + baseType, arrayAssign.getLexicalPhrase());
+        if (assignees[i] instanceof VariableAssignee)
+        {
+          VariableAssignee variableAssignee = (VariableAssignee) assignees[i];
+          if (declaredType != null)
+          {
+            // we have a declared type, so check that the variable matches it
+            if (!variableAssignee.getResolvedVariable().getType().isEquivalent(distributedTupleType ? tupledSubTypes[i] : declaredType))
+            {
+              throw new ConceptualException("The variable type '" + variableAssignee.getResolvedVariable().getType() + "' does not match the declared type '" + (distributedTupleType ? tupledSubTypes[i] : declaredType) + "'", assignees[i].getLexicalPhrase());
+            }
+          }
+          if (!distributedTupleType)
+          {
+            // the type isn't being distributed, so check that
+            tupledSubTypes[i] = variableAssignee.getResolvedVariable().getType();
+          }
+        }
+        else if (assignees[i] instanceof ArrayElementAssignee)
+        {
+          ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
+          Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression(), compilationUnit);
+          if (!(arrayType instanceof ArrayType))
+          {
+            throw new ConceptualException("Array assignments are not defined for the type " + arrayType, arrayElementAssignee.getLexicalPhrase());
+          }
+          Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression(), compilationUnit);
+          if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
+          {
+            throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, arrayElementAssignee.getDimensionExpression().getLexicalPhrase());
+          }
+          Type baseType = ((ArrayType) arrayType).getBaseType();
+          if (declaredType != null)
+          {
+            // we have a declared type, so check that the array base type matches it
+            if (!baseType.isEquivalent(distributedTupleType ? tupledSubTypes[i] : declaredType))
+            {
+              throw new ConceptualException("The array element type '" + baseType + "' does not match the declared type '" + (distributedTupleType ? tupledSubTypes[i] : declaredType) + "'", assignees[i].getLexicalPhrase());
+            }
+          }
+          if (!distributedTupleType)
+          {
+            tupledSubTypes[i] = baseType;
+          }
+        }
+        else
+        {
+          throw new IllegalStateException("Unknown Assignee type: " + assignees[i]);
+        }
       }
-    }
-    else if (statement instanceof AssignStatement)
-    {
-      AssignStatement assign = (AssignStatement) statement;
-      Type exprType = checkTypes(assign.getExpression(), compilationUnit);
-      if (!assign.getResolvedVariable().getType().canAssign(exprType))
+
+      if (assignStatement.getExpression() == null)
       {
-        throw new ConceptualException("Cannot assign an expression of type " + exprType + " to a variable of type " + assign.getResolvedVariable().getType(), assign.getLexicalPhrase());
+        assignStatement.setType(new TupleType(tupledSubTypes, null));
+      }
+      else
+      {
+        Type exprType = checkTypes(assignStatement.getExpression(), compilationUnit);
+        if (tupledSubTypes.length == 1)
+        {
+          if (!tupledSubTypes[0].canAssign(exprType))
+          {
+            throw new ConceptualException("Cannot assign an expression of type " + exprType + " to a variable of type " + tupledSubTypes[0], assignStatement.getLexicalPhrase());
+          }
+          assignStatement.setType(tupledSubTypes[0]);
+        }
+        else
+        {
+          TupleType fullTupleType = new TupleType(tupledSubTypes, null);
+          if (!fullTupleType.canAssign(exprType))
+          {
+            throw new ConceptualException("Cannot assign an expression of type " + exprType + " to a tuple of type " + fullTupleType, assignStatement.getLexicalPhrase());
+          }
+          assignStatement.setType(fullTupleType);
+        }
       }
     }
     else if (statement instanceof Block)
@@ -132,19 +202,6 @@ public class TypeChecker
       if (!function.getType().canAssign(exprType))
       {
         throw new ConceptualException("Cannot return an expression of type '" + exprType + "' from a function with return type '" + function.getType() + "'", statement.getLexicalPhrase());
-      }
-    }
-    else if (statement instanceof VariableDefinition)
-    {
-      VariableDefinition definition = (VariableDefinition) statement;
-      Expression expression = definition.getExpression();
-      if (expression != null)
-      {
-        Type exprType = checkTypes(expression, compilationUnit);
-        if (!definition.getType().canAssign(exprType))
-        {
-          throw new ConceptualException("Cannot assign an expression of type '" + exprType + "' to a variable of type '" + definition.getType() + "'", definition.getLexicalPhrase());
-        }
       }
     }
     else if (statement instanceof WhileStatement)

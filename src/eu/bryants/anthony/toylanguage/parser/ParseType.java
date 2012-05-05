@@ -21,6 +21,7 @@ public enum ParseType
   PARAMETERS,                    // ParseList<Parameter>
 
   // Statements
+  ASSIGNEE_LIST,                 // ParseList<Assignee>
   BLOCK,                         // Block
   STATEMENTS,                    // ParseList<Statement>
   STATEMENT,                     // Statement
@@ -29,7 +30,6 @@ public enum ParseType
   CONTINUE_STATEMENT,            // ContinueStatement
   IF_STATEMENT,                  // IfStatement
   RETURN_STATEMENT,              // ReturnStatement
-  VARIABLE_DEFINITION_STATEMENT, // VariableDefinition
   WHILE_STATEMENT,               // WhileStatement
 
   // Types

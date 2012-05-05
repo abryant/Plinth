@@ -1,4 +1,4 @@
-package eu.bryants.anthony.toylanguage.ast;
+package eu.bryants.anthony.toylanguage.ast.misc;
 
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.type.Type;

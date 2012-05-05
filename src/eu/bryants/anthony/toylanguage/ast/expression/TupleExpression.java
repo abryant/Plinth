@@ -34,7 +34,7 @@ public class TupleExpression extends Expression
   @Override
   public String toString()
   {
-    StringBuffer buffer = new StringBuffer("(");
+    StringBuffer buffer = new StringBuffer();
     for (int i = 0; i < subExpressions.length; i++)
     {
       buffer.append(subExpressions[i]);
@@ -43,7 +43,6 @@ public class TupleExpression extends Expression
         buffer.append(", ");
       }
     }
-    buffer.append(")");
     return buffer.toString();
   }
 }

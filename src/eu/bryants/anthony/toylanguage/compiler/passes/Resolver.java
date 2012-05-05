@@ -7,7 +7,6 @@ import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
-import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
@@ -28,7 +27,10 @@ import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
-import eu.bryants.anthony.toylanguage.ast.statement.ArrayAssignStatement;
+import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
+import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
+import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
+import eu.bryants.anthony.toylanguage.ast.misc.VariableAssignee;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
@@ -37,8 +39,8 @@ import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
-import eu.bryants.anthony.toylanguage.ast.statement.VariableDefinition;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
+import eu.bryants.anthony.toylanguage.ast.type.TupleType;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
 import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
 import eu.bryants.anthony.toylanguage.compiler.NameNotResolvedException;
@@ -120,23 +122,58 @@ public class Resolver
 
   private static void resolve(Statement statement, Block enclosingBlock, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
-    if (statement instanceof ArrayAssignStatement)
+    if (statement instanceof AssignStatement)
     {
-      ArrayAssignStatement arrayAssign = (ArrayAssignStatement) statement;
-      resolve(arrayAssign.getArrayExpression(), enclosingBlock, compilationUnit);
-      resolve(arrayAssign.getDimensionExpression(), enclosingBlock, compilationUnit);
-      resolve(arrayAssign.getValueExpression(), enclosingBlock, compilationUnit);
-    }
-    else if (statement instanceof AssignStatement)
-    {
-      AssignStatement assign = (AssignStatement) statement;
-      resolve(assign.getExpression(), enclosingBlock, compilationUnit);
-      Variable variable = enclosingBlock.getVariable(assign.getVariableName().getName());
-      if (variable == null)
+      AssignStatement assignStatement = (AssignStatement) statement;
+      Type type = assignStatement.getType();
+      Assignee[] assignees = assignStatement.getAssignees();
+      boolean distributedTupleType = type != null && type instanceof TupleType && ((TupleType) type).getSubTypes().length == assignees.length;
+      for (int i = 0; i < assignees.length; i++)
       {
-        throw new NameNotResolvedException("Unable to resolve: " + assign.getVariableName(), assign.getVariableName().getLexicalPhrase());
+        if (assignees[i] instanceof VariableAssignee)
+        {
+          VariableAssignee variableAssignee = (VariableAssignee) assignees[i];
+          Variable variable = enclosingBlock.getVariable(variableAssignee.getVariableName());
+          if (variable == null)
+          {
+            if (type == null)
+            {
+              throw new NameNotResolvedException("Unable to resolve: " + variableAssignee.getVariableName(), variableAssignee.getLexicalPhrase());
+            }
+            // we have a type, so define the variable now
+            if (distributedTupleType)
+            {
+              Type subType = ((TupleType) type).getSubTypes()[i];
+              variable = new Variable(subType, variableAssignee.getVariableName());
+            }
+            else
+            {
+              variable = new Variable(type, variableAssignee.getVariableName());
+            }
+            enclosingBlock.addVariable(variable);
+          }
+          else if (assignees.length == 1 && type != null)
+          {
+            // the variable has already been defined, and is now being redefined by itself
+            throw new NameNotResolvedException("Variable already defined: " + variableAssignee.getVariableName(), variableAssignee.getLexicalPhrase());
+          }
+          variableAssignee.setResolvedVariable(variable);
+        }
+        else if (assignees[i] instanceof ArrayElementAssignee)
+        {
+          ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
+          resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, compilationUnit);
+          resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, compilationUnit);
+        }
+        else
+        {
+          throw new IllegalStateException("Unknown Assignee type: " + assignees[i]);
+        }
       }
-      assign.setResolvedVariable(variable);
+      if (assignStatement.getExpression() != null)
+      {
+        resolve(assignStatement.getExpression(), enclosingBlock, compilationUnit);
+      }
     }
     else if (statement instanceof Block)
     {
@@ -175,20 +212,6 @@ public class Resolver
     else if (statement instanceof ReturnStatement)
     {
       resolve(((ReturnStatement) statement).getExpression(), enclosingBlock, compilationUnit);
-    }
-    else if (statement instanceof VariableDefinition)
-    {
-      VariableDefinition definition = (VariableDefinition) statement;
-      Variable variable = enclosingBlock.getVariable(definition.getName().getName());
-      if (variable != null)
-      {
-        throw new NameNotResolvedException("Variable already defined: " + definition.getName().getName(), definition.getName().getLexicalPhrase());
-      }
-      enclosingBlock.addVariable(definition.getVariable());
-      if (definition.getExpression() != null)
-      {
-        resolve(definition.getExpression(), enclosingBlock, compilationUnit);
-      }
     }
     else if (statement instanceof WhileStatement)
     {

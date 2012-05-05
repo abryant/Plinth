@@ -8,16 +8,19 @@ Parameters = Type Name | Parameters Comma Type Name
 Block = LBrace Statements RBrace
 
 Statements = epsilon | Statements Statement
-Statement = Assignment | Block | BreakStatement | ContinueStatement | IfStatement | ReturnStatement | VariableDefinition | WhileStatement |
+Statement = Assignment | Block | BreakStatement | ContinueStatement | IfStatement | ReturnStatement | WhileStatement |
             FunctionCallExpression Semicolon
 
-Assignment = Name Equals TupleExpression Semicolon |
-             Primary LSquare TupleExpression RSquare Equals TupleExpression Semicolon
+AssigneeList = Name |
+               Primary LSquare TupleExpression RSquare |
+               AssigneeList Comma Name |
+               AssigneeList Comma Primary LSquare TupleExpression RSquare
+
+Assignment = Type AssigneeList Semicolon | Type AssigneeList Equals TupleExpression Semicolon | AssigneeList Equals TupleExpression Semicolon
 BreakStatement = BreakKeyword Semicolon | BreakKeyword IntegerLiteral Semicolon
 ContinueStatement = ContinueKeyword Semicolon | ContinueKeyword IntegerLiteral Semicolon
 IfStatement = IfKeyword TupleExpression Block | IfKeyword TupleExpression Block ElseKeyword Block | IfKeyword TupleExpression Block ElseKeyword IfStatement
 ReturnStatement = ReturnKeyword TupleExpression Semicolon
-VariableDefinition = Type Name Semicolon | Type Name Equals TupleExpression Semicolon
 WhileStatement = WhileKeyword TupleExpression Block
 
 Type = BooleanKeyword |

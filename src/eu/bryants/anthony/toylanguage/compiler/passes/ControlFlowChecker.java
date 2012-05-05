@@ -7,7 +7,6 @@ import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.Function;
-import eu.bryants.anthony.toylanguage.ast.Parameter;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
@@ -27,7 +26,10 @@ import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
-import eu.bryants.anthony.toylanguage.ast.statement.ArrayAssignStatement;
+import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
+import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
+import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
+import eu.bryants.anthony.toylanguage.ast.misc.VariableAssignee;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
@@ -37,7 +39,6 @@ import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
-import eu.bryants.anthony.toylanguage.ast.statement.VariableDefinition;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
@@ -83,19 +84,40 @@ public class ControlFlowChecker
    */
   private static boolean checkControlFlow(Statement statement, Set<Variable> initializedVariables, LinkedList<BreakableStatement> enclosingBreakableStack) throws ConceptualException
   {
-    if (statement instanceof ArrayAssignStatement)
+    if (statement instanceof AssignStatement)
     {
-      ArrayAssignStatement arrayAssign = (ArrayAssignStatement) statement;
-      checkUninitializedVariables(arrayAssign.getArrayExpression(), initializedVariables);
-      checkUninitializedVariables(arrayAssign.getDimensionExpression(), initializedVariables);
-      checkUninitializedVariables(arrayAssign.getValueExpression(), initializedVariables);
-      return false;
-    }
-    else if (statement instanceof AssignStatement)
-    {
-      AssignStatement assign = (AssignStatement) statement;
-      checkUninitializedVariables(assign.getExpression(), initializedVariables);
-      initializedVariables.add(assign.getResolvedVariable());
+      AssignStatement assignStatement = (AssignStatement) statement;
+      Assignee[] assignees = assignStatement.getAssignees();
+      Set<Variable> nowInitializedVariables = new HashSet<Variable>();
+      for (int i = 0; i < assignees.length; i++)
+      {
+        if (assignees[i] instanceof VariableAssignee)
+        {
+          // it hasn't been initialised unless there's an expression
+          if (assignStatement.getExpression() != null)
+          {
+            nowInitializedVariables.add(((VariableAssignee) assignees[i]).getResolvedVariable());
+          }
+        }
+        else if (assignees[i] instanceof ArrayElementAssignee)
+        {
+          ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
+          checkUninitializedVariables(arrayElementAssignee.getArrayExpression(), initializedVariables);
+          checkUninitializedVariables(arrayElementAssignee.getDimensionExpression(), initializedVariables);
+        }
+        else
+        {
+          throw new IllegalStateException("Unknown Assignee type: " + assignees[i]);
+        }
+      }
+      if (assignStatement.getExpression() != null)
+      {
+        checkUninitializedVariables(assignStatement.getExpression(), initializedVariables);
+      }
+      for (Variable var : nowInitializedVariables)
+      {
+        initializedVariables.add(var);
+      }
       return false;
     }
     else if (statement instanceof Block)
@@ -210,16 +232,6 @@ public class ControlFlowChecker
     {
       checkUninitializedVariables(((ReturnStatement) statement).getExpression(), initializedVariables);
       return true;
-    }
-    else if (statement instanceof VariableDefinition)
-    {
-      VariableDefinition definition = (VariableDefinition) statement;
-      if (definition.getExpression() != null)
-      {
-        checkUninitializedVariables(definition.getExpression(), initializedVariables);
-        initializedVariables.add(definition.getVariable());
-      }
-      return false;
     }
     else if (statement instanceof WhileStatement)
     {

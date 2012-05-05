@@ -3,6 +3,7 @@ package eu.bryants.anthony.toylanguage.ast;
 import java.util.HashMap;
 import java.util.Map;
 
+import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;

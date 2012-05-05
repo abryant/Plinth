@@ -1,15 +1,25 @@
 uint main(uint argc)
 {
-  [][]long longs = new [123][4]long;
+  [][]long longs = new [1][4]long;
   []boolean bools = new []boolean {true, false};
   bools[0] = false;
-  (uint, []long) tuple = 12345, longs[1];
+  (uint, []long) i, ls = 12345, longs[1];
+  ushort a, b = cast<ushort> argc, 500;
+  a, b = b, a;
+  i, longs[0] = longs.length, longs[0];
+  (int, short) f = -1, -2;
 
   []uint temp = new [1]uint;
   []long arr = new [2]long;
   // should put 27 in temp[0], due to the order of evaluation of the function calls in an array assignment
   array(arr, temp)[dimension(temp)] = value(temp);
-  return temp[0];
+  return temp[0] + b;
+}
+
+uint foo()
+{
+  [][]short ss = new [0][20]short;
+  return 1;
 }
 
 []long array([]long arr, []uint temp)
@@ -27,75 +37,4 @@ long value([]uint temp)
 {
   temp[0] = 4 * temp[0] + 3;
   return 123;
-}
-
-int oldmain(uint argc)
-{
-  boolean b = true;
-  int result;
-  if argc > 2 || !true
-  {
-    double d = 3.0;
-    short i = cast<short> d;
-    double d2 = cast<double> i;
-    return cast<int> d2;
-  }
-  else if argc > 1 && true
-  {
-    double d = 0.0;
-    result = 0;
-    while d != 3.0
-    {
-      result = result + 1;
-      d = foo(d, 0.75);
-    }
-  }
-  else
-  {
-    result = cast<int> (10.5 + (-4.5 %% 3));
-  }
-  while true
-  {
-    while true
-    {
-      int asdf = 12;
-      if asdf == 12
-      {
-        break 2;
-      }
-    }
-  }
-  if result == 4.0
-  {
-    int i = 0;
-    while true
-    {
-      if i < 7
-      {
-        i = i + 1;
-        continue;
-      }
-      result = i;
-      break;
-    }
-  }
-  return ~result;
-}
-
-int blah()
-{
-  while true
-  {
-  }
-  return 1;
-}
-
-double foo(double x, double y)
-{
-  return x + y;
-}
-
-int add(int x, int y)
-{
-  return x + y;
 }
