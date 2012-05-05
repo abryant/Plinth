@@ -519,10 +519,18 @@ public class CodeGenerator
       ArrayType subType = (ArrayType) type.getBaseType();
 
       LLVMBasicBlockRef startBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVMBasicBlockRef loopCheckBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "arrayCreationCheck");
       LLVMBasicBlockRef loopBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "arrayCreation");
-      LLVM.LLVMBuildBr(builder, loopBlock);
-      LLVM.LLVMPositionBuilderAtEnd(builder, loopBlock);
+      LLVMBasicBlockRef exitBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "arrayCreationEnd");
+
+      LLVM.LLVMBuildBr(builder, loopCheckBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, loopCheckBlock);
       LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "arrayCounter");
+      LLVMValueRef breakBoolean = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntULT, phiNode, llvmLengths[0], "");
+      LLVM.LLVMBuildCondBr(builder, breakBoolean, loopBlock, exitBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, loopBlock);
 
       // recurse to create this element of the array
       LLVMValueRef[] subLengths = new LLVMValueRef[llvmLengths.length - 1];
@@ -535,16 +543,14 @@ public class CodeGenerator
                                                    phiNode};
       LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, allocatedPointer, C.toNativePointerArray(assignmentIndices, false, true), assignmentIndices.length, "");
       LLVM.LLVMBuildStore(builder, subArray, elementPointer);
-      LLVMValueRef nextCounterValue = LLVM.LLVMBuildAdd(builder, phiNode, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false), "");
-      LLVMValueRef breakBoolean = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntULT, phiNode, llvmLengths[0], "");
 
       // add the incoming values to the phi node
+      LLVMValueRef nextCounterValue = LLVM.LLVMBuildAdd(builder, phiNode, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false), "");
       LLVMValueRef[] incomingValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false), nextCounterValue};
       LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, LLVM.LLVMGetInsertBlock(builder)};
       LLVM.LLVMAddIncoming(phiNode, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), 2);
 
-      LLVMBasicBlockRef exitBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "arrayCreationEnd");
-      LLVM.LLVMBuildCondBr(builder, breakBoolean, loopBlock, exitBlock);
+      LLVM.LLVMBuildBr(builder, loopCheckBlock);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, exitBlock);
     }

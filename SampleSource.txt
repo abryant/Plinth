@@ -1,6 +1,6 @@
 uint main(uint argc)
 {
-  [][]long longs = new [1][4]long;
+  [][]long longs = new [2][4]long;
   []boolean bools = new []boolean {true, false};
   bools[0] = false;
   (uint, []long) i, ls = 12345, longs[1];
