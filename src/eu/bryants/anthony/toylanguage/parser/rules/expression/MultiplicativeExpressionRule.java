@@ -20,11 +20,11 @@ public class MultiplicativeExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> START_PRODUCTION = new Production<ParseType>(ParseType.UNARY_EXPRESSION);
-  private static final Production<ParseType> MULTIPLY_PRODUCTION = new Production<ParseType>(ParseType.MULTIPLICATIVE_EXPRESSION, ParseType.STAR, ParseType.UNARY_EXPRESSION);
-  private static final Production<ParseType> DIVIDE_PRODUCTION = new Production<ParseType>(ParseType.MULTIPLICATIVE_EXPRESSION, ParseType.FORWARD_SLASH, ParseType.UNARY_EXPRESSION);
-  private static final Production<ParseType> REMAINDER_PRODUCTION = new Production<ParseType>(ParseType.MULTIPLICATIVE_EXPRESSION, ParseType.PERCENT, ParseType.UNARY_EXPRESSION);
-  private static final Production<ParseType> MODULO_PRODUCTION = new Production<ParseType>(ParseType.MULTIPLICATIVE_EXPRESSION, ParseType.DOUBLE_PERCENT, ParseType.UNARY_EXPRESSION);
+  private static final Production<ParseType> START_PRODUCTION     = new Production<ParseType>(ParseType.TUPLE_INDEX_EXPRESSION);
+  private static final Production<ParseType> MULTIPLY_PRODUCTION  = new Production<ParseType>(ParseType.MULTIPLICATIVE_EXPRESSION, ParseType.STAR,           ParseType.TUPLE_INDEX_EXPRESSION);
+  private static final Production<ParseType> DIVIDE_PRODUCTION    = new Production<ParseType>(ParseType.MULTIPLICATIVE_EXPRESSION, ParseType.FORWARD_SLASH,  ParseType.TUPLE_INDEX_EXPRESSION);
+  private static final Production<ParseType> REMAINDER_PRODUCTION = new Production<ParseType>(ParseType.MULTIPLICATIVE_EXPRESSION, ParseType.PERCENT,        ParseType.TUPLE_INDEX_EXPRESSION);
+  private static final Production<ParseType> MODULO_PRODUCTION    = new Production<ParseType>(ParseType.MULTIPLICATIVE_EXPRESSION, ParseType.DOUBLE_PERCENT, ParseType.TUPLE_INDEX_EXPRESSION);
 
   @SuppressWarnings("unchecked")
   public MultiplicativeExpressionRule()

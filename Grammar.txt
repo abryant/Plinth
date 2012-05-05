@@ -51,11 +51,12 @@ ComparisonExpression = AdditiveExpression |
 AdditiveExpression = MultiplicativeExpression |
                      AdditiveExpression Plus MultiplicativeExpression |
                      AdditiveExpression Minus MultiplicativeExpression
-MultiplicativeExpression = UnaryExpression |
-                           MultiplicativeExpression Star          UnaryExpression |
-                           MultiplicativeExpression ForwardSlash  UnaryExpression |
-                           MultiplicativeExpression Percent       UnaryExpression |
-                           MultiplicativeExpression DoublePercent UnaryExpression
+MultiplicativeExpression = TupleIndexExpression |
+                           MultiplicativeExpression Star          TupleIndexExpression |
+                           MultiplicativeExpression ForwardSlash  TupleIndexExpression |
+                           MultiplicativeExpression Percent       TupleIndexExpression |
+                           MultiplicativeExpression DoublePercent TupleIndexExpression
+TupleIndexExpression = UnaryExpression | TupleIndexExpression ExclaimationMark IntegerLiteral
 UnaryExpression = Primary |
                   CastKeyword LAngle Type RAngle UnaryExpression |
                   Minus UnaryExpression |

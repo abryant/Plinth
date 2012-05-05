@@ -35,6 +35,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
@@ -819,6 +820,14 @@ public class CodeGenerator
         currentValue = LLVM.LLVMBuildInsertValue(builder, currentValue, value, i, "");
       }
       return currentValue;
+    }
+    if (expression instanceof TupleIndexExpression)
+    {
+      TupleIndexExpression tupleIndexExpression = (TupleIndexExpression) expression;
+      LLVMValueRef result = buildExpression(tupleIndexExpression.getExpression(), llvmFunction, variables);
+      // convert the 1-based indexing to 0-based before extracting the value
+      int index = tupleIndexExpression.getIndexLiteral().getValue().intValue() - 1;
+      return LLVM.LLVMBuildExtractValue(builder, result, index, "");
     }
     if (expression instanceof VariableExpression)
     {

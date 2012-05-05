@@ -23,6 +23,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
@@ -39,6 +40,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
+import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
@@ -614,6 +616,27 @@ public class TypeChecker
       TupleType type = new TupleType(subTypes, null);
       tupleExpression.setType(type);
       return type;
+    }
+    else if (expression instanceof TupleIndexExpression)
+    {
+      TupleIndexExpression indexExpression = (TupleIndexExpression) expression;
+      Type type = checkTypes(indexExpression.getExpression(), compilationUnit);
+      if (!(type instanceof TupleType))
+      {
+        throw new ConceptualException("Cannot index into the non-tuple type: " + type, indexExpression.getLexicalPhrase());
+      }
+      TupleType tupleType = (TupleType) type;
+      IntegerLiteral indexLiteral = indexExpression.getIndexLiteral();
+      BigInteger value = indexLiteral.getValue();
+      Type[] subTypes = tupleType.getSubTypes();
+      // using 1 based indexing, do a bounds check and find the result type
+      if (value.compareTo(BigInteger.valueOf(1)) < 0 || value.compareTo(BigInteger.valueOf(subTypes.length)) > 0)
+      {
+        throw new ConceptualException("Index " + value + " does not exist in a tuple of type " + tupleType, indexExpression.getLexicalPhrase());
+      }
+      Type indexType = subTypes[value.intValue() - 1];
+      indexExpression.setType(indexType);
+      return indexType;
     }
     else if (expression instanceof VariableExpression)
     {

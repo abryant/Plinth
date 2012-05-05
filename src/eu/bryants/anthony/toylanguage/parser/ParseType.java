@@ -42,6 +42,7 @@ public enum ParseType
   COMPARISON_EXPRESSION,         // Expression
   ADDITIVE_EXPRESSION,           // Expression
   MULTIPLICATIVE_EXPRESSION,     // Expression
+  TUPLE_INDEX_EXPRESSION,        // Expression
   UNARY_EXPRESSION,              // Expression
   PRIMARY,                       // Expression
   FUNCTION_CALL_EXPRESSION,      // FunctionCallExpression

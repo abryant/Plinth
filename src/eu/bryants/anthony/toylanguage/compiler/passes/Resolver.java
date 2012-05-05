@@ -24,6 +24,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
@@ -339,6 +340,11 @@ public class Resolver
       {
         resolve(subExpressions[i], block, compilationUnit);
       }
+    }
+    else if (expression instanceof TupleIndexExpression)
+    {
+      TupleIndexExpression indexExpression = (TupleIndexExpression) expression;
+      resolve(indexExpression.getExpression(), block, compilationUnit);
     }
     else if (expression instanceof VariableExpression)
     {

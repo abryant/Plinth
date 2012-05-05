@@ -2,12 +2,12 @@ uint main(uint argc)
 {
   [][]long longs = new [2][4]long;
   []boolean bools = new []boolean {true, false};
-  bools[0] = false;
+  bools[0], bools[1] = bools[1], bools[0];
   (uint, []long) i, ls = 12345, longs[1];
   ushort a, b = cast<ushort> argc, 500;
   a, b = b, a;
   i, longs[0] = longs.length, longs[0];
-  (int, short) f = -1, -2;
+  (uint, short) f = 34, 29;
 
   []uint temp = new [1]uint;
   []long arr = new [2]long;

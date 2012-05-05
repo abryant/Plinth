@@ -14,6 +14,7 @@ import eu.bryants.anthony.toylanguage.parser.rules.expression.LogicalExpressionR
 import eu.bryants.anthony.toylanguage.parser.rules.expression.MultiplicativeExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.PrimaryRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.TupleExpressionRule;
+import eu.bryants.anthony.toylanguage.parser.rules.expression.TupleIndexExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.UnaryExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.ParametersRule;
@@ -53,6 +54,7 @@ public class ToyLanguageRules
     new MultiplicativeExpressionRule(),
     new PrimaryRule(),
     new TupleExpressionRule(),
+    new TupleIndexExpressionRule(),
     new UnaryExpressionRule(),
 
     // misc
