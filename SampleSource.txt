@@ -1,19 +1,21 @@
 uint main(uint argc)
 {
-  [][]long longs = new [2][4]long;
+  [][]ubyte bytes = new [2][4]ubyte;
   []boolean bools = new []boolean {true, false};
   bools[0], bools[1] = bools[1], bools[0];
-  (uint, []long) i, ls = 12345, longs[1];
+  (uint, []ubyte) i, ls = 12345, bytes[1];
   ushort a, b = cast<ushort> argc, 500;
-  a, b = b, a;
-  i, longs[0] = longs.length, longs[0];
+  //a, b = b, a;
+  i, bytes[0] = bytes.length, bytes[0];
   (uint, short) f = 34, 29;
+  (ushort) x, _ = a, a;
+  ((ushort)) y, _ = x, x;
 
   []uint temp = new [1]uint;
   []long arr = new [2]long;
   // should put 27 in temp[0], due to the order of evaluation of the function calls in an array assignment
   array(arr, temp)[dimension(temp)] = value(temp);
-  return temp[0] + b;
+  return temp[0] + y!1!1;
 }
 
 uint foo()

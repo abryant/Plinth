@@ -29,6 +29,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
+import eu.bryants.anthony.toylanguage.ast.misc.BlankAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
 import eu.bryants.anthony.toylanguage.ast.misc.VariableAssignee;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
@@ -105,6 +106,10 @@ public class ControlFlowChecker
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
           checkUninitializedVariables(arrayElementAssignee.getArrayExpression(), initializedVariables);
           checkUninitializedVariables(arrayElementAssignee.getDimensionExpression(), initializedVariables);
+        }
+        else if (assignees[i] instanceof BlankAssignee)
+        {
+          // do nothing, this assignee doesn't actually get assigned to
         }
         else
         {

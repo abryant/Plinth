@@ -86,6 +86,7 @@ public enum ParseType
   SEMICOLON,
   STAR,
   TILDE,
+  UNDERSCORE,
 
   // keywords (values for these should all be LexicalPhrase)
   BOOLEAN_KEYWORD,

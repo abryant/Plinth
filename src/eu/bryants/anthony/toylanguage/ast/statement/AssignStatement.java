@@ -27,14 +27,6 @@ public class AssignStatement extends Statement
   }
 
   /**
-   * @param type - the type to set
-   */
-  public void setType(Type type)
-  {
-    this.type = type;
-  }
-
-  /**
    * @return the type
    */
   public Type getType()

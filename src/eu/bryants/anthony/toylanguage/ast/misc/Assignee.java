@@ -1,5 +1,6 @@
 package eu.bryants.anthony.toylanguage.ast.misc;
 
+import eu.bryants.anthony.toylanguage.ast.type.Type;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
@@ -11,11 +12,29 @@ import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
  */
 public abstract class Assignee
 {
+  private Type resolvedType;
+
   private LexicalPhrase lexicalPhrase;
 
   public Assignee(LexicalPhrase lexicalPhrase)
   {
     this.lexicalPhrase = lexicalPhrase;
+  }
+
+  /**
+   * @return the resolvedType
+   */
+  public Type getResolvedType()
+  {
+    return resolvedType;
+  }
+
+  /**
+   * @param resolvedType - the resolvedType to set
+   */
+  public void setResolvedType(Type resolvedType)
+  {
+    this.resolvedType = resolvedType;
   }
 
   /**

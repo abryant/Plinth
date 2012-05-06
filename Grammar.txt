@@ -13,8 +13,10 @@ Statement = Assignment | Block | BreakStatement | ContinueStatement | IfStatemen
 
 AssigneeList = Name |
                Primary LSquare TupleExpression RSquare |
+               Underscore |
                AssigneeList Comma Name |
-               AssigneeList Comma Primary LSquare TupleExpression RSquare
+               AssigneeList Comma Primary LSquare TupleExpression RSquare |
+               AssigneeList Comma Underscore
 
 Assignment = Type AssigneeList Semicolon | Type AssigneeList Equals TupleExpression Semicolon | AssigneeList Equals TupleExpression Semicolon
 BreakStatement = BreakKeyword Semicolon | BreakKeyword IntegerLiteral Semicolon

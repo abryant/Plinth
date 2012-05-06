@@ -42,6 +42,7 @@ import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
+import eu.bryants.anthony.toylanguage.ast.misc.BlankAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
 import eu.bryants.anthony.toylanguage.ast.misc.VariableAssignee;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
@@ -216,6 +217,11 @@ public class CodeGenerator
                                                        convertedDimension};
           llvmAssigneePointers[i] = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
         }
+        else if (assignees[i] instanceof BlankAssignee)
+        {
+          // this assignee doesn't actually get assigned to
+          llvmAssigneePointers[i] = null;
+        }
         else
         {
           throw new IllegalStateException("Unknown Assignee type: " + assignees[i]);
@@ -225,19 +231,24 @@ public class CodeGenerator
       if (assignStatement.getExpression() != null)
       {
         LLVMValueRef value = buildExpression(assignStatement.getExpression(), llvmFunction, variables);
-        LLVMValueRef convertedValue = convertType(value, assignStatement.getExpression().getType(), assignStatement.getType());
         if (llvmAssigneePointers.length == 1)
         {
-          LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[0]);
+          if (llvmAssigneePointers[0] != null)
+          {
+            LLVMValueRef convertedValue = convertType(value, assignStatement.getExpression().getType(), assignees[0].getResolvedType());
+            LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[0]);
+          }
         }
         else
         {
+          Type[] expressionSubTypes = ((TupleType) assignStatement.getExpression().getType()).getSubTypes();
           for (int i = 0; i < llvmAssigneePointers.length; i++)
           {
             if (llvmAssigneePointers[i] != null)
             {
-              LLVMValueRef extracted = LLVM.LLVMBuildExtractValue(builder, convertedValue, i, "");
-              LLVM.LLVMBuildStore(builder, extracted, llvmAssigneePointers[i]);
+              LLVMValueRef extracted = LLVM.LLVMBuildExtractValue(builder, value, i, "");
+              LLVMValueRef convertedValue = convertType(extracted, expressionSubTypes[i], assignees[i].getResolvedType());
+              LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[i]);
             }
           }
         }

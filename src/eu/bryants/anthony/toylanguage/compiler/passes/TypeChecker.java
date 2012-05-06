@@ -29,6 +29,7 @@ import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
+import eu.bryants.anthony.toylanguage.ast.misc.BlankAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
 import eu.bryants.anthony.toylanguage.ast.misc.VariableAssignee;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
@@ -102,9 +103,9 @@ public class TypeChecker
           }
           if (!distributedTupleType)
           {
-            // the type isn't being distributed, so check that
             tupledSubTypes[i] = variableAssignee.getResolvedVariable().getType();
           }
+          variableAssignee.setResolvedType(distributedTupleType ? tupledSubTypes[i] : declaredType);
         }
         else if (assignees[i] instanceof ArrayElementAssignee)
         {
@@ -132,6 +133,18 @@ public class TypeChecker
           {
             tupledSubTypes[i] = baseType;
           }
+          arrayElementAssignee.setResolvedType(distributedTupleType ? tupledSubTypes[i] : declaredType);
+        }
+        else if (assignees[i] instanceof BlankAssignee)
+        {
+          // this assignee doesn't actually get assigned to,
+          // but we need to make sure tupledSubTypes[i] has its type now, if possible
+          if (!distributedTupleType && declaredType != null)
+          {
+            tupledSubTypes[i] = declaredType;
+          }
+          // if there is no declared type, then there must be an expression, so we leave tupledSubTypes[i] as null, so that we can fill it in later
+          assignees[i].setResolvedType(distributedTupleType ? tupledSubTypes[i] : declaredType);
         }
         else
         {
@@ -141,27 +154,59 @@ public class TypeChecker
 
       if (assignStatement.getExpression() == null)
       {
-        assignStatement.setType(new TupleType(tupledSubTypes, null));
+        // we definitely have a declared type here, so the assignees definitely all have their types set
+        // so we don't need to do anything
       }
       else
       {
         Type exprType = checkTypes(assignStatement.getExpression(), compilationUnit);
         if (tupledSubTypes.length == 1)
         {
-          if (!tupledSubTypes[0].canAssign(exprType))
+          if (tupledSubTypes[0] == null)
+          {
+            tupledSubTypes[0] = exprType;
+          }
+          else if (!tupledSubTypes[0].canAssign(exprType))
           {
             throw new ConceptualException("Cannot assign an expression of type " + exprType + " to a variable of type " + tupledSubTypes[0], assignStatement.getLexicalPhrase());
           }
-          assignStatement.setType(tupledSubTypes[0]);
+          assignees[0].setResolvedType(tupledSubTypes[0]);
         }
         else
         {
-          TupleType fullTupleType = new TupleType(tupledSubTypes, null);
-          if (!fullTupleType.canAssign(exprType))
+          boolean assignable = exprType instanceof TupleType && ((TupleType) exprType).getSubTypes().length == tupledSubTypes.length;
+          if (assignable)
           {
-            throw new ConceptualException("Cannot assign an expression of type " + exprType + " to a tuple of type " + fullTupleType, assignStatement.getLexicalPhrase());
+            TupleType exprTupleType = (TupleType) exprType;
+            Type[] exprSubTypes = exprTupleType.getSubTypes();
+            for (int i = 0; i < exprSubTypes.length; i++)
+            {
+              if (tupledSubTypes[i] == null)
+              {
+                tupledSubTypes[i] = exprSubTypes[i];
+              }
+              else if (!tupledSubTypes[i].canAssign(exprSubTypes[i]))
+              {
+                assignable = false;
+                break;
+              }
+              assignees[i].setResolvedType(tupledSubTypes[i]);
+            }
           }
-          assignStatement.setType(fullTupleType);
+          if (!assignable)
+          {
+            StringBuffer buffer = new StringBuffer("(");
+            for (int i = 0; i < tupledSubTypes.length; i++)
+            {
+              buffer.append(tupledSubTypes[i] == null ? "_" : tupledSubTypes[i]);
+              if (i != tupledSubTypes.length - 1)
+              {
+                buffer.append(", ");
+              }
+            }
+            buffer.append(")");
+            throw new ConceptualException("Cannot assign an expression of type " + exprType + " to a tuple of type " + buffer, assignStatement.getLexicalPhrase());
+          }
         }
       }
     }

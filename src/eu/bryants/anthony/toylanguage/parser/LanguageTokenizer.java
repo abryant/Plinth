@@ -263,6 +263,12 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       return new Token<ParseType>(keyword, new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
     }
 
+    // check if the name is an underscore, and if it is then return it
+    if (name.equals("_"))
+    {
+      return new Token<ParseType>(ParseType.UNDERSCORE, new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
+    }
+
     // we have a name, so return it
     return new Token<ParseType>(ParseType.NAME, new Name(name, new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn)));
   }
