@@ -153,11 +153,6 @@ public class Resolver
             }
             enclosingBlock.addVariable(variable);
           }
-          else if (assignees.length == 1 && type != null)
-          {
-            // the variable has already been defined, and is now being redefined by itself
-            throw new NameNotResolvedException("Variable already defined: " + variableAssignee.getVariableName(), variableAssignee.getLexicalPhrase());
-          }
           variableAssignee.setResolvedVariable(variable);
         }
         else if (assignees[i] instanceof ArrayElementAssignee)
