@@ -640,12 +640,13 @@ public class CodeGenerator
         for (int i = 0; i < valueExpressions.length; i++)
         {
           LLVMValueRef expressionValue = buildExpression(valueExpressions[i], llvmFunction, variables);
+          LLVMValueRef convertedValue = convertType(expressionValue, valueExpressions[i].getType(), type.getBaseType());
           LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                        LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
                                                        LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), i, false)};
 
           LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
-          LLVM.LLVMBuildStore(builder, expressionValue, elementPointer);
+          LLVM.LLVMBuildStore(builder, convertedValue, elementPointer);
         }
         return array;
       }
