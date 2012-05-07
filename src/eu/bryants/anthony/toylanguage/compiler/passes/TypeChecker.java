@@ -560,9 +560,13 @@ public class TypeChecker
         {
           primitiveTypeType = PrimitiveTypeType.INT;
         }
-        else
+        else if (value.bitLength() < Long.SIZE)
         {
           primitiveTypeType = PrimitiveTypeType.LONG;
+        }
+        else
+        {
+          throw new ConceptualException("Integer literal will not fit into a long", expression.getLexicalPhrase());
         }
       }
       else
@@ -581,9 +585,13 @@ public class TypeChecker
         {
           primitiveTypeType = PrimitiveTypeType.UINT;
         }
-        else
+        else if (value.bitLength() <= Long.SIZE)
         {
           primitiveTypeType = PrimitiveTypeType.ULONG;
+        }
+        else
+        {
+          throw new ConceptualException("Integer literal will not fit into a ulong", expression.getLexicalPhrase());
         }
       }
       Type type = new PrimitiveType(primitiveTypeType, null);
