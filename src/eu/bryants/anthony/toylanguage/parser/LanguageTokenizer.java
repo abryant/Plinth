@@ -526,6 +526,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     {
       return makeSymbolToken(ParseType.CARET, 1);
     }
+    if (nextChar == ':')
+    {
+      return makeSymbolToken(ParseType.COLON, 1);
+    }
     if (nextChar == ',')
     {
       return makeSymbolToken(ParseType.COMMA, 1);
@@ -602,6 +606,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     if (nextChar == '+')
     {
       return makeSymbolToken(ParseType.PLUS, 1);
+    }
+    if (nextChar == '?')
+    {
+      return makeSymbolToken(ParseType.QUESTION_MARK, 1);
     }
     if (nextChar == '>')
     {

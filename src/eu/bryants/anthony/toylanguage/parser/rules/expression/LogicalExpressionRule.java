@@ -21,16 +21,16 @@ public class LogicalExpressionRule extends Rule<ParseType>
   private static final long serialVersionUID = 1L;
 
   private static final Production<ParseType> START_PRODUCTION             = new Production<ParseType>(ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> AND_PRODUCTION               = new Production<ParseType>(ParseType.EXPRESSION, ParseType.AMPERSAND,        ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> OR_PRODUCTION                = new Production<ParseType>(ParseType.EXPRESSION, ParseType.PIPE,             ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> XOR_PRODUCTION               = new Production<ParseType>(ParseType.EXPRESSION, ParseType.CARET,            ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> SHORT_CIRCUIT_AND_PRODUCTION = new Production<ParseType>(ParseType.EXPRESSION, ParseType.DOUBLE_AMPERSAND, ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> SHORT_CIRCUIT_OR_PRODUCTION  = new Production<ParseType>(ParseType.EXPRESSION, ParseType.DOUBLE_PIPE,      ParseType.COMPARISON_EXPRESSION);
+  private static final Production<ParseType> AND_PRODUCTION               = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.AMPERSAND,        ParseType.COMPARISON_EXPRESSION);
+  private static final Production<ParseType> OR_PRODUCTION                = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.PIPE,             ParseType.COMPARISON_EXPRESSION);
+  private static final Production<ParseType> XOR_PRODUCTION               = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.CARET,            ParseType.COMPARISON_EXPRESSION);
+  private static final Production<ParseType> SHORT_CIRCUIT_AND_PRODUCTION = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.DOUBLE_AMPERSAND, ParseType.COMPARISON_EXPRESSION);
+  private static final Production<ParseType> SHORT_CIRCUIT_OR_PRODUCTION  = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.DOUBLE_PIPE,      ParseType.COMPARISON_EXPRESSION);
 
   @SuppressWarnings("unchecked")
   public LogicalExpressionRule()
   {
-    super(ParseType.EXPRESSION, START_PRODUCTION, AND_PRODUCTION, OR_PRODUCTION, XOR_PRODUCTION, SHORT_CIRCUIT_AND_PRODUCTION, SHORT_CIRCUIT_OR_PRODUCTION);
+    super(ParseType.LOGICAL_EXPRESSION, START_PRODUCTION, AND_PRODUCTION, OR_PRODUCTION, XOR_PRODUCTION, SHORT_CIRCUIT_AND_PRODUCTION, SHORT_CIRCUIT_OR_PRODUCTION);
   }
 
   /**

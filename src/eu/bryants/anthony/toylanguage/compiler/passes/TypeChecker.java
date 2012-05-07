@@ -18,6 +18,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.InlineIfExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
@@ -515,6 +516,28 @@ public class TypeChecker
       Type type = resolvedFunction.getType();
       functionCallExpression.setType(type);
       return type;
+    }
+    else if (expression instanceof InlineIfExpression)
+    {
+      InlineIfExpression inlineIf = (InlineIfExpression) expression;
+      Type conditionType = checkTypes(inlineIf.getCondition(), compilationUnit);
+      if (!(conditionType instanceof PrimitiveType) || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+      {
+        throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + conditionType + "'", inlineIf.getCondition().getLexicalPhrase());
+      }
+      Type thenType = checkTypes(inlineIf.getThenExpression(), compilationUnit);
+      Type elseType = checkTypes(inlineIf.getElseExpression(), compilationUnit);
+      if (thenType.canAssign(elseType))
+      {
+        inlineIf.setType(thenType);
+        return thenType;
+      }
+      if (elseType.canAssign(thenType))
+      {
+        inlineIf.setType(elseType);
+        return elseType;
+      }
+      throw new ConceptualException("The types of the then and else clauses of this inline if expression are incompatible, they are: " + thenType + " and " + elseType, inlineIf.getLexicalPhrase());
     }
     else if (expression instanceof IntegerLiteralExpression)
     {

@@ -40,6 +40,7 @@ public enum ParseType
   // Expressions
   TUPLE_EXPRESSION,              // Expression
   EXPRESSION,                    // Expression
+  LOGICAL_EXPRESSION,            // Expression
   COMPARISON_EXPRESSION,         // Expression
   ADDITIVE_EXPRESSION,           // Expression
   MULTIPLICATIVE_EXPRESSION,     // Expression
@@ -60,6 +61,7 @@ public enum ParseType
   // symbols (values for these should all be LexicalPhrase)
   AMPERSAND,
   CARET,
+  COLON,
   COMMA,
   DOUBLE_AMPERSAND,
   DOUBLE_EQUALS,
@@ -79,6 +81,7 @@ public enum ParseType
   PERCENT,
   PIPE,
   PLUS,
+  QUESTION_MARK,
   RANGLE,
   RANGLE_EQUALS,
   RBRACE,

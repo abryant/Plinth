@@ -1,14 +1,17 @@
 uint main(uint argc)
 {
   []uint array = new []uint {0, 1, 2, 3};
-  reverse(array);
+  if (argc > 2)
+  {
+    reverse(array);
+  }
   uint foo = 4 * (4 * (4 * array[0] + array[1]) + array[2]) + array[3];
 
   []uint temp = new [1]uint;
   []long arr = new [2]long;
   // should put 27 in temp[0], due to the order of evaluation of the function calls in an array assignment
   array(arr, temp)[dimension(temp)] = value(temp);
-  return temp[0] ^ foo;
+  return (temp[0] ^ foo) == 0 ? 5 : 13;
 }
 
 uint foo()

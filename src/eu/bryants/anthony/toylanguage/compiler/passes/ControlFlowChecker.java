@@ -20,6 +20,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.InlineIfExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
@@ -332,6 +333,13 @@ public class ControlFlowChecker
       {
         checkUninitializedVariables(e, initializedVariables);
       }
+    }
+    else if (expression instanceof InlineIfExpression)
+    {
+      InlineIfExpression inlineIfExpression = (InlineIfExpression) expression;
+      checkUninitializedVariables(inlineIfExpression.getCondition(), initializedVariables);
+      checkUninitializedVariables(inlineIfExpression.getThenExpression(), initializedVariables);
+      checkUninitializedVariables(inlineIfExpression.getElseExpression(), initializedVariables);
     }
     else if (expression instanceof IntegerLiteralExpression)
     {

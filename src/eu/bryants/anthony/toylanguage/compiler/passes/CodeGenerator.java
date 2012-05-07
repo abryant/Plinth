@@ -30,6 +30,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.InlineIfExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
@@ -774,6 +775,35 @@ public class CodeGenerator
       Pointer llvmArguments = C.toNativePointerArray(values, false, true);
       LLVMValueRef llvmResolvedFunction = LLVM.LLVMGetNamedFunction(module, functionExpression.getResolvedFunction().getName());
       return LLVM.LLVMBuildCall(builder, llvmResolvedFunction, llvmArguments, values.length, "");
+    }
+    if (expression instanceof InlineIfExpression)
+    {
+      InlineIfExpression inlineIf = (InlineIfExpression) expression;
+      LLVMValueRef conditionValue = buildExpression(inlineIf.getCondition(), llvmFunction, variables);
+      LLVMBasicBlockRef thenBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "inlineIfThen");
+      LLVMBasicBlockRef elseBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "inlineIfElse");
+      LLVMBasicBlockRef continuationBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "afterInlineIf");
+
+      LLVM.LLVMBuildCondBr(builder, conditionValue, thenBlock, elseBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, thenBlock);
+      LLVMValueRef thenValue = buildExpression(inlineIf.getThenExpression(), llvmFunction, variables);
+      LLVMValueRef convertedThenValue = convertType(thenValue, inlineIf.getThenExpression().getType(), inlineIf.getType());
+      LLVMBasicBlockRef thenBranchBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, elseBlock);
+      LLVMValueRef elseValue = buildExpression(inlineIf.getElseExpression(), llvmFunction, variables);
+      LLVMValueRef convertedElseValue = convertType(elseValue, inlineIf.getElseExpression().getType(), inlineIf.getType());
+      LLVMBasicBlockRef elseBranchBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+      LLVMValueRef result = LLVM.LLVMBuildPhi(builder, findNativeType(inlineIf.getType()), "");
+      LLVMValueRef[] incomingValues = new LLVMValueRef[] {convertedThenValue, convertedElseValue};
+      LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {thenBranchBlock, elseBranchBlock};
+      LLVM.LLVMAddIncoming(result, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), 2);
+      return result;
     }
     if (expression instanceof IntegerLiteralExpression)
     {
