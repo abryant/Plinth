@@ -33,6 +33,7 @@ public enum ParseType
   WHILE_STATEMENT,               // WhileStatement
 
   // Types
+  RETURN_TYPE,                   // Type
   TYPE,                          // Type
   TYPE_LIST,                     // ParseList<Type>
 
@@ -109,6 +110,7 @@ public enum ParseType
   UINT_KEYWORD,
   ULONG_KEYWORD,
   USHORT_KEYWORD,
+  VOID_KEYWORD,
   WHILE_KEYWORD,
 
   ;

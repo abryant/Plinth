@@ -43,6 +43,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
+import eu.bryants.anthony.toylanguage.ast.type.VoidType;
 import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
 
 /*
@@ -69,7 +70,7 @@ public class ControlFlowChecker
         initializedVariables.add(p.getVariable());
       }
       boolean returned = checkControlFlow(f.getBlock(), initializedVariables, new LinkedList<BreakableStatement>());
-      if (!returned)
+      if (!returned && !(f.getType() instanceof VoidType))
       {
         throw new ConceptualException("Function does not always return a value", f.getLexicalPhrase());
       }
@@ -236,7 +237,11 @@ public class ControlFlowChecker
     }
     else if (statement instanceof ReturnStatement)
     {
-      checkUninitializedVariables(((ReturnStatement) statement).getExpression(), initializedVariables);
+      Expression returnedExpression = ((ReturnStatement) statement).getExpression();
+      if (returnedExpression != null)
+      {
+        checkUninitializedVariables(returnedExpression, initializedVariables);
+      }
       return true;
     }
     else if (statement instanceof WhileStatement)

@@ -212,7 +212,11 @@ public class Resolver
     }
     else if (statement instanceof ReturnStatement)
     {
-      resolve(((ReturnStatement) statement).getExpression(), enclosingBlock, compilationUnit);
+      Expression returnedExpression = ((ReturnStatement) statement).getExpression();
+      if (returnedExpression != null)
+      {
+        resolve(returnedExpression, enclosingBlock, compilationUnit);
+      }
     }
     else if (statement instanceof WhileStatement)
     {
@@ -222,7 +226,7 @@ public class Resolver
     }
     else
     {
-      throw new ConceptualException("Internal name resolution error: Unknown statement type", statement.getLexicalPhrase());
+      throw new ConceptualException("Internal name resolution error: Unknown statement type: " + statement, statement.getLexicalPhrase());
     }
   }
 

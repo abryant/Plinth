@@ -48,6 +48,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("uint",     ParseType.UINT_KEYWORD);
     KEYWORDS.put("ulong",    ParseType.ULONG_KEYWORD);
     KEYWORDS.put("ushort",   ParseType.USHORT_KEYWORD);
+    KEYWORDS.put("void",    ParseType.VOID_KEYWORD);
     KEYWORDS.put("while",    ParseType.WHILE_KEYWORD);
   }
 

@@ -20,11 +20,12 @@ public class ReturnStatementRule extends Rule<ParseType>
   private static final long serialVersionUID = 1L;
 
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.RETURN_KEYWORD, ParseType.TUPLE_EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> VOID_PRODUCTION = new Production<ParseType>(ParseType.RETURN_KEYWORD, ParseType.SEMICOLON);
 
   @SuppressWarnings("unchecked")
   public ReturnStatementRule()
   {
-    super(ParseType.RETURN_STATEMENT, PRODUCTION);
+    super(ParseType.RETURN_STATEMENT, PRODUCTION, VOID_PRODUCTION);
   }
 
   /**
@@ -37,6 +38,10 @@ public class ReturnStatementRule extends Rule<ParseType>
     {
       Expression expression = (Expression) args[1];
       return new ReturnStatement(expression, LexicalPhrase.combine((LexicalPhrase) args[0], expression.getLexicalPhrase(), (LexicalPhrase) args[2]));
+    }
+    if (production == VOID_PRODUCTION)
+    {
+      return new ReturnStatement(null, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1]));
     }
     throw badTypeList();
   }

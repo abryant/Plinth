@@ -47,6 +47,7 @@ import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.toylanguage.ast.type.TupleType;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
+import eu.bryants.anthony.toylanguage.ast.type.VoidType;
 import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
 
 /*
@@ -245,10 +246,25 @@ public class TypeChecker
     }
     else if (statement instanceof ReturnStatement)
     {
-      Type exprType = checkTypes(((ReturnStatement) statement).getExpression(), compilationUnit);
-      if (!function.getType().canAssign(exprType))
+      Expression returnExpression = ((ReturnStatement) statement).getExpression();
+      if (returnExpression == null)
       {
-        throw new ConceptualException("Cannot return an expression of type '" + exprType + "' from a function with return type '" + function.getType() + "'", statement.getLexicalPhrase());
+        if (!(function.getType() instanceof VoidType))
+        {
+          throw new ConceptualException("A non-void function cannot return with no value", statement.getLexicalPhrase());
+        }
+      }
+      else
+      {
+        if (function.getType() instanceof VoidType)
+        {
+          throw new ConceptualException("A void function cannot return a value", statement.getLexicalPhrase());
+        }
+        Type exprType = checkTypes(returnExpression, compilationUnit);
+        if (!function.getType().canAssign(exprType))
+        {
+          throw new ConceptualException("Cannot return an expression of type '" + exprType + "' from a function with return type '" + function.getType() + "'", statement.getLexicalPhrase());
+        }
       }
     }
     else if (statement instanceof WhileStatement)

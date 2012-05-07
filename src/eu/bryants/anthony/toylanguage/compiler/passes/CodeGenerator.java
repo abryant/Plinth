@@ -60,6 +60,7 @@ import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.toylanguage.ast.type.TupleType;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
+import eu.bryants.anthony.toylanguage.ast.type.VoidType;
 
 /*
  * Created on 5 Apr 2012
@@ -164,6 +165,10 @@ public class CodeGenerator
       }
       return LLVM.LLVMStructType(C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
     }
+    if (type instanceof VoidType)
+    {
+      return LLVM.LLVMVoidType();
+    }
     throw new IllegalStateException("Unexpected Type: " + type);
   }
 
@@ -190,6 +195,11 @@ public class CodeGenerator
     }
 
     buildStatement(function.getBlock(), function, llvmFunction, variables, new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>());
+    // add a "ret void" if control reaches the end of the function
+    if (!function.getBlock().stopsExecution())
+    {
+      LLVM.LLVMBuildRetVoid(builder);
+    }
   }
 
   private void buildStatement(Statement statement, Function function, LLVMValueRef llvmFunction, Map<Variable, LLVMValueRef> variables,
@@ -334,9 +344,17 @@ public class CodeGenerator
     }
     else if (statement instanceof ReturnStatement)
     {
-      LLVMValueRef value = buildExpression(((ReturnStatement) statement).getExpression(), llvmFunction, variables);
-      LLVMValueRef convertedValue = convertType(value, ((ReturnStatement) statement).getExpression().getType(), function.getType());
-      LLVM.LLVMBuildRet(builder, convertedValue);
+      Expression returnedExpression = ((ReturnStatement) statement).getExpression();
+      if (returnedExpression == null)
+      {
+        LLVM.LLVMBuildRetVoid(builder);
+      }
+      else
+      {
+        LLVMValueRef value = buildExpression(returnedExpression, llvmFunction, variables);
+        LLVMValueRef convertedValue = convertType(value, returnedExpression.getType(), function.getType());
+        LLVM.LLVMBuildRet(builder, convertedValue);
+      }
     }
     else if (statement instanceof WhileStatement)
     {

@@ -1,21 +1,14 @@
 uint main(uint argc)
 {
-  [][]ubyte bytes = new [2][4]ubyte;
-  []boolean bools = new []boolean {true, false};
-  bools[0], bools[1] = bools[1], bools[0];
-  (uint, []ubyte) i, ls = 12345, bytes[1];
-  ushort a, b = cast<ushort> argc, 500;
-  //a, b = b, a;
-  i, bytes[0] = bytes.length, bytes[0];
-  (uint, short) f = 34, 29;
-  (ushort) x, _ = a, a;
-  ((ushort)) y, _ = x, x;
+  []uint array = new []uint {0, 1, 2, 3};
+  reverse(array);
+  uint foo = 4 * (4 * (4 * array[0] + array[1]) + array[2]) + array[3];
 
   []uint temp = new [1]uint;
   []long arr = new [2]long;
   // should put 27 in temp[0], due to the order of evaluation of the function calls in an array assignment
   array(arr, temp)[dimension(temp)] = value(temp);
-  return temp[0] + y!1!1;
+  return temp[0] ^ foo;
 }
 
 uint foo()
@@ -39,4 +32,14 @@ long value([]uint temp)
 {
   temp[0] = 4 * temp[0] + 3;
   return 123;
+}
+
+void reverse([]uint arr)
+{
+  uint i = 0;
+  while (i < arr.length / 2)
+  {
+    arr[i], arr[arr.length - 1 - i] = arr[arr.length - 1 - i], arr[i];
+    i = i + 1;
+  }
 }

@@ -1,8 +1,8 @@
 CompilationUnit = Functions
 Functions = Function | Functions Function
 
-Function = Type Name LParen Parameters RParen Block
-         | Type Name LParen            RParen Block
+Function = ReturnType Name LParen Parameters RParen Block
+         | ReturnType Name LParen            RParen Block
 Parameters = Type Name | Parameters Comma Type Name
 
 Block = LBrace Statements RBrace
@@ -22,7 +22,7 @@ Assignment = Type AssigneeList Semicolon | Type AssigneeList Equals TupleExpress
 BreakStatement = BreakKeyword Semicolon | BreakKeyword IntegerLiteral Semicolon
 ContinueStatement = ContinueKeyword Semicolon | ContinueKeyword IntegerLiteral Semicolon
 IfStatement = IfKeyword TupleExpression Block | IfKeyword TupleExpression Block ElseKeyword Block | IfKeyword TupleExpression Block ElseKeyword IfStatement
-ReturnStatement = ReturnKeyword TupleExpression Semicolon
+ReturnStatement = ReturnKeyword TupleExpression Semicolon | ReturnKeyword Semicolon
 WhileStatement = WhileKeyword TupleExpression Block
 
 Type = BooleanKeyword |
@@ -33,6 +33,7 @@ Type = BooleanKeyword |
        UByteKeyword   | ByteKeyword   |
        LSquare RSquare Type |
        LParen TypeList RParen
+ReturnType = Type | VoidKeyword
 TypeList = Type | TypeList Comma Type
 
 

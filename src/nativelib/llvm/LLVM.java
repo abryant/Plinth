@@ -105,6 +105,7 @@ public class LLVM
   public static native LLVMValueRef LLVMBuildPhi(LLVMBuilderRef builder, LLVMTypeRef type, String name);
   public static native LLVMValueRef LLVMBuildPtrToInt(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
   public static native LLVMValueRef LLVMBuildRet(LLVMBuilderRef builder, LLVMValueRef value);
+  public static native LLVMValueRef LLVMBuildRetVoid(LLVMBuilderRef builder);
   public static native LLVMValueRef LLVMBuildSDiv(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildSExt(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
   public static native LLVMValueRef LLVMBuildZExt(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
@@ -149,6 +150,7 @@ public class LLVM
   public static native LLVMTypeRef LLVMIntType(int bits);
   public static native LLVMTypeRef LLVMPointerType(LLVMTypeRef elementType, int addressSpace);
   public static native LLVMTypeRef LLVMStructType(Pointer elementTypes, int elementCount, boolean packed);
+  public static native LLVMTypeRef LLVMVoidType();
 
   public static native int LLVMWriteBitcodeToFile(LLVMModuleRef module, String path);
 
