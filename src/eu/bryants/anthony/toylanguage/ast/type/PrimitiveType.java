@@ -119,8 +119,8 @@ public class PrimitiveType extends Type
       return false;
     }
     // both types are now integers
-    // smaller integers can always be assigned to larger integers
-    if (primitiveTypeType.getBitCount() > otherType.getBitCount())
+    // smaller unsigned integers can always be assigned to larger integers
+    if (primitiveTypeType.getBitCount() > otherType.getBitCount() && !otherType.isSigned())
     {
       return true;
     }
@@ -148,26 +148,26 @@ public class PrimitiveType extends Type
              otherType == PrimitiveTypeType.SHORT || otherType == PrimitiveTypeType.USHORT ||
              otherType == PrimitiveTypeType.BYTE  || otherType == PrimitiveTypeType.UBYTE;
     case ULONG:
-      return otherType == PrimitiveTypeType.ULONG ||
-             otherType == PrimitiveTypeType.INT   || otherType == PrimitiveTypeType.UINT   ||
-             otherType == PrimitiveTypeType.SHORT || otherType == PrimitiveTypeType.USHORT ||
-             otherType == PrimitiveTypeType.BYTE  || otherType == PrimitiveTypeType.UBYTE;
+      return otherType == PrimitiveTypeType.ULONG  ||
+             otherType == PrimitiveTypeType.UINT   ||
+             otherType == PrimitiveTypeType.USHORT ||
+             otherType == PrimitiveTypeType.UBYTE;
     case LONG:
       return otherType == PrimitiveTypeType.LONG  ||
              otherType == PrimitiveTypeType.INT   || otherType == PrimitiveTypeType.UINT   ||
              otherType == PrimitiveTypeType.SHORT || otherType == PrimitiveTypeType.USHORT ||
              otherType == PrimitiveTypeType.BYTE  || otherType == PrimitiveTypeType.UBYTE;
     case UINT:
-      return otherType == PrimitiveTypeType.UINT  ||
-             otherType == PrimitiveTypeType.SHORT || otherType == PrimitiveTypeType.USHORT ||
-             otherType == PrimitiveTypeType.BYTE  || otherType == PrimitiveTypeType.UBYTE;
+      return otherType == PrimitiveTypeType.UINT   ||
+             otherType == PrimitiveTypeType.USHORT ||
+             otherType == PrimitiveTypeType.UBYTE;
     case INT:
       return otherType == PrimitiveTypeType.INT   ||
              otherType == PrimitiveTypeType.SHORT || otherType == PrimitiveTypeType.USHORT ||
              otherType == PrimitiveTypeType.BYTE  || otherType == PrimitiveTypeType.UBYTE;
     case USHORT:
       return otherType == PrimitiveTypeType.USHORT ||
-             otherType == PrimitiveTypeType.BYTE   || otherType == PrimitiveTypeType.UBYTE;
+             otherType == PrimitiveTypeType.UBYTE;
     case SHORT:
       return otherType == PrimitiveTypeType.SHORT ||
              otherType == PrimitiveTypeType.BYTE  || otherType == PrimitiveTypeType.UBYTE;
