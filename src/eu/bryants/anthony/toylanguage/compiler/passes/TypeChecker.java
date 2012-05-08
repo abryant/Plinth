@@ -39,6 +39,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ContinueStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
@@ -243,6 +244,42 @@ public class TypeChecker
       if (ifStatement.getElseClause() != null)
       {
         checkTypes(ifStatement.getElseClause(), function, compilationUnit);
+      }
+    }
+    else if (statement instanceof PrefixIncDecStatement)
+    {
+      PrefixIncDecStatement prefixIncDecStatement = (PrefixIncDecStatement) statement;
+      Assignee assignee = prefixIncDecStatement.getAssignee();
+      Type assigneeType;
+      if (assignee instanceof VariableAssignee)
+      {
+        assigneeType = ((VariableAssignee) assignee).getResolvedVariable().getType();
+        assignee.setResolvedType(assigneeType);
+      }
+      else if (assignee instanceof ArrayElementAssignee)
+      {
+        ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
+        Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression(), compilationUnit);
+        if (!(arrayType instanceof ArrayType))
+        {
+          throw new ConceptualException("Array accesses are not defined for the type " + arrayType, arrayElementAssignee.getLexicalPhrase());
+        }
+        Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression(), compilationUnit);
+        if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
+        {
+          throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, arrayElementAssignee.getDimensionExpression().getLexicalPhrase());
+        }
+        assigneeType = ((ArrayType) arrayType).getBaseType();
+        assignee.setResolvedType(assigneeType);
+      }
+      else
+      {
+        // ignore blank assignees, they shouldn't be able to get through variable resolution
+        throw new IllegalStateException("Unknown Assignee type: " + assignee);
+      }
+      if (!(assigneeType instanceof PrimitiveType) || ((PrimitiveType) assigneeType).getPrimitiveTypeType() == PrimitiveTypeType.BOOLEAN)
+      {
+        throw new ConceptualException("Cannot " + (prefixIncDecStatement.isIncrement() ? "inc" : "dec") + "rement an assignee of type " + assigneeType, assignee.getLexicalPhrase());
       }
     }
     else if (statement instanceof ReturnStatement)

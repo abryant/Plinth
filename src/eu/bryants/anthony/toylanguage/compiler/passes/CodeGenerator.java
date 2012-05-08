@@ -53,6 +53,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.BreakableStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ContinueStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
@@ -342,6 +343,60 @@ public class CodeGenerator
       {
         LLVM.LLVMPositionBuilderAtEnd(builder, continuation);
       }
+    }
+    else if (statement instanceof PrefixIncDecStatement)
+    {
+      PrefixIncDecStatement prefixIncDecStatement = (PrefixIncDecStatement) statement;
+      Assignee assignee = prefixIncDecStatement.getAssignee();
+      LLVMValueRef pointer;
+      if (assignee instanceof VariableAssignee)
+      {
+        pointer = variables.get(((VariableAssignee) assignee).getResolvedVariable());
+      }
+      else if (assignee instanceof ArrayElementAssignee)
+      {
+        ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
+        LLVMValueRef array = buildExpression(arrayElementAssignee.getArrayExpression(), llvmFunction, variables);
+        LLVMValueRef dimension = buildExpression(arrayElementAssignee.getDimensionExpression(), llvmFunction, variables);
+        LLVMValueRef convertedDimension = convertType(dimension, arrayElementAssignee.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE);
+        LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                     LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
+                                                     convertedDimension};
+        pointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
+      }
+      else
+      {
+        // ignore blank assignees, they shouldn't be able to get through variable resolution
+        throw new IllegalStateException("Unknown Assignee type: " + assignee);
+      }
+      LLVMValueRef loaded = LLVM.LLVMBuildLoad(builder, pointer, "");
+      PrimitiveType type = (PrimitiveType) assignee.getResolvedType();
+      LLVMValueRef result;
+      if (type.getPrimitiveTypeType().isFloating())
+      {
+        LLVMValueRef one = LLVM.LLVMConstReal(findNativeType(type), 1);
+        if (prefixIncDecStatement.isIncrement())
+        {
+          result = LLVM.LLVMBuildFAdd(builder, loaded, one, "");
+        }
+        else
+        {
+          result = LLVM.LLVMBuildFSub(builder, loaded, one, "");
+        }
+      }
+      else
+      {
+        LLVMValueRef one = LLVM.LLVMConstInt(findNativeType(type), 1, false);
+        if (prefixIncDecStatement.isIncrement())
+        {
+          result = LLVM.LLVMBuildAdd(builder, loaded, one, "");
+        }
+        else
+        {
+          result = LLVM.LLVMBuildSub(builder, loaded, one, "");
+        }
+      }
+      LLVM.LLVMBuildStore(builder, result, pointer);
     }
     else if (statement instanceof ReturnStatement)
     {

@@ -583,6 +583,11 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     }
     if (nextChar == '-')
     {
+      int secondChar = reader.read(1);
+      if (secondChar == '-')
+      {
+        return makeSymbolToken(ParseType.DOUBLE_MINUS, 2);
+      }
       return makeSymbolToken(ParseType.MINUS, 1);
     }
     if (nextChar == '%')
@@ -605,6 +610,11 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     }
     if (nextChar == '+')
     {
+      int secondChar = reader.read(1);
+      if (secondChar == '+')
+      {
+        return makeSymbolToken(ParseType.DOUBLE_PLUS, 2);
+      }
       return makeSymbolToken(ParseType.PLUS, 1);
     }
     if (nextChar == '?')

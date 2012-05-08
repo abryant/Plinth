@@ -40,6 +40,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.BreakableStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ContinueStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
@@ -236,6 +237,31 @@ public class ControlFlowChecker
       }
       return thenReturned && elseReturned;
     }
+    else if (statement instanceof PrefixIncDecStatement)
+    {
+      PrefixIncDecStatement prefixIncDecStatement = (PrefixIncDecStatement) statement;
+      Assignee assignee = prefixIncDecStatement.getAssignee();
+      if (assignee instanceof VariableAssignee)
+      {
+        Variable resolvedVariable = ((VariableAssignee) assignee).getResolvedVariable();
+        if (!initializedVariables.contains(resolvedVariable))
+        {
+          throw new ConceptualException("Variable '" + ((VariableAssignee) assignee).getVariableName() + "' may not have been initialized", assignee.getLexicalPhrase());
+        }
+      }
+      else if (assignee instanceof ArrayElementAssignee)
+      {
+        ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
+        checkUninitializedVariables(arrayElementAssignee.getArrayExpression(), initializedVariables);
+        checkUninitializedVariables(arrayElementAssignee.getDimensionExpression(), initializedVariables);
+      }
+      else
+      {
+        // ignore blank assignees, they shouldn't be able to get through variable resolution
+        throw new IllegalStateException("Unknown Assignee type: " + assignee);
+      }
+      return false;
+    }
     else if (statement instanceof ReturnStatement)
     {
       Expression returnedExpression = ((ReturnStatement) statement).getExpression();
@@ -374,7 +400,7 @@ public class ControlFlowChecker
       VariableExpression variableExpression = (VariableExpression) expression;
       if (!initializedVariables.contains(variableExpression.getResolvedVariable()))
       {
-        throw new ConceptualException("Variable '" + variableExpression.getName() + "' may not be initialized", variableExpression.getLexicalPhrase());
+        throw new ConceptualException("Variable '" + variableExpression.getName() + "' may not have been initialized", variableExpression.getLexicalPhrase());
       }
     }
     else

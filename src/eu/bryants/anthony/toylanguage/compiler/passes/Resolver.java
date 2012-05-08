@@ -40,6 +40,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ContinueStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
@@ -209,6 +210,35 @@ public class Resolver
       if (ifStatement.getElseClause() != null)
       {
         resolve(ifStatement.getElseClause(), enclosingBlock, compilationUnit);
+      }
+    }
+    else if (statement instanceof PrefixIncDecStatement)
+    {
+      PrefixIncDecStatement prefixIncDecStatement = (PrefixIncDecStatement) statement;
+      Assignee assignee = prefixIncDecStatement.getAssignee();
+      if (assignee instanceof VariableAssignee)
+      {
+        VariableAssignee variableAssignee = (VariableAssignee) assignee;
+        Variable variable = enclosingBlock.getVariable(variableAssignee.getVariableName());
+        if (variable == null)
+        {
+          throw new NameNotResolvedException("Unable to resolve: " + variableAssignee.getVariableName(), variableAssignee.getLexicalPhrase());
+        }
+        variableAssignee.setResolvedVariable(variable);
+      }
+      else if (assignee instanceof ArrayElementAssignee)
+      {
+        ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
+        resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, compilationUnit);
+        resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, compilationUnit);
+      }
+      else if (assignee instanceof BlankAssignee)
+      {
+        throw new ConceptualException("Cannot " + (prefixIncDecStatement.isIncrement() ? "inc" : "dec") + "rement a blank assignee", assignee.getLexicalPhrase());
+      }
+      else
+      {
+        throw new IllegalStateException("Unknown Assignee type: " + assignee);
       }
     }
     else if (statement instanceof ReturnStatement)

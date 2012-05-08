@@ -18,12 +18,14 @@ import eu.bryants.anthony.toylanguage.parser.rules.expression.TupleExpressionRul
 import eu.bryants.anthony.toylanguage.parser.rules.expression.TupleIndexExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.UnaryExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeListRule;
+import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.ParametersRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.AssignStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.BlockRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.BreakStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.ContinueStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.IfStatementRule;
+import eu.bryants.anthony.toylanguage.parser.rules.statement.PrefixIncDecStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.ReturnStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementsRule;
@@ -62,6 +64,7 @@ public class ToyLanguageRules
 
     // misc
     new AssigneeListRule(),
+    new AssigneeRule(),
     new ParametersRule(),
 
     // statement
@@ -70,6 +73,7 @@ public class ToyLanguageRules
     new BreakStatementRule(),
     new ContinueStatementRule(),
     new IfStatementRule(),
+    new PrefixIncDecStatementRule(),
     new ReturnStatementRule(),
     new StatementRule(),
     new StatementsRule(),

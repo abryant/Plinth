@@ -18,10 +18,13 @@ public enum ParseType
   COMPILATION_UNIT,              // CompilationUnit
   FUNCTIONS,                     // ParseList<Function>
   FUNCTION,                      // Function
+
+  // Misc
+  ASSIGNEE,                      // Assignee
+  ASSIGNEE_LIST,                 // ParseList<Assignee>
   PARAMETERS,                    // ParseList<Parameter>
 
   // Statements
-  ASSIGNEE_LIST,                 // ParseList<Assignee>
   BLOCK,                         // Block
   STATEMENTS,                    // ParseList<Statement>
   STATEMENT,                     // Statement
@@ -29,6 +32,7 @@ public enum ParseType
   BREAK_STATEMENT,               // BreakStatement
   CONTINUE_STATEMENT,            // ContinueStatement
   IF_STATEMENT,                  // IfStatement
+  PREFIX_INC_DEC_STATEMENT,      // PrefixIncDecStatement
   RETURN_STATEMENT,              // ReturnStatement
   WHILE_STATEMENT,               // WhileStatement
 
@@ -65,8 +69,10 @@ public enum ParseType
   COMMA,
   DOUBLE_AMPERSAND,
   DOUBLE_EQUALS,
+  DOUBLE_MINUS,
   DOUBLE_PERCENT,
   DOUBLE_PIPE,
+  DOUBLE_PLUS,
   DOT,
   EQUALS,
   EXCLAIMATION_MARK,
