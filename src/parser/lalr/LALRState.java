@@ -213,8 +213,17 @@ public class LALRState<T extends Enum<T>> implements State<T>
     {
       throw new IllegalStateException("An LALR State must have at least one action.");
     }
-    T firstType = types.iterator().next();
-    return types.toArray((T[]) Array.newInstance(firstType.getClass(), types.size()));
+
+    Class<?> typeClass = Object.class;
+    for (T t : types)
+    {
+      if (t != null)
+      {
+        typeClass = t.getClass();
+        break;
+      }
+    }
+    return types.toArray((T[]) Array.newInstance(typeClass, types.size()));
   }
 
   /**
