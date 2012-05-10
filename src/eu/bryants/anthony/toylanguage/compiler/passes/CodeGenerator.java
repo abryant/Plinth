@@ -15,6 +15,7 @@ import nativelib.llvm.LLVM.LLVMValueRef;
 import com.sun.jna.Pointer;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
+import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
@@ -39,6 +40,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
+import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
@@ -58,6 +60,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
+import eu.bryants.anthony.toylanguage.ast.type.NamedType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.toylanguage.ast.type.TupleType;
@@ -164,6 +167,18 @@ public class CodeGenerator
       for (int i = 0; i < subTypes.length; i++)
       {
         llvmSubTypes[i] = findNativeType(subTypes[i]);
+      }
+      return LLVM.LLVMStructType(C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
+    }
+    if (type instanceof NamedType)
+    {
+      NamedType namedType = (NamedType) type;
+      CompoundDefinition compound = namedType.getResolvedDefinition();
+      Field[] fields = compound.getFields();
+      LLVMTypeRef[] llvmSubTypes = new LLVMTypeRef[compound.getFields().length];
+      for (int i = 0; i < fields.length; i++)
+      {
+        llvmSubTypes[i] = findNativeType(fields[i].getType());
       }
       return LLVM.LLVMStructType(C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
     }
@@ -809,6 +824,12 @@ public class CodeGenerator
                                                          LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
         LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(sizeIndices, false, true), sizeIndices.length, "");
         return LLVM.LLVMBuildLoad(builder, elementPointer, "");
+      }
+      if (member instanceof Field)
+      {
+        Field field = (Field) member;
+        LLVMValueRef baseValue = buildExpression(fieldAccessExpression.getExpression(), llvmFunction, variables);
+        return LLVM.LLVMBuildExtractValue(builder, baseValue, field.getIndex(), "");
       }
     }
     if (expression instanceof FloatingLiteralExpression)

@@ -1,5 +1,9 @@
-CompilationUnit = Functions
-Functions = Function | Functions Function
+CompilationUnit = epsilon | CompilationUnit Function | CompilationUnit CompoundTypeDef
+
+CompoundTypeDef = CompoundKeyword Name LBrace Members RBrace
+Members = epsilon | Members Member
+Member = Type Name Semicolon |
+         Name LParen Parameters RParen LBrace Statements RBrace
 
 Function = ReturnType Name LParen Parameters RParen Block
          | ReturnType Name LParen            RParen Block
@@ -30,6 +34,7 @@ Type = BooleanKeyword |
        UIntKeyword    | IntKeyword    |
        UShortKeyword  | ShortKeyword  |
        UByteKeyword   | ByteKeyword   |
+       Name |
        LSquare RSquare Type |
        LParen TypeList RParen
 ReturnType = Type | VoidKeyword

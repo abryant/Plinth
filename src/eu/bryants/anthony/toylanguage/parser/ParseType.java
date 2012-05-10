@@ -16,8 +16,12 @@ public enum ParseType
   // NON-TERMINALS:
 
   COMPILATION_UNIT,              // CompilationUnit
-  FUNCTIONS,                     // ParseList<Function>
+  COMPOUND_DEFINITION,           // CompoundDefinition
   FUNCTION,                      // Function
+
+  // Members
+  MEMBER_LIST,                   // ParseList<Member>
+  FIELD,                         // Field
 
   // Misc
   ASSIGNEE,                      // Assignee
@@ -103,6 +107,7 @@ public enum ParseType
   BREAK_KEYWORD,
   BYTE_KEYWORD,
   CAST_KEYWORD,
+  COMPOUND_KEYWORD,
   CONTINUE_KEYWORD,
   DOUBLE_KEYWORD,
   ELSE_KEYWORD,

@@ -4,8 +4,9 @@ import parser.ParseException;
 import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
+import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.Function;
-import eu.bryants.anthony.toylanguage.parser.ParseList;
+import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
 
 /*
@@ -19,12 +20,14 @@ public class CompilationUnitRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.FUNCTIONS);
+  private static Production<ParseType> BLANK_PRODUCTION = new Production<ParseType>();
+  private static Production<ParseType> COMPOUND_PRODUCTION = new Production<ParseType>(ParseType.COMPILATION_UNIT, ParseType.COMPOUND_DEFINITION);
+  private static Production<ParseType> FUNCTION_PRODUCTION = new Production<ParseType>(ParseType.COMPILATION_UNIT, ParseType.FUNCTION);
 
   @SuppressWarnings("unchecked")
   public CompilationUnitRule()
   {
-    super(ParseType.COMPILATION_UNIT, PRODUCTION);
+    super(ParseType.COMPILATION_UNIT, BLANK_PRODUCTION, COMPOUND_PRODUCTION, FUNCTION_PRODUCTION);
   }
 
   /**
@@ -33,11 +36,23 @@ public class CompilationUnitRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == PRODUCTION)
+    if (production == BLANK_PRODUCTION)
     {
-      @SuppressWarnings("unchecked")
-      ParseList<Function> functions = (ParseList<Function>) args[0];
-      return new CompilationUnit(functions.toArray(new Function[functions.size()]), functions.getLexicalPhrase());
+      return new CompilationUnit(null);
+    }
+    if (production == FUNCTION_PRODUCTION)
+    {
+      CompilationUnit compilationUnit = (CompilationUnit) args[0];
+      Function function = (Function) args[1];
+      compilationUnit.addFunction(function, LexicalPhrase.combine(compilationUnit.getLexicalPhrase(), function.getLexicalPhrase()));
+      return compilationUnit;
+    }
+    if (production == COMPOUND_PRODUCTION)
+    {
+      CompilationUnit compilationUnit = (CompilationUnit) args[0];
+      CompoundDefinition compound = (CompoundDefinition) args[1];
+      compilationUnit.addCompound(compound, LexicalPhrase.combine(compilationUnit.getLexicalPhrase(), compound.getLexicalPhrase()));
+      return compilationUnit;
     }
     throw badTypeList();
   }

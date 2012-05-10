@@ -1,3 +1,12 @@
+compound foo
+{
+  :bar b1;
+}
+
+compound bar
+{
+}
+
 uint main(uint argc)
 {
   []uint array = new []uint {0, 1, 2, 3};

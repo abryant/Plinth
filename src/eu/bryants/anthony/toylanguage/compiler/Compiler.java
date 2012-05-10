@@ -11,6 +11,7 @@ import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.toylanguage.ast.terminal.Name;
 import eu.bryants.anthony.toylanguage.compiler.passes.CodeGenerator;
 import eu.bryants.anthony.toylanguage.compiler.passes.ControlFlowChecker;
+import eu.bryants.anthony.toylanguage.compiler.passes.CycleChecker;
 import eu.bryants.anthony.toylanguage.compiler.passes.Resolver;
 import eu.bryants.anthony.toylanguage.compiler.passes.TypeChecker;
 import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
@@ -106,6 +107,7 @@ public class Compiler
     try
     {
       Resolver.resolve(compilationUnit);
+      CycleChecker.checkCycles(compilationUnit);
       ControlFlowChecker.checkControlFlow(compilationUnit);
       TypeChecker.checkTypes(compilationUnit);
     }

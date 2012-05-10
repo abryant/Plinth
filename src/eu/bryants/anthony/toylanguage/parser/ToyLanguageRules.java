@@ -3,8 +3,8 @@ package eu.bryants.anthony.toylanguage.parser;
 import parser.Rule;
 import parser.lalr.LALRRuleSet;
 import eu.bryants.anthony.toylanguage.parser.rules.CompilationUnitRule;
+import eu.bryants.anthony.toylanguage.parser.rules.CompoundDefinitionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.FunctionRule;
-import eu.bryants.anthony.toylanguage.parser.rules.FunctionsRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.AdditiveExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.ComparisonExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.DimensionsRule;
@@ -17,6 +17,8 @@ import eu.bryants.anthony.toylanguage.parser.rules.expression.PrimaryRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.TupleExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.TupleIndexExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.UnaryExpressionRule;
+import eu.bryants.anthony.toylanguage.parser.rules.member.FieldRule;
+import eu.bryants.anthony.toylanguage.parser.rules.member.MemberListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.ParametersRule;
@@ -62,6 +64,10 @@ public class ToyLanguageRules
     new TupleIndexExpressionRule(),
     new UnaryExpressionRule(),
 
+    // member
+    new FieldRule(),
+    new MemberListRule(),
+
     // misc
     new AssigneeListRule(),
     new AssigneeRule(),
@@ -86,8 +92,8 @@ public class ToyLanguageRules
 
     // top level
     // startRule does not need to be included here: new CompilationUnitRule(),
+    new CompoundDefinitionRule(),
     new FunctionRule(),
-    new FunctionsRule(),
   };
 
   @SuppressWarnings("unchecked")

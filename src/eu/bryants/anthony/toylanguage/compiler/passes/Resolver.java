@@ -6,6 +6,7 @@ import java.util.LinkedList;
 import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
+import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
@@ -27,6 +28,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
+import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
@@ -44,8 +46,12 @@ import eu.bryants.anthony.toylanguage.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
+import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
+import eu.bryants.anthony.toylanguage.ast.type.NamedType;
+import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.TupleType;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
+import eu.bryants.anthony.toylanguage.ast.type.VoidType;
 import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
 import eu.bryants.anthony.toylanguage.compiler.NameNotResolvedException;
 
@@ -101,15 +107,66 @@ public class Resolver
 
   public static void resolve(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
+    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    {
+      resolve(compoundDefinition, compilationUnit);
+    }
     for (Function function : compilationUnit.getFunctions())
     {
       resolve(function, compilationUnit);
     }
   }
 
+  private static void resolve(CompoundDefinition compound, CompilationUnit compilationUnit) throws NameNotResolvedException
+  {
+    for (Field field : compound.getFields())
+    {
+      resolve(field.getType(), compilationUnit);
+    }
+  }
+
+  private static void resolve(Type type, CompilationUnit compilationUnit) throws NameNotResolvedException
+  {
+    if (type instanceof ArrayType)
+    {
+      resolve(((ArrayType) type).getBaseType(), compilationUnit);
+    }
+    else if (type instanceof NamedType)
+    {
+      NamedType namedType = (NamedType) type;
+      CompoundDefinition compoundDefinition = compilationUnit.getCompoundDefinition(namedType.getName());
+      if (compoundDefinition == null)
+      {
+        throw new NameNotResolvedException("Unable to resolve: " + namedType.getName(), namedType.getLexicalPhrase());
+      }
+      namedType.setResolvedDefinition(compoundDefinition);
+    }
+    else if (type instanceof PrimitiveType)
+    {
+      // do nothing
+    }
+    else if (type instanceof TupleType)
+    {
+      TupleType tupleType = (TupleType) type;
+      for (Type subType : tupleType.getSubTypes())
+      {
+        resolve(subType, compilationUnit);
+      }
+    }
+    else if (type instanceof VoidType)
+    {
+      // do nothing
+    }
+    else
+    {
+      throw new IllegalArgumentException("Unknown Type type: " + type);
+    }
+  }
+
   private static void resolve(Function function, CompilationUnit compilationUnit) throws ConceptualException, NameNotResolvedException
   {
     Block mainBlock = function.getBlock();
+    resolve(function.getType(), compilationUnit);
     for (Parameter p : function.getParameters())
     {
       Variable oldVar = mainBlock.addVariable(p.getVariable());
@@ -117,6 +174,7 @@ public class Resolver
       {
         throw new ConceptualException("Duplicate parameter: " + p.getName(), p.getLexicalPhrase());
       }
+      resolve(p.getType(), compilationUnit);
     }
     for (Statement s : mainBlock.getStatements())
     {
@@ -130,6 +188,10 @@ public class Resolver
     {
       AssignStatement assignStatement = (AssignStatement) statement;
       Type type = assignStatement.getType();
+      if (type != null)
+      {
+        resolve(type, compilationUnit);
+      }
       Assignee[] assignees = assignStatement.getAssignees();
       boolean distributedTupleType = type != null && type instanceof TupleType && ((TupleType) type).getSubTypes().length == assignees.length;
       for (int i = 0; i < assignees.length; i++)
@@ -277,6 +339,7 @@ public class Resolver
     else if (expression instanceof ArrayCreationExpression)
     {
       ArrayCreationExpression creationExpression = (ArrayCreationExpression) expression;
+      resolve(creationExpression.getType(), compilationUnit);
       if (creationExpression.getDimensionExpressions() != null)
       {
         for (Expression e : creationExpression.getDimensionExpressions())
@@ -310,6 +373,7 @@ public class Resolver
     }
     else if (expression instanceof CastExpression)
     {
+      resolve(expression.getType(), compilationUnit);
       resolve(((CastExpression) expression).getExpression(), block, compilationUnit);
     }
     else if (expression instanceof ComparisonExpression)

@@ -1,6 +1,7 @@
 package eu.bryants.anthony.toylanguage.ast.member;
 
 import eu.bryants.anthony.toylanguage.ast.type.Type;
+import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
  * Created on 3 May 2012
@@ -11,8 +12,23 @@ import eu.bryants.anthony.toylanguage.ast.type.Type;
  */
 public abstract class Member
 {
+  private LexicalPhrase lexicalPhrase;
+
+  public Member(LexicalPhrase lexicalPhrase)
+  {
+    this.lexicalPhrase = lexicalPhrase;
+  }
+
   /**
    * @return the type of the member
    */
   public abstract Type getType();
+
+  /**
+   * @return the lexicalPhrase
+   */
+  public LexicalPhrase getLexicalPhrase()
+  {
+    return lexicalPhrase;
+  }
 }

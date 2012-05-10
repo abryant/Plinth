@@ -13,6 +13,11 @@ import eu.bryants.anthony.toylanguage.ast.type.Type;
  */
 public class ArrayLengthMember extends Member
 {
+  public ArrayLengthMember()
+  {
+    super(null);
+  }
+
   public static final PrimitiveType ARRAY_LENGTH_TYPE = new PrimitiveType(PrimitiveTypeType.UINT, null);
 
   /**

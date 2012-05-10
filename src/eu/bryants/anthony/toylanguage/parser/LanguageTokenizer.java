@@ -32,6 +32,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("break",    ParseType.BREAK_KEYWORD);
     KEYWORDS.put("byte",     ParseType.BYTE_KEYWORD);
     KEYWORDS.put("cast",     ParseType.CAST_KEYWORD);
+    KEYWORDS.put("compound", ParseType.COMPOUND_KEYWORD);
     KEYWORDS.put("continue", ParseType.CONTINUE_KEYWORD);
     KEYWORDS.put("double",   ParseType.DOUBLE_KEYWORD);
     KEYWORDS.put("else",     ParseType.ELSE_KEYWORD);

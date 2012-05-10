@@ -3,7 +3,9 @@ package eu.bryants.anthony.toylanguage.parser.rules.type;
 import parser.ParseException;
 import parser.Production;
 import parser.Rule;
+import eu.bryants.anthony.toylanguage.ast.terminal.Name;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
+import eu.bryants.anthony.toylanguage.ast.type.NamedType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.toylanguage.ast.type.TupleType;
@@ -35,6 +37,7 @@ public class TypeRule extends Rule<ParseType>
   private static final Production<ParseType>    BYTE_PRODUCTION = new Production<ParseType>(ParseType.   BYTE_KEYWORD);
   private static final Production<ParseType>   UBYTE_PRODUCTION = new Production<ParseType>(ParseType.  UBYTE_KEYWORD);
 
+  private static final Production<ParseType> NAMED_PRODUCTION = new Production<ParseType>(ParseType.COLON, ParseType.NAME);
   private static final Production<ParseType> ARRAY_PRODUCTION = new Production<ParseType>(ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE);
   private static final Production<ParseType> TUPLE_PRODUCTION = new Production<ParseType>(ParseType.LPAREN, ParseType.TYPE_LIST, ParseType.RPAREN);
 
@@ -47,6 +50,7 @@ public class TypeRule extends Rule<ParseType>
                               INT_PRODUCTION,   UINT_PRODUCTION,
                             SHORT_PRODUCTION, USHORT_PRODUCTION,
                              BYTE_PRODUCTION,  UBYTE_PRODUCTION,
+                          NAMED_PRODUCTION,
                           ARRAY_PRODUCTION,
                           TUPLE_PRODUCTION);
   }
@@ -68,6 +72,11 @@ public class TypeRule extends Rule<ParseType>
       ParseList<Type> subTypes = (ParseList<Type>) args[1];
       return new TupleType(subTypes.toArray(new Type[subTypes.size()]),
                                             LexicalPhrase.combine((LexicalPhrase) args[0], subTypes.getLexicalPhrase(), (LexicalPhrase) args[2]));
+    }
+    if (production == NAMED_PRODUCTION)
+    {
+      Name name = (Name) args[1];
+      return new NamedType(name.getName(), name.getLexicalPhrase());
     }
 
     PrimitiveTypeType type;
