@@ -24,6 +24,13 @@ public class NamedType extends Type
     this.name = name;
   }
 
+  public NamedType(CompoundDefinition compoundDefinition)
+  {
+    super(null);
+    this.name = compoundDefinition.getName();
+    this.resolvedDefinition = compoundDefinition;
+  }
+
   /**
    * @return the name
    */
@@ -79,6 +86,16 @@ public class NamedType extends Type
   {
     return resolvedDefinition.getField(name);
     // TODO: when functions are added to named types, add them here
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String getMangledName()
+  {
+    // TODO: this should eventually use the fully-qualified name, and may need to differ between compound and class types
+    return "{" + resolvedDefinition.getName() + "}";
   }
 
   /**

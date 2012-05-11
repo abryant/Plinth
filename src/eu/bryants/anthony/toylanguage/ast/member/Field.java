@@ -1,5 +1,6 @@
 package eu.bryants.anthony.toylanguage.ast.member;
 
+import eu.bryants.anthony.toylanguage.ast.metadata.MemberVariable;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
@@ -16,6 +17,7 @@ public class Field extends Member
   private Type type;
   private String name;
 
+  private MemberVariable memberVariable;
   private int index;
 
   public Field(Type type, String name, LexicalPhrase lexicalPhrase)
@@ -26,9 +28,8 @@ public class Field extends Member
   }
 
   /**
-   * {@inheritDoc}
+   * @return the type
    */
-  @Override
   public Type getType()
   {
     return type;
@@ -56,6 +57,22 @@ public class Field extends Member
   public void setIndex(int index)
   {
     this.index = index;
+  }
+
+  /**
+   * @return the memberVariable
+   */
+  public MemberVariable getMemberVariable()
+  {
+    return memberVariable;
+  }
+
+  /**
+   * @param memberVariable - the memberVariable to set
+   */
+  public void setMemberVariable(MemberVariable memberVariable)
+  {
+    this.memberVariable = memberVariable;
   }
 
   /**

@@ -22,6 +22,7 @@ public enum ParseType
   // Members
   MEMBER_LIST,                   // ParseList<Member>
   FIELD,                         // Field
+  CONSTRUCTOR,                   // Constructor
 
   // Misc
   ASSIGNEE,                      // Assignee

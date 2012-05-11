@@ -86,6 +86,15 @@ public class ArrayType extends Type
    * {@inheritDoc}
    */
   @Override
+  public String getMangledName()
+  {
+    return "[" + baseType.getMangledName() + "]";
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public String toString()
   {
     return "[]" + baseType;

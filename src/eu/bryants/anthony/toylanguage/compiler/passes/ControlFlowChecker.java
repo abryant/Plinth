@@ -6,6 +6,7 @@ import java.util.LinkedList;
 import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
+import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
@@ -27,6 +28,8 @@ import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
+import eu.bryants.anthony.toylanguage.ast.member.Constructor;
+import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
@@ -64,6 +67,25 @@ public class ControlFlowChecker
    */
   public static void checkControlFlow(CompilationUnit compilationUnit) throws ConceptualException
   {
+    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    {
+      for (Constructor constructor : compoundDefinition.getConstructors())
+      {
+        Set<Variable> initializedVariables = new HashSet<Variable>();
+        for (Parameter p : constructor.getParameters())
+        {
+          initializedVariables.add(p.getVariable());
+        }
+        checkControlFlow(constructor.getBlock(), initializedVariables, new LinkedList<BreakableStatement>());
+        for (Field field : compoundDefinition.getFields())
+        {
+          if (!initializedVariables.contains(field.getMemberVariable()))
+          {
+            throw new ConceptualException("Constructor does not always initialize the field: " + field.getName(), constructor.getLexicalPhrase());
+          }
+        }
+      }
+    }
     for (Function f : compilationUnit.getFunctions())
     {
       Set<Variable> initializedVariables = new HashSet<Variable>();

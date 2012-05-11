@@ -13,6 +13,8 @@ import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 public class VoidType extends Type
 {
 
+  public static final VoidType VOID_TYPE = new VoidType(null);
+
   public VoidType(LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
@@ -43,6 +45,15 @@ public class VoidType extends Type
   public Member getMember(String name)
   {
     return null;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String getMangledName()
+  {
+    return "v";
   }
 
   /**

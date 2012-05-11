@@ -1,6 +1,10 @@
 compound foo
 {
-  :bar b1;
+  uint a;
+  foo(uint b)
+  {
+    a = b;
+  }
 }
 
 compound bar

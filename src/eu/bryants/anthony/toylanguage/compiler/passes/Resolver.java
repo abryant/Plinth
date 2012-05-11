@@ -28,6 +28,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
+import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
@@ -66,16 +67,16 @@ public class Resolver
 {
 
   /**
-   * Finds all of the nested variables of a function.
-   * Before calling this, resolve() must have been called on the compilation unit containing the function.
-   * @param function - the function to get all the nested variables of
-   * @return a set containing all of the variables defined in this function, including in nested blocks
+   * Finds all of the nested variables of a block.
+   * Before calling this, resolve() must have been called on the compilation unit containing the block.
+   * @param block - the block to get all the nested variables of
+   * @return a set containing all of the variables defined in this block, including in nested blocks
    */
-  public static Set<Variable> getAllNestedVariables(Function function)
+  public static Set<Variable> getAllNestedVariables(Block block)
   {
     Set<Variable> result = new HashSet<Variable>();
     Deque<Statement> stack = new LinkedList<Statement>();
-    stack.push(function.getBlock());
+    stack.push(block);
     while (!stack.isEmpty())
     {
       Statement statement = stack.pop();
@@ -117,11 +118,28 @@ public class Resolver
     }
   }
 
-  private static void resolve(CompoundDefinition compound, CompilationUnit compilationUnit) throws NameNotResolvedException
+  private static void resolve(CompoundDefinition compound, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     for (Field field : compound.getFields())
     {
       resolve(field.getType(), compilationUnit);
+    }
+    for (Constructor constructor : compound.getConstructors())
+    {
+      Block mainBlock = constructor.getBlock();
+      for (Parameter p : constructor.getParameters())
+      {
+        Variable oldVar = mainBlock.addVariable(p.getVariable());
+        if (oldVar != null)
+        {
+          throw new ConceptualException("Duplicate parameter: " + p.getName(), p.getLexicalPhrase());
+        }
+        resolve(p.getType(), compilationUnit);
+      }
+      for (Statement s : mainBlock.getStatements())
+      {
+        resolve(s, mainBlock, compound, compilationUnit);
+      }
     }
   }
 
@@ -178,11 +196,11 @@ public class Resolver
     }
     for (Statement s : mainBlock.getStatements())
     {
-      resolve(s, mainBlock, compilationUnit);
+      resolve(s, mainBlock, null, compilationUnit);
     }
   }
 
-  private static void resolve(Statement statement, Block enclosingBlock, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private static void resolve(Statement statement, Block enclosingBlock, CompoundDefinition enclosingDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     if (statement instanceof AssignStatement)
     {
@@ -200,6 +218,14 @@ public class Resolver
         {
           VariableAssignee variableAssignee = (VariableAssignee) assignees[i];
           Variable variable = enclosingBlock.getVariable(variableAssignee.getVariableName());
+          if (variable == null && enclosingDefinition != null)
+          {
+            Field field = enclosingDefinition.getField(variableAssignee.getVariableName());
+            if (field != null)
+            {
+              variable = field.getMemberVariable();
+            }
+          }
           if (variable == null)
           {
             if (type == null)
@@ -223,8 +249,8 @@ public class Resolver
         else if (assignees[i] instanceof ArrayElementAssignee)
         {
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
-          resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, compilationUnit);
-          resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, compilationUnit);
+          resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+          resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
         }
         else if (assignees[i] instanceof BlankAssignee)
         {
@@ -237,7 +263,7 @@ public class Resolver
       }
       if (assignStatement.getExpression() != null)
       {
-        resolve(assignStatement.getExpression(), enclosingBlock, compilationUnit);
+        resolve(assignStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
       }
     }
     else if (statement instanceof Block)
@@ -249,7 +275,7 @@ public class Resolver
       }
       for (Statement s : subBlock.getStatements())
       {
-        resolve(s, subBlock, compilationUnit);
+        resolve(s, subBlock, enclosingDefinition, compilationUnit);
       }
     }
     else if (statement instanceof BreakStatement)
@@ -262,16 +288,16 @@ public class Resolver
     }
     else if (statement instanceof ExpressionStatement)
     {
-      resolve(((ExpressionStatement) statement).getExpression(), enclosingBlock, compilationUnit);
+      resolve(((ExpressionStatement) statement).getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
     }
     else if (statement instanceof IfStatement)
     {
       IfStatement ifStatement = (IfStatement) statement;
-      resolve(ifStatement.getExpression(), enclosingBlock, compilationUnit);
-      resolve(ifStatement.getThenClause(), enclosingBlock, compilationUnit);
+      resolve(ifStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+      resolve(ifStatement.getThenClause(), enclosingBlock, enclosingDefinition, compilationUnit);
       if (ifStatement.getElseClause() != null)
       {
-        resolve(ifStatement.getElseClause(), enclosingBlock, compilationUnit);
+        resolve(ifStatement.getElseClause(), enclosingBlock, enclosingDefinition, compilationUnit);
       }
     }
     else if (statement instanceof PrefixIncDecStatement)
@@ -291,8 +317,8 @@ public class Resolver
       else if (assignee instanceof ArrayElementAssignee)
       {
         ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
-        resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, compilationUnit);
-        resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, compilationUnit);
+        resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+        resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
       }
       else if (assignee instanceof BlankAssignee)
       {
@@ -308,14 +334,14 @@ public class Resolver
       Expression returnedExpression = ((ReturnStatement) statement).getExpression();
       if (returnedExpression != null)
       {
-        resolve(returnedExpression, enclosingBlock, compilationUnit);
+        resolve(returnedExpression, enclosingBlock, enclosingDefinition, compilationUnit);
       }
     }
     else if (statement instanceof WhileStatement)
     {
       WhileStatement whileStatement = (WhileStatement) statement;
-      resolve(whileStatement.getExpression(), enclosingBlock, compilationUnit);
-      resolve(whileStatement.getStatement(), enclosingBlock, compilationUnit);
+      resolve(whileStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+      resolve(whileStatement.getStatement(), enclosingBlock, enclosingDefinition, compilationUnit);
     }
     else
     {
@@ -323,18 +349,18 @@ public class Resolver
     }
   }
 
-  private static void resolve(Expression expression, Block block, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private static void resolve(Expression expression, Block block, CompoundDefinition enclosingDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     if (expression instanceof ArithmeticExpression)
     {
-      resolve(((ArithmeticExpression) expression).getLeftSubExpression(), block, compilationUnit);
-      resolve(((ArithmeticExpression) expression).getRightSubExpression(), block, compilationUnit);
+      resolve(((ArithmeticExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((ArithmeticExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit);
     }
     else if (expression instanceof ArrayAccessExpression)
     {
       ArrayAccessExpression arrayAccessExpression = (ArrayAccessExpression) expression;
-      resolve(arrayAccessExpression.getArrayExpression(), block, compilationUnit);
-      resolve(arrayAccessExpression.getDimensionExpression(), block, compilationUnit);
+      resolve(arrayAccessExpression.getArrayExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(arrayAccessExpression.getDimensionExpression(), block, enclosingDefinition, compilationUnit);
     }
     else if (expression instanceof ArrayCreationExpression)
     {
@@ -344,20 +370,20 @@ public class Resolver
       {
         for (Expression e : creationExpression.getDimensionExpressions())
         {
-          resolve(e, block, compilationUnit);
+          resolve(e, block, enclosingDefinition, compilationUnit);
         }
       }
       if (creationExpression.getValueExpressions() != null)
       {
         for (Expression e : creationExpression.getValueExpressions())
         {
-          resolve(e, block, compilationUnit);
+          resolve(e, block, enclosingDefinition, compilationUnit);
         }
       }
     }
     else if (expression instanceof BitwiseNotExpression)
     {
-      resolve(((BitwiseNotExpression) expression).getExpression(), block, compilationUnit);
+      resolve(((BitwiseNotExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit);
     }
     else if (expression instanceof BooleanLiteralExpression)
     {
@@ -365,27 +391,27 @@ public class Resolver
     }
     else if (expression instanceof BooleanNotExpression)
     {
-      resolve(((BooleanNotExpression) expression).getExpression(), block, compilationUnit);
+      resolve(((BooleanNotExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit);
     }
     else if (expression instanceof BracketedExpression)
     {
-      resolve(((BracketedExpression) expression).getExpression(), block, compilationUnit);
+      resolve(((BracketedExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit);
     }
     else if (expression instanceof CastExpression)
     {
       resolve(expression.getType(), compilationUnit);
-      resolve(((CastExpression) expression).getExpression(), block, compilationUnit);
+      resolve(((CastExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit);
     }
     else if (expression instanceof ComparisonExpression)
     {
-      resolve(((ComparisonExpression) expression).getLeftSubExpression(), block, compilationUnit);
-      resolve(((ComparisonExpression) expression).getRightSubExpression(), block, compilationUnit);
+      resolve(((ComparisonExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((ComparisonExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit);
     }
     else if (expression instanceof FieldAccessExpression)
     {
       FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
       String fieldName = fieldAccessExpression.getFieldName();
-      resolve(fieldAccessExpression.getExpression(), block, compilationUnit);
+      resolve(fieldAccessExpression.getExpression(), block, enclosingDefinition, compilationUnit);
 
       // find the type of the sub-expression, by calling the type checker
       // this is fine as long as we resolve all of the sub-expression first
@@ -415,15 +441,15 @@ public class Resolver
       // resolve all of the sub-expressions
       for (Expression e : expr.getArguments())
       {
-        resolve(e, block, compilationUnit);
+        resolve(e, block, enclosingDefinition, compilationUnit);
       }
     }
     else if (expression instanceof InlineIfExpression)
     {
       InlineIfExpression inlineIfExpression = (InlineIfExpression) expression;
-      resolve(inlineIfExpression.getCondition(), block, compilationUnit);
-      resolve(inlineIfExpression.getThenExpression(), block, compilationUnit);
-      resolve(inlineIfExpression.getElseExpression(), block, compilationUnit);
+      resolve(inlineIfExpression.getCondition(), block, enclosingDefinition, compilationUnit);
+      resolve(inlineIfExpression.getThenExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(inlineIfExpression.getElseExpression(), block, enclosingDefinition, compilationUnit);
     }
     else if (expression instanceof IntegerLiteralExpression)
     {
@@ -431,12 +457,12 @@ public class Resolver
     }
     else if (expression instanceof LogicalExpression)
     {
-      resolve(((LogicalExpression) expression).getLeftSubExpression(), block, compilationUnit);
-      resolve(((LogicalExpression) expression).getRightSubExpression(), block, compilationUnit);
+      resolve(((LogicalExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((LogicalExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit);
     }
     else if (expression instanceof MinusExpression)
     {
-      resolve(((MinusExpression) expression).getExpression(), block, compilationUnit);
+      resolve(((MinusExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit);
     }
     else if (expression instanceof TupleExpression)
     {
@@ -444,18 +470,26 @@ public class Resolver
       Expression[] subExpressions = tupleExpression.getSubExpressions();
       for (int i = 0; i < subExpressions.length; i++)
       {
-        resolve(subExpressions[i], block, compilationUnit);
+        resolve(subExpressions[i], block, enclosingDefinition, compilationUnit);
       }
     }
     else if (expression instanceof TupleIndexExpression)
     {
       TupleIndexExpression indexExpression = (TupleIndexExpression) expression;
-      resolve(indexExpression.getExpression(), block, compilationUnit);
+      resolve(indexExpression.getExpression(), block, enclosingDefinition, compilationUnit);
     }
     else if (expression instanceof VariableExpression)
     {
       VariableExpression expr = (VariableExpression) expression;
       Variable var = block.getVariable(expr.getName());
+      if (var == null && enclosingDefinition != null)
+      {
+        Field field = enclosingDefinition.getField(expr.getName());
+        if (field != null)
+        {
+          var = field.getMemberVariable();
+        }
+      }
       if (var == null)
       {
         throw new NameNotResolvedException("Unable to resolve \"" + expr.getName() + "\"", expr.getLexicalPhrase());

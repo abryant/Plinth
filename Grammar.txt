@@ -3,7 +3,7 @@ CompilationUnit = epsilon | CompilationUnit Function | CompilationUnit CompoundT
 CompoundTypeDef = CompoundKeyword Name LBrace Members RBrace
 Members = epsilon | Members Member
 Member = Type Name Semicolon |
-         Name LParen Parameters RParen LBrace Statements RBrace
+         Name LParen Parameters RParen Block
 
 Function = ReturnType Name LParen Parameters RParen Block
          | ReturnType Name LParen            RParen Block

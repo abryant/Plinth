@@ -47,4 +47,9 @@ public abstract class Type
    * @return the Member with the specified name, or null if none exists
    */
   public abstract Member getMember(String name);
+
+  /**
+   * @return the mangled name of this type
+   */
+  public abstract String getMangledName();
 }

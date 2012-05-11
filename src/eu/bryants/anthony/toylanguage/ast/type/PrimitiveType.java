@@ -18,27 +18,29 @@ public class PrimitiveType extends Type
    */
   public enum PrimitiveTypeType
   {
-    BOOLEAN("boolean", false, 1,  false),
-    UBYTE  ("ubyte",   false, 8,  false),
-    USHORT ("ushort",  false, 16, false),
-    UINT   ("uint",    false, 32, false),
-    ULONG  ("ulong",   false, 64, false),
-    BYTE   ("byte",    false, 8,  true),
-    SHORT  ("short",   false, 16, true),
-    INT    ("int",     false, 32, true),
-    LONG   ("long",    false, 64, true),
-    FLOAT  ("float",   true,  32, true),
-    DOUBLE ("double",  true,  64, true),
+    BOOLEAN("boolean", "o", false, 1,  false),
+    UBYTE  ("ubyte",   "B", false, 8,  false),
+    USHORT ("ushort",  "S", false, 16, false),
+    UINT   ("uint",    "I", false, 32, false),
+    ULONG  ("ulong",   "L", false, 64, false),
+    BYTE   ("byte",    "b", false, 8,  true),
+    SHORT  ("short",   "s", false, 16, true),
+    INT    ("int",     "i", false, 32, true),
+    LONG   ("long",    "l", false, 64, true),
+    FLOAT  ("float",   "f", true,  32, true),
+    DOUBLE ("double",  "d", true,  64, true),
     ;
 
     public final String name;
+    public final String mangledName;
     private boolean floating;
     private int bitCount;
     private boolean signed;
 
-    PrimitiveTypeType(String name, boolean floating, int bitCount, boolean signed)
+    PrimitiveTypeType(String name, String mangledName, boolean floating, int bitCount, boolean signed)
     {
       this.name = name;
+      this.mangledName = mangledName;
       this.floating = floating;
       this.bitCount = bitCount;
       this.signed = signed;
@@ -197,6 +199,15 @@ public class PrimitiveType extends Type
   {
     // primitive types currently have no members
     return null;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String getMangledName()
+  {
+    return primitiveTypeType.mangledName;
   }
 
   @Override

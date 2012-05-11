@@ -21,11 +21,12 @@ public class MemberListRule extends Rule<ParseType>
 
   private static final Production<ParseType> EMPTY_PRODUCTION = new Production<ParseType>();
   private static final Production<ParseType> FIELD_PRODUCTION = new Production<ParseType>(ParseType.MEMBER_LIST, ParseType.FIELD);
+  private static final Production<ParseType> CONSTRUCTOR_PRODUCTION = new Production<ParseType>(ParseType.MEMBER_LIST, ParseType.CONSTRUCTOR);
 
   @SuppressWarnings("unchecked")
   public MemberListRule()
   {
-    super(ParseType.MEMBER_LIST, EMPTY_PRODUCTION, FIELD_PRODUCTION);
+    super(ParseType.MEMBER_LIST, EMPTY_PRODUCTION, FIELD_PRODUCTION, CONSTRUCTOR_PRODUCTION);
   }
 
   /**
@@ -38,7 +39,7 @@ public class MemberListRule extends Rule<ParseType>
     {
       return new ParseList<Member>(null);
     }
-    if (production == FIELD_PRODUCTION)
+    if (production == FIELD_PRODUCTION || production == CONSTRUCTOR_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
       ParseList<Member> members = (ParseList<Member>) args[0];

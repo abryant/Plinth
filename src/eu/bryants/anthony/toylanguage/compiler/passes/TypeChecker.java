@@ -3,6 +3,7 @@ package eu.bryants.anthony.toylanguage.compiler.passes;
 import java.math.BigInteger;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
+import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
@@ -27,6 +28,8 @@ import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
+import eu.bryants.anthony.toylanguage.ast.member.Constructor;
+import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
@@ -63,13 +66,20 @@ public class TypeChecker
 {
   public static void checkTypes(CompilationUnit compilationUnit) throws ConceptualException
   {
+    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    {
+      for (Constructor constructor : compoundDefinition.getConstructors())
+      {
+        checkTypes(constructor.getBlock(), VoidType.VOID_TYPE, compilationUnit);
+      }
+    }
     for (Function f : compilationUnit.getFunctions())
     {
-      checkTypes(f.getBlock(), f, compilationUnit);
+      checkTypes(f.getBlock(), f.getType(), compilationUnit);
     }
   }
 
-  private static void checkTypes(Statement statement, Function function, CompilationUnit compilationUnit) throws ConceptualException
+  private static void checkTypes(Statement statement, Type returnType, CompilationUnit compilationUnit) throws ConceptualException
   {
     if (statement instanceof AssignStatement)
     {
@@ -217,7 +227,7 @@ public class TypeChecker
     {
       for (Statement s : ((Block) statement).getStatements())
       {
-        checkTypes(s, function, compilationUnit);
+        checkTypes(s, returnType, compilationUnit);
       }
     }
     else if (statement instanceof BreakStatement)
@@ -240,10 +250,10 @@ public class TypeChecker
       {
         throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", ifStatement.getExpression().getLexicalPhrase());
       }
-      checkTypes(ifStatement.getThenClause(), function, compilationUnit);
+      checkTypes(ifStatement.getThenClause(), returnType, compilationUnit);
       if (ifStatement.getElseClause() != null)
       {
-        checkTypes(ifStatement.getElseClause(), function, compilationUnit);
+        checkTypes(ifStatement.getElseClause(), returnType, compilationUnit);
       }
     }
     else if (statement instanceof PrefixIncDecStatement)
@@ -287,21 +297,21 @@ public class TypeChecker
       Expression returnExpression = ((ReturnStatement) statement).getExpression();
       if (returnExpression == null)
       {
-        if (!(function.getType() instanceof VoidType))
+        if (!(returnType instanceof VoidType))
         {
           throw new ConceptualException("A non-void function cannot return with no value", statement.getLexicalPhrase());
         }
       }
       else
       {
-        if (function.getType() instanceof VoidType)
+        if (returnType instanceof VoidType)
         {
           throw new ConceptualException("A void function cannot return a value", statement.getLexicalPhrase());
         }
         Type exprType = checkTypes(returnExpression, compilationUnit);
-        if (!function.getType().canAssign(exprType))
+        if (!returnType.canAssign(exprType))
         {
-          throw new ConceptualException("Cannot return an expression of type '" + exprType + "' from a function with return type '" + function.getType() + "'", statement.getLexicalPhrase());
+          throw new ConceptualException("Cannot return an expression of type '" + exprType + "' from a function with return type '" + returnType + "'", statement.getLexicalPhrase());
         }
       }
     }
@@ -313,7 +323,7 @@ public class TypeChecker
       {
         throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", whileStatement.getExpression().getLexicalPhrase());
       }
-      checkTypes(whileStatement.getStatement(), function, compilationUnit);
+      checkTypes(whileStatement.getStatement(), returnType, compilationUnit);
     }
     else
     {
@@ -515,8 +525,21 @@ public class TypeChecker
       // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member
       // Type type = checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
       Member member = fieldAccessExpression.getResolvedMember();
-      fieldAccessExpression.setType(member.getType());
-      return member.getType();
+      Type type;
+      if (member instanceof Field)
+      {
+        type = ((Field) member).getType();
+      }
+      else if (member instanceof ArrayLengthMember)
+      {
+        type = ArrayLengthMember.ARRAY_LENGTH_TYPE;
+      }
+      else
+      {
+        throw new IllegalStateException("Unknown member type in a FieldAccessExpression: " + member);
+      }
+      fieldAccessExpression.setType(type);
+      return type;
     }
     else if (expression instanceof FloatingLiteralExpression)
     {

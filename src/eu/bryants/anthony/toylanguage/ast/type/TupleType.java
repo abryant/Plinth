@@ -93,6 +93,22 @@ public class TupleType extends Type
    * {@inheritDoc}
    */
   @Override
+  public String getMangledName()
+  {
+    StringBuffer buffer = new StringBuffer();
+    buffer.append("(");
+    for (int i = 0; i < subTypes.length; i++)
+    {
+      buffer.append(subTypes[i].getMangledName());
+    }
+    buffer.append(")");
+    return buffer.toString();
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public String toString()
   {
     StringBuffer buffer = new StringBuffer("(");
