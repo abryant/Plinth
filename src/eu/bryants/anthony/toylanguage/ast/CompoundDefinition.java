@@ -54,6 +54,7 @@ public class CompoundDefinition
         {
           throw new LanguageParseException("The constructor '" + constructor.getName() + "' should be called '" + name + "' after the compound type it is defined in", constructor.getLexicalPhrase());
         }
+        constructor.setContainingDefinition(this);
         constructors.add(constructor);
       }
       // TODO: when functions are added, make sure no names are duplicated between fields and functions

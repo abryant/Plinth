@@ -34,6 +34,10 @@ public class CompilationUnit
    */
   public void addFunction(Function function, LexicalPhrase newLexicalPhrase) throws LanguageParseException
   {
+    if (compoundDefinitions.containsKey(function.getName()))
+    {
+      throw new LanguageParseException("This function has the same name as a compound type: " + function.getName(), function.getLexicalPhrase());
+    }
     Function oldValue = functions.put(function.getName(), function);
     if (oldValue != null)
     {
@@ -50,6 +54,10 @@ public class CompilationUnit
    */
   public void addCompound(CompoundDefinition compound, LexicalPhrase newLexicalPhrase) throws LanguageParseException
   {
+    if (functions.containsKey(compound.getName()))
+    {
+      throw new LanguageParseException("This compound type has the same name as a function: " + compound.getName(), compound.getLexicalPhrase());
+    }
     CompoundDefinition oldValue = compoundDefinitions.put(compound.getName(), compound);
     if (oldValue != null)
     {

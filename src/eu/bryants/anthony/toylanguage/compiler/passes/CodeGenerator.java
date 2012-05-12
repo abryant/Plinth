@@ -116,7 +116,7 @@ public class CodeGenerator
     {
       for (Constructor constructor : compoundDefinition.getConstructors())
       {
-        String mangledName = compoundDefinition.getName() + constructor.getMangledName();
+        String mangledName = constructor.getMangledName();
 
         Parameter[] parameters = constructor.getParameters();
         LLVMTypeRef[] types = new LLVMTypeRef[parameters.length];
@@ -231,8 +231,7 @@ public class CodeGenerator
   {
     for (Constructor constructor : compoundDefinition.getConstructors())
     {
-      String mangledName = compoundDefinition.getName() + constructor.getMangledName();
-      LLVMValueRef llvmFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
+      LLVMValueRef llvmFunction = LLVM.LLVMGetNamedFunction(module, constructor.getMangledName());
 
       LLVMBasicBlockRef block = LLVM.LLVMAppendBasicBlock(llvmFunction, "entry");
       LLVM.LLVMPositionBuilderAtEnd(builder, block);
@@ -562,6 +561,10 @@ public class CodeGenerator
 
   private LLVMValueRef convertType(LLVMValueRef value, Type from, Type to)
   {
+    if (from.isEquivalent(to))
+    {
+      return value;
+    }
     if (from instanceof PrimitiveType && to instanceof PrimitiveType)
     {
       return convertPrimitiveType(value, (PrimitiveType) from, (PrimitiveType) to);
@@ -944,7 +947,9 @@ public class CodeGenerator
     if (expression instanceof FunctionCallExpression)
     {
       FunctionCallExpression functionExpression = (FunctionCallExpression) expression;
-      Parameter[] parameters = functionExpression.getResolvedFunction().getParameters();
+      Function resolvedFunction = functionExpression.getResolvedFunction();
+      Constructor resolvedConstructor = functionExpression.getResolvedConstructor();
+      Parameter[] parameters = resolvedFunction != null ? resolvedFunction.getParameters() : resolvedConstructor.getParameters();
       Expression[] arguments = functionExpression.getArguments();
       LLVMValueRef[] values = new LLVMValueRef[arguments.length];
       for (int i = 0; i < arguments.length; i++)
@@ -952,9 +957,9 @@ public class CodeGenerator
         LLVMValueRef arg = buildExpression(arguments[i], llvmFunction, thisValue, variables);
         values[i] = convertType(arg, arguments[i].getType(), parameters[i].getType());
       }
-      Pointer llvmArguments = C.toNativePointerArray(values, false, true);
-      LLVMValueRef llvmResolvedFunction = LLVM.LLVMGetNamedFunction(module, functionExpression.getResolvedFunction().getName());
-      return LLVM.LLVMBuildCall(builder, llvmResolvedFunction, llvmArguments, values.length, "");
+      String mangledName = resolvedFunction != null ? resolvedFunction.getName() : resolvedConstructor.getMangledName();
+      LLVMValueRef llvmResolvedFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
+      return LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(values, false, true), values.length, "");
     }
     if (expression instanceof InlineIfExpression)
     {

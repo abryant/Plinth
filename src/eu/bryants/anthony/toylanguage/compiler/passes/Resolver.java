@@ -1,8 +1,11 @@
 package eu.bryants.anthony.toylanguage.compiler.passes;
 
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
@@ -430,19 +433,82 @@ public class Resolver
     else if (expression instanceof FunctionCallExpression)
     {
       FunctionCallExpression expr = (FunctionCallExpression) expression;
-      // resolve the called function
-      Function called = compilationUnit.getFunction(expr.getName());
-      if (called == null)
-      {
-        throw new NameNotResolvedException("Unable to resolve \"" + expr.getName() + "\"", expr.getLexicalPhrase());
-      }
-      expr.setResolvedFunction(called);
-
       // resolve all of the sub-expressions
       for (Expression e : expr.getArguments())
       {
         resolve(e, block, enclosingDefinition, compilationUnit);
+        TypeChecker.checkTypes(e, compilationUnit);
       }
+
+      // resolve the called function
+      Function function = compilationUnit.getFunction(expr.getName());
+      CompoundDefinition compoundDefinition = compilationUnit.getCompoundDefinition(expr.getName());
+      if (function == null && compoundDefinition == null)
+      {
+        throw new NameNotResolvedException("Unable to resolve \"" + expr.getName() + "\"", expr.getLexicalPhrase());
+      }
+      Map<Parameter[], Object> paramLists = new HashMap<Parameter[], Object>();
+      if (function != null)
+      {
+        paramLists.put(function.getParameters(), function);
+      }
+      if (compoundDefinition != null)
+      {
+        for (Constructor constructor : compoundDefinition.getConstructors())
+        {
+          paramLists.put(constructor.getParameters(), constructor);
+        }
+      }
+      boolean resolved = false;
+      for (Entry<Parameter[], Object> entry : paramLists.entrySet())
+      {
+        Parameter[] parameters = entry.getKey();
+        // make sure the types match, otherwise we need to find another candidate
+        boolean typesMatch = parameters.length == expr.getArguments().length;
+        if (typesMatch)
+        {
+          for (int i = 0; i < parameters.length; i++)
+          {
+            Type parameterType = parameters[i].getType();
+            Type argumentType = expr.getArguments()[i].getType();
+            if (!parameterType.canAssign(argumentType))
+            {
+              typesMatch = false;
+              break;
+            }
+          }
+        }
+        if (typesMatch)
+        {
+          if (entry.getValue() instanceof Function)
+          {
+            expr.setResolvedFunction((Function) entry.getValue());
+          }
+          else if (entry.getValue() instanceof Constructor)
+          {
+            expr.setResolvedConstructor((Constructor) entry.getValue());
+          }
+          else
+          {
+            throw new IllegalStateException("Unknown function call expression target type: " + entry.getValue());
+          }
+          resolved = true;
+        }
+      }
+      if (!resolved)
+      {
+        StringBuffer buffer = new StringBuffer();
+        for (int i = 0; i < expr.getArguments().length; i++)
+        {
+          buffer.append(expr.getArguments()[i].getType());
+          if (i != expr.getArguments().length - 1)
+          {
+            buffer.append(", ");
+          }
+        }
+        throw new NameNotResolvedException("Unable to resolve a call to " + expr.getName() + " with the argument types: " + buffer, expr.getLexicalPhrase());
+      }
+      expr.setResolvedFunction(function);
     }
     else if (expression instanceof InlineIfExpression)
     {

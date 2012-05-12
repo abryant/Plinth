@@ -1,5 +1,6 @@
 package eu.bryants.anthony.toylanguage.ast.member;
 
+import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
@@ -16,6 +17,8 @@ public class Constructor extends Member
   private String name;
   private Parameter[] parameters;
   private Block block;
+
+  private CompoundDefinition containingDefinition;
 
   public Constructor(String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
   {
@@ -54,11 +57,28 @@ public class Constructor extends Member
   }
 
   /**
+   * @return the containingDefinition
+   */
+  public CompoundDefinition getContainingDefinition()
+  {
+    return containingDefinition;
+  }
+
+  /**
+   * @param containingDefinition - the containingDefinition to set
+   */
+  public void setContainingDefinition(CompoundDefinition containingDefinition)
+  {
+    this.containingDefinition = containingDefinition;
+  }
+
+  /**
    * @return the mangled name for this constructor. This should be appended to the type name to get the full mangled name for the low level function, and should never be used on its own.
    */
   public String getMangledName()
   {
     StringBuffer buffer = new StringBuffer();
+    buffer.append(containingDefinition.getName());
     buffer.append("_construct_");
     for (Parameter parameter : parameters)
     {

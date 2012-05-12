@@ -48,6 +48,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
+import eu.bryants.anthony.toylanguage.ast.type.NamedType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.toylanguage.ast.type.TupleType;
@@ -560,10 +561,11 @@ public class TypeChecker
       FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
       Expression[] arguments = functionCallExpression.getArguments();
       Function resolvedFunction = functionCallExpression.getResolvedFunction();
-      Parameter[] parameters = resolvedFunction.getParameters();
+      Constructor resolvedConstructor = functionCallExpression.getResolvedConstructor();
+      Parameter[] parameters = resolvedFunction != null ? resolvedFunction.getParameters() : resolvedConstructor.getParameters();
       if (arguments.length != parameters.length)
       {
-        throw new ConceptualException("Function '" + resolvedFunction.getName() + "' is not defined to take " + arguments.length + " arguments", functionCallExpression.getLexicalPhrase());
+        throw new ConceptualException("Function '" + functionCallExpression.getName() + "' is not defined to take " + arguments.length + " arguments", functionCallExpression.getLexicalPhrase());
       }
       for (int i = 0; i < arguments.length; i++)
       {
@@ -573,7 +575,7 @@ public class TypeChecker
           throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameters[i].getType() + "'", arguments[i].getLexicalPhrase());
         }
       }
-      Type type = resolvedFunction.getType();
+      Type type = resolvedFunction != null ? resolvedFunction.getType() : new NamedType(resolvedConstructor.getContainingDefinition());
       functionCallExpression.setType(type);
       return type;
     }

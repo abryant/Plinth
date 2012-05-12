@@ -1,7 +1,7 @@
 package eu.bryants.anthony.toylanguage.ast.expression;
 
 import eu.bryants.anthony.toylanguage.ast.Function;
-import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
+import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
@@ -17,6 +17,7 @@ public class FunctionCallExpression extends Expression
   private Expression[] arguments;
 
   private Function resolvedFunction;
+  private Constructor resolvedConstructor;
 
   public FunctionCallExpression(String name, Expression[] arguments, LexicalPhrase lexicalPhrase)
   {
@@ -51,11 +52,26 @@ public class FunctionCallExpression extends Expression
 
   /**
    * @param resolvedFunction - the resolvedFunction to set
-   * @throws ConceptualException - if the specified function takes a different number of arguments than this call provides
    */
-  public void setResolvedFunction(Function resolvedFunction) throws ConceptualException
+  public void setResolvedFunction(Function resolvedFunction)
   {
     this.resolvedFunction = resolvedFunction;
+  }
+
+  /**
+   * @return the resolvedConstructor
+   */
+  public Constructor getResolvedConstructor()
+  {
+    return resolvedConstructor;
+  }
+
+  /**
+   * @param resolvedConstructor - the resolvedConstructor to set
+   */
+  public void setResolvedConstructor(Constructor resolvedConstructor)
+  {
+    this.resolvedConstructor = resolvedConstructor;
   }
 
   @Override

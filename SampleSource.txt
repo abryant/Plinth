@@ -3,12 +3,8 @@ compound foo
   uint a;
   foo(uint b)
   {
-    a = b;
+    a = b+2;
   }
-}
-
-compound bar
-{
 }
 
 uint main(uint argc)
@@ -25,13 +21,7 @@ uint main(uint argc)
   []long arr = new [2]long;
   // should put 27 in temp[0], due to the order of evaluation of the function calls in an array assignment
   array(arr, temp)[dimension(temp)] = value(temp);
-  return (temp[0] ^ foo) == 0 ? 5 : 13;
-}
-
-uint foo()
-{
-  [][]short ss = new [0][20]short;
-  return 1;
+  return foo(65).a + ((temp[0] ^ foo) == 0 ? 5 : 13);
 }
 
 []long array([]long arr, []uint temp)
