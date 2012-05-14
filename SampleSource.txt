@@ -37,7 +37,7 @@ uint dimension([]uint temp)
 }
 long value([]uint temp)
 {
-  temp[0] = 4 * temp[0] + 3;
+  temp[0] = (temp[0] << 2) + 3;
   return 123;
 }
 

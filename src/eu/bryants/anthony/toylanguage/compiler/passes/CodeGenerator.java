@@ -36,6 +36,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
@@ -1053,6 +1054,24 @@ public class CodeGenerator
         return LLVM.LLVMBuildFNeg(builder, value, "");
       }
       return LLVM.LLVMBuildNeg(builder, value, "");
+    }
+    if (expression instanceof ShiftExpression)
+    {
+      ShiftExpression shiftExpression = (ShiftExpression) expression;
+      LLVMValueRef leftValue = buildExpression(shiftExpression.getLeftExpression(), llvmFunction, thisValue, variables);
+      LLVMValueRef rightValue = buildExpression(shiftExpression.getRightExpression(), llvmFunction, thisValue, variables);
+      LLVMValueRef convertedLeft = convertType(leftValue, shiftExpression.getLeftExpression().getType(), shiftExpression.getType());
+      LLVMValueRef convertedRight = convertType(rightValue, shiftExpression.getRightExpression().getType(), shiftExpression.getType());
+      switch (shiftExpression.getOperator())
+      {
+      case ARITHMETIC_RIGHT_SHIFT:
+        return LLVM.LLVMBuildAShr(builder, convertedLeft, convertedRight, "");
+      case LOGICAL_RIGHT_SHIFT:
+        return LLVM.LLVMBuildLShr(builder, convertedLeft, convertedRight, "");
+      case LEFT_SHIFT:
+        return LLVM.LLVMBuildShl(builder, convertedLeft, convertedRight, "");
+      }
+      throw new IllegalArgumentException("Unknown shift operator: " + shiftExpression.getOperator());
     }
     if (expression instanceof TupleExpression)
     {

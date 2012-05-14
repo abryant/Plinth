@@ -51,6 +51,7 @@ public enum ParseType
   EXPRESSION,                    // Expression
   LOGICAL_EXPRESSION,            // Expression
   COMPARISON_EXPRESSION,         // Expression
+  SHIFT_EXPRESSION,              // Expression
   ADDITIVE_EXPRESSION,           // Expression
   MULTIPLICATIVE_EXPRESSION,     // Expression
   TUPLE_INDEX_EXPRESSION,        // Expression
@@ -74,10 +75,12 @@ public enum ParseType
   COMMA,
   DOUBLE_AMPERSAND,
   DOUBLE_EQUALS,
+  DOUBLE_LANGLE,
   DOUBLE_MINUS,
   DOUBLE_PERCENT,
   DOUBLE_PIPE,
   DOUBLE_PLUS,
+  DOUBLE_RANGLE,
   DOT,
   EQUALS,
   EXCLAIMATION_MARK,
@@ -101,6 +104,7 @@ public enum ParseType
   SEMICOLON,
   STAR,
   TILDE,
+  TRIPLE_RANGLE,
   UNDERSCORE,
 
   // keywords (values for these should all be LexicalPhrase)

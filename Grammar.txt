@@ -49,13 +49,17 @@ LogicalExpression = ComparisonExpression |
                     LogicalExpression Caret           ComparisonExpression |
                     LogicalExpression DoubleAmpersand ComparisonExpression |
                     LogicalExpression DoublePipe      ComparisonExpression
-ComparisonExpression = AdditiveExpression |
-                       AdditiveExpression DoubleEquals          AdditiveExpression |
-                       AdditiveExpression ExclamationMarkEquals AdditiveExpression |
-                       AdditiveExpression LAngle                AdditiveExpression |
-                       AdditiveExpression LAngleEquals          AdditiveExpression |
-                       AdditiveExpression RAngle                AdditiveExpression |
-                       AdditiveExpression RAngleEquals          AdditiveExpression
+ComparisonExpression = ShiftExpression |
+                       ShiftExpression DoubleEquals          ShiftExpression |
+                       ShiftExpression ExclamationMarkEquals ShiftExpression |
+                       ShiftExpression LAngle                ShiftExpression |
+                       ShiftExpression LAngleEquals          ShiftExpression |
+                       ShiftExpression RAngle                ShiftExpression |
+                       ShiftExpression RAngleEquals          ShiftExpression
+ShiftExpression = AdditiveExpression |
+                  ShiftExpression DoubleLAngle AdditiveExpression |
+                  ShiftExpression DoubleRAngle AdditiveExpression |
+                  ShiftExpression TripleRAngle AdditiveExpression
 AdditiveExpression = MultiplicativeExpression |
                      AdditiveExpression Plus MultiplicativeExpression |
                      AdditiveExpression Minus MultiplicativeExpression

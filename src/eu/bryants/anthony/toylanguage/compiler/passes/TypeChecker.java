@@ -24,6 +24,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
@@ -757,6 +758,27 @@ public class TypeChecker
         }
       }
       throw new ConceptualException("The unary operator '-' is not defined for type '" + type + "'", expression.getLexicalPhrase());
+    }
+    else if (expression instanceof ShiftExpression)
+    {
+      ShiftExpression shiftExpression = (ShiftExpression) expression;
+      Type leftType = checkTypes(shiftExpression.getLeftExpression(), compilationUnit);
+      Type rightType = checkTypes(shiftExpression.getRightExpression(), compilationUnit);
+      if (leftType instanceof PrimitiveType && rightType instanceof PrimitiveType)
+      {
+        PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
+        PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
+        // disallow floating point types and booleans
+        if (!leftPrimitiveType.isFloating() && !rightPrimitiveType.isFloating() &&
+            leftPrimitiveType != PrimitiveTypeType.BOOLEAN && rightPrimitiveType != PrimitiveTypeType.BOOLEAN)
+        {
+          // we know that both types are integers here, and the shift operator should always take the type of the left argument,
+          // so we will later convert the right type to the left type, whatever it is
+          shiftExpression.setType(leftType);
+          return leftType;
+        }
+      }
+      throw new ConceptualException("The operator '" + shiftExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", shiftExpression.getLexicalPhrase());
     }
     else if (expression instanceof TupleExpression)
     {

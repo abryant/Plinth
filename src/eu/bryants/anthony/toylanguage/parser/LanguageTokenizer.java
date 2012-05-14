@@ -568,6 +568,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       {
         return makeSymbolToken(ParseType.LANGLE_EQUALS, 2);
       }
+      if (secondChar == '<')
+      {
+        return makeSymbolToken(ParseType.DOUBLE_LANGLE, 2);
+      }
       return makeSymbolToken(ParseType.LANGLE, 1);
     }
     if (nextChar == '{')
@@ -628,6 +632,15 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       if (secondChar == '=')
       {
         return makeSymbolToken(ParseType.RANGLE_EQUALS, 2);
+      }
+      if (secondChar == '>')
+      {
+        int thirdChar = reader.read(2);
+        if (thirdChar == '>')
+        {
+          return makeSymbolToken(ParseType.TRIPLE_RANGLE, 2);
+        }
+        return makeSymbolToken(ParseType.DOUBLE_RANGLE, 2);
       }
       return makeSymbolToken(ParseType.RANGLE, 1);
     }
