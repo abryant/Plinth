@@ -127,11 +127,13 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
           {
             if (commentChar == '*')
             {
-              int secondCommentChar = reader.read(index + 1);
+              currentColumn++;
+              index++;
+              int secondCommentChar = reader.read(index);
               if (secondCommentChar == '/')
               {
-                currentColumn += 2;
-                index += 2;
+                currentColumn++;
+                index++;
                 break;
               }
             }
