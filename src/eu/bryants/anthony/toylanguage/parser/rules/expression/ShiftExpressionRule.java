@@ -20,10 +20,10 @@ public class ShiftExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION);
-  private static final Production<ParseType> LEFT_SHIFT_PRODUCTION = new Production<ParseType>(ParseType.SHIFT_EXPRESSION, ParseType.DOUBLE_LANGLE, ParseType.ADDITIVE_EXPRESSION);
-  private static final Production<ParseType> ARITHMETIC_RIGHT_SHIFT_PRODUCTION = new Production<ParseType>(ParseType.SHIFT_EXPRESSION, ParseType.DOUBLE_RANGLE, ParseType.ADDITIVE_EXPRESSION);
-  private static final Production<ParseType> LOGICAL_RIGHT_SHIFT_PRODUCTION = new Production<ParseType>(ParseType.SHIFT_EXPRESSION, ParseType.TRIPLE_RANGLE, ParseType.ADDITIVE_EXPRESSION);
+  private static final Production<ParseType> PRODUCTION                        = new Production<ParseType>(ParseType.TUPLE_INDEX_EXPRESSION);
+  private static final Production<ParseType> LEFT_SHIFT_PRODUCTION             = new Production<ParseType>(ParseType.SHIFT_EXPRESSION, ParseType.DOUBLE_LANGLE, ParseType.TUPLE_INDEX_EXPRESSION);
+  private static final Production<ParseType> ARITHMETIC_RIGHT_SHIFT_PRODUCTION = new Production<ParseType>(ParseType.SHIFT_EXPRESSION, ParseType.DOUBLE_RANGLE, ParseType.TUPLE_INDEX_EXPRESSION);
+  private static final Production<ParseType> LOGICAL_RIGHT_SHIFT_PRODUCTION    = new Production<ParseType>(ParseType.SHIFT_EXPRESSION, ParseType.TRIPLE_RANGLE, ParseType.TUPLE_INDEX_EXPRESSION);
 
   @SuppressWarnings("unchecked")
   public ShiftExpressionRule()

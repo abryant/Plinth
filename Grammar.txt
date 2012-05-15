@@ -49,25 +49,25 @@ LogicalExpression = ComparisonExpression |
                     LogicalExpression Caret           ComparisonExpression |
                     LogicalExpression DoubleAmpersand ComparisonExpression |
                     LogicalExpression DoublePipe      ComparisonExpression
-ComparisonExpression = ShiftExpression |
-                       ShiftExpression DoubleEquals          ShiftExpression |
-                       ShiftExpression ExclamationMarkEquals ShiftExpression |
-                       ShiftExpression LAngle                ShiftExpression |
-                       ShiftExpression LAngleEquals          ShiftExpression |
-                       ShiftExpression RAngle                ShiftExpression |
-                       ShiftExpression RAngleEquals          ShiftExpression
-ShiftExpression = AdditiveExpression |
-                  ShiftExpression DoubleLAngle AdditiveExpression |
-                  ShiftExpression DoubleRAngle AdditiveExpression |
-                  ShiftExpression TripleRAngle AdditiveExpression
+ComparisonExpression = AdditiveExpression |
+                       AdditiveExpression DoubleEquals          AdditiveExpression |
+                       AdditiveExpression ExclamationMarkEquals AdditiveExpression |
+                       AdditiveExpression LAngle                AdditiveExpression |
+                       AdditiveExpression LAngleEquals          AdditiveExpression |
+                       AdditiveExpression RAngle                AdditiveExpression |
+                       AdditiveExpression RAngleEquals          AdditiveExpression
 AdditiveExpression = MultiplicativeExpression |
                      AdditiveExpression Plus MultiplicativeExpression |
                      AdditiveExpression Minus MultiplicativeExpression
-MultiplicativeExpression = TupleIndexExpression |
-                           MultiplicativeExpression Star          TupleIndexExpression |
-                           MultiplicativeExpression ForwardSlash  TupleIndexExpression |
-                           MultiplicativeExpression Percent       TupleIndexExpression |
-                           MultiplicativeExpression DoublePercent TupleIndexExpression
+MultiplicativeExpression = ShiftExpression |
+                           MultiplicativeExpression Star          ShiftExpression |
+                           MultiplicativeExpression ForwardSlash  ShiftExpression |
+                           MultiplicativeExpression Percent       ShiftExpression |
+                           MultiplicativeExpression DoublePercent ShiftExpression
+ShiftExpression = TupleIndexExpression |
+                  ShiftExpression DoubleLAngle TupleIndexExpression |
+                  ShiftExpression DoubleRAngle TupleIndexExpression |
+                  ShiftExpression TripleRAngle TupleIndexExpression
 TupleIndexExpression = UnaryExpression | TupleIndexExpression ExclaimationMark IntegerLiteral
 UnaryExpression = Primary |
                   CastKeyword LAngle Type RAngle UnaryExpression |
