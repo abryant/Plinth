@@ -46,6 +46,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ContinueStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ForStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
@@ -92,6 +93,19 @@ public class Resolver
         {
           stack.push(s);
         }
+      }
+      else if (statement instanceof ForStatement)
+      {
+        ForStatement forStatement = (ForStatement) statement;
+        if (forStatement.getInitStatement() != null)
+        {
+          stack.push(forStatement.getInitStatement());
+        }
+        if (forStatement.getUpdateStatement() != null)
+        {
+          stack.push(forStatement.getUpdateStatement());
+        }
+        stack.push(forStatement.getBlock());
       }
       else if (statement instanceof IfStatement)
       {
@@ -293,6 +307,35 @@ public class Resolver
     else if (statement instanceof ExpressionStatement)
     {
       resolve(((ExpressionStatement) statement).getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+    }
+    else if (statement instanceof ForStatement)
+    {
+      ForStatement forStatement = (ForStatement) statement;
+      Statement init = forStatement.getInitStatement();
+      Expression condition = forStatement.getConditional();
+      Statement update = forStatement.getUpdateStatement();
+      Block block = forStatement.getBlock();
+      // process this block right here instead of recursing, since we need to process the init, condition, and update parts of the statement inside it after adding the variables, but before the rest of the resolution
+      for (Variable v : enclosingBlock.getVariables())
+      {
+        block.addVariable(v);
+      }
+      if (init != null)
+      {
+        resolve(init, block, enclosingDefinition, compilationUnit);
+      }
+      if (condition != null)
+      {
+        resolve(condition, block, enclosingDefinition, compilationUnit);
+      }
+      if (update != null)
+      {
+        resolve(update, block, enclosingDefinition, compilationUnit);
+      }
+      for (Statement s : block.getStatements())
+      {
+        resolve(s, block, enclosingDefinition, compilationUnit);
+      }
     }
     else if (statement instanceof IfStatement)
     {

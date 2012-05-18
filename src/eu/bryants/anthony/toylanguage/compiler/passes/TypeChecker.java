@@ -42,6 +42,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ContinueStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ForStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
@@ -243,6 +244,30 @@ public class TypeChecker
     else if (statement instanceof ExpressionStatement)
     {
       checkTypes(((ExpressionStatement) statement).getExpression(), compilationUnit);
+    }
+    else if (statement instanceof ForStatement)
+    {
+      ForStatement forStatement = (ForStatement) statement;
+      Statement init = forStatement.getInitStatement();
+      if (init != null)
+      {
+        checkTypes(init, returnType, compilationUnit);
+      }
+      Expression condition = forStatement.getConditional();
+      if (condition != null)
+      {
+        Type conditionType = checkTypes(condition, compilationUnit);
+        if (!(conditionType instanceof PrimitiveType) || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+        {
+          throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + conditionType + "'", condition.getLexicalPhrase());
+        }
+      }
+      Statement update = forStatement.getUpdateStatement();
+      if (update != null)
+      {
+        checkTypes(update, returnType, compilationUnit);
+      }
+      checkTypes(forStatement.getBlock(), returnType, compilationUnit);
     }
     else if (statement instanceof IfStatement)
     {

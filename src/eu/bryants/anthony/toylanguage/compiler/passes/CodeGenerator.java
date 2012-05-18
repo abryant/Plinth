@@ -57,6 +57,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakableStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ContinueStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ForStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
@@ -414,6 +415,61 @@ public class CodeGenerator
     {
       buildExpression(((ExpressionStatement) statement).getExpression(), llvmFunction, thisValue, variables);
     }
+    else if (statement instanceof ForStatement)
+    {
+      ForStatement forStatement = (ForStatement) statement;
+      Statement init = forStatement.getInitStatement();
+      if (init != null)
+      {
+        buildStatement(init, returnType, llvmFunction, thisValue, variables, breakBlocks, continueBlocks, returnVoidCallback);
+      }
+      Expression conditional = forStatement.getConditional();
+      Statement update = forStatement.getUpdateStatement();
+
+      LLVMBasicBlockRef loopCheck = conditional == null ? null : LLVM.LLVMAppendBasicBlock(llvmFunction, "forLoopCheck");
+      LLVMBasicBlockRef loopBody = LLVM.LLVMAppendBasicBlock(llvmFunction, "forLoopBody");
+      LLVMBasicBlockRef loopUpdate = update == null ? null : LLVM.LLVMAppendBasicBlock(llvmFunction, "forLoopUpdate");
+      // only generate a continuation block if there is a way to get out of the loop
+      LLVMBasicBlockRef continuationBlock = forStatement.stopsExecution() ? null : LLVM.LLVMAppendBasicBlock(llvmFunction, "afterForLoop");
+
+      if (conditional == null)
+      {
+        LLVM.LLVMBuildBr(builder, loopBody);
+      }
+      else
+      {
+        LLVM.LLVMBuildBr(builder, loopCheck);
+        LLVM.LLVMPositionBuilderAtEnd(builder, loopCheck);
+        LLVMValueRef conditionResult = buildExpression(conditional, llvmFunction, thisValue, variables);
+        LLVM.LLVMBuildCondBr(builder, conditionResult, loopBody, continuationBlock);
+      }
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, loopBody);
+      if (continuationBlock != null)
+      {
+        breakBlocks.put(forStatement, continuationBlock);
+      }
+      continueBlocks.put(forStatement, loopUpdate == null ? (loopCheck == null ? loopBody : loopCheck) : loopUpdate);
+      buildStatement(forStatement.getBlock(), returnType, llvmFunction, thisValue, variables, breakBlocks, continueBlocks, returnVoidCallback);
+      if (!forStatement.getBlock().stopsExecution())
+      {
+        LLVM.LLVMBuildBr(builder, loopUpdate == null ? (loopCheck == null ? loopBody : loopCheck) : loopUpdate);
+      }
+      if (update != null)
+      {
+        LLVM.LLVMPositionBuilderAtEnd(builder, loopUpdate);
+        buildStatement(update, returnType, llvmFunction, thisValue, variables, breakBlocks, continueBlocks, returnVoidCallback);
+        if (update.stopsExecution())
+        {
+          throw new IllegalStateException("For loop update stops execution before the branch to the loop check: " + update);
+        }
+        LLVM.LLVMBuildBr(builder, loopCheck == null ? loopBody : loopCheck);
+      }
+      if (continuationBlock != null)
+      {
+        LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+      }
+    }
     else if (statement instanceof IfStatement)
     {
       IfStatement ifStatement = (IfStatement) statement;
@@ -535,14 +591,14 @@ public class CodeGenerator
     {
       WhileStatement whileStatement = (WhileStatement) statement;
 
-      LLVMBasicBlockRef loopCheck = LLVM.LLVMAppendBasicBlock(llvmFunction, "loopCheck");
+      LLVMBasicBlockRef loopCheck = LLVM.LLVMAppendBasicBlock(llvmFunction, "whileLoopCheck");
       LLVM.LLVMBuildBr(builder, loopCheck);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, loopCheck);
       LLVMValueRef conditional = buildExpression(whileStatement.getExpression(), llvmFunction, thisValue, variables);
 
-      LLVMBasicBlockRef loopBodyBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "loopBody");
-      LLVMBasicBlockRef afterLoopBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "afterLoop");
+      LLVMBasicBlockRef loopBodyBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "whileLoopBody");
+      LLVMBasicBlockRef afterLoopBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "afterWhileLoop");
       LLVM.LLVMBuildCondBr(builder, conditional, loopBodyBlock, afterLoopBlock);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, loopBodyBlock);

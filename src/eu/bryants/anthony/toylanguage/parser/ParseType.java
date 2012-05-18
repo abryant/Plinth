@@ -28,6 +28,8 @@ public enum ParseType
   ASSIGNEE,                      // Assignee
   ASSIGNEE_LIST,                 // ParseList<Assignee>
   PARAMETERS,                    // ParseList<Parameter>
+  FOR_INIT,                      // ParseContainer<Statement> (possibly containing null)
+  FOR_UPDATE,                    // Statement or null
 
   // Statements
   BLOCK,                         // Block
@@ -36,6 +38,7 @@ public enum ParseType
   ASSIGN_STATEMENT,              // Statement
   BREAK_STATEMENT,               // BreakStatement
   CONTINUE_STATEMENT,            // ContinueStatement
+  FOR_STATEMENT,                 // ForStatement
   IF_STATEMENT,                  // IfStatement
   PREFIX_INC_DEC_STATEMENT,      // PrefixIncDecStatement
   RETURN_STATEMENT,              // ReturnStatement
@@ -118,6 +121,7 @@ public enum ParseType
   ELSE_KEYWORD,
   FALSE_KEYWORD,
   FLOAT_KEYWORD,
+  FOR_KEYWORD,
   IF_KEYWORD,
   INT_KEYWORD,
   LONG_KEYWORD,

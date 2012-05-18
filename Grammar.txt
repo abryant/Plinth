@@ -12,7 +12,7 @@ Parameters = Type Name | Parameters Comma Type Name
 Block = LBrace Statements RBrace
 
 Statements = epsilon | Statements Statement
-Statement = Assignment | Block | BreakStatement | ContinueStatement | IfStatement | PrefixIncDecStatement | ReturnStatement | WhileStatement |
+Statement = Assignment | Block | BreakStatement | ContinueStatement | ForStatement | IfStatement | PrefixIncDecStatement | ReturnStatement | WhileStatement |
             FunctionCallExpression Semicolon
 
 Assignee = Name |
@@ -27,6 +27,11 @@ IfStatement = IfKeyword TupleExpression Block | IfKeyword TupleExpression Block 
 PrefixIncDecStatement = DoublePlus Assignee Semicolon | DoubleMinus Assignee Semicolon
 ReturnStatement = ReturnKeyword TupleExpression Semicolon | ReturnKeyword Semicolon
 WhileStatement = WhileKeyword TupleExpression Block
+
+ForInit = Assignment | Semicolon
+ForUpdate = DoublePlus Assignee | DoubleMinus Assignee | AssigneeList Equals TupleExpression | FunctionCallExpression | epsilon
+ForStatement = ForKeyword LParen ForInit TupleExpression Semicolon ForUpdate RParen Block
+             | ForKeyword LParen ForInit Semicolon ForUpdate RParen Block
 
 Type = BooleanKeyword |
        DoubleKeyword  | FloatKeyword  |

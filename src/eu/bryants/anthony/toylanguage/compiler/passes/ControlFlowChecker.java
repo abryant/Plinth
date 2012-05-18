@@ -43,6 +43,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.BreakStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.BreakableStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ContinueStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ForStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
@@ -107,7 +108,7 @@ public class ControlFlowChecker
    * @param statement - the statement to check
    * @param initializedVariables - the set of variables which have definitely been initialized before the specified statement is executed
    * @param enclosingBreakableStack - the stack of statements that can be broken out of that enclose this statement
-   * @return true if the statement returns from its enclosing function, false if control flow continues after it
+   * @return true if the statement returns from its enclosing function or control cannot reach statements after it, false if control flow continues after it
    * @throws ConceptualException - if any unreachable code is detected
    */
   private static boolean checkControlFlow(Statement statement, Set<Variable> initializedVariables, LinkedList<BreakableStatement> enclosingBreakableStack) throws ConceptualException
@@ -216,6 +217,7 @@ public class ControlFlowChecker
       }
       BreakableStatement breakable = enclosingBreakableStack.get(continueCount - 1);
       continueStatement.setResolvedBreakable(breakable);
+      breakable.setContinuedThrough(true);
       // TODO: when we get switch statements, make sure continue is forbidden for them
       return true;
     }
@@ -223,6 +225,58 @@ public class ControlFlowChecker
     {
       checkUninitializedVariables(((ExpressionStatement) statement).getExpression(), initializedVariables);
       return false;
+    }
+    else if (statement instanceof ForStatement)
+    {
+      ForStatement forStatement = (ForStatement) statement;
+      Statement init = forStatement.getInitStatement();
+      Expression condition = forStatement.getConditional();
+      Statement update = forStatement.getUpdateStatement();
+      Block block = forStatement.getBlock();
+
+      enclosingBreakableStack.push(forStatement);
+
+      if (init != null)
+      {
+        // check the loop initialisation variable in the block outside the loop, because it may add new variables which have now been initialised
+        boolean returned = checkControlFlow(init, initializedVariables, enclosingBreakableStack);
+        if (returned)
+        {
+          throw new IllegalStateException("Reached a state where a for loop initialisation statement returned");
+        }
+      }
+      HashSet<Variable> loopVariables = new HashSet<Variable>(initializedVariables);
+      if (condition != null)
+      {
+        checkUninitializedVariables(condition, loopVariables);
+      }
+      boolean returned = false;
+      for (Statement s : block.getStatements())
+      {
+        if (returned)
+        {
+          throw new ConceptualException("Unreachable code", s.getLexicalPhrase());
+        }
+        returned = checkControlFlow(s, loopVariables, enclosingBreakableStack);
+      }
+
+      if (update != null)
+      {
+        if (returned && !forStatement.isContinuedThrough())
+        {
+          throw new ConceptualException("Unreachable code", update.getLexicalPhrase());
+        }
+        boolean updateReturned = checkControlFlow(update, loopVariables, enclosingBreakableStack);
+        if (updateReturned)
+        {
+          throw new IllegalStateException("Reached a state where a for loop update statement returned");
+        }
+      }
+
+      enclosingBreakableStack.pop();
+
+      // if there is no conditional and the for statement is never broken out of, then control cannot continue after the end of the loop
+      return condition == null && !forStatement.isBrokenOutOf();
     }
     else if (statement instanceof IfStatement)
     {
@@ -304,7 +358,7 @@ public class ControlFlowChecker
       enclosingBreakableStack.push(whileStatement);
       checkControlFlow(whileStatement.getStatement(), loopVariables, enclosingBreakableStack);
       enclosingBreakableStack.pop();
-      return whileStatement.stopsExecution();
+      return false;
     }
     throw new ConceptualException("Internal control flow checking error: Unknown statement type", statement.getLexicalPhrase());
   }

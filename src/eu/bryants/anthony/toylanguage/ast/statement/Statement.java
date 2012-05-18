@@ -19,6 +19,8 @@ public abstract class Statement
   }
 
   /**
+   * This method checks whether the statement stops execution.
+   * It should not be called until after the control flow checker has been run over this statement.
    * @return true if this Statement stops execution so that any statements after it are not executed, false if execution continues after it
    */
   public abstract boolean stopsExecution();

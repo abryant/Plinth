@@ -23,11 +23,14 @@ import eu.bryants.anthony.toylanguage.parser.rules.member.FieldRule;
 import eu.bryants.anthony.toylanguage.parser.rules.member.MemberListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeRule;
+import eu.bryants.anthony.toylanguage.parser.rules.misc.ForInitRule;
+import eu.bryants.anthony.toylanguage.parser.rules.misc.ForUpdateRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.ParametersRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.AssignStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.BlockRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.BreakStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.ContinueStatementRule;
+import eu.bryants.anthony.toylanguage.parser.rules.statement.ForStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.IfStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.PrefixIncDecStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.ReturnStatementRule;
@@ -75,6 +78,8 @@ public class ToyLanguageRules
     // misc
     new AssigneeListRule(),
     new AssigneeRule(),
+    new ForInitRule(),
+    new ForUpdateRule(),
     new ParametersRule(),
 
     // statement
@@ -82,6 +87,7 @@ public class ToyLanguageRules
     new BlockRule(),
     new BreakStatementRule(),
     new ContinueStatementRule(),
+    new ForStatementRule(),
     new IfStatementRule(),
     new PrefixIncDecStatementRule(),
     new ReturnStatementRule(),

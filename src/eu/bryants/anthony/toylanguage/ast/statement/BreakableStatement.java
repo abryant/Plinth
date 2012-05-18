@@ -13,6 +13,7 @@ public abstract class BreakableStatement extends Statement
 {
 
   private boolean brokenOutOf = false;
+  private boolean continuedThrough = false;
 
   public BreakableStatement(LexicalPhrase lexicalPhrase)
   {
@@ -34,4 +35,22 @@ public abstract class BreakableStatement extends Statement
   {
     this.brokenOutOf = brokenOutOf;
   }
+
+  /**
+   * @return true if this loop statement is continued through via a continue statement
+   */
+  public boolean isContinuedThrough()
+  {
+    return continuedThrough;
+  }
+
+  /**
+   * @param continuedThrough - true to signify that this loop statement is continued through via a continue statement, false if it is definitely never continued through
+   */
+  public void setContinuedThrough(boolean continuedThrough)
+  {
+    this.continuedThrough = continuedThrough;
+  }
+
+
 }

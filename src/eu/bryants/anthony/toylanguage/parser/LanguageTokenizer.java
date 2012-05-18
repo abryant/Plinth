@@ -38,6 +38,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("else",     ParseType.ELSE_KEYWORD);
     KEYWORDS.put("false",    ParseType.FALSE_KEYWORD);
     KEYWORDS.put("float",    ParseType.FLOAT_KEYWORD);
+    KEYWORDS.put("for",      ParseType.FOR_KEYWORD);
     KEYWORDS.put("if",       ParseType.IF_KEYWORD);
     KEYWORDS.put("int",      ParseType.INT_KEYWORD);
     KEYWORDS.put("long",     ParseType.LONG_KEYWORD);
@@ -49,7 +50,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("uint",     ParseType.UINT_KEYWORD);
     KEYWORDS.put("ulong",    ParseType.ULONG_KEYWORD);
     KEYWORDS.put("ushort",   ParseType.USHORT_KEYWORD);
-    KEYWORDS.put("void",    ParseType.VOID_KEYWORD);
+    KEYWORDS.put("void",     ParseType.VOID_KEYWORD);
     KEYWORDS.put("while",    ParseType.WHILE_KEYWORD);
   }
 

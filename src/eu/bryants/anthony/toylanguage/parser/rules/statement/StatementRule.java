@@ -23,6 +23,7 @@ public class StatementRule extends Rule<ParseType>
   private static final Production<ParseType> BLOCK_PRODUCTION  = new Production<ParseType>(ParseType.BLOCK);
   private static final Production<ParseType> BREAK_PRODUCTION  = new Production<ParseType>(ParseType.BREAK_STATEMENT);
   private static final Production<ParseType> CONTINUE_PRODUCTION  = new Production<ParseType>(ParseType.CONTINUE_STATEMENT);
+  private static final Production<ParseType> FOR_PRODUCTION  = new Production<ParseType>(ParseType.FOR_STATEMENT);
   private static final Production<ParseType> IF_PRODUCTION  = new Production<ParseType>(ParseType.IF_STATEMENT);
   private static final Production<ParseType> INC_DEC_PRODUCTION = new Production<ParseType>(ParseType.PREFIX_INC_DEC_STATEMENT);
   private static final Production<ParseType> RETURN_PRODUCTION = new Production<ParseType>(ParseType.RETURN_STATEMENT);
@@ -33,7 +34,7 @@ public class StatementRule extends Rule<ParseType>
   @SuppressWarnings("unchecked")
   public StatementRule()
   {
-    super(ParseType.STATEMENT, ASSIGN_PRODUCTION, BLOCK_PRODUCTION, BREAK_PRODUCTION, CONTINUE_PRODUCTION, IF_PRODUCTION, INC_DEC_PRODUCTION, RETURN_PRODUCTION, WHILE_PRODUCTION, FUNCTION_CALL_PRODUCTION);
+    super(ParseType.STATEMENT, ASSIGN_PRODUCTION, BLOCK_PRODUCTION, BREAK_PRODUCTION, CONTINUE_PRODUCTION, IF_PRODUCTION, FOR_PRODUCTION, INC_DEC_PRODUCTION, RETURN_PRODUCTION, WHILE_PRODUCTION, FUNCTION_CALL_PRODUCTION);
   }
 
   /**
@@ -42,9 +43,9 @@ public class StatementRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == ASSIGN_PRODUCTION   || production == BLOCK_PRODUCTION || production == BREAK_PRODUCTION   ||
-        production == CONTINUE_PRODUCTION || production == IF_PRODUCTION    || production == INC_DEC_PRODUCTION ||
-        production == RETURN_PRODUCTION   || production == WHILE_PRODUCTION)
+    if (production == ASSIGN_PRODUCTION   || production == BLOCK_PRODUCTION  || production == BREAK_PRODUCTION   ||
+        production == CONTINUE_PRODUCTION || production == IF_PRODUCTION     || production == FOR_PRODUCTION     ||
+        production == INC_DEC_PRODUCTION  || production == RETURN_PRODUCTION || production == WHILE_PRODUCTION)
     {
       return args[0];
     }
