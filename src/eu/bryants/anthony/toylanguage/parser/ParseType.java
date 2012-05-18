@@ -107,7 +107,6 @@ public enum ParseType
   SEMICOLON,
   STAR,
   TILDE,
-  TRIPLE_RANGLE,
   UNDERSCORE,
 
   // keywords (values for these should all be LexicalPhrase)

@@ -638,11 +638,6 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       }
       if (secondChar == '>')
       {
-        int thirdChar = reader.read(2);
-        if (thirdChar == '>')
-        {
-          return makeSymbolToken(ParseType.TRIPLE_RANGLE, 3);
-        }
         return makeSymbolToken(ParseType.DOUBLE_RANGLE, 2);
       }
       return makeSymbolToken(ParseType.RANGLE, 1);

@@ -20,15 +20,14 @@ public class ShiftExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION                        = new Production<ParseType>(ParseType.TUPLE_INDEX_EXPRESSION);
-  private static final Production<ParseType> LEFT_SHIFT_PRODUCTION             = new Production<ParseType>(ParseType.SHIFT_EXPRESSION, ParseType.DOUBLE_LANGLE, ParseType.TUPLE_INDEX_EXPRESSION);
-  private static final Production<ParseType> ARITHMETIC_RIGHT_SHIFT_PRODUCTION = new Production<ParseType>(ParseType.SHIFT_EXPRESSION, ParseType.DOUBLE_RANGLE, ParseType.TUPLE_INDEX_EXPRESSION);
-  private static final Production<ParseType> LOGICAL_RIGHT_SHIFT_PRODUCTION    = new Production<ParseType>(ParseType.SHIFT_EXPRESSION, ParseType.TRIPLE_RANGLE, ParseType.TUPLE_INDEX_EXPRESSION);
+  private static final Production<ParseType> PRODUCTION             = new Production<ParseType>(ParseType.TUPLE_INDEX_EXPRESSION);
+  private static final Production<ParseType> LEFT_SHIFT_PRODUCTION  = new Production<ParseType>(ParseType.SHIFT_EXPRESSION, ParseType.DOUBLE_LANGLE, ParseType.TUPLE_INDEX_EXPRESSION);
+  private static final Production<ParseType> RIGHT_SHIFT_PRODUCTION = new Production<ParseType>(ParseType.SHIFT_EXPRESSION, ParseType.DOUBLE_RANGLE, ParseType.TUPLE_INDEX_EXPRESSION);
 
   @SuppressWarnings("unchecked")
   public ShiftExpressionRule()
   {
-    super(ParseType.SHIFT_EXPRESSION, PRODUCTION, LEFT_SHIFT_PRODUCTION, ARITHMETIC_RIGHT_SHIFT_PRODUCTION, LOGICAL_RIGHT_SHIFT_PRODUCTION);
+    super(ParseType.SHIFT_EXPRESSION, PRODUCTION, LEFT_SHIFT_PRODUCTION, RIGHT_SHIFT_PRODUCTION);
   }
 
   /**
@@ -42,9 +41,8 @@ public class ShiftExpressionRule extends Rule<ParseType>
       return args[0];
     }
     ShiftOperator operator;
-    if (production == LEFT_SHIFT_PRODUCTION) { operator = ShiftOperator.LEFT_SHIFT; }
-    else if (production == ARITHMETIC_RIGHT_SHIFT_PRODUCTION) { operator = ShiftOperator.ARITHMETIC_RIGHT_SHIFT; }
-    else if (production == LOGICAL_RIGHT_SHIFT_PRODUCTION) { operator = ShiftOperator.LOGICAL_RIGHT_SHIFT; }
+    if      (production == LEFT_SHIFT_PRODUCTION)  { operator = ShiftOperator.LEFT_SHIFT; }
+    else if (production == RIGHT_SHIFT_PRODUCTION) { operator = ShiftOperator.RIGHT_SHIFT; }
     else { throw badTypeList(); }
 
     Expression leftExpression = (Expression) args[0];

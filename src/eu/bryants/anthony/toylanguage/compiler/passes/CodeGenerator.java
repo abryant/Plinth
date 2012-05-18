@@ -1120,9 +1120,11 @@ public class CodeGenerator
       LLVMValueRef convertedRight = convertType(rightValue, shiftExpression.getRightExpression().getType(), shiftExpression.getType());
       switch (shiftExpression.getOperator())
       {
-      case ARITHMETIC_RIGHT_SHIFT:
-        return LLVM.LLVMBuildAShr(builder, convertedLeft, convertedRight, "");
-      case LOGICAL_RIGHT_SHIFT:
+      case RIGHT_SHIFT:
+        if (((PrimitiveType) shiftExpression.getType()).getPrimitiveTypeType().isSigned())
+        {
+          return LLVM.LLVMBuildAShr(builder, convertedLeft, convertedRight, "");
+        }
         return LLVM.LLVMBuildLShr(builder, convertedLeft, convertedRight, "");
       case LEFT_SHIFT:
         return LLVM.LLVMBuildShl(builder, convertedLeft, convertedRight, "");

@@ -14,8 +14,7 @@ public class ShiftExpression extends Expression
   public enum ShiftOperator
   {
     LEFT_SHIFT("<<"),
-    ARITHMETIC_RIGHT_SHIFT(">>"),
-    LOGICAL_RIGHT_SHIFT(">>>"),
+    RIGHT_SHIFT(">>"),
     ;
 
     private String stringRepresentation;

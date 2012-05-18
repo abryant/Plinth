@@ -71,8 +71,7 @@ MultiplicativeExpression = ShiftExpression |
                            MultiplicativeExpression DoublePercent ShiftExpression
 ShiftExpression = TupleIndexExpression |
                   ShiftExpression DoubleLAngle TupleIndexExpression |
-                  ShiftExpression DoubleRAngle TupleIndexExpression |
-                  ShiftExpression TripleRAngle TupleIndexExpression
+                  ShiftExpression DoubleRAngle TupleIndexExpression
 TupleIndexExpression = UnaryExpression | TupleIndexExpression ExclaimationMark IntegerLiteral
 UnaryExpression = Primary |
                   CastKeyword LAngle Type RAngle UnaryExpression |
