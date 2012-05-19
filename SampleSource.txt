@@ -12,7 +12,7 @@ uint main(uint argc)
   for (uint i;false;)
   {
   }
-  
+
   []uint array = new []uint {0, 1, 2, 3};
   --argc;
   if (argc > 2)
@@ -21,12 +21,20 @@ uint main(uint argc)
   }
   uint foo = 4 * (4 * (4 * array[0] + array[1]) + array[2]) + array[3];
 
+  :foo test = foo(2);
+
   []uint temp = new [1]uint;
   []long arr = new [2]long;
   // should put 27 in temp[0], due to the order of evaluation of the function calls in an array assignment
   array(arr, temp)[dimension(temp)] = value(temp);
   return foo(65).a + ((temp[0] ^ foo) == 0 ? 5 : 13);
   
+}
+
+:foo doStuff((:foo, short) param)
+{
+  _,_ = param;
+  return foo(5);
 }
 
 []long array([]long arr, []uint temp)

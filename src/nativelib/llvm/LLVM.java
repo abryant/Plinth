@@ -69,6 +69,9 @@ public class LLVM
 
   public static native LLVMBasicBlockRef LLVMAppendBasicBlock(LLVMValueRef function, String name);
   public static native LLVMBasicBlockRef LLVMInsertBasicBlock(LLVMBasicBlockRef insertBeforeBlock, String name);
+  public static native LLVMBasicBlockRef LLVMGetEntryBasicBlock(LLVMValueRef function);
+  public static native LLVMValueRef LLVMGetFirstInstruction(LLVMBasicBlockRef block);
+  public static native LLVMValueRef LLVMGetLastInstruction(LLVMBasicBlockRef block);
 
   public static native LLVMBuilderRef LLVMCreateBuilder();
   public static native void LLVMPositionBuilder(LLVMBuilderRef builder, LLVMBasicBlockRef block, LLVMValueRef instruction);

@@ -368,6 +368,12 @@ public class CodeGenerator
           if (llvmAssigneePointers[0] != null)
           {
             LLVMValueRef convertedValue = convertType(value, assignStatement.getExpression().getType(), assignees[0].getResolvedType());
+            Type type = assignees[0].getResolvedType();
+            if (type instanceof NamedType) // TODO: when this does not cause a warning, add it: && ((NamedType) type).getResolvedDefinition() instanceof CompoundDefinition)
+            {
+              // for compound types, we need to load from the result of the expression and store a copy in the new pointer
+              convertedValue = LLVM.LLVMBuildLoad(builder, convertedValue, "");
+            }
             LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[0]);
           }
         }
@@ -380,6 +386,7 @@ public class CodeGenerator
             {
               LLVMValueRef extracted = LLVM.LLVMBuildExtractValue(builder, value, i, "");
               LLVMValueRef convertedValue = convertType(extracted, expressionSubTypes[i], assignees[i].getResolvedType());
+              // since we are extracting from a tuple here, we do not need to treat compound types differently
               LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[i]);
             }
           }
@@ -584,6 +591,11 @@ public class CodeGenerator
       {
         LLVMValueRef value = buildExpression(returnedExpression, llvmFunction, thisValue, variables);
         LLVMValueRef convertedValue = convertType(value, returnedExpression.getType(), returnType);
+        if (returnType instanceof NamedType) // TODO: when this does not cause a warning, add it: && ((NamedType) returnType).getResolvedDefinition() instanceof CompoundDefinition)
+        {
+          // for compound types, we need to load from the result of the expression and return that value
+          convertedValue = LLVM.LLVMBuildLoad(builder, convertedValue, "");
+        }
         LLVM.LLVMBuildRet(builder, convertedValue);
       }
     }
@@ -629,6 +641,13 @@ public class CodeGenerator
     if (from instanceof ArrayType && to instanceof ArrayType)
     {
       // array casts are illegal unless from and to types are the same, so they must have the same type
+      return value;
+    }
+    if (from instanceof NamedType && to instanceof NamedType) // TODO: when it doesn't cause a warning, add: &&
+        //((NamedType) from).getResolvedDefinition() instanceof CompoundDefinition &&
+        //((NamedType) to).getResolvedDefinition() instanceof CompoundDefinition)
+    {
+      // compound type casts are illegal unless from and to types are the same, so they must have the same type
       return value;
     }
     if (from instanceof TupleType && !(to instanceof TupleType))
@@ -877,6 +896,11 @@ public class CodeGenerator
                                                                      LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
                                                                      convertedDimensionValue};
       LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, arrayValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+      if (arrayAccessExpression.getType() instanceof NamedType) // TODO (when it doesn't cause a warning): && ((NamedType) arrayAccessExpression.getType()).getResolvedDefinition() instanceof CompoundDefinition)
+      {
+        // for compound types, we do not need to load anything here
+        return elementPointer;
+      }
       return LLVM.LLVMBuildLoad(builder, elementPointer, "");
     }
     if (expression instanceof ArrayCreationExpression)
@@ -894,6 +918,11 @@ public class CodeGenerator
         {
           LLVMValueRef expressionValue = buildExpression(valueExpressions[i], llvmFunction, thisValue, variables);
           LLVMValueRef convertedValue = convertType(expressionValue, valueExpressions[i].getType(), type.getBaseType());
+          Type valueType = valueExpressions[i].getType();
+          if (valueType instanceof NamedType) // TODO: when it doesn't cause a warning, add: && ((NamedType) valueType).getResolvedDefinition() instanceof CompoundDefinition)
+          {
+            convertedValue = LLVM.LLVMBuildLoad(builder, convertedValue, "");
+          }
           LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                        LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
                                                        LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), i, false)};
@@ -993,7 +1022,15 @@ public class CodeGenerator
       {
         Field field = (Field) member;
         LLVMValueRef baseValue = buildExpression(fieldAccessExpression.getExpression(), llvmFunction, thisValue, variables);
-        return LLVM.LLVMBuildExtractValue(builder, baseValue, field.getIndex(), "");
+        LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                     LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getIndex(), false)};
+        LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, baseValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+        if (field.getType() instanceof NamedType) // TODO (when it doesn't cause a warning): && ((NamedType) field.getType()).getResolvedDefinition() instanceof CompoundDefinition)
+        {
+          // for compound types, we do not need to load anything here
+          return elementPointer;
+        }
+        return LLVM.LLVMBuildLoad(builder, elementPointer, "");
       }
     }
     if (expression instanceof FloatingLiteralExpression)
@@ -1013,10 +1050,30 @@ public class CodeGenerator
       {
         LLVMValueRef arg = buildExpression(arguments[i], llvmFunction, thisValue, variables);
         values[i] = convertType(arg, arguments[i].getType(), parameters[i].getType());
+        Type type = parameters[i].getType();
+        if (type instanceof NamedType) // TODO: when it doesn't cause a warning, add: && ((NamedType) type).getResolvedDefinition() instanceof CompoundDefinition)
+        {
+          // for compound types, we need to pass the value itself, not the pointer to the value
+          values[i] = LLVM.LLVMBuildLoad(builder, values[i], "");
+        }
       }
       String mangledName = resolvedFunction != null ? resolvedFunction.getName() : resolvedConstructor.getMangledName();
       LLVMValueRef llvmResolvedFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
-      return LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(values, false, true), values.length, "");
+      LLVMValueRef result = LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(values, false, true), values.length, "");
+
+      Type returnType = resolvedFunction != null ? resolvedFunction.getType() : new NamedType(resolvedConstructor.getContainingDefinition());
+      if (returnType instanceof NamedType) // TODO (when it doesn't cause a warning): && ((NamedType) returnType).getResolvedDefinition() instanceof CompoundDefinition)
+      {
+        // for compound types, we need to get a pointer from this returned value
+        // so build an alloca in the entry block
+        LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMPositionBuilderBefore(builder, LLVM.LLVMGetFirstInstruction(LLVM.LLVMGetEntryBasicBlock(llvmFunction)));
+        LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, findNativeType(returnType), "");
+        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+        LLVM.LLVMBuildStore(builder, result, alloca);
+        return alloca;
+      }
+      return result;
     }
     if (expression instanceof InlineIfExpression)
     {
@@ -1139,6 +1196,12 @@ public class CodeGenerator
       for (int i = 0; i < subExpressions.length; i++)
       {
         LLVMValueRef value = buildExpression(subExpressions[i], llvmFunction, thisValue, variables);
+        Type type = subExpressions[i].getType();
+        if (type instanceof NamedType) // TODO: when this does not cause a warning, add it: && ((NamedType) type).getResolvedDefinition() instanceof CompoundDefinition)
+        {
+          // for compound types, we need to load from the result of the expression before storing the result in the tuple
+          value = LLVM.LLVMBuildLoad(builder, value, "");
+        }
         currentValue = LLVM.LLVMBuildInsertValue(builder, currentValue, value, i, "");
       }
       return currentValue;
@@ -1149,7 +1212,21 @@ public class CodeGenerator
       LLVMValueRef result = buildExpression(tupleIndexExpression.getExpression(), llvmFunction, thisValue, variables);
       // convert the 1-based indexing to 0-based before extracting the value
       int index = tupleIndexExpression.getIndexLiteral().getValue().intValue() - 1;
-      return LLVM.LLVMBuildExtractValue(builder, result, index, "");
+      LLVMValueRef value = LLVM.LLVMBuildExtractValue(builder, result, index, "");
+
+      Type type = tupleIndexExpression.getType();
+      if (type instanceof NamedType) // TODO: when the doesn't cause a warning, add it: && ((NamedType) type).getResolvedDefinition() instanceof CompoundDefinition)
+      {
+        // for compound types, we need to get a pointer to the extracted value
+        // so build an alloca in the entry block
+        LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMPositionBuilderBefore(builder, LLVM.LLVMGetFirstInstruction(LLVM.LLVMGetEntryBasicBlock(llvmFunction)));
+        LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, findNativeType(type), "");
+        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+        LLVM.LLVMBuildStore(builder, value, alloca);
+        return alloca;
+      }
+      return value;
     }
     if (expression instanceof VariableExpression)
     {
@@ -1160,12 +1237,22 @@ public class CodeGenerator
         LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                      LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getIndex(), false)};
         LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, thisValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+        if (field.getType() instanceof NamedType) // TODO (when it doesn't cause a warning): && ((NamedType) field.getType()).getResolvedDefinition() instanceof CompoundDefinition)
+        {
+          // for compound types, we do not need to load anything here
+          return elementPointer;
+        }
         return LLVM.LLVMBuildLoad(builder, elementPointer, "");
       }
       LLVMValueRef value = variables.get(variable);
       if (value == null)
       {
         throw new IllegalStateException("Missing LLVMValueRef in variable Map: " + ((VariableExpression) expression).getName());
+      }
+      if (variable.getType() instanceof NamedType) // TODO (when it doesn't cause a warning): && ((NamedType) variable.getType()).getResolvedDefinition() instanceof CompoundDefinition)
+      {
+        // for compound types, we do not need to load anything here
+        return value;
       }
       return LLVM.LLVMBuildLoad(builder, value, "");
     }
