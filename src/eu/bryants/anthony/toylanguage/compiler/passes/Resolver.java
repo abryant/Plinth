@@ -29,6 +29,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
@@ -578,6 +579,15 @@ public class Resolver
     {
       resolve(((ShiftExpression) expression).getLeftExpression(), block, enclosingDefinition, compilationUnit);
       resolve(((ShiftExpression) expression).getRightExpression(), block, enclosingDefinition, compilationUnit);
+    }
+    else if (expression instanceof ThisExpression)
+    {
+      ThisExpression thisExpression = (ThisExpression) expression;
+      if (enclosingDefinition == null)
+      {
+        throw new ConceptualException("'this' does not refer to anything in this context", thisExpression.getLexicalPhrase());
+      }
+      thisExpression.setType(new NamedType(enclosingDefinition));
     }
     else if (expression instanceof TupleExpression)
     {

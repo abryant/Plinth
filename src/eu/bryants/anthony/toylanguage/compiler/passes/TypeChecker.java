@@ -25,6 +25,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
@@ -804,6 +805,11 @@ public class TypeChecker
         }
       }
       throw new ConceptualException("The operator '" + shiftExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", shiftExpression.getLexicalPhrase());
+    }
+    else if (expression instanceof ThisExpression)
+    {
+      // the type has already been resolved by the Resolver
+      return expression.getType();
     }
     else if (expression instanceof TupleExpression)
     {

@@ -11,6 +11,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.terminal.FloatingLiteral;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
@@ -34,6 +35,7 @@ public class PrimaryRule extends Rule<ParseType>
 
   private static Production<ParseType> TRUE_PRODUCTION = new Production<ParseType>(ParseType.TRUE_KEYWORD);
   private static Production<ParseType> FALSE_PRODUCTION = new Production<ParseType>(ParseType.FALSE_KEYWORD);
+  private static Production<ParseType> THIS_PRODUCTION = new Production<ParseType>(ParseType.THIS_KEYWORD);
   private static Production<ParseType> FLOATING_PRODUCTION = new Production<ParseType>(ParseType.FLOATING_LITERAL);
   private static Production<ParseType> INTEGER_PRODUCTION = new Production<ParseType>(ParseType.INTEGER_LITERAL);
   private static Production<ParseType> VARIABLE_PRODUCTION = new Production<ParseType>(ParseType.NAME);
@@ -48,7 +50,7 @@ public class PrimaryRule extends Rule<ParseType>
   @SuppressWarnings("unchecked")
   public PrimaryRule()
   {
-    super(ParseType.PRIMARY, TRUE_PRODUCTION, FALSE_PRODUCTION, FLOATING_PRODUCTION, INTEGER_PRODUCTION, VARIABLE_PRODUCTION, FIELD_ACCESS_PRODUCTION, ARRAY_ACCESS_PRODUCTION, FUNCTION_CALL_PRODUCTION, BRACKETS_PRODUCTION,
+    super(ParseType.PRIMARY, TRUE_PRODUCTION, FALSE_PRODUCTION, THIS_PRODUCTION, FLOATING_PRODUCTION, INTEGER_PRODUCTION, VARIABLE_PRODUCTION, FIELD_ACCESS_PRODUCTION, ARRAY_ACCESS_PRODUCTION, FUNCTION_CALL_PRODUCTION, BRACKETS_PRODUCTION,
                              ARRAY_CREATION_PRODUCTION, ARRAY_CREATION_EMPTY_LIST_PRODUCTION, ARRAY_CREATION_LIST_PRODUCTION);
   }
 
@@ -65,6 +67,10 @@ public class PrimaryRule extends Rule<ParseType>
     if (production == FALSE_PRODUCTION)
     {
       return new BooleanLiteralExpression(false, (LexicalPhrase) args[0]);
+    }
+    if (production == THIS_PRODUCTION)
+    {
+      return new ThisExpression((LexicalPhrase) args[0]);
     }
     if (production == FLOATING_PRODUCTION)
     {

@@ -78,7 +78,7 @@ UnaryExpression = Primary |
                   Minus UnaryExpression |
                   Tilde UnaryExpression |
                   ExclaimationMark UnaryExpression
-Primary = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword |
+Primary = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword | ThisKeyword |
           Name |
           Primary LSquare TupleExpression RSquare |
           NewKeyword Dimensions Type |

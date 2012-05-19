@@ -45,6 +45,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("new",      ParseType.NEW_KEYWORD);
     KEYWORDS.put("return",   ParseType.RETURN_KEYWORD);
     KEYWORDS.put("short",    ParseType.SHORT_KEYWORD);
+    KEYWORDS.put("this",     ParseType.THIS_KEYWORD);
     KEYWORDS.put("true",     ParseType.TRUE_KEYWORD);
     KEYWORDS.put("ubyte",    ParseType.UBYTE_KEYWORD);
     KEYWORDS.put("uint",     ParseType.UINT_KEYWORD);

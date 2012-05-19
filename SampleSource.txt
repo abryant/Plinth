@@ -4,6 +4,7 @@ compound foo
   foo(uint b)
   {
     a = b+2;
+    a = this.a + 1;
   }
 }
 

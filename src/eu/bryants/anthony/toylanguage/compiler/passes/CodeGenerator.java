@@ -37,6 +37,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
@@ -1187,6 +1188,10 @@ public class CodeGenerator
         return LLVM.LLVMBuildShl(builder, convertedLeft, convertedRight, "");
       }
       throw new IllegalArgumentException("Unknown shift operator: " + shiftExpression.getOperator());
+    }
+    if (expression instanceof ThisExpression)
+    {
+      return thisValue;
     }
     if (expression instanceof TupleExpression)
     {

@@ -26,6 +26,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
@@ -463,6 +464,10 @@ public class ControlFlowChecker
       ShiftExpression shiftExpression = (ShiftExpression) expression;
       checkUninitializedVariables(shiftExpression.getLeftExpression(), initializedVariables);
       checkUninitializedVariables(shiftExpression.getRightExpression(), initializedVariables);
+    }
+    else if (expression instanceof ThisExpression)
+    {
+      // TODO: check that 'this' is initialised later on, when we have static methods
     }
     else if (expression instanceof TupleExpression)
     {
