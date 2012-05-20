@@ -32,6 +32,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
+import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
@@ -51,6 +52,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
+import eu.bryants.anthony.toylanguage.ast.type.NamedType;
 import eu.bryants.anthony.toylanguage.ast.type.VoidType;
 import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
 
@@ -79,7 +81,7 @@ public class ControlFlowChecker
         {
           initializedVariables.add(p.getVariable());
         }
-        checkControlFlow(constructor.getBlock(), initializedVariables, new LinkedList<BreakableStatement>());
+        checkControlFlow(constructor.getBlock(), initializedVariables, new LinkedList<BreakableStatement>(), true);
         for (Field field : compoundDefinition.getFields())
         {
           if (!initializedVariables.contains(field.getMemberVariable()))
@@ -96,7 +98,7 @@ public class ControlFlowChecker
       {
         initializedVariables.add(p.getVariable());
       }
-      boolean returned = checkControlFlow(f.getBlock(), initializedVariables, new LinkedList<BreakableStatement>());
+      boolean returned = checkControlFlow(f.getBlock(), initializedVariables, new LinkedList<BreakableStatement>(), false);
       if (!returned && !(f.getType() instanceof VoidType))
       {
         throw new ConceptualException("Function does not always return a value", f.getLexicalPhrase());
@@ -107,12 +109,13 @@ public class ControlFlowChecker
   /**
    * Checks that the control flow of the specified statement is well defined.
    * @param statement - the statement to check
-   * @param initializedVariables - the set of variables which have definitely been initialized before the specified statement is executed
+   * @param initializedVariables - the set of variables which have definitely been initialized before the specified statement is executed - this will be added to with variables that are initialized in this statement
    * @param enclosingBreakableStack - the stack of statements that can be broken out of that enclose this statement
+   * @param inConstructor - true if the statement is part of a constructor call
    * @return true if the statement returns from its enclosing function or control cannot reach statements after it, false if control flow continues after it
    * @throws ConceptualException - if any unreachable code is detected
    */
-  private static boolean checkControlFlow(Statement statement, Set<Variable> initializedVariables, LinkedList<BreakableStatement> enclosingBreakableStack) throws ConceptualException
+  private static boolean checkControlFlow(Statement statement, Set<Variable> initializedVariables, LinkedList<BreakableStatement> enclosingBreakableStack, boolean inConstructor) throws ConceptualException
   {
     if (statement instanceof AssignStatement)
     {
@@ -132,8 +135,8 @@ public class ControlFlowChecker
         else if (assignees[i] instanceof ArrayElementAssignee)
         {
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
-          checkUninitializedVariables(arrayElementAssignee.getArrayExpression(), initializedVariables);
-          checkUninitializedVariables(arrayElementAssignee.getDimensionExpression(), initializedVariables);
+          checkUninitializedVariables(arrayElementAssignee.getArrayExpression(), initializedVariables, inConstructor);
+          checkUninitializedVariables(arrayElementAssignee.getDimensionExpression(), initializedVariables, inConstructor);
         }
         else if (assignees[i] instanceof BlankAssignee)
         {
@@ -146,7 +149,7 @@ public class ControlFlowChecker
       }
       if (assignStatement.getExpression() != null)
       {
-        checkUninitializedVariables(assignStatement.getExpression(), initializedVariables);
+        checkUninitializedVariables(assignStatement.getExpression(), initializedVariables, inConstructor);
       }
       for (Variable var : nowInitializedVariables)
       {
@@ -163,7 +166,7 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Unreachable code", s.getLexicalPhrase());
         }
-        returned = checkControlFlow(s, initializedVariables, enclosingBreakableStack);
+        returned = checkControlFlow(s, initializedVariables, enclosingBreakableStack, inConstructor);
       }
       return returned;
     }
@@ -224,7 +227,7 @@ public class ControlFlowChecker
     }
     else if (statement instanceof ExpressionStatement)
     {
-      checkUninitializedVariables(((ExpressionStatement) statement).getExpression(), initializedVariables);
+      checkUninitializedVariables(((ExpressionStatement) statement).getExpression(), initializedVariables, inConstructor);
       return false;
     }
     else if (statement instanceof ForStatement)
@@ -240,7 +243,7 @@ public class ControlFlowChecker
       if (init != null)
       {
         // check the loop initialisation variable in the block outside the loop, because it may add new variables which have now been initialised
-        boolean returned = checkControlFlow(init, initializedVariables, enclosingBreakableStack);
+        boolean returned = checkControlFlow(init, initializedVariables, enclosingBreakableStack, inConstructor);
         if (returned)
         {
           throw new IllegalStateException("Reached a state where a for loop initialisation statement returned");
@@ -249,7 +252,7 @@ public class ControlFlowChecker
       HashSet<Variable> loopVariables = new HashSet<Variable>(initializedVariables);
       if (condition != null)
       {
-        checkUninitializedVariables(condition, loopVariables);
+        checkUninitializedVariables(condition, loopVariables, inConstructor);
       }
       boolean returned = false;
       for (Statement s : block.getStatements())
@@ -258,7 +261,7 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Unreachable code", s.getLexicalPhrase());
         }
-        returned = checkControlFlow(s, loopVariables, enclosingBreakableStack);
+        returned = checkControlFlow(s, loopVariables, enclosingBreakableStack, inConstructor);
       }
 
       if (update != null)
@@ -267,7 +270,7 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Unreachable code", update.getLexicalPhrase());
         }
-        boolean updateReturned = checkControlFlow(update, loopVariables, enclosingBreakableStack);
+        boolean updateReturned = checkControlFlow(update, loopVariables, enclosingBreakableStack, inConstructor);
         if (updateReturned)
         {
           throw new IllegalStateException("Reached a state where a for loop update statement returned");
@@ -282,19 +285,19 @@ public class ControlFlowChecker
     else if (statement instanceof IfStatement)
     {
       IfStatement ifStatement = (IfStatement) statement;
-      checkUninitializedVariables(ifStatement.getExpression(), initializedVariables);
+      checkUninitializedVariables(ifStatement.getExpression(), initializedVariables, inConstructor);
       Statement thenClause = ifStatement.getThenClause();
       Statement elseClause = ifStatement.getElseClause();
       if (elseClause == null)
       {
         Set<Variable> thenClauseVariables = new HashSet<Variable>(initializedVariables);
-        checkControlFlow(thenClause, thenClauseVariables, enclosingBreakableStack);
+        checkControlFlow(thenClause, thenClauseVariables, enclosingBreakableStack, inConstructor);
         return false;
       }
       Set<Variable> thenClauseVariables = new HashSet<Variable>(initializedVariables);
       Set<Variable> elseClauseVariables = new HashSet<Variable>(initializedVariables);
-      boolean thenReturned = checkControlFlow(thenClause, thenClauseVariables, enclosingBreakableStack);
-      boolean elseReturned = checkControlFlow(elseClause, elseClauseVariables, enclosingBreakableStack);
+      boolean thenReturned = checkControlFlow(thenClause, thenClauseVariables, enclosingBreakableStack, inConstructor);
+      boolean elseReturned = checkControlFlow(elseClause, elseClauseVariables, enclosingBreakableStack, inConstructor);
       if (!thenReturned && !elseReturned)
       {
         for (Variable var : thenClauseVariables)
@@ -330,8 +333,8 @@ public class ControlFlowChecker
       else if (assignee instanceof ArrayElementAssignee)
       {
         ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
-        checkUninitializedVariables(arrayElementAssignee.getArrayExpression(), initializedVariables);
-        checkUninitializedVariables(arrayElementAssignee.getDimensionExpression(), initializedVariables);
+        checkUninitializedVariables(arrayElementAssignee.getArrayExpression(), initializedVariables, inConstructor);
+        checkUninitializedVariables(arrayElementAssignee.getDimensionExpression(), initializedVariables, inConstructor);
       }
       else
       {
@@ -345,38 +348,38 @@ public class ControlFlowChecker
       Expression returnedExpression = ((ReturnStatement) statement).getExpression();
       if (returnedExpression != null)
       {
-        checkUninitializedVariables(returnedExpression, initializedVariables);
+        checkUninitializedVariables(returnedExpression, initializedVariables, inConstructor);
       }
       return true;
     }
     else if (statement instanceof WhileStatement)
     {
       WhileStatement whileStatement = (WhileStatement) statement;
-      checkUninitializedVariables(whileStatement.getExpression(), initializedVariables);
+      checkUninitializedVariables(whileStatement.getExpression(), initializedVariables, inConstructor);
 
       Set<Variable> loopVariables = new HashSet<Variable>(initializedVariables);
       // we don't care about the result of this, as the loop could execute zero times
       enclosingBreakableStack.push(whileStatement);
-      checkControlFlow(whileStatement.getStatement(), loopVariables, enclosingBreakableStack);
+      checkControlFlow(whileStatement.getStatement(), loopVariables, enclosingBreakableStack, inConstructor);
       enclosingBreakableStack.pop();
       return false;
     }
     throw new ConceptualException("Internal control flow checking error: Unknown statement type", statement.getLexicalPhrase());
   }
 
-  private static void checkUninitializedVariables(Expression expression, Set<Variable> initializedVariables) throws ConceptualException
+  private static void checkUninitializedVariables(Expression expression, Set<Variable> initializedVariables, boolean inConstructor) throws ConceptualException
   {
     if (expression instanceof ArithmeticExpression)
     {
       ArithmeticExpression arithmeticExpression = (ArithmeticExpression) expression;
-      checkUninitializedVariables(arithmeticExpression.getLeftSubExpression(), initializedVariables);
-      checkUninitializedVariables(arithmeticExpression.getRightSubExpression(), initializedVariables);
+      checkUninitializedVariables(arithmeticExpression.getLeftSubExpression(), initializedVariables, inConstructor);
+      checkUninitializedVariables(arithmeticExpression.getRightSubExpression(), initializedVariables, inConstructor);
     }
     else if (expression instanceof ArrayAccessExpression)
     {
       ArrayAccessExpression arrayAccessExpression = (ArrayAccessExpression) expression;
-      checkUninitializedVariables(arrayAccessExpression.getArrayExpression(), initializedVariables);
-      checkUninitializedVariables(arrayAccessExpression.getDimensionExpression(), initializedVariables);
+      checkUninitializedVariables(arrayAccessExpression.getArrayExpression(), initializedVariables, inConstructor);
+      checkUninitializedVariables(arrayAccessExpression.getDimensionExpression(), initializedVariables, inConstructor);
     }
     else if (expression instanceof ArrayCreationExpression)
     {
@@ -385,20 +388,20 @@ public class ControlFlowChecker
       {
         for (Expression e : creationExpression.getDimensionExpressions())
         {
-          checkUninitializedVariables(e, initializedVariables);
+          checkUninitializedVariables(e, initializedVariables, inConstructor);
         }
       }
       if (creationExpression.getValueExpressions() != null)
       {
         for (Expression e : creationExpression.getValueExpressions())
         {
-          checkUninitializedVariables(e, initializedVariables);
+          checkUninitializedVariables(e, initializedVariables, inConstructor);
         }
       }
     }
     else if (expression instanceof BitwiseNotExpression)
     {
-      checkUninitializedVariables(((BitwiseNotExpression) expression).getExpression(), initializedVariables);
+      checkUninitializedVariables(((BitwiseNotExpression) expression).getExpression(), initializedVariables, inConstructor);
     }
     else if (expression instanceof BooleanLiteralExpression)
     {
@@ -406,26 +409,45 @@ public class ControlFlowChecker
     }
     else if (expression instanceof BooleanNotExpression)
     {
-      checkUninitializedVariables(((BooleanNotExpression) expression).getExpression(), initializedVariables);
+      checkUninitializedVariables(((BooleanNotExpression) expression).getExpression(), initializedVariables, inConstructor);
     }
     else if (expression instanceof BracketedExpression)
     {
-      checkUninitializedVariables(((BracketedExpression) expression).getExpression(), initializedVariables);
+      checkUninitializedVariables(((BracketedExpression) expression).getExpression(), initializedVariables, inConstructor);
     }
     else if (expression instanceof CastExpression)
     {
-      checkUninitializedVariables(((CastExpression) expression).getExpression(), initializedVariables);
+      checkUninitializedVariables(((CastExpression) expression).getExpression(), initializedVariables, inConstructor);
     }
     else if (expression instanceof ComparisonExpression)
     {
       ComparisonExpression comparisonExpression = (ComparisonExpression) expression;
-      checkUninitializedVariables(comparisonExpression.getLeftSubExpression(), initializedVariables);
-      checkUninitializedVariables(comparisonExpression.getRightSubExpression(), initializedVariables);
+      checkUninitializedVariables(comparisonExpression.getLeftSubExpression(), initializedVariables, inConstructor);
+      checkUninitializedVariables(comparisonExpression.getRightSubExpression(), initializedVariables, inConstructor);
     }
     else if (expression instanceof FieldAccessExpression)
     {
-      checkUninitializedVariables(((FieldAccessExpression) expression).getExpression(), initializedVariables);
-      // we don't care about the field of this expression, we assume that all fields are initialised when they are defined
+      FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
+      Expression subExpression = ((FieldAccessExpression) expression).getExpression();
+      while (subExpression instanceof BracketedExpression && inConstructor)
+      {
+        subExpression = ((BracketedExpression) subExpression).getExpression();
+      }
+      if (subExpression instanceof ThisExpression && inConstructor)
+      {
+        Member resolvedMember = fieldAccessExpression.getResolvedMember();
+        if (resolvedMember instanceof Field && !initializedVariables.contains(((Field) resolvedMember).getMemberVariable()))
+        {
+          throw new ConceptualException("Field '" + ((Field) resolvedMember).getName() + "' may not have been initialized", fieldAccessExpression.getLexicalPhrase());
+        }
+      }
+      else
+      {
+        // if we're in a constructor, only check the sub-expression for uninitialized variables if it doesn't just access 'this'
+        // this allows the programmer to access fields before 'this' is fully initialized
+        checkUninitializedVariables(((FieldAccessExpression) expression).getExpression(), initializedVariables, inConstructor);
+        // if it isn't accessed on 'this', we don't care about the field itself, we assume that all fields on other objects are initialised when they are defined
+      }
     }
     else if (expression instanceof FloatingLiteralExpression)
     {
@@ -433,17 +455,18 @@ public class ControlFlowChecker
     }
     else if (expression instanceof FunctionCallExpression)
     {
+      // TODO: when we add method calls, make sure they don't work in the constructor until 'this' is fully initialized (i.e. all fields initialized)
       for (Expression e : ((FunctionCallExpression) expression).getArguments())
       {
-        checkUninitializedVariables(e, initializedVariables);
+        checkUninitializedVariables(e, initializedVariables, inConstructor);
       }
     }
     else if (expression instanceof InlineIfExpression)
     {
       InlineIfExpression inlineIfExpression = (InlineIfExpression) expression;
-      checkUninitializedVariables(inlineIfExpression.getCondition(), initializedVariables);
-      checkUninitializedVariables(inlineIfExpression.getThenExpression(), initializedVariables);
-      checkUninitializedVariables(inlineIfExpression.getElseExpression(), initializedVariables);
+      checkUninitializedVariables(inlineIfExpression.getCondition(), initializedVariables, inConstructor);
+      checkUninitializedVariables(inlineIfExpression.getThenExpression(), initializedVariables, inConstructor);
+      checkUninitializedVariables(inlineIfExpression.getElseExpression(), initializedVariables, inConstructor);
     }
     else if (expression instanceof IntegerLiteralExpression)
     {
@@ -452,22 +475,34 @@ public class ControlFlowChecker
     else if (expression instanceof LogicalExpression)
     {
       LogicalExpression logicalExpression = (LogicalExpression) expression;
-      checkUninitializedVariables(logicalExpression.getLeftSubExpression(), initializedVariables);
-      checkUninitializedVariables(logicalExpression.getRightSubExpression(), initializedVariables);
+      checkUninitializedVariables(logicalExpression.getLeftSubExpression(), initializedVariables, inConstructor);
+      checkUninitializedVariables(logicalExpression.getRightSubExpression(), initializedVariables, inConstructor);
     }
     else if (expression instanceof MinusExpression)
     {
-      checkUninitializedVariables(((MinusExpression) expression).getExpression(), initializedVariables);
+      checkUninitializedVariables(((MinusExpression) expression).getExpression(), initializedVariables, inConstructor);
     }
     else if (expression instanceof ShiftExpression)
     {
       ShiftExpression shiftExpression = (ShiftExpression) expression;
-      checkUninitializedVariables(shiftExpression.getLeftExpression(), initializedVariables);
-      checkUninitializedVariables(shiftExpression.getRightExpression(), initializedVariables);
+      checkUninitializedVariables(shiftExpression.getLeftExpression(), initializedVariables, inConstructor);
+      checkUninitializedVariables(shiftExpression.getRightExpression(), initializedVariables, inConstructor);
     }
     else if (expression instanceof ThisExpression)
     {
-      // TODO: check that 'this' is initialised later on, when we have static methods
+      if (inConstructor)
+      {
+        // the type has already been resolved by the resolver, so we can access it here
+        NamedType type = (NamedType) expression.getType();
+        CompoundDefinition compoundDefinition = type.getResolvedDefinition();
+        for (Field field : compoundDefinition.getFields())
+        {
+          if (!initializedVariables.contains(field.getMemberVariable()))
+          {
+            throw new ConceptualException("Cannot use 'this' here. Not all of the fields of this '" + type + "' have been initialized (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to assign to them before they're used", expression.getLexicalPhrase());
+          }
+        }
+      }
     }
     else if (expression instanceof TupleExpression)
     {
@@ -475,13 +510,13 @@ public class ControlFlowChecker
       Expression[] subExpressions = tupleExpression.getSubExpressions();
       for (int i = 0; i < subExpressions.length; i++)
       {
-        checkUninitializedVariables(subExpressions[i], initializedVariables);
+        checkUninitializedVariables(subExpressions[i], initializedVariables, inConstructor);
       }
     }
     else if (expression instanceof TupleIndexExpression)
     {
       TupleIndexExpression indexExpression = (TupleIndexExpression) expression;
-      checkUninitializedVariables(indexExpression.getExpression(), initializedVariables);
+      checkUninitializedVariables(indexExpression.getExpression(), initializedVariables, inConstructor);
     }
     else if (expression instanceof VariableExpression)
     {
