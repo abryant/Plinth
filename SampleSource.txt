@@ -1,10 +1,11 @@
 compound foo
 {
-  uint a;
-  foo(uint b)
+  uint someField;
+  foo(uint someField)
   {
-    a = b+2;
-    a = this.a + 1;
+    someField = someField+2;
+    this.someField = someField;
+    accessField(this);
   }
 }
 
@@ -28,8 +29,13 @@ uint main(uint argc)
   []long arr = new [2]long;
   // should put 27 in temp[0], due to the order of evaluation of the function calls in an array assignment
   array(arr, temp)[dimension(temp)] = value(temp);
-  return foo(65).a + ((temp[0] ^ foo) == 0 ? 5 : 13);
+  return foo(65).someField + ((temp[0] ^ foo) == 0 ? 5 : 13);
   
+}
+
+void accessField(:foo p)
+{
+  uint f = p.someField;
 }
 
 :foo doStuff((:foo, short) param)

@@ -6,6 +6,7 @@ import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.BlankAssignee;
+import eu.bryants.anthony.toylanguage.ast.misc.FieldAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.VariableAssignee;
 import eu.bryants.anthony.toylanguage.ast.terminal.Name;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
@@ -24,12 +25,13 @@ public class AssigneeRule extends Rule<ParseType>
 
   private static final Production<ParseType> VARIABLE_PRODUCTION = new Production<ParseType>(ParseType.NAME);
   private static final Production<ParseType> ARRAY_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.LSQUARE, ParseType.TUPLE_EXPRESSION, ParseType.RSQUARE);
+  private static final Production<ParseType> FIELD_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.DOT, ParseType.NAME);
   private static final Production<ParseType> UNDERSCORE_PRODUCTION = new Production<ParseType>(ParseType.UNDERSCORE);
 
   @SuppressWarnings("unchecked")
   public AssigneeRule()
   {
-    super(ParseType.ASSIGNEE, VARIABLE_PRODUCTION, ARRAY_PRODUCTION, UNDERSCORE_PRODUCTION);
+    super(ParseType.ASSIGNEE, VARIABLE_PRODUCTION, ARRAY_PRODUCTION, FIELD_PRODUCTION, UNDERSCORE_PRODUCTION);
   }
 
   /**
@@ -49,6 +51,12 @@ public class AssigneeRule extends Rule<ParseType>
       Expression dimensionExpression = (Expression) args[2];
       LexicalPhrase lexicalPhrase = LexicalPhrase.combine(arrayExpression.getLexicalPhrase(), (LexicalPhrase) args[1], dimensionExpression.getLexicalPhrase(), (LexicalPhrase) args[3]);
       return new ArrayElementAssignee(arrayExpression, dimensionExpression, lexicalPhrase);
+    }
+    if (production == FIELD_PRODUCTION)
+    {
+      Expression expression = (Expression) args[0];
+      Name name = (Name) args[2];
+      return new FieldAssignee(expression, name.getName(), LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
     }
     if (production == UNDERSCORE_PRODUCTION)
     {

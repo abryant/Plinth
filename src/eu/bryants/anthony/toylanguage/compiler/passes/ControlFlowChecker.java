@@ -37,6 +37,7 @@ import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
 import eu.bryants.anthony.toylanguage.ast.misc.BlankAssignee;
+import eu.bryants.anthony.toylanguage.ast.misc.FieldAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
 import eu.bryants.anthony.toylanguage.ast.misc.VariableAssignee;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
@@ -137,6 +138,31 @@ public class ControlFlowChecker
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
           checkUninitializedVariables(arrayElementAssignee.getArrayExpression(), initializedVariables, inConstructor);
           checkUninitializedVariables(arrayElementAssignee.getDimensionExpression(), initializedVariables, inConstructor);
+        }
+        else if (assignees[i] instanceof FieldAssignee)
+        {
+          FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
+
+          // if the field is being accessed on 'this' or '(this)' (to any number of brackets), then accept it as initialising that member variable
+          Expression expression = fieldAssignee.getExpression();
+          while (expression instanceof BracketedExpression && inConstructor)
+          {
+            expression = ((BracketedExpression) expression).getExpression();
+          }
+          if (expression instanceof ThisExpression && inConstructor)
+          {
+            Member resolvedMember = fieldAssignee.getResolvedMember();
+            if (resolvedMember instanceof Field)
+            {
+              nowInitializedVariables.add(((Field) resolvedMember).getMemberVariable());
+            }
+          }
+          else
+          {
+            // if we're in a constructor, only check the sub-expression for uninitialized variables if it doesn't just access 'this'
+            // this allows the programmer to access fields before 'this' is fully initialized
+            checkUninitializedVariables(fieldAssignee.getExpression(), initializedVariables, inConstructor);
+          }
         }
         else if (assignees[i] instanceof BlankAssignee)
         {

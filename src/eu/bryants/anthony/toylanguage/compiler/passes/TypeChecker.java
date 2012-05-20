@@ -36,6 +36,7 @@ import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
 import eu.bryants.anthony.toylanguage.ast.misc.BlankAssignee;
+import eu.bryants.anthony.toylanguage.ast.misc.FieldAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
 import eu.bryants.anthony.toylanguage.ast.misc.VariableAssignee;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
@@ -151,6 +152,38 @@ public class TypeChecker
             tupledSubTypes[i] = baseType;
           }
           arrayElementAssignee.setResolvedType(distributedTupleType ? tupledSubTypes[i] : declaredType);
+        }
+        else if (assignees[i] instanceof FieldAssignee)
+        {
+          FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
+          // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member
+          // Type type = checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
+          Member member = fieldAssignee.getResolvedMember();
+          Type type;
+          if (member instanceof ArrayLengthMember)
+          {
+            throw new ConceptualException("Cannot assign to an array's length", fieldAssignee.getLexicalPhrase());
+          }
+          else if (member instanceof Field)
+          {
+            type = ((Field) member).getType();
+          }
+          else
+          {
+            throw new IllegalStateException("Unknown member type in a FieldAccessExpression: " + member);
+          }
+          if (declaredType != null)
+          {
+            if (!type.isEquivalent(distributedTupleType ? tupledSubTypes[i] : declaredType))
+            {
+              throw new ConceptualException("The field type '" + type + "' does not match the declared type '" + (distributedTupleType ? tupledSubTypes[i] : declaredType) + "'", fieldAssignee.getLexicalPhrase());
+            }
+          }
+          if (!distributedTupleType)
+          {
+            tupledSubTypes[i] = type;
+          }
+          fieldAssignee.setResolvedType(distributedTupleType ? tupledSubTypes[i] : declaredType);
         }
         else if (assignees[i] instanceof BlankAssignee)
         {

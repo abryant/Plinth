@@ -40,6 +40,7 @@ import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
 import eu.bryants.anthony.toylanguage.ast.misc.BlankAssignee;
+import eu.bryants.anthony.toylanguage.ast.misc.FieldAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
 import eu.bryants.anthony.toylanguage.ast.misc.VariableAssignee;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
@@ -299,6 +300,22 @@ public class Resolver
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
           resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
           resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+        }
+        else if (assignees[i] instanceof FieldAssignee)
+        {
+          FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
+          resolve(fieldAssignee.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+          String fieldName = fieldAssignee.getName();
+
+          // find the type of the expression, by calling the type checker
+          // this is fine as long as we resolve all of the expression first
+          Type expressionType = TypeChecker.checkTypes(fieldAssignee.getExpression(), compilationUnit);
+          Member member = expressionType.getMember(fieldName);
+          if (member == null)
+          {
+            throw new NameNotResolvedException("No such member \"" + fieldName + "\" for type " + expressionType, fieldAssignee.getLexicalPhrase());
+          }
+          fieldAssignee.setResolvedMember(member);
         }
         else if (assignees[i] instanceof BlankAssignee)
         {
