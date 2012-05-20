@@ -33,6 +33,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
+import eu.bryants.anthony.toylanguage.ast.member.Method;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
@@ -90,6 +91,16 @@ public class ControlFlowChecker
             throw new ConceptualException("Constructor does not always initialize the field: " + field.getName(), constructor.getLexicalPhrase());
           }
         }
+      }
+
+      for (Method method : compoundDefinition.getAllMethods())
+      {
+        Set<Variable> initializedVariables = new HashSet<Variable>();
+        for (Parameter p : method.getParameters())
+        {
+          initializedVariables.add(p.getVariable());
+        }
+        checkControlFlow(method.getBlock(), initializedVariables, new LinkedList<BreakableStatement>(), false);
       }
     }
     for (Function f : compilationUnit.getFunctions())

@@ -1,12 +1,21 @@
 CompilationUnit = epsilon | CompilationUnit Function | CompilationUnit CompoundTypeDef
 
-CompoundTypeDef = CompoundKeyword Name LBrace Members RBrace
-Members = epsilon | Members Member
-Member = Type Name Semicolon |
-         Name LParen Parameters RParen Block
+CompoundTypeDef = CompoundKeyword Name LBrace MemberList RBrace
+MemberList = epsilon |
+             MemberList Field |
+             MemberList Constructor |
+             MemberList Method
+Field = Type Name Semicolon
+Constructor = Name LParen Parameters RParen Block
+Method = Type Name LParen Parameters RParen Block |
+         Type Name LParen            RParen Block |
+         VoidKeyword Name LParen Parameters RParen Block |
+         VoidKeyword Name LParen            RParen Block
 
-Function = ReturnType Name LParen Parameters RParen Block
-         | ReturnType Name LParen            RParen Block
+Function = Type Name LParen Parameters RParen Block |
+           Type Name LParen            RParen Block |
+           VoidKeyword Name LParen Parameters RParen Block |
+           VoidKeyword Name LParen            RParen Block
 Parameters = Type Name | Parameters Comma Type Name
 
 Block = LBrace Statements RBrace
@@ -43,7 +52,6 @@ Type = BooleanKeyword |
        Name |
        LSquare RSquare Type |
        LParen TypeList RParen
-ReturnType = Type | VoidKeyword
 TypeList = Type | TypeList Comma Type
 
 

@@ -7,6 +7,10 @@ compound foo
     this.someField = someField;
     accessField(this);
   }
+  void test(uint a)
+  {
+    someField = a;
+  }
 }
 
 uint main(uint argc)

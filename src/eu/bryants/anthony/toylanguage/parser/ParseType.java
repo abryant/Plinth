@@ -23,6 +23,7 @@ public enum ParseType
   MEMBER_LIST,                   // ParseList<Member>
   FIELD,                         // Field
   CONSTRUCTOR,                   // Constructor
+  METHOD,                        // Method
 
   // Misc
   ASSIGNEE,                      // Assignee
@@ -45,7 +46,6 @@ public enum ParseType
   WHILE_STATEMENT,               // WhileStatement
 
   // Types
-  RETURN_TYPE,                   // Type
   TYPE,                          // Type
   TYPE_LIST,                     // ParseList<Type>
 

@@ -33,6 +33,7 @@ import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
+import eu.bryants.anthony.toylanguage.ast.member.Method;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
 import eu.bryants.anthony.toylanguage.ast.misc.BlankAssignee;
@@ -76,6 +77,10 @@ public class TypeChecker
       for (Constructor constructor : compoundDefinition.getConstructors())
       {
         checkTypes(constructor.getBlock(), VoidType.VOID_TYPE, compilationUnit);
+      }
+      for (Method method : compoundDefinition.getAllMethods())
+      {
+        checkTypes(method.getBlock(), method.getReturnType(), compilationUnit);
       }
     }
     for (Function f : compilationUnit.getFunctions())

@@ -1,6 +1,7 @@
 package eu.bryants.anthony.toylanguage.ast;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -10,6 +11,7 @@ import java.util.Set;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
+import eu.bryants.anthony.toylanguage.ast.member.Method;
 import eu.bryants.anthony.toylanguage.ast.metadata.MemberVariable;
 import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
@@ -28,6 +30,7 @@ public class CompoundDefinition
   // fields needs a guaranteed order, so use a LinkedHashMap to store them
   private Map<String, Field> fields = new LinkedHashMap<String, Field>();
   private Set<Constructor> constructors = new HashSet<Constructor>();
+  private Map<String, Set<Method>> methods = new HashMap<String, Set<Method>>();
 
   private LexicalPhrase lexicalPhrase;
 
@@ -42,6 +45,14 @@ public class CompoundDefinition
       if (member instanceof Field)
       {
         Field field = (Field) member;
+        if (fields.containsKey(field.getName()))
+        {
+          throw new LanguageParseException("A field with the name '" + field.getName() + "' already exists in '" + name + "', so another field cannot be defined with the same name", field.getLexicalPhrase());
+        }
+        if (methods.containsKey(field.getName()))
+        {
+          throw new LanguageParseException("A method with the name '" + field.getName() + "' already exists in '" + name + "', so a field cannot be defined with the same name", field.getLexicalPhrase());
+        }
         field.setIndex(fieldIndex);
         field.setMemberVariable(new MemberVariable(field, this));
         fieldIndex++;
@@ -57,7 +68,22 @@ public class CompoundDefinition
         constructor.setContainingDefinition(this);
         constructors.add(constructor);
       }
-      // TODO: when functions are added, make sure no names are duplicated between fields and functions
+      if (member instanceof Method)
+      {
+        Method method = (Method) member;
+        if (fields.containsKey(method.getName()))
+        {
+          throw new LanguageParseException("A field with the name '" + method.getName() + "' already exists in '" + name + "', so a method cannot be defined with the same name", method.getLexicalPhrase());
+        }
+        Set<Method> methodSet = methods.get(method.getName());
+        if (methodSet == null)
+        {
+          methodSet = new HashSet<Method>();
+          methods.put(method.getName(), methodSet);
+        }
+        method.setContainingDefinition(this);
+        methodSet.add(method);
+      }
     }
   }
 
@@ -103,6 +129,38 @@ public class CompoundDefinition
   }
 
   /**
+   * @return an array containing all of the methods in this CompoundDefinition
+   */
+  public Method[] getAllMethods()
+  {
+    int size = 0;
+    for (Set<Method> methodSet : methods.values())
+    {
+      size += methodSet.size();
+    }
+    Method[] methodArray = new Method[size];
+    int index = 0;
+    for (Set<Method> methodSet : methods.values())
+    {
+      for (Method method : methodSet)
+      {
+        methodArray[index] = method;
+        index++;
+      }
+    }
+    return methodArray;
+  }
+
+  /**
+   * @param name - the name to get the methods with
+   * @return the set of methods with the specified name
+   */
+  public Set<Method> getMethodsByName(String name)
+  {
+    return methods.get(name);
+  }
+
+  /**
    * @return the lexicalPhrase
    */
   public LexicalPhrase getLexicalPhrase()
@@ -110,6 +168,9 @@ public class CompoundDefinition
     return lexicalPhrase;
   }
 
+  /**
+   * {@inheritDoc}
+   */
   @Override
   public String toString()
   {
@@ -125,6 +186,14 @@ public class CompoundDefinition
     {
       buffer.append(constructor.toString().replaceAll("(?m)^", "  "));
       buffer.append("\n");
+    }
+    for (Set<Method> methodSet : methods.values())
+    {
+      for (Method method : methodSet)
+      {
+        buffer.append(method.toString().replaceAll("(?m)^", "  "));
+        buffer.append("\n");
+      }
     }
     buffer.append("}\n");
     return buffer.toString();

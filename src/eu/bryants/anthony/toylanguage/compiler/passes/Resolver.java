@@ -36,6 +36,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
+import eu.bryants.anthony.toylanguage.ast.member.Method;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
@@ -168,6 +169,20 @@ public class Resolver
         resolve(p.getType(), compilationUnit);
       }
     }
+    for (Method method : compound.getAllMethods())
+    {
+      resolve(method.getReturnType(), compilationUnit);
+      Block mainBlock = method.getBlock();
+      for (Parameter p : method.getParameters())
+      {
+        Variable oldVar = mainBlock.addVariable(p.getVariable());
+        if (oldVar != null)
+        {
+          throw new ConceptualException("Duplicate paramter: " + p.getName(), p.getLexicalPhrase());
+        }
+        resolve(p.getType(), compilationUnit);
+      }
+    }
   }
 
   private static void resolveTypes(Function function, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
@@ -187,14 +202,18 @@ public class Resolver
 
   private static void resolve(CompoundDefinition compound, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
-    for (Field field : compound.getFields())
-    {
-      // TODO: resolve field expressions, when they exist
-      resolve(field.getType(), compilationUnit);
-    }
+    // TODO: resolve field expressions, when they exist
     for (Constructor constructor : compound.getConstructors())
     {
       Block mainBlock = constructor.getBlock();
+      for (Statement s : mainBlock.getStatements())
+      {
+        resolve(s, mainBlock, compound, compilationUnit);
+      }
+    }
+    for (Method method : compound.getAllMethods())
+    {
+      Block mainBlock = method.getBlock();
       for (Statement s : mainBlock.getStatements())
       {
         resolve(s, mainBlock, compound, compilationUnit);

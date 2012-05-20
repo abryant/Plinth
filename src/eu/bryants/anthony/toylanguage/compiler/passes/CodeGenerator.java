@@ -45,6 +45,7 @@ import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
+import eu.bryants.anthony.toylanguage.ast.member.Method;
 import eu.bryants.anthony.toylanguage.ast.metadata.MemberVariable;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
@@ -96,11 +97,13 @@ public class CodeGenerator
 
   public void generate(String outputPath)
   {
+    // add all of the LLVM functions, including constructors, methods, and normal functions
     addFunctions();
 
     for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
     {
       addConstructorBodies(compoundDefinition);
+      addMethodBodies(compoundDefinition);
     }
     for (Function f : compilationUnit.getFunctions())
     {
@@ -144,6 +147,38 @@ public class CodeGenerator
         {
           LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i);
           LLVM.LLVMSetValueName(parameter, parameters[i].getName());
+        }
+      }
+
+      for (Method method : compoundDefinition.getAllMethods())
+      {
+        String mangledName = method.getMangledName();
+
+        Parameter[] parameters = method.getParameters();
+        LLVMTypeRef[] types = new LLVMTypeRef[1 + parameters.length];
+        // add the 'this' type to the function
+        types[0] = LLVM.LLVMPointerType(findNativeType(new NamedType(compoundDefinition)), 0);
+        for (int i = 0; i < parameters.length; i++)
+        {
+          types[i + 1] = findNativeType(parameters[i].getType());
+        }
+        LLVMTypeRef resultType = findNativeType(method.getReturnType());
+
+        Pointer paramTypes = C.toNativePointerArray(types, false, true);
+        LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, paramTypes, types.length, false);
+        LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, mangledName, functionType);
+        LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
+
+        int paramCount = LLVM.LLVMCountParams(llvmFunc);
+        if (paramCount != 1 + parameters.length)
+        {
+          throw new IllegalStateException("LLVM returned wrong number of parameters");
+        }
+        LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), "this");
+        for (int i = 1; i < paramCount; i++)
+        {
+          LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i);
+          LLVM.LLVMSetValueName(parameter, parameters[i - 1].getName());
         }
       }
     }
@@ -272,6 +307,49 @@ public class CodeGenerator
       {
         LLVMValueRef result = LLVM.LLVMBuildLoad(builder, thisValue, "");
         LLVM.LLVMBuildRet(builder, result);
+      }
+    }
+  }
+
+  private void addMethodBodies(CompoundDefinition compoundDefinition)
+  {
+    for (Method method : compoundDefinition.getAllMethods())
+    {
+      LLVMValueRef llvmFunction = LLVM.LLVMGetNamedFunction(module, method.getMangledName());
+
+      LLVMBasicBlockRef block = LLVM.LLVMAppendBasicBlock(llvmFunction, "entry");
+      LLVM.LLVMPositionBuilderAtEnd(builder, block);
+
+      // create LLVMValueRefs for all of the variables, including parameters
+      Set<Variable> allVariables = Resolver.getAllNestedVariables(method.getBlock());
+      Map<Variable, LLVMValueRef> variables = new HashMap<Variable, LLVM.LLVMValueRef>();
+      for (Variable v : allVariables)
+      {
+        LLVMValueRef allocaInst = LLVM.LLVMBuildAlloca(builder, findNativeType(v.getType()), v.getName());
+        variables.put(v, allocaInst);
+      }
+
+      // store the parameter values to the LLVMValueRefs
+      for (Parameter p : method.getParameters())
+      {
+        LLVM.LLVMBuildStore(builder, LLVM.LLVMGetParam(llvmFunction, p.getIndex() + 1), variables.get(p.getVariable()));
+      }
+
+      LLVMValueRef thisValue = LLVM.LLVMGetParam(llvmFunction, 0);
+      buildStatement(method.getBlock(), method.getReturnType(), llvmFunction, thisValue, variables, new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new Runnable()
+      {
+        @Override
+        public void run()
+        {
+          // this will be run whenever a return void is found
+          // so return void
+          LLVM.LLVMBuildRetVoid(builder);
+        }
+      });
+      // add a "ret void" if control reaches the end of the function
+      if (!method.getBlock().stopsExecution())
+      {
+        LLVM.LLVMBuildRetVoid(builder);
       }
     }
   }

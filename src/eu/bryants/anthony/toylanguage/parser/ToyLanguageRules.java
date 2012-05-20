@@ -21,6 +21,7 @@ import eu.bryants.anthony.toylanguage.parser.rules.expression.UnaryExpressionRul
 import eu.bryants.anthony.toylanguage.parser.rules.member.ConstructorRule;
 import eu.bryants.anthony.toylanguage.parser.rules.member.FieldRule;
 import eu.bryants.anthony.toylanguage.parser.rules.member.MemberListRule;
+import eu.bryants.anthony.toylanguage.parser.rules.member.MethodRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.ForInitRule;
@@ -37,7 +38,6 @@ import eu.bryants.anthony.toylanguage.parser.rules.statement.ReturnStatementRule
 import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementsRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.WhileStatementRule;
-import eu.bryants.anthony.toylanguage.parser.rules.type.ReturnTypeRule;
 import eu.bryants.anthony.toylanguage.parser.rules.type.TypeListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.type.TypeRule;
 
@@ -74,6 +74,7 @@ public class ToyLanguageRules
     new ConstructorRule(),
     new FieldRule(),
     new MemberListRule(),
+    new MethodRule(),
 
     // misc
     new AssigneeListRule(),
@@ -96,7 +97,6 @@ public class ToyLanguageRules
     new WhileStatementRule(),
 
     // type
-    new ReturnTypeRule(),
     new TypeListRule(),
     new TypeRule(),
 

@@ -3,26 +3,30 @@ package eu.bryants.anthony.toylanguage.ast.member;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
+import eu.bryants.anthony.toylanguage.ast.type.Type;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
- * Created on 10 May 2012
+ * Created on 20 May 2012
  */
 
 /**
  * @author Anthony Bryant
  */
-public class Constructor extends Member
+public class Method extends Member
 {
+
+  private Type returnType;
   private String name;
   private Parameter[] parameters;
   private Block block;
 
   private CompoundDefinition containingDefinition;
 
-  public Constructor(String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
+  public Method(Type returnType, String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
+    this.returnType = returnType;
     this.name = name;
     this.parameters = parameters;
     for (int i = 0; i < parameters.length; i++)
@@ -30,6 +34,14 @@ public class Constructor extends Member
       parameters[i].setIndex(i);
     }
     this.block = block;
+  }
+
+  /**
+   * @return the returnType
+   */
+  public Type getReturnType()
+  {
+    return returnType;
   }
 
   /**
@@ -73,16 +85,20 @@ public class Constructor extends Member
   }
 
   /**
-   * @return the mangled name for this constructor
+   * @return the mangled name for this Method
    */
   public String getMangledName()
   {
     StringBuffer buffer = new StringBuffer();
     buffer.append(containingDefinition.getName());
-    buffer.append("$construct_");
-    for (Parameter parameter : parameters)
+    buffer.append('$');
+    buffer.append(name);
+    buffer.append('$');
+    buffer.append(returnType.getMangledName());
+    buffer.append('_');
+    for (Parameter p : parameters)
     {
-      buffer.append(parameter.getType().getMangledName());
+      buffer.append(p.getType().getMangledName());
     }
     return buffer.toString();
   }
@@ -93,8 +109,10 @@ public class Constructor extends Member
   @Override
   public String toString()
   {
-    StringBuffer buffer = new StringBuffer(name);
-    buffer.append("(");
+    StringBuffer buffer = new StringBuffer(returnType.toString());
+    buffer.append(' ');
+    buffer.append(name);
+    buffer.append('(');
     for (int i = 0; i < parameters.length; i++)
     {
       buffer.append(parameters[i]);
