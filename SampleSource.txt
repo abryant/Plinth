@@ -24,12 +24,13 @@ uint main(uint argc)
   uint foo = 4 * (4 * (4 * array[0] + array[1]) + array[2]) + array[3];
 
   :foo test = foo(2);
+  test.someField = 67;
 
   []uint temp = new [1]uint;
   []long arr = new [2]long;
   // should put 27 in temp[0], due to the order of evaluation of the function calls in an array assignment
   array(arr, temp)[dimension(temp)] = value(temp);
-  return foo(65).someField + ((temp[0] ^ foo) == 0 ? 5 : 13);
+  return test.someField + ((temp[0] ^ foo) == 0 ? 5 : 13);
   
 }
 

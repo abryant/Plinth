@@ -17,4 +17,12 @@ public class ThisExpression extends Expression
     super(lexicalPhrase);
   }
 
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String toString()
+  {
+    return "this";
+  }
 }
