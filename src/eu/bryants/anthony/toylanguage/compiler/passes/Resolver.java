@@ -127,6 +127,17 @@ public class Resolver
 
   public static void resolve(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
+    // resolve the top level types first, e.g. function parameters and return types, field types
+    // so that they can be used anywhere in statements and expressions
+    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    {
+      resolveTypes(compoundDefinition, compilationUnit);
+    }
+    for (Function function : compilationUnit.getFunctions())
+    {
+      resolveTypes(function, compilationUnit);
+    }
+    // resolve the bodies of methods, field assignments, etc.
     for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
     {
       resolve(compoundDefinition, compilationUnit);
@@ -137,7 +148,7 @@ public class Resolver
     }
   }
 
-  private static void resolve(CompoundDefinition compound, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private static void resolveTypes(CompoundDefinition compound, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     for (Field field : compound.getFields())
     {
@@ -155,6 +166,34 @@ public class Resolver
         }
         resolve(p.getType(), compilationUnit);
       }
+    }
+  }
+
+  private static void resolveTypes(Function function, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  {
+    Block mainBlock = function.getBlock();
+    resolve(function.getType(), compilationUnit);
+    for (Parameter p : function.getParameters())
+    {
+      Variable oldVar = mainBlock.addVariable(p.getVariable());
+      if (oldVar != null)
+      {
+        throw new ConceptualException("Duplicate parameter: " + p.getName(), p.getLexicalPhrase());
+      }
+      resolve(p.getType(), compilationUnit);
+    }
+  }
+
+  private static void resolve(CompoundDefinition compound, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  {
+    for (Field field : compound.getFields())
+    {
+      // TODO: resolve field expressions, when they exist
+      resolve(field.getType(), compilationUnit);
+    }
+    for (Constructor constructor : compound.getConstructors())
+    {
+      Block mainBlock = constructor.getBlock();
       for (Statement s : mainBlock.getStatements())
       {
         resolve(s, mainBlock, compound, compilationUnit);
@@ -203,16 +242,6 @@ public class Resolver
   private static void resolve(Function function, CompilationUnit compilationUnit) throws ConceptualException, NameNotResolvedException
   {
     Block mainBlock = function.getBlock();
-    resolve(function.getType(), compilationUnit);
-    for (Parameter p : function.getParameters())
-    {
-      Variable oldVar = mainBlock.addVariable(p.getVariable());
-      if (oldVar != null)
-      {
-        throw new ConceptualException("Duplicate parameter: " + p.getName(), p.getLexicalPhrase());
-      }
-      resolve(p.getType(), compilationUnit);
-    }
     for (Statement s : mainBlock.getStatements())
     {
       resolve(s, mainBlock, null, compilationUnit);
