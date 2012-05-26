@@ -67,6 +67,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
+import eu.bryants.anthony.toylanguage.ast.type.FunctionType;
 import eu.bryants.anthony.toylanguage.ast.type.NamedType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
@@ -1137,27 +1138,111 @@ public class CodeGenerator
     if (expression instanceof FunctionCallExpression)
     {
       FunctionCallExpression functionExpression = (FunctionCallExpression) expression;
-      Function resolvedFunction = functionExpression.getResolvedFunction();
       Constructor resolvedConstructor = functionExpression.getResolvedConstructor();
-      Parameter[] parameters = resolvedFunction != null ? resolvedFunction.getParameters() : resolvedConstructor.getParameters();
+      Function resolvedFunction = functionExpression.getResolvedFunction();
+      Method resolvedMethod = functionExpression.getResolvedMethod();
+      Expression resolvedBaseExpression = functionExpression.getResolvedBaseExpression();
+
+      Type[] parameterTypes;
+      Type returnType;
+      String mangledName;
+      if (resolvedConstructor != null)
+      {
+        Parameter[] params = resolvedConstructor.getParameters();
+        parameterTypes = new Type[params.length];
+        for (int i = 0; i < params.length; ++i)
+        {
+          parameterTypes[i] = params[i].getType();
+        }
+        returnType = new NamedType(resolvedConstructor.getContainingDefinition());
+        mangledName = resolvedConstructor.getMangledName();
+      }
+      else if (resolvedFunction != null)
+      {
+        Parameter[] params = resolvedFunction.getParameters();
+        parameterTypes = new Type[params.length];
+        for (int i = 0; i < params.length; ++i)
+        {
+          parameterTypes[i] = params[i].getType();
+        }
+        returnType = resolvedFunction.getType();
+        mangledName = resolvedFunction.getName();
+      }
+      else if (resolvedMethod != null)
+      {
+        Parameter[] params = resolvedMethod.getParameters();
+        parameterTypes = new Type[params.length];
+        for (int i = 0; i < params.length; ++i)
+        {
+          parameterTypes[i] = params[i].getType();
+        }
+        returnType = resolvedMethod.getReturnType();
+        mangledName = resolvedMethod.getMangledName();
+      }
+      else if (resolvedBaseExpression != null)
+      {
+        FunctionType baseType = (FunctionType) resolvedBaseExpression.getType();
+        parameterTypes = baseType.getParameterTypes();
+        returnType = baseType.getReturnType();
+        mangledName = null;
+      }
+      else
+      {
+        throw new IllegalArgumentException("Unresolved function call expression: " + functionExpression);
+      }
+
+      LLVMValueRef callee = null;
+      if (resolvedBaseExpression != null)
+      {
+        callee = buildExpression(resolvedBaseExpression, llvmFunction, thisValue, variables);
+      }
+
       Expression[] arguments = functionExpression.getArguments();
       LLVMValueRef[] values = new LLVMValueRef[arguments.length];
       for (int i = 0; i < arguments.length; i++)
       {
         LLVMValueRef arg = buildExpression(arguments[i], llvmFunction, thisValue, variables);
-        values[i] = convertType(arg, arguments[i].getType(), parameters[i].getType());
-        Type type = parameters[i].getType();
-        if (type instanceof NamedType) // TODO: when it doesn't cause a warning, add: && ((NamedType) type).getResolvedDefinition() instanceof CompoundDefinition)
+        values[i] = convertType(arg, arguments[i].getType(), parameterTypes[i]);
+        if (parameterTypes[i] instanceof NamedType) // TODO: when it doesn't cause a warning, add: && ((NamedType) parameterTypes[i]).getResolvedDefinition() instanceof CompoundDefinition)
         {
           // for compound types, we need to pass the value itself, not the pointer to the value
           values[i] = LLVM.LLVMBuildLoad(builder, values[i], "");
         }
       }
-      String mangledName = resolvedFunction != null ? resolvedFunction.getName() : resolvedConstructor.getMangledName();
-      LLVMValueRef llvmResolvedFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
-      LLVMValueRef result = LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(values, false, true), values.length, "");
 
-      Type returnType = resolvedFunction != null ? resolvedFunction.getType() : new NamedType(resolvedConstructor.getContainingDefinition());
+      LLVMValueRef result;
+      if (resolvedConstructor != null || resolvedFunction != null)
+      {
+        LLVMValueRef llvmResolvedFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
+        result = LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(values, false, true), values.length, "");
+      }
+      else if (resolvedMethod != null)
+      {
+        LLVMValueRef llvmResolvedFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
+        LLVMValueRef[] realArguments = new LLVMValueRef[values.length + 1];
+        realArguments[0] = callee;
+        if (callee == null)
+        {
+          realArguments[0] = thisValue;
+        }
+        System.arraycopy(values, 0, realArguments, 1, values.length);
+        result = LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(realArguments, false, true), realArguments.length, "");
+      }
+      else if (resolvedBaseExpression != null)
+      {
+        // callee here is actually a tuple of an opaque pointer and a function type, where the first argument to the function is the opaque pointer
+        LLVMValueRef firstArgument = LLVM.LLVMBuildExtractValue(builder, callee, 0, "");
+        LLVMValueRef calleeFunction = LLVM.LLVMBuildExtractValue(builder, callee, 1, "");
+        LLVMValueRef[] realArguments = new LLVMValueRef[values.length + 1];
+        realArguments[0] = firstArgument;
+        System.arraycopy(values, 0, realArguments, 1, values.length);
+        result = LLVM.LLVMBuildCall(builder, calleeFunction, C.toNativePointerArray(realArguments, false, true), realArguments.length, "");
+      }
+      else
+      {
+        throw new IllegalArgumentException("Unresolved function call expression: " + functionExpression);
+      }
+
       if (returnType instanceof NamedType) // TODO (when it doesn't cause a warning): && ((NamedType) returnType).getResolvedDefinition() instanceof CompoundDefinition)
       {
         // for compound types, we need to get a pointer from this returned value

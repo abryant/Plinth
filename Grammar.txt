@@ -96,7 +96,7 @@ Primary = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword | ThisKeyw
           Primary Dot Name |
           FunctionCallExpression |
           LParen TupleExpression RParen
-FunctionCallExpression = Name LParen ExpressionList RParen | Name LParen RParen
+FunctionCallExpression = Primary LParen ExpressionList RParen | Primary LParen RParen
 ExpressionList = Expression | ExpressionList Comma Expression
 
 Dimensions = LSquare TupleExpression RSquare | Dimensions LSquare TupleExpression RSquare

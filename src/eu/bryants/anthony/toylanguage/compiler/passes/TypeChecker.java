@@ -1,6 +1,7 @@
 package eu.bryants.anthony.toylanguage.compiler.passes;
 
 import java.math.BigInteger;
+import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
@@ -53,6 +54,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
+import eu.bryants.anthony.toylanguage.ast.type.FunctionType;
 import eu.bryants.anthony.toylanguage.ast.type.NamedType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
@@ -172,6 +174,10 @@ public class TypeChecker
           else if (member instanceof Field)
           {
             type = ((Field) member).getType();
+          }
+          else if (member instanceof Method)
+          {
+            throw new ConceptualException("Cannot assign to a method", fieldAssignee.getLexicalPhrase());
           }
           else
           {
@@ -600,6 +606,11 @@ public class TypeChecker
       {
         type = ArrayLengthMember.ARRAY_LENGTH_TYPE;
       }
+      else if (member instanceof Method)
+      {
+        // TODO: add function types properly and remove this restriction
+        throw new ConceptualException("Cannot yet access a method as a field", fieldAccessExpression.getLexicalPhrase());
+      }
       else
       {
         throw new IllegalStateException("Unknown member type in a FieldAccessExpression: " + member);
@@ -625,24 +636,85 @@ public class TypeChecker
     {
       FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
       Expression[] arguments = functionCallExpression.getArguments();
-      Function resolvedFunction = functionCallExpression.getResolvedFunction();
-      Constructor resolvedConstructor = functionCallExpression.getResolvedConstructor();
-      Parameter[] parameters = resolvedFunction != null ? resolvedFunction.getParameters() : resolvedConstructor.getParameters();
-      if (arguments.length != parameters.length)
+      Parameter[] parameters = null;
+      Type[] parameterTypes = null;
+      String name = null;
+      Type returnType;
+      if (functionCallExpression.getResolvedMethod() != null)
       {
-        throw new ConceptualException("Function '" + functionCallExpression.getName() + "' is not defined to take " + arguments.length + " arguments", functionCallExpression.getLexicalPhrase());
+        if (functionCallExpression.getResolvedBaseExpression() != null)
+        {
+          Type type = checkTypes(functionCallExpression.getResolvedBaseExpression(), compilationUnit);
+          Set<Member> memberSet = type.getMembers(functionCallExpression.getResolvedMethod().getName());
+          if (!memberSet.contains(functionCallExpression.getResolvedMethod()))
+          {
+            throw new ConceptualException("The method '" + functionCallExpression.getResolvedMethod().getName() + "' does not exist for type '" + type + "'", functionCallExpression.getLexicalPhrase());
+          }
+        }
+        parameters = functionCallExpression.getResolvedMethod().getParameters();
+        returnType = functionCallExpression.getResolvedMethod().getReturnType();
+        name = functionCallExpression.getResolvedMethod().getName();
       }
+      else if (functionCallExpression.getResolvedConstructor() != null)
+      {
+        parameters = functionCallExpression.getResolvedConstructor().getParameters();
+        returnType = new NamedType(functionCallExpression.getResolvedConstructor().getContainingDefinition());
+        name = functionCallExpression.getResolvedConstructor().getName();
+      }
+      else if (functionCallExpression.getResolvedFunction() != null)
+      {
+        parameters = functionCallExpression.getResolvedFunction().getParameters();
+        returnType = functionCallExpression.getResolvedFunction().getType();
+        name = functionCallExpression.getResolvedFunction().getName();
+      }
+      else if (functionCallExpression.getResolvedBaseExpression() != null)
+      {
+        Expression baseExpression = functionCallExpression.getResolvedBaseExpression();
+        Type baseType = checkTypes(baseExpression, compilationUnit);
+        if (!(baseType instanceof FunctionType))
+        {
+          throw new ConceptualException("Cannot call something which is not a method or a constructor", functionCallExpression.getLexicalPhrase());
+        }
+        parameterTypes = ((FunctionType) baseType).getParameterTypes();
+        returnType = ((FunctionType) baseType).getReturnType();
+      }
+      else
+      {
+        throw new IllegalArgumentException("Unresolved function call: " + functionCallExpression);
+      }
+      if (parameterTypes == null)
+      {
+        parameterTypes = new Type[parameters.length];
+        for (int i = 0; i < parameters.length; i++)
+        {
+          parameterTypes[i] = parameters[i].getType();
+        }
+      }
+
+      if (arguments.length != parameterTypes.length)
+      {
+        StringBuffer buffer = new StringBuffer();
+        for (int i = 0; i < parameterTypes.length; i++)
+        {
+          buffer.append(parameterTypes[i]);
+          if (i != parameterTypes.length - 1)
+          {
+            buffer.append(", ");
+          }
+        }
+        throw new ConceptualException("The function '" + (name == null ? "" : name) + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", functionCallExpression.getLexicalPhrase());
+      }
+
       for (int i = 0; i < arguments.length; i++)
       {
         Type type = checkTypes(arguments[i], compilationUnit);
-        if (!parameters[i].getType().canAssign(type))
+        if (!parameterTypes[i].canAssign(type))
         {
-          throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameters[i].getType() + "'", arguments[i].getLexicalPhrase());
+          throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", arguments[i].getLexicalPhrase());
         }
       }
-      Type type = resolvedFunction != null ? resolvedFunction.getType() : new NamedType(resolvedConstructor.getContainingDefinition());
-      functionCallExpression.setType(type);
-      return type;
+      functionCallExpression.setType(returnType);
+      return returnType;
     }
     else if (expression instanceof InlineIfExpression)
     {

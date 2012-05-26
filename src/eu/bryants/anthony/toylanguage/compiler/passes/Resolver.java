@@ -56,6 +56,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
+import eu.bryants.anthony.toylanguage.ast.type.FunctionType;
 import eu.bryants.anthony.toylanguage.ast.type.NamedType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.TupleType;
@@ -329,12 +330,16 @@ public class Resolver
           // find the type of the expression, by calling the type checker
           // this is fine as long as we resolve all of the expression first
           Type expressionType = TypeChecker.checkTypes(fieldAssignee.getExpression(), compilationUnit);
-          Member member = expressionType.getMember(fieldName);
-          if (member == null)
+          Set<Member> memberSet = expressionType.getMembers(fieldName);
+          if (memberSet.isEmpty())
           {
-            throw new NameNotResolvedException("No such member \"" + fieldName + "\" for type " + expressionType, fieldAssignee.getLexicalPhrase());
+            throw new NameNotResolvedException("No such member \"" + fieldName + "\" for type " + expressionType, assignees[i].getLexicalPhrase());
           }
-          fieldAssignee.setResolvedMember(member);
+          if (memberSet.size() > 1)
+          {
+            throw new ConceptualException("Multiple members have the name '" + fieldName + "'", assignees[i].getLexicalPhrase());
+          }
+          fieldAssignee.setResolvedMember(memberSet.iterator().next());
         }
         else if (assignees[i] instanceof BlankAssignee)
         {
@@ -529,12 +534,16 @@ public class Resolver
       // find the type of the sub-expression, by calling the type checker
       // this is fine as long as we resolve all of the sub-expression first
       Type expressionType = TypeChecker.checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
-      Member member = expressionType.getMember(fieldName);
-      if (member == null)
+      Set<Member> memberSet = expressionType.getMembers(fieldName);
+      if (memberSet.isEmpty())
       {
-        throw new NameNotResolvedException("No such member \"" + fieldName + "\" for type " + expressionType, expression.getLexicalPhrase());
+        throw new NameNotResolvedException("No such member \"" + fieldName + "\" for type " + expressionType, fieldAccessExpression.getLexicalPhrase());
       }
-      fieldAccessExpression.setResolvedMember(member);
+      if (memberSet.size() > 1)
+      {
+        throw new ConceptualException("Multiple members have the name '" + fieldName + "'", fieldAccessExpression.getLexicalPhrase());
+      }
+      fieldAccessExpression.setResolvedMember(memberSet.iterator().next());
     }
     else if (expression instanceof FloatingLiteralExpression)
     {
@@ -550,25 +559,99 @@ public class Resolver
         TypeChecker.checkTypes(e, compilationUnit);
       }
 
-      // resolve the called function
-      Function function = compilationUnit.getFunction(expr.getName());
-      CompoundDefinition compoundDefinition = compilationUnit.getCompoundDefinition(expr.getName());
-      if (function == null && compoundDefinition == null)
+      Expression functionExpression = expr.getFunctionExpression();
+      Type expressionType = null;
+      Exception cachedException = null;
+      try
       {
-        throw new NameNotResolvedException("Unable to resolve \"" + expr.getName() + "\"", expr.getLexicalPhrase());
+        resolve(functionExpression, block, enclosingDefinition, compilationUnit);
+        expressionType = TypeChecker.checkTypes(functionExpression, compilationUnit);
       }
-      Map<Parameter[], Object> paramLists = new HashMap<Parameter[], Object>();
-      if (function != null)
+      catch (NameNotResolvedException e)
       {
-        paramLists.put(function.getParameters(), function);
+        cachedException = e;
       }
-      if (compoundDefinition != null)
+      catch (ConceptualException e)
       {
-        for (Constructor constructor : compoundDefinition.getConstructors())
+        cachedException = e;
+      }
+      if (cachedException == null)
+      {
+        if (expressionType instanceof FunctionType)
         {
-          paramLists.put(constructor.getParameters(), constructor);
+          // the sub-expressions all resolved properly, and we can leave it to the type checker to make sure the parameters match the arguments
+          expr.setResolvedBaseExpression(functionExpression);
+          return;
+        }
+        throw new ConceptualException("Cannot call a function on a non-function type", functionExpression.getLexicalPhrase());
+      }
+
+      // we failed to resolve the sub-expression into something with a function type
+      // but the recursive resolver doesn't know which parameter types we're looking for here, so we may be able to consider some different options
+      // we can do this by checking if the function expression is actually a variable access or a field access expression, and checking them for other sources of method calls,
+      // such as constructor calls, function calls, and methods, each of which can be narrowed down by their parameter types
+
+      // first, go through any bracketed expressions, as we can ignore them
+      while (functionExpression instanceof BracketedExpression)
+      {
+        functionExpression = ((BracketedExpression) functionExpression).getExpression();
+      }
+
+      Map<Parameter[], Object> paramLists = new HashMap<Parameter[], Object>();
+      Map<Method, Expression> methodBaseExpressions = new HashMap<Method, Expression>();
+      if (functionExpression instanceof VariableExpression)
+      {
+        String name = ((VariableExpression) functionExpression).getName();
+        // the sub-expression didn't resolve to a variable or a field, or we would have got a valid type back in expressionType
+        if (enclosingDefinition != null)
+        {
+          Set<Method> methodSet = enclosingDefinition.getMethodsByName(name);
+          if (methodSet != null)
+          {
+            for (Method m : methodSet)
+            {
+              paramLists.put(m.getParameters(), m);
+              // leave methodBaseExpressions with a null value for this method, as we have no base expression
+            }
+          }
+        }
+        CompoundDefinition compoundDefinition = compilationUnit.getCompoundDefinition(name);
+        if (compoundDefinition != null)
+        {
+          for (Constructor c : compoundDefinition.getConstructors())
+          {
+            paramLists.put(c.getParameters(), c);
+          }
+        }
+        Function function = compilationUnit.getFunction(name);
+        if (function != null)
+        {
+          paramLists.put(function.getParameters(), function);
         }
       }
+      else if (functionExpression instanceof FieldAccessExpression)
+      {
+        String name = ((FieldAccessExpression) functionExpression).getFieldName();
+        Expression accessedExpression = ((FieldAccessExpression) functionExpression).getExpression();
+
+        resolve(accessedExpression, block, enclosingDefinition, compilationUnit);
+        Type accessedType = TypeChecker.checkTypes(accessedExpression, compilationUnit);
+        if (accessedType instanceof NamedType)
+        {
+          CompoundDefinition compoundDefinition = ((NamedType) accessedType).getResolvedDefinition();
+          Set<Method> methodSet = compoundDefinition.getMethodsByName(name);
+          if (methodSet != null)
+          {
+            for (Method m : methodSet)
+            {
+              paramLists.put(m.getParameters(), m);
+              methodBaseExpressions.put(m, accessedExpression);
+            }
+          }
+        }
+      }
+
+      // resolve the called function
       boolean resolved = false;
       for (Entry<Parameter[], Object> entry : paramLists.entrySet())
       {
@@ -590,6 +673,10 @@ public class Resolver
         }
         if (typesMatch)
         {
+          if (resolved)
+          {
+            throw new ConceptualException("Ambiguous function call, there are at least two applicable functions which take these arguments", expr.getLexicalPhrase());
+          }
           if (entry.getValue() instanceof Function)
           {
             expr.setResolvedFunction((Function) entry.getValue());
@@ -597,6 +684,11 @@ public class Resolver
           else if (entry.getValue() instanceof Constructor)
           {
             expr.setResolvedConstructor((Constructor) entry.getValue());
+          }
+          else if (entry.getValue() instanceof Method)
+          {
+            expr.setResolvedMethod((Method) entry.getValue());
+            expr.setResolvedBaseExpression(methodBaseExpressions.get(entry.getValue()));
           }
           else
           {
@@ -607,18 +699,13 @@ public class Resolver
       }
       if (!resolved)
       {
-        StringBuffer buffer = new StringBuffer();
-        for (int i = 0; i < expr.getArguments().length; i++)
+        // we didn't find anything, so rethrow the exception from earlier
+        if (cachedException instanceof NameNotResolvedException)
         {
-          buffer.append(expr.getArguments()[i].getType());
-          if (i != expr.getArguments().length - 1)
-          {
-            buffer.append(", ");
-          }
+          throw (NameNotResolvedException) cachedException;
         }
-        throw new NameNotResolvedException("Unable to resolve a call to " + expr.getName() + " with the argument types: " + buffer, expr.getLexicalPhrase());
+        throw (ConceptualException) cachedException;
       }
-      expr.setResolvedFunction(function);
     }
     else if (expression instanceof InlineIfExpression)
     {

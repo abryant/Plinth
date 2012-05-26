@@ -492,8 +492,49 @@ public class ControlFlowChecker
     }
     else if (expression instanceof FunctionCallExpression)
     {
-      // TODO: when we add method calls, make sure they don't work in the constructor until 'this' is fully initialized (i.e. all fields initialized)
-      for (Expression e : ((FunctionCallExpression) expression).getArguments())
+      FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
+      if (functionCallExpression.getResolvedMethod() != null)
+      {
+        Expression resolvedBaseExpression = functionCallExpression.getResolvedBaseExpression();
+        while (resolvedBaseExpression instanceof BracketedExpression)
+        {
+          resolvedBaseExpression = ((BracketedExpression) resolvedBaseExpression).getExpression();
+        }
+        if (resolvedBaseExpression == null && inConstructor)
+        {
+          // the type has already been resolved by the resolver, so we can access it here
+          CompoundDefinition compoundDefinition = functionCallExpression.getResolvedMethod().getContainingDefinition();
+          for (Field field : compoundDefinition.getFields())
+          {
+            if (!initializedVariables.contains(field.getMemberVariable()))
+            {
+              throw new ConceptualException("Cannot call methods on 'this' here. Not all of the fields of this '" + new NamedType(compoundDefinition) + "' have been initialized (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to assign to them before they're used", expression.getLexicalPhrase());
+            }
+          }
+        }
+        else
+        {
+          checkUninitializedVariables(resolvedBaseExpression, initializedVariables, inConstructor);
+        }
+      }
+      else if (functionCallExpression.getResolvedConstructor() != null)
+      {
+        // this is a constructor call, which we do not need to check anything else for
+      }
+      else if (functionCallExpression.getResolvedFunction() != null)
+      {
+        // this is a function call, which we do not need to check anything else for
+      }
+      else if (functionCallExpression.getResolvedBaseExpression() != null)
+      {
+        checkUninitializedVariables(functionCallExpression.getResolvedBaseExpression(), initializedVariables, inConstructor);
+      }
+      else
+      {
+        throw new IllegalStateException("Unresolved function call: " + functionCallExpression);
+      }
+      // check that the arguments are all initialized
+      for (Expression e : functionCallExpression.getArguments())
       {
         checkUninitializedVariables(e, initializedVariables, inConstructor);
       }

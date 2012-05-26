@@ -19,22 +19,27 @@ uint main(uint argc)
   {
   }
 
-  []uint array = new []uint {0, 1, 2, 3};
+  []uint someArray = new []uint {0, 1, 2, 3};
   --argc;
   if (argc > 2)
   {
-    reverse(array);
+    reverse(someArray);
   }
-  uint foo = 4 * (4 * (4 * array[0] + array[1]) + array[2]) + array[3];
+
+  uint foob = 4 * (4 * (4 * someArray[0] + someArray[1]) + someArray[2]) + someArray[3];
 
   :foo test = foo(2);
   test.someField = 67;
+  if argc > 1
+  {
+    test.test(123);
+  }
 
   []uint temp = new [1]uint;
   []long arr = new [2]long;
   // should put 27 in temp[0], due to the order of evaluation of the function calls in an array assignment
   array(arr, temp)[dimension(temp)] = value(temp);
-  return test.someField + ((temp[0] ^ foo) == 0 ? 5 : 13);
+  return test.someField + ((temp[0] ^ foob) == 0 ? 5 : 13);
   
 }
 

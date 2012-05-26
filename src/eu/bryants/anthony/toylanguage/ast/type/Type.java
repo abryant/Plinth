@@ -1,5 +1,7 @@
 package eu.bryants.anthony.toylanguage.ast.type;
 
+import java.util.Set;
+
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
@@ -42,11 +44,11 @@ public abstract class Type
   public abstract boolean isEquivalent(Type type);
 
   /**
-   * Returns the Member of this type with the specified name
-   * @param name - the name of the Member to get
-   * @return the Member with the specified name, or null if none exists
+   * Returns a set of the Members of this type with the specified name
+   * @param name - the name of the Members to get
+   * @return the Members with the specified name, or the empty set if none exist
    */
-  public abstract Member getMember(String name);
+  public abstract Set<Member> getMembers(String name);
 
   /**
    * @return the mangled name of this type

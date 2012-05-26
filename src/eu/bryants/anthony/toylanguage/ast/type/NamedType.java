@@ -1,7 +1,12 @@
 package eu.bryants.anthony.toylanguage.ast.type;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
+import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
+import eu.bryants.anthony.toylanguage.ast.member.Method;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
@@ -82,10 +87,20 @@ public class NamedType extends Type
    * {@inheritDoc}
    */
   @Override
-  public Member getMember(String name)
+  public Set<Member> getMembers(String name)
   {
-    return resolvedDefinition.getField(name);
-    // TODO: when functions are added to named types, add them here
+    HashSet<Member> set = new HashSet<Member>();
+    Field field = resolvedDefinition.getField(name);
+    if (field != null)
+    {
+      set.add(field);
+    }
+    Set<Method> methodSet = resolvedDefinition.getMethodsByName(name);
+    if (methodSet != null)
+    {
+      set.addAll(methodSet);
+    }
+    return set;
   }
 
   /**

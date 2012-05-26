@@ -1,5 +1,8 @@
 package eu.bryants.anthony.toylanguage.ast.type;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
@@ -195,10 +198,10 @@ public class PrimitiveType extends Type
    * {@inheritDoc}
    */
   @Override
-  public Member getMember(String name)
+  public Set<Member> getMembers(String name)
   {
     // primitive types currently have no members
-    return null;
+    return new HashSet<Member>();
   }
 
   /**
