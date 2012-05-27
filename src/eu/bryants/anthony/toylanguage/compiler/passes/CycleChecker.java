@@ -70,6 +70,5 @@ public class CycleChecker
         fieldStack.remove(fieldStack.size() - 1);
       }
     }
-    visited.remove(visited.size() - 1);
   }
 }
