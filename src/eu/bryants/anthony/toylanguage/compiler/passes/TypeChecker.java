@@ -892,7 +892,8 @@ public class TypeChecker
         PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
         // disallow floating point types and booleans
         if (!leftPrimitiveType.isFloating() && !rightPrimitiveType.isFloating() &&
-            leftPrimitiveType != PrimitiveTypeType.BOOLEAN && rightPrimitiveType != PrimitiveTypeType.BOOLEAN)
+            leftPrimitiveType != PrimitiveTypeType.BOOLEAN && rightPrimitiveType != PrimitiveTypeType.BOOLEAN &&
+            !rightPrimitiveType.isSigned())
         {
           // we know that both types are integers here, and the shift operator should always take the type of the left argument,
           // so we will later convert the right type to the left type, whatever it is
