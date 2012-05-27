@@ -5,6 +5,7 @@ import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
 
@@ -29,12 +30,15 @@ public class StatementRule extends Rule<ParseType>
   private static final Production<ParseType> RETURN_PRODUCTION = new Production<ParseType>(ParseType.RETURN_STATEMENT);
   private static final Production<ParseType> WHILE_PRODUCTION  = new Production<ParseType>(ParseType.WHILE_STATEMENT);
 
+  private static final Production<ParseType> SHORTHAND_ASSIGN_PRODUCTION = new Production<ParseType>(ParseType.SHORTHAND_ASSIGNMENT, ParseType.SEMICOLON);
+
   private static final Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION, ParseType.SEMICOLON);
 
   @SuppressWarnings("unchecked")
   public StatementRule()
   {
-    super(ParseType.STATEMENT, ASSIGN_PRODUCTION, BLOCK_PRODUCTION, BREAK_PRODUCTION, CONTINUE_PRODUCTION, IF_PRODUCTION, FOR_PRODUCTION, INC_DEC_PRODUCTION, RETURN_PRODUCTION, WHILE_PRODUCTION, FUNCTION_CALL_PRODUCTION);
+    super(ParseType.STATEMENT, ASSIGN_PRODUCTION, BLOCK_PRODUCTION, BREAK_PRODUCTION, CONTINUE_PRODUCTION, IF_PRODUCTION, FOR_PRODUCTION, INC_DEC_PRODUCTION,
+                               RETURN_PRODUCTION, WHILE_PRODUCTION, SHORTHAND_ASSIGN_PRODUCTION, FUNCTION_CALL_PRODUCTION);
   }
 
   /**
@@ -45,9 +49,16 @@ public class StatementRule extends Rule<ParseType>
   {
     if (production == ASSIGN_PRODUCTION   || production == BLOCK_PRODUCTION  || production == BREAK_PRODUCTION   ||
         production == CONTINUE_PRODUCTION || production == IF_PRODUCTION     || production == FOR_PRODUCTION     ||
-        production == INC_DEC_PRODUCTION  || production == RETURN_PRODUCTION || production == WHILE_PRODUCTION)
+        production == INC_DEC_PRODUCTION  || production == RETURN_PRODUCTION   || production == WHILE_PRODUCTION)
     {
       return args[0];
+    }
+    if (production == SHORTHAND_ASSIGN_PRODUCTION)
+    {
+      // re-create the ShorthandAssignStatement to add the LexicalPhrase from the semicolon
+      ShorthandAssignStatement oldStatement = (ShorthandAssignStatement) args[0];
+      return new ShorthandAssignStatement(oldStatement.getAssignees(), oldStatement.getOperator(), oldStatement.getExpression(),
+                                          LexicalPhrase.combine(oldStatement.getLexicalPhrase(), (LexicalPhrase) args[1]));
     }
     if (production == FUNCTION_CALL_PRODUCTION)
     {

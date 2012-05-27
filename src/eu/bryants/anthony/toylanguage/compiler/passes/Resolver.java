@@ -53,6 +53,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.ForStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
@@ -454,6 +455,66 @@ public class Resolver
       {
         resolve(returnedExpression, enclosingBlock, enclosingDefinition, compilationUnit);
       }
+    }
+    else if (statement instanceof ShorthandAssignStatement)
+    {
+      ShorthandAssignStatement shorthandAssignStatement = (ShorthandAssignStatement) statement;
+      for (Assignee assignee : shorthandAssignStatement.getAssignees())
+      {
+        if (assignee instanceof VariableAssignee)
+        {
+          VariableAssignee variableAssignee = (VariableAssignee) assignee;
+          Variable variable = enclosingBlock.getVariable(variableAssignee.getVariableName());
+          if (variable == null && enclosingDefinition != null)
+          {
+            Field field = enclosingDefinition.getField(variableAssignee.getVariableName());
+            if (field != null)
+            {
+              variable = field.getMemberVariable();
+            }
+          }
+          if (variable == null)
+          {
+            throw new NameNotResolvedException("Unable to resolve: " + variableAssignee.getVariableName(), variableAssignee.getLexicalPhrase());
+          }
+          variableAssignee.setResolvedVariable(variable);
+        }
+        else if (assignee instanceof ArrayElementAssignee)
+        {
+          ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
+          resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+          resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+        }
+        else if (assignee instanceof FieldAssignee)
+        {
+          FieldAssignee fieldAssignee = (FieldAssignee) assignee;
+          resolve(fieldAssignee.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+          String fieldName = fieldAssignee.getName();
+
+          // find the type of the expression, by calling the type checker
+          // this is fine as long as we resolve all of the expression first
+          Type expressionType = TypeChecker.checkTypes(fieldAssignee.getExpression(), compilationUnit);
+          Set<Member> memberSet = expressionType.getMembers(fieldName);
+          if (memberSet.isEmpty())
+          {
+            throw new NameNotResolvedException("No such member \"" + fieldName + "\" for type " + expressionType, assignee.getLexicalPhrase());
+          }
+          if (memberSet.size() > 1)
+          {
+            throw new ConceptualException("Multiple members have the name '" + fieldName + "'", assignee.getLexicalPhrase());
+          }
+          fieldAssignee.setResolvedMember(memberSet.iterator().next());
+        }
+        else if (assignee instanceof BlankAssignee)
+        {
+          // do nothing, this assignee doesn't actually get assigned to
+        }
+        else
+        {
+          throw new IllegalStateException("Unknown Assignee type: " + assignee);
+        }
+      }
+      resolve(shorthandAssignStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
     }
     else if (statement instanceof WhileStatement)
     {

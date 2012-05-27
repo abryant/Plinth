@@ -1,82 +1,47 @@
-compound foo
+compound complex
 {
-  uint someField;
-  foo(uint someField)
+  double real;
+  double imag;
+  complex()
   {
-    someField = someField+2;
-    this.someField = someField;
-    accessField(this);
+    real, imag = 0, 0;
   }
-  void test(uint a)
+  complex(double real, double imag)
   {
-    someField = a;
+    this.real, this.imag = real, imag;
+  }
+  complex(double real)
+  {
+    this.real, this.imag = real, 0;
+  }
+  double getReal()
+  {
+    return real;
+  }
+  double getImag()
+  {
+    return imag;
+  }
+  :complex mult(:complex other)
+  {
+    return complex(real * other.real - imag * other.imag, real * other.imag + other.real * imag);
+  }
+  :complex add(:complex other)
+  {
+    return complex(real + other.real, imag + other.imag);
+  }
+  :complex subtract(:complex other)
+  {
+    return complex(real - other.real, imag - other.imag);
   }
 }
 
 uint main(uint argc)
 {
-  for (uint i;false;)
-  {
-  }
+  argc, argc %%= 5, 3;
 
-  []uint someArray = new []uint {0, 1, 2, 3};
-  --argc;
-  if (argc > 2)
-  {
-    reverse(someArray);
-  }
-
-  uint foob = 4 * (4 * (4 * someArray[0] + someArray[1]) + someArray[2]) + someArray[3];
-
-  :foo test = foo(2);
-  test.someField = 67;
-  if argc > 1
-  {
-    test.test(123);
-  }
-
-  []uint temp = new [1]uint;
-  []long arr = new [2]long;
-  // should put 27 in temp[0], due to the order of evaluation of the function calls in an array assignment
-  array(arr, temp)[dimension(temp)] = value(temp);
-  return test.someField + ((temp[0] ^ foob) == 0 ? 5 : 13);
-  
-}
-
-void accessField(:foo p)
-{
-  uint f = p.someField;
-}
-
-:foo doStuff((:foo, short) param)
-{
-  _,_ = param;
-  return foo(5);
-}
-
-[]long array([]long arr, []uint temp)
-{
-  temp[0] = 4 * temp[0] + 1;
-  return arr;
-}
-
-uint dimension([]uint temp)
-{
-  temp[0] = 4 * temp[0] + 2;
-  return 0;
-}
-long value([]uint temp)
-{
-  temp[0] = (temp[0] << 2) + 3;
-  return 123;
-}
-
-void reverse([]uint arr)
-{
-  uint i = 0;
-  while (i < arr.length / 2)
-  {
-    arr[i], arr[arr.length - 1 - i] = arr[arr.length - 1 - i], arr[i];
-    i = i + 1;
-  }
+  :complex c = complex(argc);
+  :complex rot = complex(0, 1);
+  :complex rotated = c.mult(rot);
+  return cast<uint> rotated.getImag();
 }

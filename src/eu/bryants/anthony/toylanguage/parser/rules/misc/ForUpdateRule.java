@@ -26,13 +26,14 @@ public class ForUpdateRule extends Rule<ParseType>
   private static final Production<ParseType> INCREMENT_PRODUCTION = new Production<ParseType>(ParseType.DOUBLE_PLUS, ParseType.ASSIGNEE);
   private static final Production<ParseType> DECREMENT_PRODUCTION = new Production<ParseType>(ParseType.DOUBLE_MINUS, ParseType.ASSIGNEE);
   private static final Production<ParseType> ASSIGNMENT_PRODUCTION = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.EQUALS, ParseType.TUPLE_EXPRESSION);
+  private static final Production<ParseType> SHORTHAND_ASSIGN_PRODUCTION = new Production<ParseType>(ParseType.SHORTHAND_ASSIGNMENT);
   private static final Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION);
   private static final Production<ParseType> EMPTY_PRODUCTION = new Production<ParseType>();
 
   @SuppressWarnings("unchecked")
   public ForUpdateRule()
   {
-    super(ParseType.FOR_UPDATE, INCREMENT_PRODUCTION, DECREMENT_PRODUCTION, ASSIGNMENT_PRODUCTION, FUNCTION_CALL_PRODUCTION, EMPTY_PRODUCTION);
+    super(ParseType.FOR_UPDATE, INCREMENT_PRODUCTION, DECREMENT_PRODUCTION, ASSIGNMENT_PRODUCTION, SHORTHAND_ASSIGN_PRODUCTION, FUNCTION_CALL_PRODUCTION, EMPTY_PRODUCTION);
   }
 
   /**
@@ -57,6 +58,10 @@ public class ForUpdateRule extends Rule<ParseType>
       ParseList<Assignee> assignees = (ParseList<Assignee>) args[0];
       Expression expression = (Expression) args[2];
       return new AssignStatement(null, assignees.toArray(new Assignee[assignees.size()]), expression, LexicalPhrase.combine(assignees.getLexicalPhrase(), (LexicalPhrase) args[1], expression.getLexicalPhrase()));
+    }
+    if (production == SHORTHAND_ASSIGN_PRODUCTION)
+    {
+      return args[0];
     }
     if (production == FUNCTION_CALL_PRODUCTION)
     {

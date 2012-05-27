@@ -50,6 +50,8 @@ import eu.bryants.anthony.toylanguage.ast.statement.ForStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ShorthandAssignStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ShorthandAssignStatement.ShorthandAssignmentOperator;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
@@ -384,6 +386,135 @@ public class TypeChecker
         if (!returnType.canAssign(exprType))
         {
           throw new ConceptualException("Cannot return an expression of type '" + exprType + "' from a function with return type '" + returnType + "'", statement.getLexicalPhrase());
+        }
+      }
+    }
+    else if (statement instanceof ShorthandAssignStatement)
+    {
+      ShorthandAssignStatement shorthandAssignStatement = (ShorthandAssignStatement) statement;
+      Assignee[] assignees = shorthandAssignStatement.getAssignees();
+      Type[] types = new Type[assignees.length];
+      for (int i = 0; i < assignees.length; ++i)
+      {
+        if (assignees[i] instanceof VariableAssignee)
+        {
+          VariableAssignee variableAssignee = (VariableAssignee) assignees[i];
+          types[i] = variableAssignee.getResolvedVariable().getType();
+          variableAssignee.setResolvedType(types[i]);
+        }
+        else if (assignees[i] instanceof ArrayElementAssignee)
+        {
+          ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
+          Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression(), compilationUnit);
+          if (!(arrayType instanceof ArrayType))
+          {
+            throw new ConceptualException("Array assignments are not defined for the type " + arrayType, arrayElementAssignee.getLexicalPhrase());
+          }
+          Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression(), compilationUnit);
+          if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
+          {
+            throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, arrayElementAssignee.getDimensionExpression().getLexicalPhrase());
+          }
+          types[i] = ((ArrayType) arrayType).getBaseType();
+          arrayElementAssignee.setResolvedType(types[i]);
+        }
+        else if (assignees[i] instanceof FieldAssignee)
+        {
+          FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
+          // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member
+          // Type type = checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
+          Member member = fieldAssignee.getResolvedMember();
+          if (member instanceof ArrayLengthMember)
+          {
+            throw new ConceptualException("Cannot assign to an array's length", fieldAssignee.getLexicalPhrase());
+          }
+          else if (member instanceof Field)
+          {
+            types[i] = ((Field) member).getType();
+          }
+          else if (member instanceof Method)
+          {
+            throw new ConceptualException("Cannot assign to a method", fieldAssignee.getLexicalPhrase());
+          }
+          else
+          {
+            throw new IllegalStateException("Unknown member type in a FieldAccessExpression: " + member);
+          }
+          fieldAssignee.setResolvedType(types[i]);
+        }
+        else if (assignees[i] instanceof BlankAssignee)
+        {
+          // this assignee doesn't actually get assigned to, so leave its type as null
+          types[i] = null;
+          assignees[i].setResolvedType(null);
+        }
+        else
+        {
+          throw new IllegalStateException("Unknown Assignee type: " + assignees[i]);
+        }
+      }
+      Type expressionType = checkTypes(shorthandAssignStatement.getExpression(), compilationUnit);
+      Type[] rightTypes;
+      if (expressionType instanceof TupleType && ((TupleType) expressionType).getSubTypes().length == assignees.length)
+      {
+        TupleType expressionTupleType = (TupleType) expressionType;
+        rightTypes = expressionTupleType.getSubTypes();
+      }
+      else
+      {
+        rightTypes = new Type[assignees.length];
+        for (int i = 0; i < rightTypes.length; ++i)
+        {
+          rightTypes[i] = expressionType;
+        }
+      }
+
+      ShorthandAssignmentOperator operator = shorthandAssignStatement.getOperator();
+      for (int i = 0; i < assignees.length; ++i)
+      {
+        Type left = types[i];
+        Type right = rightTypes[i];
+        if (left == null)
+        {
+          // the left hand side is a blank assignee, so pretend it is the same type as the right hand side
+          left = right;
+          types[i] = left;
+          assignees[i].setResolvedType(left);
+        }
+        if (!(left instanceof PrimitiveType) || !(right instanceof PrimitiveType))
+        {
+          throw new ConceptualException("The operator '" + operator + "' is not defined for types " + left + " and " + right, shorthandAssignStatement.getLexicalPhrase());
+        }
+        PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) left).getPrimitiveTypeType();
+        PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) right).getPrimitiveTypeType();
+        if (operator == ShorthandAssignmentOperator.AND || operator == ShorthandAssignmentOperator.OR || operator == ShorthandAssignmentOperator.XOR)
+        {
+          if (leftPrimitiveType.isFloating() || rightPrimitiveType.isFloating() || !left.canAssign(right))
+          {
+            throw new ConceptualException("The operator '" + operator + "' is not defined for types " + left + " and " + right, shorthandAssignStatement.getLexicalPhrase());
+          }
+        }
+        else if (operator == ShorthandAssignmentOperator.ADD || operator == ShorthandAssignmentOperator.SUBTRACT ||
+                 operator == ShorthandAssignmentOperator.MULTIPLY || operator == ShorthandAssignmentOperator.DIVIDE ||
+                 operator == ShorthandAssignmentOperator.REMAINDER || operator == ShorthandAssignmentOperator.MODULO)
+        {
+          if (leftPrimitiveType == PrimitiveTypeType.BOOLEAN || rightPrimitiveType == PrimitiveTypeType.BOOLEAN || !left.canAssign(right))
+          {
+            throw new ConceptualException("The operator '" + operator + "' is not defined for types " + left + " and " + right, shorthandAssignStatement.getLexicalPhrase());
+          }
+        }
+        else if (operator == ShorthandAssignmentOperator.LEFT_SHIFT || operator == ShorthandAssignmentOperator.RIGHT_SHIFT)
+        {
+          if (leftPrimitiveType.isFloating() || rightPrimitiveType.isFloating() ||
+              leftPrimitiveType == PrimitiveTypeType.BOOLEAN || rightPrimitiveType == PrimitiveTypeType.BOOLEAN ||
+              rightPrimitiveType.isSigned())
+          {
+            throw new ConceptualException("The operator '" + operator + "' is not defined for types " + left + " and " + right, shorthandAssignStatement.getLexicalPhrase());
+          }
+        }
+        else
+        {
+          throw new IllegalStateException("Unknown shorthand assignment operator: " + operator);
         }
       }
     }

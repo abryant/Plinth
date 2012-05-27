@@ -35,6 +35,7 @@ import eu.bryants.anthony.toylanguage.parser.rules.statement.ForStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.IfStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.PrefixIncDecStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.ReturnStatementRule;
+import eu.bryants.anthony.toylanguage.parser.rules.statement.ShorthandAssignmentRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementsRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.WhileStatementRule;
@@ -92,6 +93,7 @@ public class ToyLanguageRules
     new IfStatementRule(),
     new PrefixIncDecStatementRule(),
     new ReturnStatementRule(),
+    new ShorthandAssignmentRule(),
     new StatementRule(),
     new StatementsRule(),
     new WhileStatementRule(),

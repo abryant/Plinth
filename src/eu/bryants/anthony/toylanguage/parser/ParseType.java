@@ -36,13 +36,14 @@ public enum ParseType
   BLOCK,                         // Block
   STATEMENTS,                    // ParseList<Statement>
   STATEMENT,                     // Statement
-  ASSIGN_STATEMENT,              // Statement
+  ASSIGN_STATEMENT,              // AssignStatement
   BREAK_STATEMENT,               // BreakStatement
   CONTINUE_STATEMENT,            // ContinueStatement
   FOR_STATEMENT,                 // ForStatement
   IF_STATEMENT,                  // IfStatement
   PREFIX_INC_DEC_STATEMENT,      // PrefixIncDecStatement
   RETURN_STATEMENT,              // ReturnStatement
+  SHORTHAND_ASSIGNMENT,          // ShorthandAssignStatement
   WHILE_STATEMENT,               // WhileStatement
 
   // Types
@@ -73,31 +74,41 @@ public enum ParseType
 
   // symbols (values for these should all be LexicalPhrase)
   AMPERSAND,
+  AMPERSAND_EQUALS,
   CARET,
+  CARET_EQUALS,
   COLON,
   COMMA,
   DOUBLE_AMPERSAND,
   DOUBLE_EQUALS,
   DOUBLE_LANGLE,
+  DOUBLE_LANGLE_EQUALS,
   DOUBLE_MINUS,
   DOUBLE_PERCENT,
+  DOUBLE_PERCENT_EQUALS,
   DOUBLE_PIPE,
   DOUBLE_PLUS,
   DOUBLE_RANGLE,
+  DOUBLE_RANGLE_EQUALS,
   DOT,
   EQUALS,
   EXCLAIMATION_MARK,
   EXCLAIMATION_MARK_EQUALS,
   FORWARD_SLASH,
+  FORWARD_SLASH_EQUALS,
   LANGLE,
   LANGLE_EQUALS,
   LBRACE,
   LPAREN,
   LSQUARE,
   MINUS,
+  MINUS_EQUALS,
   PERCENT,
+  PERCENT_EQUALS,
   PIPE,
+  PIPE_EQUALS,
   PLUS,
+  PLUS_EQUALS,
   QUESTION_MARK,
   RANGLE,
   RANGLE_EQUALS,
@@ -106,6 +117,7 @@ public enum ParseType
   RSQUARE,
   SEMICOLON,
   STAR,
+  STAR_EQUALS,
   TILDE,
   UNDERSCORE,
 

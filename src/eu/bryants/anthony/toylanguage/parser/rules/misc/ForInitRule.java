@@ -19,13 +19,14 @@ public class ForInitRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.ASSIGN_STATEMENT);
+  private static final Production<ParseType> ASSIGN_PRODUCTION = new Production<ParseType>(ParseType.ASSIGN_STATEMENT);
+  private static final Production<ParseType> SHORTHAND_ASSIGN_PRODUCTION = new Production<ParseType>(ParseType.SHORTHAND_ASSIGNMENT, ParseType.SEMICOLON);
   private static final Production<ParseType> BLANK_PRODUCTION = new Production<ParseType>(ParseType.SEMICOLON);
 
   @SuppressWarnings("unchecked")
   public ForInitRule()
   {
-    super(ParseType.FOR_INIT, PRODUCTION, BLANK_PRODUCTION);
+    super(ParseType.FOR_INIT, ASSIGN_PRODUCTION, SHORTHAND_ASSIGN_PRODUCTION, BLANK_PRODUCTION);
   }
 
   /**
@@ -34,10 +35,15 @@ public class ForInitRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == PRODUCTION)
+    if (production == ASSIGN_PRODUCTION)
     {
-      Statement assign = (Statement) args[0];
-      return new ParseContainer<Statement>(assign, assign.getLexicalPhrase());
+      Statement statement = (Statement) args[0];
+      return new ParseContainer<Statement>(statement, statement.getLexicalPhrase());
+    }
+    if (production == SHORTHAND_ASSIGN_PRODUCTION)
+    {
+      Statement statement = (Statement) args[0];
+      return new ParseContainer<Statement>(statement, LexicalPhrase.combine(statement.getLexicalPhrase(), (LexicalPhrase) args[1]));
     }
     if (production == BLANK_PRODUCTION)
     {

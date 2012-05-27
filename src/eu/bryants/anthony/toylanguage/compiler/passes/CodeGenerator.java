@@ -64,6 +64,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.ForStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
@@ -694,6 +695,161 @@ public class CodeGenerator
           convertedValue = LLVM.LLVMBuildLoad(builder, convertedValue, "");
         }
         LLVM.LLVMBuildRet(builder, convertedValue);
+      }
+    }
+    else if (statement instanceof ShorthandAssignStatement)
+    {
+      ShorthandAssignStatement shorthandAssignStatement = (ShorthandAssignStatement) statement;
+      Assignee[] assignees = shorthandAssignStatement.getAssignees();
+      LLVMValueRef[] llvmAssigneePointers = new LLVMValueRef[assignees.length];
+      for (int i = 0; i < assignees.length; ++i)
+      {
+        if (assignees[i] instanceof VariableAssignee)
+        {
+          Variable resolvedVariable = ((VariableAssignee) assignees[i]).getResolvedVariable();
+          if (resolvedVariable instanceof MemberVariable)
+          {
+            Field field = ((MemberVariable) resolvedVariable).getField();
+            LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                         LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getIndex(), false)};
+            llvmAssigneePointers[i] = LLVM.LLVMBuildGEP(builder, thisValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+          }
+          else
+          {
+            llvmAssigneePointers[i] = variables.get(((VariableAssignee) assignees[i]).getResolvedVariable());
+          }
+        }
+        else if (assignees[i] instanceof ArrayElementAssignee)
+        {
+          ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
+          LLVMValueRef array = buildExpression(arrayElementAssignee.getArrayExpression(), llvmFunction, thisValue, variables);
+          LLVMValueRef dimension = buildExpression(arrayElementAssignee.getDimensionExpression(), llvmFunction, thisValue, variables);
+          LLVMValueRef convertedDimension = convertType(dimension, arrayElementAssignee.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE);
+          LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
+                                                       convertedDimension};
+          llvmAssigneePointers[i] = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
+        }
+        else if (assignees[i] instanceof FieldAssignee)
+        {
+          FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
+          if (fieldAssignee.getResolvedMember() instanceof Field)
+          {
+            Field field = (Field) fieldAssignee.getResolvedMember();
+            LLVMValueRef expressionValue = buildExpression(fieldAssignee.getExpression(), llvmFunction, thisValue, variables);
+            LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                         LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getIndex(), false)};
+            llvmAssigneePointers[i] = LLVM.LLVMBuildGEP(builder, expressionValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+          }
+          else
+          {
+            throw new IllegalArgumentException("Unknown member assigned to in a FieldAssignee: " + fieldAssignee.getResolvedMember());
+          }
+        }
+        else if (assignees[i] instanceof BlankAssignee)
+        {
+          // this assignee doesn't actually get assigned to
+          llvmAssigneePointers[i] = null;
+        }
+        else
+        {
+          throw new IllegalStateException("Unknown Assignee type: " + assignees[i]);
+        }
+      }
+
+      LLVMValueRef result = buildExpression(shorthandAssignStatement.getExpression(), llvmFunction, thisValue, variables);
+      Type resultType = shorthandAssignStatement.getExpression().getType();
+      LLVMValueRef[] resultValues = new LLVMValueRef[assignees.length];
+      Type[] resultValueTypes = new Type[assignees.length];
+      if (resultType instanceof TupleType && ((TupleType) resultType).getSubTypes().length == assignees.length)
+      {
+        Type[] subTypes = ((TupleType) resultType).getSubTypes();
+        for (int i = 0; i < assignees.length; ++i)
+        {
+          if (assignees[i] instanceof BlankAssignee)
+          {
+            continue;
+          }
+          resultValues[i] = LLVM.LLVMBuildExtractValue(builder, result, i, "");
+          resultValueTypes[i] = subTypes[i];
+        }
+      }
+      else
+      {
+        for (int i = 0; i < assignees.length; ++i)
+        {
+          resultValues[i] = result;
+          resultValueTypes[i] = resultType;
+        }
+      }
+      for (int i = 0; i < assignees.length; ++i)
+      {
+        if (llvmAssigneePointers[i] == null)
+        {
+          // this is a blank assignee, so don't try to do anything for it
+          continue;
+        }
+        LLVMValueRef leftValue = LLVM.LLVMBuildLoad(builder, llvmAssigneePointers[i], "");
+        LLVMValueRef rightValue = convertType(resultValues[i], resultValueTypes[i], assignees[i].getResolvedType());
+        PrimitiveTypeType primitiveType = ((PrimitiveType) assignees[i].getResolvedType()).getPrimitiveTypeType();
+        boolean floating = primitiveType.isFloating();
+        boolean signed = primitiveType.isSigned();
+        LLVMValueRef assigneeResult;
+        switch (shorthandAssignStatement.getOperator())
+        {
+        case AND:
+          assigneeResult = LLVM.LLVMBuildAnd(builder, leftValue, rightValue, "");
+          break;
+        case OR:
+          assigneeResult = LLVM.LLVMBuildOr(builder, leftValue, rightValue, "");
+          break;
+        case XOR:
+          assigneeResult = LLVM.LLVMBuildXor(builder, leftValue, rightValue, "");
+          break;
+        case ADD:
+          assigneeResult = floating ? LLVM.LLVMBuildFAdd(builder, leftValue, rightValue, "") : LLVM.LLVMBuildAdd(builder, leftValue, rightValue, "");
+          break;
+        case SUBTRACT:
+          assigneeResult = floating ? LLVM.LLVMBuildFSub(builder, leftValue, rightValue, "") : LLVM.LLVMBuildSub(builder, leftValue, rightValue, "");
+          break;
+        case MULTIPLY:
+          assigneeResult = floating ? LLVM.LLVMBuildFMul(builder, leftValue, rightValue, "") : LLVM.LLVMBuildMul(builder, leftValue, rightValue, "");
+          break;
+        case DIVIDE:
+          assigneeResult = floating ? LLVM.LLVMBuildFDiv(builder, leftValue, rightValue, "") : signed ? LLVM.LLVMBuildSDiv(builder, leftValue, rightValue, "") : LLVM.LLVMBuildUDiv(builder, leftValue, rightValue, "");
+          break;
+        case REMAINDER:
+          assigneeResult = floating ? LLVM.LLVMBuildFRem(builder, leftValue, rightValue, "") : signed ? LLVM.LLVMBuildSRem(builder, leftValue, rightValue, "") : LLVM.LLVMBuildURem(builder, leftValue, rightValue, "");
+          break;
+        case MODULO:
+          if (floating)
+          {
+            LLVMValueRef rem = LLVM.LLVMBuildFRem(builder, leftValue, rightValue, "");
+            LLVMValueRef add = LLVM.LLVMBuildFAdd(builder, rem, rightValue, "");
+            assigneeResult = LLVM.LLVMBuildFRem(builder, add, rightValue, "");
+          }
+          else if (signed)
+          {
+            LLVMValueRef rem = LLVM.LLVMBuildSRem(builder, leftValue, rightValue, "");
+            LLVMValueRef add = LLVM.LLVMBuildAdd(builder, rem, rightValue, "");
+            assigneeResult = LLVM.LLVMBuildSRem(builder, add, rightValue, "");
+          }
+          else
+          {
+            // unsigned modulo is the same as unsigned remainder
+            assigneeResult = LLVM.LLVMBuildURem(builder, leftValue, rightValue, "");
+          }
+          break;
+        case LEFT_SHIFT:
+          assigneeResult = LLVM.LLVMBuildShl(builder, leftValue, rightValue, "");
+          break;
+        case RIGHT_SHIFT:
+          assigneeResult = signed ? LLVM.LLVMBuildAShr(builder, leftValue, rightValue, "") : LLVM.LLVMBuildLShr(builder, leftValue, rightValue, "");
+          break;
+        default:
+          throw new IllegalStateException("Unknown shorthand assignment operator: " + shorthandAssignStatement.getOperator());
+        }
+        LLVM.LLVMBuildStore(builder, assigneeResult, llvmAssigneePointers[i]);
       }
     }
     else if (statement instanceof WhileStatement)

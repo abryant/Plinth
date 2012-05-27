@@ -52,6 +52,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.ForStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.IfStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ReturnStatement;
+import eu.bryants.anthony.toylanguage.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
 import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
@@ -390,6 +391,66 @@ public class ControlFlowChecker
         checkUninitializedVariables(returnedExpression, initializedVariables, inConstructor);
       }
       return true;
+    }
+    else if (statement instanceof ShorthandAssignStatement)
+    {
+      ShorthandAssignStatement shorthandAssignStatement = (ShorthandAssignStatement) statement;
+      for (Assignee assignee : shorthandAssignStatement.getAssignees())
+      {
+        if (assignee instanceof VariableAssignee)
+        {
+          VariableAssignee variableAssignee = (VariableAssignee) assignee;
+          if (!initializedVariables.contains(variableAssignee.getResolvedVariable()))
+          {
+            throw new ConceptualException("Variable '" + variableAssignee.getVariableName() + "' may not have been initialized", assignee.getLexicalPhrase());
+          }
+        }
+        else if (assignee instanceof ArrayElementAssignee)
+        {
+          ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
+          checkUninitializedVariables(arrayElementAssignee.getArrayExpression(), initializedVariables, inConstructor);
+          checkUninitializedVariables(arrayElementAssignee.getDimensionExpression(), initializedVariables, inConstructor);
+        }
+        else if (assignee instanceof FieldAssignee)
+        {
+          FieldAssignee fieldAssignee = (FieldAssignee) assignee;
+
+          Expression expression = fieldAssignee.getExpression();
+          while (expression instanceof BracketedExpression && inConstructor)
+          {
+            expression = ((BracketedExpression) expression).getExpression();
+          }
+          // if we're in a constructor, only check the sub-expression for uninitialized variables if it doesn't just access 'this'
+          // this allows the programmer to use fields before 'this' is fully initialized
+          if (expression instanceof ThisExpression && inConstructor)
+          {
+            Member resolvedMember = fieldAssignee.getResolvedMember();
+            if (resolvedMember instanceof Field)
+            {
+              Field field = (Field) resolvedMember;
+              if (!initializedVariables.contains(field.getMemberVariable()))
+              {
+                throw new ConceptualException("Field '" + fieldAssignee.getName() + "' may not have been initialized", assignee.getLexicalPhrase());
+              }
+            }
+          }
+          else
+          {
+            // otherwise (if we aren't in a constructor, or the base expression isn't 'this') check the uninitialized variables normally
+            checkUninitializedVariables(fieldAssignee.getExpression(), initializedVariables, inConstructor);
+          }
+        }
+        else if (assignee instanceof BlankAssignee)
+        {
+          // do nothing, this assignee doesn't actually get assigned to
+        }
+        else
+        {
+          throw new IllegalStateException("Unknown Assignee type: " + assignee);
+        }
+      }
+      checkUninitializedVariables(shorthandAssignStatement.getExpression(), initializedVariables, inConstructor);
+      return false;
     }
     else if (statement instanceof WhileStatement)
     {

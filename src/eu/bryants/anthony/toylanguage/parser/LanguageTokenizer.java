@@ -525,10 +525,19 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       {
         return makeSymbolToken(ParseType.DOUBLE_AMPERSAND, 2);
       }
+      if (secondChar == '=')
+      {
+        return makeSymbolToken(ParseType.AMPERSAND_EQUALS, 2);
+      }
       return makeSymbolToken(ParseType.AMPERSAND, 1);
     }
     if (nextChar == '^')
     {
+      int secondChar = reader.read(1);
+      if (secondChar == '=')
+      {
+        return makeSymbolToken(ParseType.CARET_EQUALS, 2);
+      }
       return makeSymbolToken(ParseType.CARET, 1);
     }
     if (nextChar == ':')
@@ -563,6 +572,11 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     }
     if (nextChar == '/')
     {
+      int secondChar = reader.read(1);
+      if (secondChar == '=')
+      {
+        return makeSymbolToken(ParseType.FORWARD_SLASH_EQUALS, 2);
+      }
       return makeSymbolToken(ParseType.FORWARD_SLASH, 1);
     }
     if (nextChar == '<')
@@ -574,6 +588,11 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       }
       if (secondChar == '<')
       {
+        int thirdChar = reader.read(2);
+        if (thirdChar == '=')
+        {
+          return makeSymbolToken(ParseType.DOUBLE_LANGLE_EQUALS, 3);
+        }
         return makeSymbolToken(ParseType.DOUBLE_LANGLE, 2);
       }
       return makeSymbolToken(ParseType.LANGLE, 1);
@@ -597,6 +616,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       {
         return makeSymbolToken(ParseType.DOUBLE_MINUS, 2);
       }
+      if (secondChar == '=')
+      {
+        return makeSymbolToken(ParseType.MINUS_EQUALS, 2);
+      }
       return makeSymbolToken(ParseType.MINUS, 1);
     }
     if (nextChar == '%')
@@ -604,7 +627,16 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       int secondChar = reader.read(1);
       if (secondChar == '%')
       {
+        int thirdChar = reader.read(2);
+        if (thirdChar == '=')
+        {
+          return makeSymbolToken(ParseType.DOUBLE_PERCENT_EQUALS, 3);
+        }
         return makeSymbolToken(ParseType.DOUBLE_PERCENT, 2);
+      }
+      if (secondChar == '=')
+      {
+        return makeSymbolToken(ParseType.PERCENT_EQUALS, 2);
       }
       return makeSymbolToken(ParseType.PERCENT, 1);
     }
@@ -615,6 +647,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       {
         return makeSymbolToken(ParseType.DOUBLE_PIPE, 2);
       }
+      if (secondChar == '=')
+      {
+        return makeSymbolToken(ParseType.PIPE_EQUALS, 2);
+      }
       return makeSymbolToken(ParseType.PIPE, 1);
     }
     if (nextChar == '+')
@@ -623,6 +659,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       if (secondChar == '+')
       {
         return makeSymbolToken(ParseType.DOUBLE_PLUS, 2);
+      }
+      if (secondChar == '=')
+      {
+        return makeSymbolToken(ParseType.PLUS_EQUALS, 2);
       }
       return makeSymbolToken(ParseType.PLUS, 1);
     }
@@ -639,6 +679,11 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       }
       if (secondChar == '>')
       {
+        int thirdChar = reader.read(2);
+        if (thirdChar == '=')
+        {
+          return makeSymbolToken(ParseType.DOUBLE_RANGLE_EQUALS, 3);
+        }
         return makeSymbolToken(ParseType.DOUBLE_RANGLE, 2);
       }
       return makeSymbolToken(ParseType.RANGLE, 1);
@@ -661,6 +706,11 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     }
     if (nextChar == '*')
     {
+      int secondChar = reader.read(1);
+      if (secondChar == '=')
+      {
+        return makeSymbolToken(ParseType.STAR_EQUALS, 2);
+      }
       return makeSymbolToken(ParseType.STAR, 1);
     }
     if (nextChar == '~')

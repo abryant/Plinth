@@ -22,6 +22,7 @@ Block = LBrace Statements RBrace
 
 Statements = epsilon | Statements Statement
 Statement = Assignment | Block | BreakStatement | ContinueStatement | ForStatement | IfStatement | PrefixIncDecStatement | ReturnStatement | WhileStatement |
+            ShorthandAssignment Semicolon |
             FunctionCallExpression Semicolon
 
 Assignee = Name |
@@ -36,10 +37,21 @@ ContinueStatement = ContinueKeyword Semicolon | ContinueKeyword IntegerLiteral S
 IfStatement = IfKeyword TupleExpression Block | IfKeyword TupleExpression Block ElseKeyword Block | IfKeyword TupleExpression Block ElseKeyword IfStatement
 PrefixIncDecStatement = DoublePlus Assignee Semicolon | DoubleMinus Assignee Semicolon
 ReturnStatement = ReturnKeyword TupleExpression Semicolon | ReturnKeyword Semicolon
+ShorthandAssignment = AssigneeList PlusEquals          TupleExpression |
+                      AssigneeList MinusEquals         TupleExpression |
+                      AssigneeList StarEquals          TupleExpression |
+                      AssigneeList ForwardSlashEquals  TupleExpression |
+                      AssigneeList PercentEquals       TupleExpression |
+                      AssigneeList DoublePercentEquals TupleExpression |
+                      AssigneeList DoubleLAngleEquals  TupleExpression |
+                      AssigneeList DoubleRAngleEquals  TupleExpression |
+                      AssigneeList AmpersandEquals     TupleExpression |
+                      AssigneeList PipeEquals          TupleExpression |
+                      AssigneeList CaretEquals         TupleExpression
 WhileStatement = WhileKeyword TupleExpression Block
 
-ForInit = Assignment | Semicolon
-ForUpdate = DoublePlus Assignee | DoubleMinus Assignee | AssigneeList Equals TupleExpression | FunctionCallExpression | epsilon
+ForInit = Assignment | ShorthandAssignment Semicolon | Semicolon
+ForUpdate = DoublePlus Assignee | DoubleMinus Assignee | AssigneeList Equals TupleExpression | ShorthandAssignment | FunctionCallExpression | epsilon
 ForStatement = ForKeyword LParen ForInit TupleExpression Semicolon ForUpdate RParen Block
              | ForKeyword LParen ForInit Semicolon ForUpdate RParen Block
 
