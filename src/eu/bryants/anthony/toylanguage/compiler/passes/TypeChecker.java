@@ -837,20 +837,6 @@ public class TypeChecker
             logicalExpression.setType(rightType);
             return rightType;
           }
-          // allow conversion from signed to unsigned values of the same bit length here
-          if (leftPrimitiveType.getBitCount() == rightPrimitiveType.getBitCount())
-          {
-            if (leftPrimitiveType.isSigned() && !rightPrimitiveType.isSigned())
-            {
-              logicalExpression.setType(rightType);
-              return rightType;
-            }
-            if (!leftPrimitiveType.isSigned() && rightPrimitiveType.isSigned())
-            {
-              logicalExpression.setType(leftType);
-              return leftType;
-            }
-          }
         }
       }
       throw new ConceptualException("The operator '" + logicalExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", logicalExpression.getLexicalPhrase());
