@@ -34,6 +34,7 @@ import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
+import eu.bryants.anthony.toylanguage.ast.metadata.MemberVariable;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
@@ -160,6 +161,8 @@ public class ControlFlowChecker
           {
             expression = ((BracketedExpression) expression).getExpression();
           }
+          // if we're in a constructor, only check the sub-expression for uninitialized variables if it doesn't just access 'this'
+          // this allows the programmer to access fields before 'this' is fully initialized
           if (expression instanceof ThisExpression && inConstructor)
           {
             Member resolvedMember = fieldAssignee.getResolvedMember();
@@ -170,8 +173,7 @@ public class ControlFlowChecker
           }
           else
           {
-            // if we're in a constructor, only check the sub-expression for uninitialized variables if it doesn't just access 'this'
-            // this allows the programmer to access fields before 'this' is fully initialized
+            // otherwise (if we aren't in a constructor, or the base expression isn't 'this') check the uninitialized variables normally
             checkUninitializedVariables(fieldAssignee.getExpression(), initializedVariables, inConstructor);
           }
         }
@@ -599,7 +601,8 @@ public class ControlFlowChecker
     else if (expression instanceof VariableExpression)
     {
       VariableExpression variableExpression = (VariableExpression) expression;
-      if (!initializedVariables.contains(variableExpression.getResolvedVariable()))
+      Variable var = variableExpression.getResolvedVariable();
+      if (!initializedVariables.contains(var) && (inConstructor || !(var instanceof MemberVariable)))
       {
         throw new ConceptualException("Variable '" + variableExpression.getName() + "' may not have been initialized", variableExpression.getLexicalPhrase());
       }
