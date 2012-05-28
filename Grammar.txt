@@ -5,12 +5,13 @@ MemberList = epsilon |
              MemberList Field |
              MemberList Constructor |
              MemberList Method
-Field = Type Name Semicolon
-Constructor = Name LParen Parameters RParen Block
-Method = Type Name LParen Parameters RParen Block |
-         Type Name LParen            RParen Block |
-         VoidKeyword Name LParen Parameters RParen Block |
-         VoidKeyword Name LParen            RParen Block
+Modifiers = epsilon | Modifiers StaticKeyword
+Field = Modifiers Type Name Semicolon
+Constructor = Modifiers Name LParen Parameters RParen Block
+Method = Modifiers Type Name LParen Parameters RParen Block |
+         Modifiers Type Name LParen            RParen Block |
+         Modifiers VoidKeyword Name LParen Parameters RParen Block |
+         Modifiers VoidKeyword Name LParen            RParen Block
 
 Function = Type Name LParen Parameters RParen Block |
            Type Name LParen            RParen Block |

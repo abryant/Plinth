@@ -16,15 +16,17 @@ public class Field extends Member
 
   private Type type;
   private String name;
+  private boolean isStatic;
 
   private MemberVariable memberVariable;
   private int index;
 
-  public Field(Type type, String name, LexicalPhrase lexicalPhrase)
+  public Field(Type type, String name, boolean isStatic, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.type = type;
     this.name = name;
+    this.isStatic = isStatic;
   }
 
   /**
@@ -41,6 +43,14 @@ public class Field extends Member
   public String getName()
   {
     return name;
+  }
+
+  /**
+   * @return the isStatic
+   */
+  public boolean isStatic()
+  {
+    return isStatic;
   }
 
   /**
@@ -81,6 +91,6 @@ public class Field extends Member
   @Override
   public String toString()
   {
-    return type + " " + name + ";";
+    return (isStatic ? "static " : "") + type + " " + name + ";";
   }
 }

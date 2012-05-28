@@ -1,6 +1,7 @@
 package eu.bryants.anthony.toylanguage.parser;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -14,7 +15,7 @@ import java.util.List;
  * @author Anthony Bryant
  * @param <E> - the type of elements of the list
  */
-public class ParseList<E>
+public class ParseList<E> implements Iterable<E>
 {
 
   private List<E> list;
@@ -113,6 +114,15 @@ public class ParseList<E>
   public LexicalPhrase getLexicalPhrase()
   {
     return lexicalPhrase;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public Iterator<E> iterator()
+  {
+    return list.iterator();
   }
 
 }
