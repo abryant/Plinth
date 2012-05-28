@@ -1,7 +1,7 @@
 package eu.bryants.anthony.toylanguage.ast.expression;
 
+import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
-import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
  * Created on 10 Apr 2012

@@ -1,6 +1,6 @@
 package eu.bryants.anthony.toylanguage.compiler;
 
-import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 
 /*
  * Created on 3 Apr 2012

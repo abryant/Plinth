@@ -1,9 +1,9 @@
 package eu.bryants.anthony.toylanguage.ast.statement;
 
+import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
-import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
  * Created on 6 Apr 2012

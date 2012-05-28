@@ -1,5 +1,6 @@
 package eu.bryants.anthony.toylanguage.parser;
 
+import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import parser.ParseException;
 
 /*

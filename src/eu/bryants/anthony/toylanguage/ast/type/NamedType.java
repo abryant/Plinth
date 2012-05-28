@@ -4,10 +4,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
+import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
-import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
  * Created on 9 May 2012

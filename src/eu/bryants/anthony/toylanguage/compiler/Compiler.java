@@ -7,6 +7,7 @@ import parser.BadTokenException;
 import parser.ParseException;
 import parser.Token;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
+import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.toylanguage.ast.terminal.Name;
 import eu.bryants.anthony.toylanguage.compiler.passes.CodeGenerator;
@@ -15,7 +16,6 @@ import eu.bryants.anthony.toylanguage.compiler.passes.CycleChecker;
 import eu.bryants.anthony.toylanguage.compiler.passes.Resolver;
 import eu.bryants.anthony.toylanguage.compiler.passes.TypeChecker;
 import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
-import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
 import eu.bryants.anthony.toylanguage.parser.ToyLanguageParser;
 

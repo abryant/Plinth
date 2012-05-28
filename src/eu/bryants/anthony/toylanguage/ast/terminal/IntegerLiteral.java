@@ -2,7 +2,7 @@ package eu.bryants.anthony.toylanguage.ast.terminal;
 
 import java.math.BigInteger;
 
-import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 
 /*
  * Created on 2 Apr 2012

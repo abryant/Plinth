@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
-import eu.bryants.anthony.toylanguage.parser.LexicalPhrase;
 
 /*
  * Created on 2 Apr 2012

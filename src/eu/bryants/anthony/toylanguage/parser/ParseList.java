@@ -5,6 +5,8 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
+import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
+
 /*
  * Created on 5 Aug 2010
  */
