@@ -9,8 +9,8 @@ import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.PrefixIncDecStatement;
-import eu.bryants.anthony.toylanguage.parser.ParseList;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
+import eu.bryants.anthony.toylanguage.parser.parseAST.ParseList;
 
 /*
  * Created on 18 May 2012

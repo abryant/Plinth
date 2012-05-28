@@ -1,4 +1,4 @@
-package eu.bryants.anthony.toylanguage.parser;
+package eu.bryants.anthony.toylanguage.parser.parseAST;
 
 import java.util.ArrayList;
 import java.util.Iterator;

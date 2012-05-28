@@ -6,8 +6,8 @@ import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FunctionCallExpression;
-import eu.bryants.anthony.toylanguage.parser.ParseList;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
+import eu.bryants.anthony.toylanguage.parser.parseAST.ParseList;
 
 /*
  * Created on 16 Apr 2012

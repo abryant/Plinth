@@ -8,10 +8,10 @@ import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.terminal.Name;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
 import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
-import eu.bryants.anthony.toylanguage.parser.Modifier;
-import eu.bryants.anthony.toylanguage.parser.ModifierType;
-import eu.bryants.anthony.toylanguage.parser.ParseList;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
+import eu.bryants.anthony.toylanguage.parser.parseAST.Modifier;
+import eu.bryants.anthony.toylanguage.parser.parseAST.ModifierType;
+import eu.bryants.anthony.toylanguage.parser.parseAST.ParseList;
 
 /*
  * Created on 9 May 2012

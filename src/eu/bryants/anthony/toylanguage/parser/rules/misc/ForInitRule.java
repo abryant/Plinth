@@ -5,8 +5,8 @@ import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.statement.Statement;
-import eu.bryants.anthony.toylanguage.parser.ParseContainer;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
+import eu.bryants.anthony.toylanguage.parser.parseAST.ParseContainer;
 
 /*
  * Created on 18 May 2012

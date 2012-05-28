@@ -1,4 +1,4 @@
-package eu.bryants.anthony.toylanguage.parser;
+package eu.bryants.anthony.toylanguage.parser.parseAST;
 
 /*
  * Created on 28 May 2012
