@@ -15,7 +15,7 @@ public class LLVM
 {
   static
   {
-    Native.register("LLVM-3.0");
+    Native.register("LLVM-3.1");
   }
   public static class LLVMBasicBlockRef extends PointerType { /* custom type name */ }
   public static class LLVMBuilderRef extends PointerType { /* custom type name */ }
