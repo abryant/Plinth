@@ -46,6 +46,7 @@ import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
+import eu.bryants.anthony.toylanguage.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.toylanguage.ast.metadata.MemberVariable;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
@@ -90,6 +91,8 @@ public class CodeGenerator
   private LLVMModuleRef module;
   private LLVMBuilderRef builder;
 
+  private Map<GlobalVariable, LLVMValueRef> globalVariables = new HashMap<GlobalVariable, LLVMValueRef>();
+
   public CodeGenerator(CompilationUnit compilationUnit)
   {
     this.compilationUnit = compilationUnit;
@@ -99,6 +102,8 @@ public class CodeGenerator
 
   public void generate(String outputPath)
   {
+    // add all of the global (static) variables
+    addGlobalVariables();
     // add all of the LLVM functions, including constructors, methods, and normal functions
     addFunctions();
 
@@ -112,6 +117,38 @@ public class CodeGenerator
       addFunctionBody(f);
     }
     LLVM.LLVMWriteBitcodeToFile(module, outputPath);
+  }
+
+  private void addGlobalVariables()
+  {
+    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    {
+      for (Field field : compoundDefinition.getFields())
+      {
+        if (field.isStatic())
+        {
+          GlobalVariable globalVariable = field.getGlobalVariable();
+          LLVMValueRef value = LLVM.LLVMAddGlobal(module, findNativeType(field.getType()), globalVariable.getMangledName());
+          LLVM.LLVMSetInitializer(value, findDefaultValue(field.getType()));
+          globalVariables.put(globalVariable, value);
+        }
+      }
+    }
+  }
+
+  private LLVMValueRef getGlobal(GlobalVariable globalVariable)
+  {
+    LLVMValueRef value = globalVariables.get(globalVariable);
+    if (value != null)
+    {
+      return value;
+    }
+    // lazily initialise globals which do not yet exist
+    Type type = globalVariable.getType();
+    LLVMValueRef newValue = LLVM.LLVMAddGlobal(module, findNativeType(type), globalVariable.getMangledName());
+    LLVM.LLVMSetInitializer(newValue, findDefaultValue(type));
+    globalVariables.put(globalVariable, newValue);
+    return newValue;
   }
 
   private void addFunctions()
@@ -253,8 +290,8 @@ public class CodeGenerator
     {
       NamedType namedType = (NamedType) type;
       CompoundDefinition compound = namedType.getResolvedDefinition();
-      Field[] fields = compound.getFields();
-      LLVMTypeRef[] llvmSubTypes = new LLVMTypeRef[compound.getFields().length];
+      Field[] fields = compound.getNonStaticFields();
+      LLVMTypeRef[] llvmSubTypes = new LLVMTypeRef[fields.length];
       for (int i = 0; i < fields.length; i++)
       {
         llvmSubTypes[i] = findNativeType(fields[i].getType());
@@ -266,6 +303,49 @@ public class CodeGenerator
       return LLVM.LLVMVoidType();
     }
     throw new IllegalStateException("Unexpected Type: " + type);
+  }
+
+  private LLVMValueRef findDefaultValue(Type type)
+  {
+    if (type instanceof PrimitiveType)
+    {
+      PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
+      if (primitiveTypeType.isFloating())
+      {
+        return LLVM.LLVMConstReal(findNativeType(type), 0.0);
+      }
+      return LLVM.LLVMConstInt(findNativeType(type), 0, false);
+    }
+    if (type instanceof ArrayType)
+    {
+      // TODO: enforce that this is nullable
+      return LLVM.LLVMConstNull(findNativeType(type));
+    }
+    if (type instanceof TupleType)
+    {
+      TupleType tupleType = (TupleType) type;
+      Type[] subTypes = tupleType.getSubTypes();
+      LLVMValueRef[] constantValues = new LLVMValueRef[subTypes.length];
+      for (int i = 0; i < constantValues.length; ++i)
+      {
+        constantValues[i] = findDefaultValue(subTypes[i]);
+      }
+      return LLVM.LLVMConstStruct(C.toNativePointerArray(constantValues, false, true), constantValues.length, false);
+    }
+    if (type instanceof NamedType)
+    {
+      // TODO: when we have nullable value types, enforce that this is nullable, and return a null value instead of initialising things like this
+      NamedType namedType = (NamedType) type;
+      CompoundDefinition compound = namedType.getResolvedDefinition();
+      Field[] fields = compound.getNonStaticFields();
+      LLVMValueRef[] constantValues = new LLVMValueRef[fields.length];
+      for (int i = 0; i < fields.length; ++i)
+      {
+        constantValues[i] = findDefaultValue(fields[i].getType());
+      }
+      return LLVM.LLVMConstStruct(C.toNativePointerArray(constantValues, false, true), constantValues.length, false);
+    }
+    throw new IllegalArgumentException("Unexpected Type: " + type);
   }
 
   private void addConstructorBodies(CompoundDefinition compoundDefinition)
@@ -412,8 +492,12 @@ public class CodeGenerator
           {
             Field field = ((MemberVariable) resolvedVariable).getField();
             LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                         LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getIndex(), false)};
+                                                         LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getMemberIndex(), false)};
             llvmAssigneePointers[i] = LLVM.LLVMBuildGEP(builder, thisValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+          }
+          else if (resolvedVariable instanceof GlobalVariable)
+          {
+            llvmAssigneePointers[i] = getGlobal((GlobalVariable) resolvedVariable);
           }
           else
           {
@@ -434,17 +518,25 @@ public class CodeGenerator
         else if (assignees[i] instanceof FieldAssignee)
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
-          if (fieldAssignee.getResolvedMember() instanceof Field)
+          FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
+          if (fieldAccessExpression.getResolvedMember() instanceof Field)
           {
-            Field field = (Field) fieldAssignee.getResolvedMember();
-            LLVMValueRef expressionValue = buildExpression(fieldAssignee.getExpression(), llvmFunction, thisValue, variables);
-            LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                         LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getIndex(), false)};
-            llvmAssigneePointers[i] = LLVM.LLVMBuildGEP(builder, expressionValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+            Field field = (Field) fieldAccessExpression.getResolvedMember();
+            if (field.isStatic())
+            {
+              llvmAssigneePointers[i] = getGlobal(field.getGlobalVariable());
+            }
+            else
+            {
+              LLVMValueRef expressionValue = buildExpression(fieldAccessExpression.getBaseExpression(), llvmFunction, thisValue, variables);
+              LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                           LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getMemberIndex(), false)};
+              llvmAssigneePointers[i] = LLVM.LLVMBuildGEP(builder, expressionValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+            }
           }
           else
           {
-            throw new IllegalArgumentException("Unknown member assigned to in a FieldAssignee: " + fieldAssignee.getResolvedMember());
+            throw new IllegalArgumentException("Unknown member assigned to in a FieldAssignee: " + fieldAccessExpression.getResolvedMember());
           }
         }
         else if (assignees[i] instanceof BlankAssignee)
@@ -711,8 +803,12 @@ public class CodeGenerator
           {
             Field field = ((MemberVariable) resolvedVariable).getField();
             LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                         LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getIndex(), false)};
+                                                         LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getMemberIndex(), false)};
             llvmAssigneePointers[i] = LLVM.LLVMBuildGEP(builder, thisValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+          }
+          else if (resolvedVariable instanceof GlobalVariable)
+          {
+            llvmAssigneePointers[i] = getGlobal((GlobalVariable) resolvedVariable);
           }
           else
           {
@@ -733,17 +829,25 @@ public class CodeGenerator
         else if (assignees[i] instanceof FieldAssignee)
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
-          if (fieldAssignee.getResolvedMember() instanceof Field)
+          FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
+          if (fieldAccessExpression.getResolvedMember() instanceof Field)
           {
-            Field field = (Field) fieldAssignee.getResolvedMember();
-            LLVMValueRef expressionValue = buildExpression(fieldAssignee.getExpression(), llvmFunction, thisValue, variables);
-            LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                         LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getIndex(), false)};
-            llvmAssigneePointers[i] = LLVM.LLVMBuildGEP(builder, expressionValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+            Field field = (Field) fieldAccessExpression.getResolvedMember();
+            if (field.isStatic())
+            {
+              llvmAssigneePointers[i] = getGlobal(field.getGlobalVariable());
+            }
+            else
+            {
+              LLVMValueRef expressionValue = buildExpression(fieldAccessExpression.getBaseExpression(), llvmFunction, thisValue, variables);
+              LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                           LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getMemberIndex(), false)};
+              llvmAssigneePointers[i] = LLVM.LLVMBuildGEP(builder, expressionValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+            }
           }
           else
           {
-            throw new IllegalArgumentException("Unknown member assigned to in a FieldAssignee: " + fieldAssignee.getResolvedMember());
+            throw new IllegalArgumentException("Unknown member assigned to in a FieldAssignee: " + fieldAccessExpression.getResolvedMember());
           }
         }
         else if (assignees[i] instanceof BlankAssignee)
@@ -1265,7 +1369,7 @@ public class CodeGenerator
       Member member = fieldAccessExpression.getResolvedMember();
       if (member instanceof ArrayLengthMember)
       {
-        LLVMValueRef array = buildExpression(fieldAccessExpression.getExpression(), llvmFunction, thisValue, variables);
+        LLVMValueRef array = buildExpression(fieldAccessExpression.getBaseExpression(), llvmFunction, thisValue, variables);
         LLVMValueRef[] sizeIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                          LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
         LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(sizeIndices, false, true), sizeIndices.length, "");
@@ -1274,9 +1378,20 @@ public class CodeGenerator
       if (member instanceof Field)
       {
         Field field = (Field) member;
-        LLVMValueRef baseValue = buildExpression(fieldAccessExpression.getExpression(), llvmFunction, thisValue, variables);
+        if (field.isStatic())
+        {
+          LLVMValueRef global = getGlobal(field.getGlobalVariable());
+          if (field.getType() instanceof NamedType) // TODO (when it doesn't cause a warning): && ((NamedType) field.getType()).getResolvedDefinition() instanceof CompoundDefinition)
+          {
+            // for compound types, we do not need to load anything here
+            return global;
+          }
+          return LLVM.LLVMBuildLoad(builder, global, "");
+        }
+
+        LLVMValueRef baseValue = buildExpression(fieldAccessExpression.getBaseExpression(), llvmFunction, thisValue, variables);
         LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                     LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getIndex(), false)};
+                                                     LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getMemberIndex(), false)};
         LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, baseValue, C.toNativePointerArray(indices, false, true), indices.length, "");
         if (field.getType() instanceof NamedType) // TODO (when it doesn't cause a warning): && ((NamedType) field.getType()).getResolvedDefinition() instanceof CompoundDefinition)
         {
@@ -1375,13 +1490,21 @@ public class CodeGenerator
       else if (resolvedMethod != null)
       {
         LLVMValueRef llvmResolvedFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
-        LLVMValueRef[] realArguments = new LLVMValueRef[values.length + 1];
-        realArguments[0] = callee;
-        if (callee == null)
+        LLVMValueRef[] realArguments;
+        if (resolvedMethod.isStatic())
         {
-          realArguments[0] = thisValue;
+          realArguments = values;
         }
-        System.arraycopy(values, 0, realArguments, 1, values.length);
+        else
+        {
+          realArguments = new LLVMValueRef[values.length + 1];
+          realArguments[0] = callee;
+          if (callee == null)
+          {
+            realArguments[0] = thisValue;
+          }
+          System.arraycopy(values, 0, realArguments, 1, values.length);
+        }
         result = LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(realArguments, false, true), realArguments.length, "");
       }
       else if (resolvedBaseExpression != null)
@@ -1576,7 +1699,7 @@ public class CodeGenerator
       {
         Field field = ((MemberVariable) variable).getField();
         LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                     LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getIndex(), false)};
+                                                     LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getMemberIndex(), false)};
         LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, thisValue, C.toNativePointerArray(indices, false, true), indices.length, "");
         if (field.getType() instanceof NamedType) // TODO (when it doesn't cause a warning): && ((NamedType) field.getType()).getResolvedDefinition() instanceof CompoundDefinition)
         {
@@ -1584,6 +1707,16 @@ public class CodeGenerator
           return elementPointer;
         }
         return LLVM.LLVMBuildLoad(builder, elementPointer, "");
+      }
+      if (variable instanceof GlobalVariable)
+      {
+        LLVMValueRef global = getGlobal((GlobalVariable) variable);
+        if (expression.getType() instanceof NamedType) // TODO (when it doesn't cause a warning): && ((NamedType) field.getType()).getResolvedDefinition() instanceof CompoundDefinition)
+        {
+          // for compound types, we do not need to load anything here
+          return global;
+        }
+        return LLVM.LLVMBuildLoad(builder, global, "");
       }
       LLVMValueRef value = variables.get(variable);
       if (value == null)

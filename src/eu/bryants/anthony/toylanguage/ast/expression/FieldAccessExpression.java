@@ -2,6 +2,7 @@ package eu.bryants.anthony.toylanguage.ast.expression;
 
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
+import eu.bryants.anthony.toylanguage.ast.type.Type;
 
 /*
  * Created on 2 May 2012
@@ -12,7 +13,8 @@ import eu.bryants.anthony.toylanguage.ast.member.Member;
  */
 public class FieldAccessExpression extends Expression
 {
-  private Expression expression;
+  private Expression baseExpression;
+  private Type baseType;
   private String fieldName;
 
   private Member resolvedMember;
@@ -20,8 +22,40 @@ public class FieldAccessExpression extends Expression
   public FieldAccessExpression(Expression expression, String fieldName, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
-    this.expression = expression;
+    this.baseExpression = expression;
     this.fieldName = fieldName;
+  }
+
+  /**
+   * @return the baseExpression
+   */
+  public Expression getBaseExpression()
+  {
+    return baseExpression;
+  }
+
+  /**
+   * @param baseExpression - the baseExpression to set
+   */
+  public void setBaseExpression(Expression baseExpression)
+  {
+    this.baseExpression = baseExpression;
+  }
+
+  /**
+   * @return the baseType
+   */
+  public Type getBaseType()
+  {
+    return baseType;
+  }
+
+  /**
+   * @param baseType - the baseType to set
+   */
+  public void setBaseType(Type baseType)
+  {
+    this.baseType = baseType;
   }
 
   /**
@@ -41,14 +75,6 @@ public class FieldAccessExpression extends Expression
   }
 
   /**
-   * @return the expression
-   */
-  public Expression getExpression()
-  {
-    return expression;
-  }
-
-  /**
    * @return the fieldName
    */
   public String getFieldName()
@@ -62,6 +88,10 @@ public class FieldAccessExpression extends Expression
   @Override
   public String toString()
   {
-    return expression + "." + fieldName;
+    if (baseExpression != null)
+    {
+      return baseExpression + "." + fieldName;
+    }
+    return baseType + "." + fieldName;
   }
 }

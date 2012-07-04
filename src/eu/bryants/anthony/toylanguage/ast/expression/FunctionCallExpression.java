@@ -21,7 +21,7 @@ public class FunctionCallExpression extends Expression
   // * just a resolvedBaseExpression, which has a function type
   // * just a resolvedConstructor, and no resolvedBaseExpression
   // * just a resolvedFunction, and no resolvedBaseExpression
-  // * just a resolvedMethod, and no resolvedBaseExpression, in which case the method is assumed to be called on 'this'
+  // * just a resolvedMethod, and no resolvedBaseExpression, in which case the method is assumed to be called on 'this' (or on nothing, if the method is static)
   // * a resolvedMethod and a resolvedBaseExpression, in which case the base expression has a type has the resolved method as a member
   private Expression resolvedBaseExpression;
   private Function resolvedFunction;

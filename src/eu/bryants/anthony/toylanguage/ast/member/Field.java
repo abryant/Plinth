@@ -1,6 +1,7 @@
 package eu.bryants.anthony.toylanguage.ast.member;
 
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.toylanguage.ast.metadata.MemberVariable;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
 
@@ -19,7 +20,8 @@ public class Field extends Member
   private boolean isStatic;
 
   private MemberVariable memberVariable;
-  private int index;
+  private GlobalVariable globalVariable;
+  private int memberIndex;
 
   public Field(Type type, String name, boolean isStatic, LexicalPhrase lexicalPhrase)
   {
@@ -54,19 +56,19 @@ public class Field extends Member
   }
 
   /**
-   * @return the index
+   * @return the memberIndex
    */
-  public int getIndex()
+  public int getMemberIndex()
   {
-    return index;
+    return memberIndex;
   }
 
   /**
-   * @param index - the index to set
+   * @param memberIndex - the memberIndex to set
    */
-  public void setIndex(int index)
+  public void setMemberIndex(int memberIndex)
   {
-    this.index = index;
+    this.memberIndex = memberIndex;
   }
 
   /**
@@ -83,6 +85,22 @@ public class Field extends Member
   public void setMemberVariable(MemberVariable memberVariable)
   {
     this.memberVariable = memberVariable;
+  }
+
+  /**
+   * @return the globalVariable
+   */
+  public GlobalVariable getGlobalVariable()
+  {
+    return globalVariable;
+  }
+
+  /**
+   * @param globalVariable - the globalVariable to set
+   */
+  public void setGlobalVariable(GlobalVariable globalVariable)
+  {
+    this.globalVariable = globalVariable;
   }
 
   /**

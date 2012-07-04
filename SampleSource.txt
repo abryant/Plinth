@@ -1,5 +1,6 @@
 compound complex
 {
+  static :complex asdf;
   double real;
   double imag;
   complex()
@@ -32,16 +33,16 @@ compound complex
   }
   :complex subtract(:complex other)
   {
+    asdf = complex(1, 2);
     return complex(real - other.real, imag - other.imag);
   }
 }
 
 uint main(uint argc)
 {
-  argc, argc %%= 5, 3;
+  complex.asdf = complex(argc, 12);
 
-  :complex c = complex(argc);
   :complex rot = complex(0, 1);
-  :complex rotated = c.mult(rot);
-  return cast<uint> rotated.getImag();
+  complex.asdf = complex.asdf.mult(rot);
+  return cast<uint> complex.asdf.getImag();
 }

@@ -165,9 +165,10 @@ public class TypeChecker
         else if (assignees[i] instanceof FieldAssignee)
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
-          // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member
-          // Type type = checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
-          Member member = fieldAssignee.getResolvedMember();
+          FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
+          // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
+          // Type type = checkTypes(fieldAccessExpression.getBaseExpression(), compilationUnit);
+          Member member = fieldAccessExpression.getResolvedMember();
           Type type;
           if (member instanceof ArrayLengthMember)
           {
@@ -421,9 +422,10 @@ public class TypeChecker
         else if (assignees[i] instanceof FieldAssignee)
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
-          // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member
+          FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
+          // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
           // Type type = checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
-          Member member = fieldAssignee.getResolvedMember();
+          Member member = fieldAccessExpression.getResolvedMember();
           if (member instanceof ArrayLengthMember)
           {
             throw new ConceptualException("Cannot assign to an array's length", fieldAssignee.getLexicalPhrase());
@@ -725,7 +727,7 @@ public class TypeChecker
     else if (expression instanceof FieldAccessExpression)
     {
       FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
-      // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member
+      // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
       // Type type = checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
       Member member = fieldAccessExpression.getResolvedMember();
       Type type;

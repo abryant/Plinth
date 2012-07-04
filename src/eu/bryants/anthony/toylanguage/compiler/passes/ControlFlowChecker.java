@@ -86,11 +86,11 @@ public class ControlFlowChecker
           initializedVariables.add(p.getVariable());
         }
         checkControlFlow(constructor.getBlock(), initializedVariables, new LinkedList<BreakableStatement>(), true);
-        for (Field field : compoundDefinition.getFields())
+        for (Field field : compoundDefinition.getNonStaticFields())
         {
           if (!initializedVariables.contains(field.getMemberVariable()))
           {
-            throw new ConceptualException("Constructor does not always initialize the field: " + field.getName(), constructor.getLexicalPhrase());
+            throw new ConceptualException("Constructor does not always initialize the non-static field: " + field.getName(), constructor.getLexicalPhrase());
           }
         }
       }
@@ -155,27 +155,37 @@ public class ControlFlowChecker
         else if (assignees[i] instanceof FieldAssignee)
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
+          FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
 
           // if the field is being accessed on 'this' or '(this)' (to any number of brackets), then accept it as initialising that member variable
-          Expression expression = fieldAssignee.getExpression();
-          while (expression instanceof BracketedExpression && inConstructor)
+          Expression expression = fieldAccessExpression.getBaseExpression();
+          while (expression != null && expression instanceof BracketedExpression && inConstructor)
           {
             expression = ((BracketedExpression) expression).getExpression();
           }
-          // if we're in a constructor, only check the sub-expression for uninitialized variables if it doesn't just access 'this'
-          // this allows the programmer to access fields before 'this' is fully initialized
-          if (expression instanceof ThisExpression && inConstructor)
+          // if we're in a constructor, only check the sub-expression for uninitialised variables if it doesn't just access 'this'
+          // this allows the programmer to access fields before 'this' is fully initialised
+          if (expression != null && expression instanceof ThisExpression && inConstructor)
           {
-            Member resolvedMember = fieldAssignee.getResolvedMember();
+            Member resolvedMember = fieldAccessExpression.getResolvedMember();
             if (resolvedMember instanceof Field)
             {
+              if (((Field) resolvedMember).isStatic())
+              {
+                throw new IllegalStateException("Field Assignee on 'this' resolves to a static member: " + fieldAssignee);
+              }
               nowInitializedVariables.add(((Field) resolvedMember).getMemberVariable());
             }
           }
+          else if (fieldAccessExpression.getBaseExpression() != null)
+          {
+            // otherwise (if we aren't in a constructor, or the base expression isn't 'this', but we do have a base expression) check the uninitialised variables normally
+            checkUninitializedVariables(fieldAccessExpression.getBaseExpression(), initializedVariables, inConstructor);
+          }
           else
           {
-            // otherwise (if we aren't in a constructor, or the base expression isn't 'this') check the uninitialized variables normally
-            checkUninitializedVariables(fieldAssignee.getExpression(), initializedVariables, inConstructor);
+            // otherwise, we do not have a base expression, so we must have a base type, so the field must be static
+            // in this case, since static variables must always be initialised to a default value, the control flow checker does not need to check anything
           }
         }
         else if (assignees[i] instanceof BlankAssignee)
@@ -414,31 +424,8 @@ public class ControlFlowChecker
         else if (assignee instanceof FieldAssignee)
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignee;
-
-          Expression expression = fieldAssignee.getExpression();
-          while (expression instanceof BracketedExpression && inConstructor)
-          {
-            expression = ((BracketedExpression) expression).getExpression();
-          }
-          // if we're in a constructor, only check the sub-expression for uninitialized variables if it doesn't just access 'this'
-          // this allows the programmer to use fields before 'this' is fully initialized
-          if (expression instanceof ThisExpression && inConstructor)
-          {
-            Member resolvedMember = fieldAssignee.getResolvedMember();
-            if (resolvedMember instanceof Field)
-            {
-              Field field = (Field) resolvedMember;
-              if (!initializedVariables.contains(field.getMemberVariable()))
-              {
-                throw new ConceptualException("Field '" + fieldAssignee.getName() + "' may not have been initialized", assignee.getLexicalPhrase());
-              }
-            }
-          }
-          else
-          {
-            // otherwise (if we aren't in a constructor, or the base expression isn't 'this') check the uninitialized variables normally
-            checkUninitializedVariables(fieldAssignee.getExpression(), initializedVariables, inConstructor);
-          }
+          // treat this as a field access, and check for uninitialised variables as normal
+          checkUninitializedVariables(fieldAssignee.getFieldAccessExpression(), initializedVariables, inConstructor);
         }
         else if (assignee instanceof BlankAssignee)
         {
@@ -528,12 +515,16 @@ public class ControlFlowChecker
     else if (expression instanceof FieldAccessExpression)
     {
       FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
-      Expression subExpression = ((FieldAccessExpression) expression).getExpression();
-      while (subExpression instanceof BracketedExpression && inConstructor)
+      Expression subExpression = ((FieldAccessExpression) expression).getBaseExpression();
+
+      // if we're in a constructor, we only want to check the sub-expression for uninitialised variables if it doesn't just access 'this'
+      // this allows the programmer to access certain fields before 'this' is fully initialised
+      // if it isn't accessed on 'this', we don't care about the field access itself, as we assume that all fields on other objects are initialised when they are defined
+      while (subExpression != null && subExpression instanceof BracketedExpression && inConstructor)
       {
         subExpression = ((BracketedExpression) subExpression).getExpression();
       }
-      if (subExpression instanceof ThisExpression && inConstructor)
+      if (subExpression != null && subExpression instanceof ThisExpression && inConstructor)
       {
         Member resolvedMember = fieldAccessExpression.getResolvedMember();
         if (resolvedMember instanceof Field && !initializedVariables.contains(((Field) resolvedMember).getMemberVariable()))
@@ -541,12 +532,15 @@ public class ControlFlowChecker
           throw new ConceptualException("Field '" + ((Field) resolvedMember).getName() + "' may not have been initialized", fieldAccessExpression.getLexicalPhrase());
         }
       }
+      else if (subExpression != null)
+      {
+        // otherwise (if we aren't in a constructor, or the base expression isn't 'this', but we do have a base expression) check the uninitialised variables normally
+        checkUninitializedVariables(((FieldAccessExpression) expression).getBaseExpression(), initializedVariables, inConstructor);
+      }
       else
       {
-        // if we're in a constructor, only check the sub-expression for uninitialized variables if it doesn't just access 'this'
-        // this allows the programmer to access fields before 'this' is fully initialized
-        checkUninitializedVariables(((FieldAccessExpression) expression).getExpression(), initializedVariables, inConstructor);
-        // if it isn't accessed on 'this', we don't care about the field itself, we assume that all fields on other objects are initialised when they are defined
+        // otherwise, we do not have a base expression, so we must have a base type, so the field must be static
+        // in this case, since static variables must always be initialised to a default value, the control flow checker does not need to check anything
       }
     }
     else if (expression instanceof FloatingLiteralExpression)
@@ -567,11 +561,11 @@ public class ControlFlowChecker
         {
           // the type has already been resolved by the resolver, so we can access it here
           CompoundDefinition compoundDefinition = functionCallExpression.getResolvedMethod().getContainingDefinition();
-          for (Field field : compoundDefinition.getFields())
+          for (Field field : compoundDefinition.getNonStaticFields())
           {
             if (!initializedVariables.contains(field.getMemberVariable()))
             {
-              throw new ConceptualException("Cannot call methods on 'this' here. Not all of the fields of this '" + new NamedType(compoundDefinition) + "' have been initialized (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to assign to them before they're used", expression.getLexicalPhrase());
+              throw new ConceptualException("Cannot call methods on 'this' here. Not all of the non-static fields of this '" + new NamedType(compoundDefinition) + "' have been initialized (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to assign to them before they're used", expression.getLexicalPhrase());
             }
           }
         }
@@ -636,11 +630,11 @@ public class ControlFlowChecker
         // the type has already been resolved by the resolver, so we can access it here
         NamedType type = (NamedType) expression.getType();
         CompoundDefinition compoundDefinition = type.getResolvedDefinition();
-        for (Field field : compoundDefinition.getFields())
+        for (Field field : compoundDefinition.getNonStaticFields())
         {
           if (!initializedVariables.contains(field.getMemberVariable()))
           {
-            throw new ConceptualException("Cannot use 'this' here. Not all of the fields of this '" + type + "' have been initialized (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to assign to them before they're used", expression.getLexicalPhrase());
+            throw new ConceptualException("Cannot use 'this' here. Not all of the non-static fields of this '" + type + "' have been initialized (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to assign to them before they're used", expression.getLexicalPhrase());
           }
         }
       }

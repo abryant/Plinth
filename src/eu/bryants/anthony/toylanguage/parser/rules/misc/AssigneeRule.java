@@ -5,6 +5,7 @@ import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
+import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.BlankAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.FieldAssignee;
@@ -56,7 +57,8 @@ public class AssigneeRule extends Rule<ParseType>
     {
       Expression expression = (Expression) args[0];
       Name name = (Name) args[2];
-      return new FieldAssignee(expression, name.getName(), LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
+      FieldAccessExpression fieldAccess = new FieldAccessExpression(expression, name.getName(), LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
+      return new FieldAssignee(fieldAccess);
     }
     if (production == UNDERSCORE_PRODUCTION)
     {

@@ -46,7 +46,7 @@ public class CycleChecker
     {
       current = ((NamedType) fieldStack.get(fieldStack.size() - 1).getType()).getResolvedDefinition();
     }
-    for (Field field : current.getFields())
+    for (Field field : current.getNonStaticFields())
     {
       Type type = field.getType();
       if (type instanceof NamedType)

@@ -33,6 +33,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
+import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
@@ -293,7 +294,14 @@ public class Resolver
             Field field = enclosingDefinition.getField(variableAssignee.getVariableName());
             if (field != null)
             {
-              variable = field.getMemberVariable();
+              if (field.isStatic())
+              {
+                variable = field.getGlobalVariable();
+              }
+              else
+              {
+                variable = field.getMemberVariable();
+              }
             }
           }
           if (variable == null)
@@ -325,22 +333,8 @@ public class Resolver
         else if (assignees[i] instanceof FieldAssignee)
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
-          resolve(fieldAssignee.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
-          String fieldName = fieldAssignee.getName();
-
-          // find the type of the expression, by calling the type checker
-          // this is fine as long as we resolve all of the expression first
-          Type expressionType = TypeChecker.checkTypes(fieldAssignee.getExpression(), compilationUnit);
-          Set<Member> memberSet = expressionType.getMembers(fieldName);
-          if (memberSet.isEmpty())
-          {
-            throw new NameNotResolvedException("No such member \"" + fieldName + "\" for type " + expressionType, assignees[i].getLexicalPhrase());
-          }
-          if (memberSet.size() > 1)
-          {
-            throw new ConceptualException("Multiple members have the name '" + fieldName + "'", assignees[i].getLexicalPhrase());
-          }
-          fieldAssignee.setResolvedMember(memberSet.iterator().next());
+          // use the expression resolver to resolve the contained field access expression
+          resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
         }
         else if (assignees[i] instanceof BlankAssignee)
         {
@@ -470,7 +464,14 @@ public class Resolver
             Field field = enclosingDefinition.getField(variableAssignee.getVariableName());
             if (field != null)
             {
-              variable = field.getMemberVariable();
+              if (field.isStatic())
+              {
+                variable = field.getGlobalVariable();
+              }
+              else
+              {
+                variable = field.getMemberVariable();
+              }
             }
           }
           if (variable == null)
@@ -488,22 +489,8 @@ public class Resolver
         else if (assignee instanceof FieldAssignee)
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignee;
-          resolve(fieldAssignee.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
-          String fieldName = fieldAssignee.getName();
-
-          // find the type of the expression, by calling the type checker
-          // this is fine as long as we resolve all of the expression first
-          Type expressionType = TypeChecker.checkTypes(fieldAssignee.getExpression(), compilationUnit);
-          Set<Member> memberSet = expressionType.getMembers(fieldName);
-          if (memberSet.isEmpty())
-          {
-            throw new NameNotResolvedException("No such member \"" + fieldName + "\" for type " + expressionType, assignee.getLexicalPhrase());
-          }
-          if (memberSet.size() > 1)
-          {
-            throw new ConceptualException("Multiple members have the name '" + fieldName + "'", assignee.getLexicalPhrase());
-          }
-          fieldAssignee.setResolvedMember(memberSet.iterator().next());
+          // use the expression resolver to resolve the contained field access expression
+          resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
         }
         else if (assignee instanceof BlankAssignee)
         {
@@ -525,6 +512,104 @@ public class Resolver
     else
     {
       throw new ConceptualException("Internal name resolution error: Unknown statement type: " + statement, statement.getLexicalPhrase());
+    }
+  }
+
+  /**
+   * Checks through the specified possibly-nested FieldAccessExpression and, if appropriate, replaces some of the chain with a base type.
+   * This method will only ever resolve a name to a type if it fails to resolve it to a field.
+   * Once this method has finished running, the normal field access resolution must be run in order to finish resolving the fields.
+   * @param fieldAccessExpression - the FieldAccessExpression to check
+   * @param block - the enclosing block
+   * @param enclosingDefinition - the enclosing type definition
+   * @param compilationUnit - the enclosing compilation unit
+   * @throws ConceptualException - if a conceptual problem is found while resolving the field access' base type
+   * @throws NameNotResolvedException - if a name cannot be resolved at any point while resolving the field access' base type
+   */
+  private static void resolveFieldAccessType(FieldAccessExpression fieldAccessExpression, Block block, CompoundDefinition enclosingDefinition, CompilationUnit compilationUnit) throws ConceptualException, NameNotResolvedException
+  {
+    // build a stack of field accesses down until the field being accessed does not have a FieldAccessExpression as its base
+    Deque<FieldAccessExpression> fieldStack = new LinkedList<FieldAccessExpression>();
+    FieldAccessExpression current = fieldAccessExpression;
+    Expression baseExpr = null;
+    Type baseType = null;
+    while (current != null)
+    {
+      fieldStack.push(current);
+      baseExpr = current.getBaseExpression();
+      baseType = current.getBaseType();
+      if (baseExpr != null && baseExpr instanceof FieldAccessExpression)
+      {
+        current = (FieldAccessExpression) baseExpr;
+      }
+      else
+      {
+        current = null;
+      }
+    }
+
+    // find out what the type of the base of the stack is
+    // baseExpr/baseType is the expression/type which the field access at the top of the stack (which is the field access at the bottom level in the AST) points to, and we need to extract a currentType from it
+    Type currentType;
+    if (baseExpr != null)
+    {
+      if (baseExpr instanceof VariableExpression)
+      {
+        try
+        {
+          resolve(baseExpr, block, enclosingDefinition, compilationUnit);
+          // the base VariableExpression resolves to a variable, not a type, so return to resolve() so that it can finish resolution
+          return;
+        }
+        catch (NameNotResolvedException e)
+        {
+          CompoundDefinition compoundDefinition = compilationUnit.getCompoundDefinition(((VariableExpression) baseExpr).getName());
+          if (compoundDefinition == null)
+          {
+            throw e;
+          }
+          currentType = new NamedType(compoundDefinition);
+        }
+      }
+      else
+      {
+        // the base expression is not a variable access, so return to resolve() so that it can finish resolution
+        return;
+      }
+    }
+    else if (baseType != null)
+    {
+      currentType = baseType;
+    }
+    else
+    {
+      throw new IllegalStateException("Field access expression does not have a base: " + fieldStack.pop());
+    }
+
+    // the base VariableExpression resolves to compoundDefinition, so traverse up the hierarchy until the field resolves to a variable
+    while (!fieldStack.isEmpty())
+    {
+      FieldAccessExpression expression = fieldStack.pop();
+      expression.setBaseExpression(null);
+      expression.setBaseType(currentType);
+      if (fieldStack.isEmpty())
+      {
+        // always ignore the last FieldAccessExpression on the stack, so that we do not try to resolve() it and recursively call ourselves again with the same arguments
+        return;
+      }
+      try
+      {
+        resolve(expression, block, enclosingDefinition, compilationUnit);
+        // this field access resolves to a field, not a type, so return to resolve() so that it can finish resolution
+        return;
+      }
+      catch (NameNotResolvedException e)
+      {
+        // TODO: If/when we add nested types, add some code here to traverse down the field stack.
+        //       For now, only the base of the field access on the top of the stack can refer to a type.
+        //       So, since this field access cannot refer to a type yet, re-throw the exception.
+        throw e;
+      }
     }
   }
 
@@ -589,22 +674,71 @@ public class Resolver
     else if (expression instanceof FieldAccessExpression)
     {
       FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
+      resolveFieldAccessType(fieldAccessExpression, block, enclosingDefinition, compilationUnit);
       String fieldName = fieldAccessExpression.getFieldName();
-      resolve(fieldAccessExpression.getExpression(), block, enclosingDefinition, compilationUnit);
 
-      // find the type of the sub-expression, by calling the type checker
-      // this is fine as long as we resolve all of the sub-expression first
-      Type expressionType = TypeChecker.checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
-      Set<Member> memberSet = expressionType.getMembers(fieldName);
-      if (memberSet.isEmpty())
+      Type baseType;
+      boolean baseIsStatic;
+      if (fieldAccessExpression.getBaseExpression() != null)
       {
-        throw new NameNotResolvedException("No such member \"" + fieldName + "\" for type " + expressionType, fieldAccessExpression.getLexicalPhrase());
+        resolve(fieldAccessExpression.getBaseExpression(), block, enclosingDefinition, compilationUnit);
+
+        // find the type of the sub-expression, by calling the type checker
+        // this is fine as long as we resolve all of the sub-expression first
+        baseType = TypeChecker.checkTypes(fieldAccessExpression.getBaseExpression(), compilationUnit);
+        baseIsStatic = false;
       }
-      if (memberSet.size() > 1)
+      else if (fieldAccessExpression.getBaseType() != null)
       {
-        throw new ConceptualException("Multiple members have the name '" + fieldName + "'", fieldAccessExpression.getLexicalPhrase());
+        baseType = fieldAccessExpression.getBaseType();
+        baseIsStatic = true;
       }
-      fieldAccessExpression.setResolvedMember(memberSet.iterator().next());
+      else
+      {
+        throw new IllegalStateException("Unknown base type for a field access: " + fieldAccessExpression);
+      }
+
+      Set<Member> memberSet = baseType.getMembers(fieldName);
+      Set<Member> filtered = new HashSet<Member>();
+      for (Member member : memberSet)
+      {
+        if (member instanceof ArrayLengthMember)
+        {
+          if (baseIsStatic)
+          {
+            throw new ConceptualException("Cannot access the array length member statically", fieldAccessExpression.getLexicalPhrase());
+          }
+          filtered.add(member);
+        }
+        else if (member instanceof Field)
+        {
+          if (((Field) member).isStatic() == baseIsStatic)
+          {
+            filtered.add(member);
+          }
+        }
+        else if (member instanceof Method)
+        {
+          if (((Method) member).isStatic() == baseIsStatic)
+          {
+            filtered.add(member);
+          }
+        }
+        else
+        {
+          throw new IllegalStateException("Unknown member type: " + member);
+        }
+      }
+
+      if (filtered.isEmpty())
+      {
+        throw new NameNotResolvedException("No such " + (baseIsStatic ? "static" : "non-static") + " member \"" + fieldName + "\" for type " + baseType, fieldAccessExpression.getLexicalPhrase());
+      }
+      if (filtered.size() > 1)
+      {
+        throw new ConceptualException("Multiple " + (baseIsStatic ? "static" : "non-static") + " members have the name '" + fieldName + "'", fieldAccessExpression.getLexicalPhrase());
+      }
+      fieldAccessExpression.setResolvedMember(filtered.iterator().next());
     }
     else if (expression instanceof FloatingLiteralExpression)
     {
@@ -692,21 +826,45 @@ public class Resolver
       }
       else if (functionExpression instanceof FieldAccessExpression)
       {
-        String name = ((FieldAccessExpression) functionExpression).getFieldName();
-        Expression accessedExpression = ((FieldAccessExpression) functionExpression).getExpression();
+        FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) functionExpression;
+        String name = fieldAccessExpression.getFieldName();
 
-        resolve(accessedExpression, block, enclosingDefinition, compilationUnit);
-        Type accessedType = TypeChecker.checkTypes(accessedExpression, compilationUnit);
-        if (accessedType instanceof NamedType)
+        Expression baseExpression = fieldAccessExpression.getBaseExpression();
+        Type baseType;
+        boolean baseIsStatic;
+        if (baseExpression != null)
         {
-          CompoundDefinition compoundDefinition = ((NamedType) accessedType).getResolvedDefinition();
+          resolve(baseExpression, block, enclosingDefinition, compilationUnit);
+
+          // find the type of the sub-expression, by calling the type checker
+          // this is fine as long as we resolve all of the sub-expression first
+          baseType = TypeChecker.checkTypes(baseExpression, compilationUnit);
+          baseIsStatic = false;
+        }
+        else if (fieldAccessExpression.getBaseType() != null)
+        {
+          baseType = fieldAccessExpression.getBaseType();
+          baseIsStatic = true;
+        }
+        else
+        {
+          throw new IllegalStateException("Unknown base type for a field access: " + fieldAccessExpression);
+        }
+
+        if (baseType instanceof NamedType)
+        {
+          CompoundDefinition compoundDefinition = ((NamedType) baseType).getResolvedDefinition();
           Set<Method> methodSet = compoundDefinition.getMethodsByName(name);
           if (methodSet != null)
           {
             for (Method m : methodSet)
             {
-              paramLists.put(m.getParameters(), m);
-              methodBaseExpressions.put(m, accessedExpression);
+              // only allow access to this method if it is called in the right way, depending on whether or not it is static
+              if (m.isStatic() == baseIsStatic)
+              {
+                paramLists.put(m.getParameters(), m);
+                methodBaseExpressions.put(m, baseExpression);
+              }
             }
           }
         }
@@ -825,7 +983,14 @@ public class Resolver
         Field field = enclosingDefinition.getField(expr.getName());
         if (field != null)
         {
-          var = field.getMemberVariable();
+          if (field.isStatic())
+          {
+            var = field.getGlobalVariable();
+          }
+          else
+          {
+            var = field.getMemberVariable();
+          }
         }
       }
       if (var == null)

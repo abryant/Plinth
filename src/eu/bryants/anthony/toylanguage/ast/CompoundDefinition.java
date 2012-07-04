@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -12,6 +14,7 @@ import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
+import eu.bryants.anthony.toylanguage.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.toylanguage.ast.metadata.MemberVariable;
 import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 
@@ -31,6 +34,8 @@ public class CompoundDefinition
   private Set<Constructor> constructors = new HashSet<Constructor>();
   private Map<String, Set<Method>> methods = new HashMap<String, Set<Method>>();
 
+  private Field[] nonStaticFields;
+
   private LexicalPhrase lexicalPhrase;
 
   public CompoundDefinition(String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
@@ -39,6 +44,7 @@ public class CompoundDefinition
     this.name = name;
     // add all of the members by name
     int fieldIndex = 0;
+    List<Field> nonStaticFieldList = new LinkedList<Field>();
     for (Member member : members)
     {
       if (member instanceof Field)
@@ -52,9 +58,17 @@ public class CompoundDefinition
         {
           throw new LanguageParseException("A method with the name '" + field.getName() + "' already exists in '" + name + "', so a field cannot be defined with the same name", field.getLexicalPhrase());
         }
-        field.setIndex(fieldIndex);
-        field.setMemberVariable(new MemberVariable(field, this));
-        fieldIndex++;
+        if (field.isStatic())
+        {
+          field.setGlobalVariable(new GlobalVariable(field, this));
+        }
+        else
+        {
+          field.setMemberIndex(fieldIndex);
+          field.setMemberVariable(new MemberVariable(field, this));
+          fieldIndex++;
+          nonStaticFieldList.add(field);
+        }
         fields.put(field.getName(), field);
       }
       if (member instanceof Constructor)
@@ -84,6 +98,7 @@ public class CompoundDefinition
         methodSet.add(method);
       }
     }
+    nonStaticFields = nonStaticFieldList.toArray(new Field[nonStaticFieldList.size()]);
   }
 
   /**
@@ -108,6 +123,14 @@ public class CompoundDefinition
       i++;
     }
     return fieldArray;
+  }
+
+  /**
+   * @return the non-static fields, in order of their indices
+   */
+  public Field[] getNonStaticFields()
+  {
+    return nonStaticFields;
   }
 
   /**

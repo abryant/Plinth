@@ -130,6 +130,7 @@ public class LLVM
   public static native LLVMValueRef LLVMConstInt(LLVMTypeRef type, long n, boolean signExtend);
   public static native LLVMValueRef LLVMConstReal(LLVMTypeRef type, double n);
   public static native LLVMValueRef LLVMConstNull(LLVMTypeRef type);
+  public static native LLVMValueRef LLVMConstStruct(Pointer constantValues, int constantValueCount, boolean packed);
   public static native LLVMValueRef LLVMGetUndef(LLVMTypeRef type);
 
   public static native LLVMModuleRef LLVMModuleCreateWithName(String name);
@@ -143,6 +144,9 @@ public class LLVM
   public static native int LLVMGetFunctionCallConv(LLVMValueRef function);
   public static native int LLVMCountParams(LLVMValueRef function);
   public static native LLVMValueRef LLVMGetParam(LLVMValueRef function, int index);
+
+  public static native LLVMValueRef LLVMAddGlobal(LLVMModuleRef module, LLVMTypeRef type, String name);
+  public static native void LLVMSetInitializer(LLVMValueRef globalVariable, LLVMValueRef constantValue);
 
   public static native LLVMTypeRef LLVMArrayType(LLVMTypeRef elementType, int elementCount);
   public static native LLVMTypeRef LLVMFunctionType(LLVMTypeRef returnType, Pointer paramTypes, int paramCount, boolean isVarArg);

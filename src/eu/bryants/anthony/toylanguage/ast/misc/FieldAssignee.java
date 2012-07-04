@@ -1,8 +1,6 @@
 package eu.bryants.anthony.toylanguage.ast.misc;
 
-import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
-import eu.bryants.anthony.toylanguage.ast.expression.Expression;
-import eu.bryants.anthony.toylanguage.ast.member.Member;
+import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 
 /*
  * Created on 19 May 2012
@@ -14,48 +12,20 @@ import eu.bryants.anthony.toylanguage.ast.member.Member;
 public class FieldAssignee extends Assignee
 {
 
-  private Expression expression;
-  private String name;
+  private FieldAccessExpression fieldAccessExpression;
 
-  private Member resolvedMember;
-
-  public FieldAssignee(Expression expression, String name, LexicalPhrase lexicalPhrase)
+  public FieldAssignee(FieldAccessExpression fieldAccessExpression)
   {
-    super(lexicalPhrase);
-    this.expression = expression;
-    this.name = name;
+    super(fieldAccessExpression.getLexicalPhrase());
+    this.fieldAccessExpression = fieldAccessExpression;
   }
 
   /**
-   * @return the resolvedMember
+   * @return the FieldAccessExpression that this assignee is based on
    */
-  public Member getResolvedMember()
+  public FieldAccessExpression getFieldAccessExpression()
   {
-    return resolvedMember;
-  }
-
-  /**
-   * @param resolvedMember - the resolvedMember to set
-   */
-  public void setResolvedMember(Member resolvedMember)
-  {
-    this.resolvedMember = resolvedMember;
-  }
-
-  /**
-   * @return the expression
-   */
-  public Expression getExpression()
-  {
-    return expression;
-  }
-
-  /**
-   * @return the name
-   */
-  public String getName()
-  {
-    return name;
+    return fieldAccessExpression;
   }
 
   /**
@@ -64,6 +34,6 @@ public class FieldAssignee extends Assignee
   @Override
   public String toString()
   {
-    return expression + "." + name;
+    return fieldAccessExpression.toString();
   }
 }

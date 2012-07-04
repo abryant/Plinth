@@ -18,6 +18,7 @@ public class Method extends Member
 
   private Type returnType;
   private String name;
+  private boolean isStatic;
   private Parameter[] parameters;
   private Block block;
 
@@ -50,6 +51,14 @@ public class Method extends Member
   public String getName()
   {
     return name;
+  }
+
+  /**
+   * @return the isStatic
+   */
+  public boolean isStatic()
+  {
+    return isStatic;
   }
 
   /**
