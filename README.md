@@ -4,9 +4,9 @@ This project is mainly for me to experiment with writing a very small compiler, 
 
 ### Instructions
 
-You will need: Java (JDK), LLVM, GCC
+You will need: Java (JDK) >= 1.5, LLVM 3.1, and GCC (for compilation to native code)
 
-To run the compiler, you will need an LLVM shared library to be installed. Specifically, it looks for "LLVM-3.0" (libLLVM-3.0.so on Linux).
+To run the compiler, you will need an LLVM shared library to be installed. Specifically, it looks for "LLVM-3.1" (libLLVM-3.1.so on Linux).
 
 To compile the compiler:
 
