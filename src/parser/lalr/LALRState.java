@@ -237,7 +237,7 @@ public class LALRState<T extends Enum<T>> implements State<T>
 
   /**
    * Package scope, because it should only ever be used by something which knows what it is doing.
-   * @return the shift rules of this LALRState, or null if it has not been initialized yet
+   * @return the shift rules of this LALRState, or null if it has not been initialised yet
    */
   Map<T, LALRState<T>> getShiftRules()
   {
@@ -246,7 +246,7 @@ public class LALRState<T extends Enum<T>> implements State<T>
 
   /**
    * Package scope, because it should only ever be used by something which knows what it is doing.
-   * @return the reduce actions of this LALRState, or null if it has not been initialized yet
+   * @return the reduce actions of this LALRState, or null if it has not been initialised yet
    */
   Map<T, ReduceAction<T>> getReduceActions()
   {
@@ -255,7 +255,7 @@ public class LALRState<T extends Enum<T>> implements State<T>
 
   /**
    * Package scope, because it should only ever be used by something which knows what it is doing.
-   * @return the accept actions of this LALRState, or null if it has not been initialized yet
+   * @return the accept actions of this LALRState, or null if it has not been initialised yet
    */
   Map<T, AcceptAction<T>> getAcceptActions()
   {
@@ -264,7 +264,7 @@ public class LALRState<T extends Enum<T>> implements State<T>
 
   /**
    * Package scope, because it should only ever be used by something which knows what it is doing.
-   * @return the goto rules of this LALRState, or null if it has not been initialized yet
+   * @return the goto rules of this LALRState, or null if it has not been initialised yet
    */
   Map<T, LALRState<T>> getGotoRules()
   {
