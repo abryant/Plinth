@@ -194,12 +194,24 @@ public class CodeGenerator
         String mangledName = method.getMangledName();
 
         Parameter[] parameters = method.getParameters();
-        LLVMTypeRef[] types = new LLVMTypeRef[1 + parameters.length];
-        // add the 'this' type to the function
-        types[0] = LLVM.LLVMPointerType(findNativeType(new NamedType(compoundDefinition)), 0);
-        for (int i = 0; i < parameters.length; i++)
+        LLVMTypeRef[] types;
+        if (method.isStatic())
         {
-          types[i + 1] = findNativeType(parameters[i].getType());
+          types = new LLVMTypeRef[parameters.length];
+          for (int i = 0; i < parameters.length; ++i)
+          {
+            types[i] = findNativeType(parameters[i].getType());
+          }
+        }
+        else
+        {
+          types = new LLVMTypeRef[1 + parameters.length];
+          // add the 'this' type to the function
+          types[0] = LLVM.LLVMPointerType(findNativeType(new NamedType(compoundDefinition)), 0);
+          for (int i = 0; i < parameters.length; i++)
+          {
+            types[i + 1] = findNativeType(parameters[i].getType());
+          }
         }
         LLVMTypeRef resultType = findNativeType(method.getReturnType());
 
@@ -209,15 +221,26 @@ public class CodeGenerator
         LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
 
         int paramCount = LLVM.LLVMCountParams(llvmFunc);
-        if (paramCount != 1 + parameters.length)
+        if (paramCount != types.length)
         {
           throw new IllegalStateException("LLVM returned wrong number of parameters");
         }
-        LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), "this");
-        for (int i = 1; i < paramCount; i++)
+        if (method.isStatic())
         {
-          LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i);
-          LLVM.LLVMSetValueName(parameter, parameters[i - 1].getName());
+          for (int i = 0; i < paramCount; i++)
+          {
+            LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i);
+            LLVM.LLVMSetValueName(parameter, parameters[i].getName());
+          }
+        }
+        else
+        {
+          LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), "this");
+          for (int i = 1; i < paramCount; i++)
+          {
+            LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i);
+            LLVM.LLVMSetValueName(parameter, parameters[i - 1].getName());
+          }
         }
       }
     }
@@ -414,10 +437,10 @@ public class CodeGenerator
       // store the parameter values to the LLVMValueRefs
       for (Parameter p : method.getParameters())
       {
-        LLVM.LLVMBuildStore(builder, LLVM.LLVMGetParam(llvmFunction, p.getIndex() + 1), variables.get(p.getVariable()));
+        LLVM.LLVMBuildStore(builder, LLVM.LLVMGetParam(llvmFunction, p.getIndex() + (method.isStatic() ? 0 : 1)), variables.get(p.getVariable()));
       }
 
-      LLVMValueRef thisValue = LLVM.LLVMGetParam(llvmFunction, 0);
+      LLVMValueRef thisValue = method.isStatic() ? null : LLVM.LLVMGetParam(llvmFunction, 0);
       buildStatement(method.getBlock(), method.getReturnType(), llvmFunction, thisValue, variables, new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new Runnable()
       {
         @Override

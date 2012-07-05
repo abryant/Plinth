@@ -36,13 +36,21 @@ compound complex
     asdf = complex(1, 2);
     return complex(real - other.real, imag - other.imag);
   }
+  static :complex rotateLeft(:complex value)
+  {
+    asdf = value.mult(complex(0, 1));
+    return asdf;
+  }
+  static :complex swap(:complex initial)
+  {
+    return complex(initial.imag, initial.real);
+  }
 }
 
 uint main(uint argc)
 {
   complex.asdf = complex(argc, 12);
 
-  :complex rot = complex(0, 1);
-  complex.asdf = complex.asdf.mult(rot);
-  return cast<uint> complex.asdf.getImag();
+  complex.asdf = complex.rotateLeft(complex.asdf);
+  return cast<uint> complex.swap(complex.asdf).getReal();
 }

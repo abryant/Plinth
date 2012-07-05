@@ -91,16 +91,23 @@ public class MethodRule extends Rule<ParseType>
 
   private Method processModifiers(ParseList<Modifier> modifiers, Type returnType, String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
+    boolean isStatic = false;
     for (Modifier modifier : modifiers)
     {
       if (modifier.getModifierType() == ModifierType.STATIC)
       {
-        // TODO: allow static methods
-        throw new LanguageParseException("Unexpected modifier: Methods cannot yet be static", modifier.getLexicalPhrase());
+        if (isStatic)
+        {
+          throw new LanguageParseException("Duplicate 'static' modifier", modifier.getLexicalPhrase());
+        }
+        isStatic = true;
       }
-      throw new IllegalStateException("Unknown modifier: " + modifier);
+      else
+      {
+        throw new IllegalStateException("Unknown modifier: " + modifier);
+      }
     }
-    return new Method(returnType, name, parameters, block, lexicalPhrase);
+    return new Method(returnType, name, isStatic, parameters, block, lexicalPhrase);
   }
 
 }

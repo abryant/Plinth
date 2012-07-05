@@ -24,11 +24,12 @@ public class Method extends Member
 
   private CompoundDefinition containingDefinition;
 
-  public Method(Type returnType, String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
+  public Method(Type returnType, String name, boolean isStatic, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.returnType = returnType;
     this.name = name;
+    this.isStatic = isStatic;
     this.parameters = parameters;
     for (int i = 0; i < parameters.length; i++)
     {
@@ -118,7 +119,12 @@ public class Method extends Member
   @Override
   public String toString()
   {
-    StringBuffer buffer = new StringBuffer(returnType.toString());
+    StringBuffer buffer = new StringBuffer();
+    if (isStatic)
+    {
+      buffer.append("static ");
+    }
+    buffer.append(returnType);
     buffer.append(' ');
     buffer.append(name);
     buffer.append('(');

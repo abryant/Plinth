@@ -172,18 +172,66 @@ public class Resolver
         resolve(p.getType(), compilationUnit);
       }
     }
+    // resolve all method return and parameter types, and check for duplicate methods
+    class MethodDisambiguator
+    {
+      Type returnType;
+      Type[] parameterTypes;
+      String name;
+      public MethodDisambiguator(Type returnType, Type[] parameterTypes, String name)
+      {
+        this.returnType = returnType;
+        this.parameterTypes = parameterTypes;
+        this.name = name;
+      }
+      @Override
+      public boolean equals(Object o)
+      {
+        if (!(o instanceof MethodDisambiguator))
+        {
+          return false;
+        }
+        MethodDisambiguator other = (MethodDisambiguator) o;
+        if (!returnType.isEquivalent(other.returnType) || !name.equals(other.name) || parameterTypes.length != other.parameterTypes.length)
+        {
+          return false;
+        }
+        for (int i = 0; i < parameterTypes.length; ++i)
+        {
+          if (!parameterTypes[i].isEquivalent(other.parameterTypes[i]))
+          {
+            return false;
+          }
+        }
+        return true;
+      }
+      @Override
+      public int hashCode()
+      {
+        return name.hashCode(); // don't bother to work out a way of finding hashCodes for the types, this is sufficient
+      }
+    }
+    Map<MethodDisambiguator, Method> allMethods = new HashMap<MethodDisambiguator, Method>();
     for (Method method : compound.getAllMethods())
     {
       resolve(method.getReturnType(), compilationUnit);
       Block mainBlock = method.getBlock();
-      for (Parameter p : method.getParameters())
+      Parameter[] parameters = method.getParameters();
+      Type[] parameterTypes = new Type[parameters.length];
+      for (int i = 0; i < parameters.length; ++i)
       {
-        Variable oldVar = mainBlock.addVariable(p.getVariable());
+        Variable oldVar = mainBlock.addVariable(parameters[i].getVariable());
         if (oldVar != null)
         {
-          throw new ConceptualException("Duplicate paramter: " + p.getName(), p.getLexicalPhrase());
+          throw new ConceptualException("Duplicate parameter: " + parameters[i].getName(), parameters[i].getLexicalPhrase());
         }
-        resolve(p.getType(), compilationUnit);
+        resolve(parameters[i].getType(), compilationUnit);
+        parameterTypes[i] = parameters[i].getType();
+      }
+      Method oldMethod = allMethods.put(new MethodDisambiguator(method.getReturnType(), parameterTypes, method.getName()), method);
+      if (oldMethod != null)
+      {
+        throw new ConceptualException("Duplicate method: " + method.getName(), method.getLexicalPhrase());
       }
     }
   }
@@ -784,7 +832,7 @@ public class Resolver
       // we failed to resolve the sub-expression into something with a function type
       // but the recursive resolver doesn't know which parameter types we're looking for here, so we may be able to consider some different options
       // we can do this by checking if the function expression is actually a variable access or a field access expression, and checking them for other sources of method calls,
-      // such as constructor calls, function calls, and methods, each of which can be narrowed down by their parameter types
+      // such as constructor calls and method calls, each of which can be narrowed down by their parameter types
 
       // first, go through any bracketed expressions, as we can ignore them
       while (functionExpression instanceof BracketedExpression)
