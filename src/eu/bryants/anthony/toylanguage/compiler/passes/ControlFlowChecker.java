@@ -33,6 +33,7 @@ import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
+import eu.bryants.anthony.toylanguage.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.toylanguage.ast.metadata.MemberVariable;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
@@ -518,7 +519,7 @@ public class ControlFlowChecker
       if (subExpression != null && subExpression instanceof ThisExpression && inConstructor)
       {
         Member resolvedMember = fieldAccessExpression.getResolvedMember();
-        if (resolvedMember instanceof Field && !initialisedVariables.contains(((Field) resolvedMember).getMemberVariable()))
+        if (resolvedMember instanceof Field && !((Field) resolvedMember).isStatic() && !initialisedVariables.contains(((Field) resolvedMember).getMemberVariable()))
         {
           throw new ConceptualException("Field '" + ((Field) resolvedMember).getName() + "' may not have been initialised", fieldAccessExpression.getLexicalPhrase());
         }
@@ -645,7 +646,7 @@ public class ControlFlowChecker
     {
       VariableExpression variableExpression = (VariableExpression) expression;
       Variable var = variableExpression.getResolvedVariable();
-      if (!initialisedVariables.contains(var) && (inConstructor || !(var instanceof MemberVariable)))
+      if (!(var instanceof GlobalVariable) && !initialisedVariables.contains(var) && (inConstructor || !(var instanceof MemberVariable)))
       {
         throw new ConceptualException("Variable '" + variableExpression.getName() + "' may not have been initialised", variableExpression.getLexicalPhrase());
       }
