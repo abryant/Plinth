@@ -242,6 +242,12 @@ public class CodeGenerator
             LLVM.LLVMSetValueName(parameter, parameters[i - 1].getName());
           }
         }
+
+        // add the native function if the programmer specified one
+        if (method.getNativeName() != null)
+        {
+          addNativeFunction(method.getNativeName(), !(method.getReturnType() instanceof VoidType), functionType, llvmFunc);
+        }
       }
     }
 
@@ -271,6 +277,37 @@ public class CodeGenerator
         LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i);
         LLVM.LLVMSetValueName(parameter, params[i].getName());
       }
+    }
+  }
+
+  /**
+   * Adds a native function which calls the specified non-native function.
+   * This consists simply of a new function with the specified native name, which calls the non-native function and returns its result.
+   * @param nativeName - the native name to export
+   * @param hasReturnValue - true if this method returns a value, false otherwise
+   * @param functionType - the type of the non-native function
+   * @param nonNativeFunction - the non-native function to call
+   */
+  private void addNativeFunction(String nativeName, boolean hasReturnValue, LLVMTypeRef functionType, LLVMValueRef nonNativeFunction)
+  {
+    LLVMValueRef nativeFunction = LLVM.LLVMAddFunction(module, nativeName, functionType);
+    LLVM.LLVMSetFunctionCallConv(nativeFunction, LLVM.LLVMCallConv.LLVMCCallConv);
+    int paramCount = LLVM.LLVMCountParams(nativeFunction);
+    LLVMValueRef[] arguments = new LLVMValueRef[paramCount];
+    for (int i = 0; i < paramCount; ++i)
+    {
+      arguments[i] = LLVM.LLVMGetParam(nativeFunction, i);
+    }
+    LLVMBasicBlockRef block = LLVM.LLVMAppendBasicBlock(nativeFunction, "entry");
+    LLVM.LLVMPositionBuilderAtEnd(builder, block);
+    LLVMValueRef result = LLVM.LLVMBuildCall(builder, nonNativeFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+    if (hasReturnValue)
+    {
+      LLVM.LLVMBuildRet(builder, result);
+    }
+    else
+    {
+      LLVM.LLVMBuildRetVoid(builder);
     }
   }
 

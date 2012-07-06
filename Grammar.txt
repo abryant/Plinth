@@ -5,7 +5,10 @@ MemberList = epsilon |
              MemberList Field |
              MemberList Constructor |
              MemberList Method
-Modifiers = epsilon | Modifiers StaticKeyword
+Modifiers = epsilon |
+            Modifiers StaticKeyword |
+            Modifiers NativeKeyword |
+            Modifiers NativeKeyword StringLiteral
 Field = Modifiers Type Name Semicolon
 Constructor = Modifiers Name LParen Parameters RParen Block
 Method = Modifiers Type Name LParen Parameters RParen Block |

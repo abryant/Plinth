@@ -19,17 +19,29 @@ public class Method extends Member
   private Type returnType;
   private String name;
   private boolean isStatic;
+  private String nativeName;
   private Parameter[] parameters;
   private Block block;
 
   private CompoundDefinition containingDefinition;
 
-  public Method(Type returnType, String name, boolean isStatic, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
+  /**
+   * Creates a new Method with the specified parameters
+   * @param returnType - the return type of the method
+   * @param name - the name of the method
+   * @param isStatic - true if the method should be static, false otherwise
+   * @param nativeName - the native name of the method, or null if no native name is specified
+   * @param parameters - the parameters for the method
+   * @param block - the block that the method should run, or null if no block is specified
+   * @param lexicalPhrase - the LexicalPhrase of this method
+   */
+  public Method(Type returnType, String name, boolean isStatic, String nativeName, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.returnType = returnType;
     this.name = name;
     this.isStatic = isStatic;
+    this.nativeName = nativeName;
     this.parameters = parameters;
     for (int i = 0; i < parameters.length; i++)
     {
@@ -60,6 +72,14 @@ public class Method extends Member
   public boolean isStatic()
   {
     return isStatic;
+  }
+
+  /**
+   * @return the nativeName
+   */
+  public String getNativeName()
+  {
+    return nativeName;
   }
 
   /**
@@ -123,6 +143,12 @@ public class Method extends Member
     if (isStatic)
     {
       buffer.append("static ");
+    }
+    if (nativeName != null)
+    {
+      buffer.append("native \"");
+      buffer.append(nativeName);
+      buffer.append("\" ");
     }
     buffer.append(returnType);
     buffer.append(' ');

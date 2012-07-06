@@ -70,7 +70,14 @@ public class ConstructorRule extends Rule<ParseType>
       {
         throw new LanguageParseException("Unexpected modifier: Constructors cannot be static", modifier.getLexicalPhrase());
       }
-      throw new IllegalStateException("Unknown modifier: " + modifier);
+      else if (modifier.getModifierType() == ModifierType.NATIVE)
+      {
+        throw new LanguageParseException("Unexpected modifier: Constructors cannot be native functions", modifier.getLexicalPhrase());
+      }
+      else
+      {
+        throw new IllegalStateException("Unknown modifier: " + modifier);
+      }
     }
     return new Constructor(name, parameters, block, lexicalPhrase);
   }

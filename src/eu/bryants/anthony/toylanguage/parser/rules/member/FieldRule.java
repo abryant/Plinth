@@ -53,6 +53,10 @@ public class FieldRule extends Rule<ParseType>
           }
           isStatic = true;
         }
+        else if (modifier.getModifierType() == ModifierType.NATIVE)
+        {
+          throw new LanguageParseException("Unexpected modifier: Fields cannot be native", modifier.getLexicalPhrase());
+        }
         else
         {
           throw new IllegalStateException("Unknown modifier: " + modifier);

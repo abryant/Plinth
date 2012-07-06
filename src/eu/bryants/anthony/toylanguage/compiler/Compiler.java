@@ -13,6 +13,7 @@ import eu.bryants.anthony.toylanguage.ast.terminal.Name;
 import eu.bryants.anthony.toylanguage.compiler.passes.CodeGenerator;
 import eu.bryants.anthony.toylanguage.compiler.passes.ControlFlowChecker;
 import eu.bryants.anthony.toylanguage.compiler.passes.CycleChecker;
+import eu.bryants.anthony.toylanguage.compiler.passes.NativeNameChecker;
 import eu.bryants.anthony.toylanguage.compiler.passes.Resolver;
 import eu.bryants.anthony.toylanguage.compiler.passes.TypeChecker;
 import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
@@ -110,6 +111,7 @@ public class Compiler
       CycleChecker.checkCycles(compilationUnit);
       ControlFlowChecker.checkControlFlow(compilationUnit);
       TypeChecker.checkTypes(compilationUnit);
+      NativeNameChecker.checkNativeNames(compilationUnit);
     }
     catch (ConceptualException e)
     {

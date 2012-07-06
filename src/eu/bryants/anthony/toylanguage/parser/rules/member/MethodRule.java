@@ -14,6 +14,7 @@ import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
 import eu.bryants.anthony.toylanguage.parser.parseAST.Modifier;
 import eu.bryants.anthony.toylanguage.parser.parseAST.ModifierType;
+import eu.bryants.anthony.toylanguage.parser.parseAST.NativeSpecifier;
 import eu.bryants.anthony.toylanguage.parser.parseAST.ParseList;
 
 /*
@@ -92,6 +93,7 @@ public class MethodRule extends Rule<ParseType>
   private Method processModifiers(ParseList<Modifier> modifiers, Type returnType, String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     boolean isStatic = false;
+    String nativeName = null;
     for (Modifier modifier : modifiers)
     {
       if (modifier.getModifierType() == ModifierType.STATIC)
@@ -102,12 +104,25 @@ public class MethodRule extends Rule<ParseType>
         }
         isStatic = true;
       }
+      else if (modifier.getModifierType() == ModifierType.NATIVE)
+      {
+        if (nativeName != null)
+        {
+          throw new LanguageParseException("Duplicate 'native' specifier", modifier.getLexicalPhrase());
+        }
+        NativeSpecifier nativeSpecifier = (NativeSpecifier) modifier;
+        nativeName = nativeSpecifier.getNativeName();
+        if (nativeName == null)
+        {
+          nativeName = name;
+        }
+      }
       else
       {
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }
-    return new Method(returnType, name, isStatic, parameters, block, lexicalPhrase);
+    return new Method(returnType, name, isStatic, nativeName, parameters, block, lexicalPhrase);
   }
 
 }
