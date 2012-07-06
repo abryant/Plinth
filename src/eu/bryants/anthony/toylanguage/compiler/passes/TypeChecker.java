@@ -5,7 +5,6 @@ import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
-import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
@@ -86,10 +85,6 @@ public class TypeChecker
       {
         checkTypes(method.getBlock(), method.getReturnType(), compilationUnit);
       }
-    }
-    for (Function f : compilationUnit.getFunctions())
-    {
-      checkTypes(f.getBlock(), f.getType(), compilationUnit);
     }
   }
 
@@ -793,12 +788,6 @@ public class TypeChecker
         parameters = functionCallExpression.getResolvedConstructor().getParameters();
         returnType = new NamedType(functionCallExpression.getResolvedConstructor().getContainingDefinition());
         name = functionCallExpression.getResolvedConstructor().getName();
-      }
-      else if (functionCallExpression.getResolvedFunction() != null)
-      {
-        parameters = functionCallExpression.getResolvedFunction().getParameters();
-        returnType = functionCallExpression.getResolvedFunction().getType();
-        name = functionCallExpression.getResolvedFunction().getName();
       }
       else if (functionCallExpression.getResolvedBaseExpression() != null)
       {

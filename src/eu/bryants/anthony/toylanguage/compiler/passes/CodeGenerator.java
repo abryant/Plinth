@@ -16,7 +16,6 @@ import com.sun.jna.Pointer;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
-import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
@@ -111,10 +110,6 @@ public class CodeGenerator
     {
       addConstructorBodies(compoundDefinition);
       addMethodBodies(compoundDefinition);
-    }
-    for (Function f : compilationUnit.getFunctions())
-    {
-      addFunctionBody(f);
     }
     LLVM.LLVMWriteBitcodeToFile(module, outputPath);
   }
@@ -248,34 +243,6 @@ public class CodeGenerator
         {
           addNativeFunction(method.getNativeName(), !(method.getReturnType() instanceof VoidType), functionType, llvmFunc);
         }
-      }
-    }
-
-    for (Function function : compilationUnit.getFunctions())
-    {
-      Parameter[] params = function.getParameters();
-
-      LLVMTypeRef[] types = new LLVMTypeRef[params.length];
-      for (int i = 0; i < types.length; i++)
-      {
-        types[i] = findNativeType(params[i].getType());
-      }
-      LLVMTypeRef resultType = findNativeType(function.getType());
-
-      Pointer paramTypes = C.toNativePointerArray(types, false, true);
-      LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, paramTypes, types.length, false);
-      LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, function.getName(), functionType);
-      LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
-
-      int paramCount = LLVM.LLVMCountParams(llvmFunc);
-      if (paramCount != params.length)
-      {
-        throw new IllegalStateException("LLVM returned wrong number of parameters");
-      }
-      for (int i = 0; i < paramCount; i++)
-      {
-        LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i);
-        LLVM.LLVMSetValueName(parameter, params[i].getName());
       }
     }
   }
@@ -493,45 +460,6 @@ public class CodeGenerator
       {
         LLVM.LLVMBuildRetVoid(builder);
       }
-    }
-  }
-
-  private void addFunctionBody(Function function)
-  {
-    LLVMValueRef llvmFunction = LLVM.LLVMGetNamedFunction(module, function.getName());
-
-    LLVMBasicBlockRef block = LLVM.LLVMAppendBasicBlock(llvmFunction, "entry");
-    LLVM.LLVMPositionBuilderAtEnd(builder, block);
-
-    // create LLVMValueRefs for all of the variables, including parameters
-    Set<Variable> allVariables = Resolver.getAllNestedVariables(function.getBlock());
-    Map<Variable, LLVMValueRef> variables = new HashMap<Variable, LLVM.LLVMValueRef>();
-    for (Variable v : allVariables)
-    {
-      LLVMValueRef allocaInst = LLVM.LLVMBuildAlloca(builder, findNativeType(v.getType()), v.getName());
-      variables.put(v, allocaInst);
-    }
-
-    // store the parameter values to the LLVMValueRefs
-    for (Parameter p : function.getParameters())
-    {
-      LLVM.LLVMBuildStore(builder, LLVM.LLVMGetParam(llvmFunction, p.getIndex()), variables.get(p.getVariable()));
-    }
-
-    buildStatement(function.getBlock(), function.getType(), llvmFunction, null, variables, new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new Runnable()
-    {
-      @Override
-      public void run()
-      {
-        // this will be run whenever a return void is found
-        // so return void
-        LLVM.LLVMBuildRetVoid(builder);
-      }
-    });
-    // add a "ret void" if control reaches the end of the function
-    if (!function.getBlock().stopsExecution())
-    {
-      LLVM.LLVMBuildRetVoid(builder);
     }
   }
 
@@ -1470,7 +1398,6 @@ public class CodeGenerator
     {
       FunctionCallExpression functionExpression = (FunctionCallExpression) expression;
       Constructor resolvedConstructor = functionExpression.getResolvedConstructor();
-      Function resolvedFunction = functionExpression.getResolvedFunction();
       Method resolvedMethod = functionExpression.getResolvedMethod();
       Expression resolvedBaseExpression = functionExpression.getResolvedBaseExpression();
 
@@ -1487,17 +1414,6 @@ public class CodeGenerator
         }
         returnType = new NamedType(resolvedConstructor.getContainingDefinition());
         mangledName = resolvedConstructor.getMangledName();
-      }
-      else if (resolvedFunction != null)
-      {
-        Parameter[] params = resolvedFunction.getParameters();
-        parameterTypes = new Type[params.length];
-        for (int i = 0; i < params.length; ++i)
-        {
-          parameterTypes[i] = params[i].getType();
-        }
-        returnType = resolvedFunction.getType();
-        mangledName = resolvedFunction.getName();
       }
       else if (resolvedMethod != null)
       {
@@ -1542,7 +1458,7 @@ public class CodeGenerator
       }
 
       LLVMValueRef result;
-      if (resolvedConstructor != null || resolvedFunction != null)
+      if (resolvedConstructor != null)
       {
         LLVMValueRef llvmResolvedFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
         result = LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(values, false, true), values.length, "");

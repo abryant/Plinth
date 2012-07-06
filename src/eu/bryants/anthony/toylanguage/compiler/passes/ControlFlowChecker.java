@@ -7,7 +7,6 @@ import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
-import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
@@ -107,19 +106,6 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Method does not always return a value", method.getLexicalPhrase());
         }
-      }
-    }
-    for (Function f : compilationUnit.getFunctions())
-    {
-      Set<Variable> initialisedVariables = new HashSet<Variable>();
-      for (Parameter p : f.getParameters())
-      {
-        initialisedVariables.add(p.getVariable());
-      }
-      boolean returned = checkControlFlow(f.getBlock(), initialisedVariables, new LinkedList<BreakableStatement>(), false, true);
-      if (!returned && !(f.getType() instanceof VoidType))
-      {
-        throw new ConceptualException("Function does not always return a value", f.getLexicalPhrase());
       }
     }
   }
@@ -579,10 +565,6 @@ public class ControlFlowChecker
       else if (functionCallExpression.getResolvedConstructor() != null)
       {
         // this is a constructor call, which we do not need to check anything else for
-      }
-      else if (functionCallExpression.getResolvedFunction() != null)
-      {
-        // this is a function call, which we do not need to check anything else for
       }
       else if (functionCallExpression.getResolvedBaseExpression() != null)
       {

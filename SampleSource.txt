@@ -45,12 +45,12 @@ compound complex
   {
     return complex(initial.imag, initial.real);
   }
-}
 
-uint main(uint argc)
-{
-  complex.asdf = complex(argc, 12);
+  static native uint main(uint argc)
+  {
+    complex.asdf = complex(argc, 12);
 
-  complex.asdf = complex.rotateLeft(complex.asdf);
-  return cast<uint> complex.swap(complex.asdf).getReal();
+    complex.asdf = complex.rotateLeft(complex.asdf);
+    return cast<uint> complex.swap(complex.asdf).getReal();
+  }
 }

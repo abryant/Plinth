@@ -10,7 +10,6 @@ import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
-import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
@@ -138,18 +137,10 @@ public class Resolver
     {
       resolveTypes(compoundDefinition, compilationUnit);
     }
-    for (Function function : compilationUnit.getFunctions())
-    {
-      resolveTypes(function, compilationUnit);
-    }
     // resolve the bodies of methods, field assignments, etc.
     for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
     {
       resolve(compoundDefinition, compilationUnit);
-    }
-    for (Function function : compilationUnit.getFunctions())
-    {
-      resolve(function, compilationUnit);
     }
   }
 
@@ -236,21 +227,6 @@ public class Resolver
     }
   }
 
-  private static void resolveTypes(Function function, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
-  {
-    Block mainBlock = function.getBlock();
-    resolve(function.getType(), compilationUnit);
-    for (Parameter p : function.getParameters())
-    {
-      Variable oldVar = mainBlock.addVariable(p.getVariable());
-      if (oldVar != null)
-      {
-        throw new ConceptualException("Duplicate parameter: " + p.getName(), p.getLexicalPhrase());
-      }
-      resolve(p.getType(), compilationUnit);
-    }
-  }
-
   private static void resolve(CompoundDefinition compound, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     // TODO: resolve field expressions, when they exist
@@ -307,15 +283,6 @@ public class Resolver
     else
     {
       throw new IllegalArgumentException("Unknown Type type: " + type);
-    }
-  }
-
-  private static void resolve(Function function, CompilationUnit compilationUnit) throws ConceptualException, NameNotResolvedException
-  {
-    Block mainBlock = function.getBlock();
-    for (Statement s : mainBlock.getStatements())
-    {
-      resolve(s, mainBlock, null, compilationUnit);
     }
   }
 
@@ -866,11 +833,6 @@ public class Resolver
             paramLists.put(c.getParameters(), c);
           }
         }
-        Function function = compilationUnit.getFunction(name);
-        if (function != null)
-        {
-          paramLists.put(function.getParameters(), function);
-        }
       }
       else if (functionExpression instanceof FieldAccessExpression)
       {
@@ -943,10 +905,6 @@ public class Resolver
           if (resolved)
           {
             throw new ConceptualException("Ambiguous function call, there are at least two applicable functions which take these arguments", expr.getLexicalPhrase());
-          }
-          if (entry.getValue() instanceof Function)
-          {
-            expr.setResolvedFunction((Function) entry.getValue());
           }
           else if (entry.getValue() instanceof Constructor)
           {

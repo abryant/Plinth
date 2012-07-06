@@ -17,7 +17,6 @@ public enum ParseType
 
   COMPILATION_UNIT,              // CompilationUnit
   COMPOUND_DEFINITION,           // CompoundDefinition
-  FUNCTION,                      // Function
 
   // Members
   MEMBER_LIST,                   // ParseList<Member>

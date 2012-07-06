@@ -5,7 +5,6 @@ import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
-import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
 
@@ -22,12 +21,11 @@ public class CompilationUnitRule extends Rule<ParseType>
 
   private static Production<ParseType> BLANK_PRODUCTION = new Production<ParseType>();
   private static Production<ParseType> COMPOUND_PRODUCTION = new Production<ParseType>(ParseType.COMPILATION_UNIT, ParseType.COMPOUND_DEFINITION);
-  private static Production<ParseType> FUNCTION_PRODUCTION = new Production<ParseType>(ParseType.COMPILATION_UNIT, ParseType.FUNCTION);
 
   @SuppressWarnings("unchecked")
   public CompilationUnitRule()
   {
-    super(ParseType.COMPILATION_UNIT, BLANK_PRODUCTION, COMPOUND_PRODUCTION, FUNCTION_PRODUCTION);
+    super(ParseType.COMPILATION_UNIT, BLANK_PRODUCTION, COMPOUND_PRODUCTION);
   }
 
   /**
@@ -39,13 +37,6 @@ public class CompilationUnitRule extends Rule<ParseType>
     if (production == BLANK_PRODUCTION)
     {
       return new CompilationUnit(null);
-    }
-    if (production == FUNCTION_PRODUCTION)
-    {
-      CompilationUnit compilationUnit = (CompilationUnit) args[0];
-      Function function = (Function) args[1];
-      compilationUnit.addFunction(function, LexicalPhrase.combine(compilationUnit.getLexicalPhrase(), function.getLexicalPhrase()));
-      return compilationUnit;
     }
     if (production == COMPOUND_PRODUCTION)
     {

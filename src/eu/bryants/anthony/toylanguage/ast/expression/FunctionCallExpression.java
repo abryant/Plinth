@@ -1,6 +1,5 @@
 package eu.bryants.anthony.toylanguage.ast.expression;
 
-import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
@@ -20,11 +19,9 @@ public class FunctionCallExpression extends Expression
   // when this has been resolved (assuming there were no errors) we will have one of the following situations:
   // * just a resolvedBaseExpression, which has a function type
   // * just a resolvedConstructor, and no resolvedBaseExpression
-  // * just a resolvedFunction, and no resolvedBaseExpression
   // * just a resolvedMethod, and no resolvedBaseExpression, in which case the method is assumed to be called on 'this' (or on nothing, if the method is static)
   // * a resolvedMethod and a resolvedBaseExpression, in which case the base expression has a type has the resolved method as a member
   private Expression resolvedBaseExpression;
-  private Function resolvedFunction;
   private Constructor resolvedConstructor;
   private Method resolvedMethod;
 
@@ -65,22 +62,6 @@ public class FunctionCallExpression extends Expression
   public void setResolvedBaseExpression(Expression resolvedBaseExpression)
   {
     this.resolvedBaseExpression = resolvedBaseExpression;
-  }
-
-  /**
-   * @return the resolvedFunction
-   */
-  public Function getResolvedFunction()
-  {
-    return resolvedFunction;
-  }
-
-  /**
-   * @param resolvedFunction - the resolvedFunction to set
-   */
-  public void setResolvedFunction(Function resolvedFunction)
-  {
-    this.resolvedFunction = resolvedFunction;
   }
 
   /**

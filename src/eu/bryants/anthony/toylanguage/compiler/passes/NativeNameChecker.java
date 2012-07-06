@@ -5,7 +5,6 @@ import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
-import eu.bryants.anthony.toylanguage.ast.Function;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
@@ -87,16 +86,6 @@ public class NativeNameChecker
             throw new ConceptualException("Duplicate native name: " + nativeName, method.getLexicalPhrase());
           }
         }
-      }
-    }
-
-    for (Function function : compilationUnit.getFunctions())
-    {
-      checkForbidden(function.getName(), function.getLexicalPhrase());
-      boolean newName = usedNativeNames.add(function.getName());
-      if (!newName)
-      {
-        throw new ConceptualException("Duplicate native name: " + function.getName(), function.getLexicalPhrase());
       }
     }
   }

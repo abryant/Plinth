@@ -15,7 +15,6 @@ import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
  */
 public class CompilationUnit
 {
-  private Map<String, Function> functions = new HashMap<String, Function>();
   private Map<String, CompoundDefinition> compoundDefinitions = new HashMap<String, CompoundDefinition>();
 
   private LexicalPhrase lexicalPhrase;
@@ -26,26 +25,6 @@ public class CompilationUnit
   }
 
   /**
-   * Adds the specified function to this compilation unit.
-   * @param function - the function to add
-   * @param newLexicalPhrase - the new LexicalPhrase for this compilation unit
-   * @throws LanguageParseException - if a function with the same name already exists in this compilation unit
-   */
-  public void addFunction(Function function, LexicalPhrase newLexicalPhrase) throws LanguageParseException
-  {
-    if (compoundDefinitions.containsKey(function.getName()))
-    {
-      throw new LanguageParseException("This function has the same name as a compound type: " + function.getName(), function.getLexicalPhrase());
-    }
-    Function oldValue = functions.put(function.getName(), function);
-    if (oldValue != null)
-    {
-      throw new LanguageParseException("Duplicated function: " + function.getName(), function.getLexicalPhrase());
-    }
-    lexicalPhrase = newLexicalPhrase;
-  }
-
-  /**
    * Adds the specified compound type definition to this compilation unit.
    * @param compound - the compound to add
    * @param newLexicalPhrase - the new LexicalPhrase for this compilation unit
@@ -53,10 +32,6 @@ public class CompilationUnit
    */
   public void addCompound(CompoundDefinition compound, LexicalPhrase newLexicalPhrase) throws LanguageParseException
   {
-    if (functions.containsKey(compound.getName()))
-    {
-      throw new LanguageParseException("This compound type has the same name as a function: " + compound.getName(), compound.getLexicalPhrase());
-    }
     CompoundDefinition oldValue = compoundDefinitions.put(compound.getName(), compound);
     if (oldValue != null)
     {
@@ -66,28 +41,11 @@ public class CompilationUnit
   }
 
   /**
-   * @return the functions
-   */
-  public Collection<Function> getFunctions()
-  {
-    return functions.values();
-  }
-
-  /**
    * @return the compoundDefinitions
    */
   public Collection<CompoundDefinition> getCompoundDefinitions()
   {
     return compoundDefinitions.values();
-  }
-
-  /**
-   * @param name - the name of the function to get
-   * @return the function with the specified name, or null if none exists
-   */
-  public Function getFunction(String name)
-  {
-    return functions.get(name);
   }
 
   /**
@@ -114,11 +72,6 @@ public class CompilationUnit
     for (CompoundDefinition compoundDefinition : compoundDefinitions.values())
     {
       buffer.append(compoundDefinition);
-      buffer.append('\n');
-    }
-    for (Function function : functions.values())
-    {
-      buffer.append(function);
       buffer.append('\n');
     }
     return buffer.toString();

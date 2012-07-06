@@ -4,7 +4,6 @@ import parser.Rule;
 import parser.lalr.LALRRuleSet;
 import eu.bryants.anthony.toylanguage.parser.rules.CompilationUnitRule;
 import eu.bryants.anthony.toylanguage.parser.rules.CompoundDefinitionRule;
-import eu.bryants.anthony.toylanguage.parser.rules.FunctionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.AdditiveExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.ComparisonExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.DimensionsRule;
@@ -107,7 +106,6 @@ public class ToyLanguageRules
     // top level
     // startRule does not need to be included here: new CompilationUnitRule(),
     new CompoundDefinitionRule(),
-    new FunctionRule(),
   };
 
   @SuppressWarnings("unchecked")
