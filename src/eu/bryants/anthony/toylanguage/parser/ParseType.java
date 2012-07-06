@@ -72,6 +72,7 @@ public enum ParseType
   NAME,             // Name
   INTEGER_LITERAL,  // IntegerLiteral
   FLOATING_LITERAL, // FloatingLiteral
+  STRING_LITERAL,   // StringLiteral
 
   // symbols (values for these should all be LexicalPhrase)
   AMPERSAND,

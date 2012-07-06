@@ -14,6 +14,7 @@ import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.terminal.FloatingLiteral;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.toylanguage.ast.terminal.Name;
+import eu.bryants.anthony.toylanguage.ast.terminal.StringLiteral;
 
 /*
  * Created on 30 Jun 2010
@@ -503,6 +504,161 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     return null;
   }
 
+  /**
+   * Reads a string literal from the start of the reader.
+   * This method assumes that all whitespace and comments have just been discarded,
+   * and the currentLine and currentColumn are up to date.
+   * @return a Token read from the input stream, or null if no Token could be read
+   * @throws IOException - if an error occurs while reading from the stream
+   * @throws LanguageParseException - if an unexpected character is detected inside the string literal
+   */
+  private Token<ParseType> readStringLiteral() throws IOException, LanguageParseException
+  {
+    int nextChar = reader.read(0);
+    if (nextChar != '"')
+    {
+      // this is not a string literal, so return null
+      return null;
+    }
+    StringBuffer stringRepresentation = new StringBuffer();
+    stringRepresentation.append('"');
+
+    StringBuffer buffer = new StringBuffer();
+    int index = 1;
+    while (true)
+    {
+      nextChar = reader.read(index);
+      if (nextChar < 0)
+      {
+        reader.discard(index - 1); // discard so that getting the current line works correctly
+        throw new LanguageParseException("Unexpected end of input inside string literal.", new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn + index));
+      }
+      if (nextChar == '\n')
+      {
+        reader.discard(index); // discard so that getting the current line works correctly
+        throw new LanguageParseException("Unexpected end of line inside string literal.", new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn + index));
+      }
+
+      if (nextChar == '"')
+      {
+        index++;
+        stringRepresentation.append((char) nextChar);
+        break;
+      }
+
+      if (nextChar == '\\')
+      {
+        stringRepresentation.append((char) nextChar);
+        // process the escape sequence, adding the read characters to the stringRepresentation buffer
+        // and the escaped character to the literal value buffer
+        char escapedChar = processEscapeSequence(index, stringRepresentation);
+        index = stringRepresentation.length();
+        buffer.append(escapedChar);
+        continue;
+      } // finished escape sequences
+
+      buffer.append((char) nextChar);
+      stringRepresentation.append((char) nextChar);
+      index++;
+    }
+
+    // a whole string literal has been read, so create a token from it
+    // (index is now the length of the entire literal, including quotes)
+    reader.discard(index);
+    currentColumn += index;
+    StringLiteral literal = new StringLiteral(buffer.toString(), stringRepresentation.toString(), new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
+    return new Token<ParseType>(ParseType.STRING_LITERAL, literal);
+  }
+
+  /**
+   * Processes an escape sequence in a character or string literal.
+   * @param startIndex - the index of the start of the escape sequence (i.e. the '\' character)
+   * @param buffer - the buffer to append the characters from the stream to
+   * @return the escaped character
+   * @throws IOException - if there is an error reading from the stream
+   * @throws LanguageParseException - if there is an invalid character in the escape sequence
+   */
+  private char processEscapeSequence(int startIndex, StringBuffer buffer) throws IOException, LanguageParseException
+  {
+    int index = startIndex;
+    int secondChar = reader.read(index + 1);
+    if (secondChar < 0)
+    {
+      reader.discard(index); // discard so that getting the current line works correctly
+      throw new LanguageParseException("Unexpected end of input inside escape sequence.", new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn + index + 1));
+    }
+    Character escaped = null;
+    // check all of the single character escape sequences (i.e. the ones that only have one character after the \)
+    switch (secondChar)
+    {
+    case '\\': escaped = '\\'; break;
+    case 'b':  escaped = '\b'; break;
+    case 't':  escaped = '\t'; break;
+    case 'n':  escaped = '\n'; break;
+    case 'f':  escaped = '\f'; break;
+    case 'r':  escaped = '\r'; break;
+    case '"':  escaped = '"';  break;
+    case '\'': escaped = '\''; break;
+    default:
+      break;
+    }
+    if (escaped != null)
+    {
+      buffer.append((char) secondChar);
+    }
+
+    // check the multi-character escape sequences
+    int firstOctalDigit = Character.digit(secondChar, 4);
+    if (escaped == null && firstOctalDigit >= 0)
+    {
+      // the character is a valid digit in base 4, so it begins an octal character escape
+      int octal = firstOctalDigit;
+      buffer.append((char) secondChar);
+      int thirdChar = reader.read(index + 2);
+      int secondOctalDigit = Character.digit(thirdChar, 8);
+      if (secondOctalDigit >= 0)
+      {
+        octal = octal * 8 + secondOctalDigit;
+        buffer.append((char) thirdChar);
+        int fourthChar = reader.read(index + 3);
+        int thirdOctalDigit = Character.digit(fourthChar, 8);
+        if (thirdOctalDigit >= 0)
+        {
+          octal = octal * 8 + thirdOctalDigit;
+          buffer.append((char) fourthChar);
+        }
+      }
+      escaped = (char) octal;
+    }
+    if (escaped == null && secondChar == 'u')
+    {
+      buffer.append((char) secondChar);
+      // read the next 4 characters as a hexadecimal unicode constant
+      int hex = 0;
+      for (int i = 0; i < 4; i++)
+      {
+        int ithChar = reader.read(index + 2 + i);
+        int hexDigit = Character.digit(ithChar, 16);
+        if (hexDigit < 0)
+        {
+          reader.discard(index + 2 + i - 1); // discard so that getting the current line works correctly
+          throw new LanguageParseException("Invalid character in unicode escape sequence" + (ithChar >= 0 ? ": " + (char) ithChar : ""),
+                                           new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn + index + 2 + i));
+        }
+        hex = hex * 8 + hexDigit;
+        buffer.append((char) ithChar);
+      }
+      escaped = (char) hex;
+    }
+
+    if (escaped == null)
+    {
+      reader.discard(index + 1); // discard so that getting the current line works correctly
+      throw new LanguageParseException("Invalid escape sequence" + (secondChar >= 0 ? ": \\" + (char) secondChar : ""),
+                                       new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn + index + 1));
+    }
+    return escaped.charValue();
+  }
 
   /**
    * Reads a symbol token from the start of the reader.
@@ -763,6 +919,11 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       {
         return token;
       }
+      token = readStringLiteral();
+      if (token != null)
+      {
+        return token;
+      }
       token = readSymbol();
       if (token != null)
       {
@@ -779,7 +940,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     }
     catch (IOException e)
     {
-      throw new LanguageParseException("An IO Exception occured while reading the source code.", e, new LexicalPhrase(currentLine, "", currentColumn));
+      throw new LanguageParseException("An IO Exception occurred while reading the source code.", e, new LexicalPhrase(currentLine, "", currentColumn));
     }
   }
 
