@@ -40,6 +40,7 @@ public class PrimaryRule extends Rule<ParseType>
   private static Production<ParseType> INTEGER_PRODUCTION = new Production<ParseType>(ParseType.INTEGER_LITERAL);
   private static Production<ParseType> VARIABLE_PRODUCTION = new Production<ParseType>(ParseType.NAME);
   private static Production<ParseType> FIELD_ACCESS_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.DOT, ParseType.NAME);
+  private static Production<ParseType> TYPE_FIELD_ACCESS_PRODUCTION = new Production<ParseType>(ParseType.TYPE, ParseType.DOT, ParseType.NAME);
   private static Production<ParseType> ARRAY_ACCESS_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.LSQUARE, ParseType.TUPLE_EXPRESSION, ParseType.RSQUARE);
   private static Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION);
   private static Production<ParseType> BRACKETS_PRODUCTION =  new Production<ParseType>(ParseType.LPAREN, ParseType.TUPLE_EXPRESSION, ParseType.RPAREN);
@@ -50,7 +51,14 @@ public class PrimaryRule extends Rule<ParseType>
   @SuppressWarnings("unchecked")
   public PrimaryRule()
   {
-    super(ParseType.PRIMARY, TRUE_PRODUCTION, FALSE_PRODUCTION, THIS_PRODUCTION, FLOATING_PRODUCTION, INTEGER_PRODUCTION, VARIABLE_PRODUCTION, FIELD_ACCESS_PRODUCTION, ARRAY_ACCESS_PRODUCTION, FUNCTION_CALL_PRODUCTION, BRACKETS_PRODUCTION,
+    super(ParseType.PRIMARY, TRUE_PRODUCTION, FALSE_PRODUCTION,
+                             THIS_PRODUCTION,
+                             FLOATING_PRODUCTION, INTEGER_PRODUCTION,
+                             VARIABLE_PRODUCTION,
+                             FIELD_ACCESS_PRODUCTION, TYPE_FIELD_ACCESS_PRODUCTION,
+                             ARRAY_ACCESS_PRODUCTION,
+                             FUNCTION_CALL_PRODUCTION,
+                             BRACKETS_PRODUCTION,
                              ARRAY_CREATION_PRODUCTION, ARRAY_CREATION_EMPTY_LIST_PRODUCTION, ARRAY_CREATION_LIST_PRODUCTION);
   }
 
@@ -92,6 +100,12 @@ public class PrimaryRule extends Rule<ParseType>
       Expression expression = (Expression) args[0];
       Name name = (Name) args[2];
       return new FieldAccessExpression(expression, name.getName(), LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
+    }
+    if (production == TYPE_FIELD_ACCESS_PRODUCTION)
+    {
+      Type type = (Type) args[0];
+      Name name = (Name) args[2];
+      return new FieldAccessExpression(type, name.getName(), LexicalPhrase.combine(type.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
     }
     if (production == ARRAY_ACCESS_PRODUCTION)
     {

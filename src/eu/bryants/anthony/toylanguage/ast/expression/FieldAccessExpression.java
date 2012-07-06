@@ -19,10 +19,29 @@ public class FieldAccessExpression extends Expression
 
   private Member resolvedMember;
 
-  public FieldAccessExpression(Expression expression, String fieldName, LexicalPhrase lexicalPhrase)
+  /**
+   * Creates a new FieldAccessExpression to access the specified field of the specified base expression.
+   * @param baseExpression - the base expression to access the field on
+   * @param fieldName - the name of the field to access
+   * @param lexicalPhrase - the LexicalPhrase of this FieldAccessExpression
+   */
+  public FieldAccessExpression(Expression baseExpression, String fieldName, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
-    this.baseExpression = expression;
+    this.baseExpression = baseExpression;
+    this.fieldName = fieldName;
+  }
+
+  /**
+   * Creates a new FieldAccessExpression to access the specified field of the specified base type.
+   * @param baseType - the base type to access the field on
+   * @param fieldName - the name of the field to access
+   * @param lexicalPhrase - the LexicalPhrase of this FieldAccessExpression
+   */
+  public FieldAccessExpression(Type baseType, String fieldName, LexicalPhrase lexicalPhrase)
+  {
+    super(lexicalPhrase);
+    this.baseType = baseType;
     this.fieldName = fieldName;
   }
 

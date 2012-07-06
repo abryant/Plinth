@@ -257,6 +257,10 @@ public class Resolver
     else if (type instanceof NamedType)
     {
       NamedType namedType = (NamedType) type;
+      if (namedType.getResolvedDefinition() != null)
+      {
+        return;
+      }
       CompoundDefinition compoundDefinition = compilationUnit.getCompoundDefinition(namedType.getName());
       if (compoundDefinition == null)
       {
@@ -706,6 +710,7 @@ public class Resolver
       else if (fieldAccessExpression.getBaseType() != null)
       {
         baseType = fieldAccessExpression.getBaseType();
+        resolve(baseType, compilationUnit);
         baseIsStatic = true;
       }
       else
@@ -854,6 +859,7 @@ public class Resolver
         else if (fieldAccessExpression.getBaseType() != null)
         {
           baseType = fieldAccessExpression.getBaseType();
+          resolve(baseType, compilationUnit);
           baseIsStatic = true;
         }
         else

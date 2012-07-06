@@ -11,6 +11,7 @@ import eu.bryants.anthony.toylanguage.ast.misc.BlankAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.FieldAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.VariableAssignee;
 import eu.bryants.anthony.toylanguage.ast.terminal.Name;
+import eu.bryants.anthony.toylanguage.ast.type.Type;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
 
 /*
@@ -27,12 +28,13 @@ public class AssigneeRule extends Rule<ParseType>
   private static final Production<ParseType> VARIABLE_PRODUCTION = new Production<ParseType>(ParseType.NAME);
   private static final Production<ParseType> ARRAY_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.LSQUARE, ParseType.TUPLE_EXPRESSION, ParseType.RSQUARE);
   private static final Production<ParseType> FIELD_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.DOT, ParseType.NAME);
+  private static final Production<ParseType> TYPE_FIELD_PRODUCTION = new Production<ParseType>(ParseType.TYPE, ParseType.DOT, ParseType.NAME);
   private static final Production<ParseType> UNDERSCORE_PRODUCTION = new Production<ParseType>(ParseType.UNDERSCORE);
 
   @SuppressWarnings("unchecked")
   public AssigneeRule()
   {
-    super(ParseType.ASSIGNEE, VARIABLE_PRODUCTION, ARRAY_PRODUCTION, FIELD_PRODUCTION, UNDERSCORE_PRODUCTION);
+    super(ParseType.ASSIGNEE, VARIABLE_PRODUCTION, ARRAY_PRODUCTION, FIELD_PRODUCTION, TYPE_FIELD_PRODUCTION, UNDERSCORE_PRODUCTION);
   }
 
   /**
@@ -58,6 +60,13 @@ public class AssigneeRule extends Rule<ParseType>
       Expression expression = (Expression) args[0];
       Name name = (Name) args[2];
       FieldAccessExpression fieldAccess = new FieldAccessExpression(expression, name.getName(), LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
+      return new FieldAssignee(fieldAccess);
+    }
+    if (production == TYPE_FIELD_PRODUCTION)
+    {
+      Type type = (Type) args[0];
+      Name name = (Name) args[2];
+      FieldAccessExpression fieldAccess = new FieldAccessExpression(type, name.getName(), LexicalPhrase.combine(type.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
       return new FieldAssignee(fieldAccess);
     }
     if (production == UNDERSCORE_PRODUCTION)

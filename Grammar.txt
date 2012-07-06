@@ -28,6 +28,7 @@ Statement = Assignment | Block | BreakStatement | ContinueStatement | ForStateme
 Assignee = Name |
            Primary LSquare TupleExpression RSquare |
            Primary Dot Name |
+           Type Dot Name |
            Underscore
 AssigneeList = Assignee | AssigneeList Comma Assignee
 
@@ -106,6 +107,7 @@ Primary = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword | ThisKeyw
           NewKeyword LSquare RSquare Type LBrace RBrace |
           NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace |
           Primary Dot Name |
+          Type Dot Name |
           FunctionCallExpression |
           LParen TupleExpression RParen
 FunctionCallExpression = Primary LParen ExpressionList RParen | Primary LParen RParen
