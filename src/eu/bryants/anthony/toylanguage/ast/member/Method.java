@@ -123,7 +123,14 @@ public class Method extends Member
     buffer.append(containingDefinition.getName());
     buffer.append('$');
     buffer.append(name);
-    buffer.append('$');
+    if (isStatic)
+    {
+      buffer.append(":");
+    }
+    else
+    {
+      buffer.append('$');
+    }
     buffer.append(returnType.getMangledName());
     buffer.append('_');
     for (Parameter p : parameters)
