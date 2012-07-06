@@ -19,9 +19,9 @@ public class FunctionType extends Type
   private Type returnType;
   private Type[] parameterTypes;
 
-  public FunctionType(Type returnType, Type[] parameterTypes, LexicalPhrase lexicalPhrase)
+  public FunctionType(boolean nullable, Type returnType, Type[] parameterTypes, LexicalPhrase lexicalPhrase)
   {
-    super(lexicalPhrase);
+    super(nullable, lexicalPhrase);
     this.returnType = returnType;
     this.parameterTypes = parameterTypes;
   }
@@ -62,6 +62,10 @@ public class FunctionType extends Type
       return false;
     }
     FunctionType otherFunction = (FunctionType) type;
+    if (isNullable() != otherFunction.isNullable())
+    {
+      return false;
+    }
     if (!returnType.isEquivalent(otherFunction.getReturnType()))
     {
       return false;

@@ -16,9 +16,25 @@ public abstract class Type
 {
   private LexicalPhrase lexicalPhrase;
 
-  public Type(LexicalPhrase lexicalPhrase)
+  private boolean nullable;
+
+  /**
+   * Creates a new Type with the specified nullability and LexicalPhrase
+   * @param nullable - true if this Type should be nullable, false otherwise
+   * @param lexicalPhrase - the LexicalPhrase of this Type
+   */
+  public Type(boolean nullable, LexicalPhrase lexicalPhrase)
   {
     this.lexicalPhrase = lexicalPhrase;
+    this.nullable = nullable;
+  }
+
+  /**
+   * @return true if this Type is nullable, false otherwise
+   */
+  public boolean isNullable()
+  {
+    return nullable;
   }
 
   /**

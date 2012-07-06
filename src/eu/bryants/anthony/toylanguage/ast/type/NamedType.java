@@ -23,15 +23,15 @@ public class NamedType extends Type
 
   private CompoundDefinition resolvedDefinition;
 
-  public NamedType(String name, LexicalPhrase lexicalPhrase)
+  public NamedType(boolean nullable, String name, LexicalPhrase lexicalPhrase)
   {
-    super(lexicalPhrase);
+    super(nullable, lexicalPhrase);
     this.name = name;
   }
 
-  public NamedType(CompoundDefinition compoundDefinition)
+  public NamedType(boolean nullable, CompoundDefinition compoundDefinition)
   {
-    super(null);
+    super(nullable, null);
     this.name = compoundDefinition.getName();
     this.resolvedDefinition = compoundDefinition;
   }
@@ -70,6 +70,11 @@ public class NamedType extends Type
     {
       return false;
     }
+    // a nullable type cannot be assigned to a non-nullable type
+    if (!isNullable() && type.isNullable())
+    {
+      return false;
+    }
     // TODO: when we add classes, make this more general
     return resolvedDefinition.equals(((NamedType) type).getResolvedDefinition());
   }
@@ -80,7 +85,7 @@ public class NamedType extends Type
   @Override
   public boolean isEquivalent(Type type)
   {
-    return type instanceof NamedType && resolvedDefinition.equals(((NamedType) type).getResolvedDefinition());
+    return type instanceof NamedType && isNullable() == type.isNullable() && resolvedDefinition.equals(((NamedType) type).getResolvedDefinition());
   }
 
   /**
@@ -110,7 +115,7 @@ public class NamedType extends Type
   public String getMangledName()
   {
     // TODO: this should eventually use the fully-qualified name, and may need to differ between compound and class types
-    return "{" + resolvedDefinition.getName() + "}";
+    return (isNullable() ? "?" : "") + "{" + resolvedDefinition.getName() + "}";
   }
 
   /**
@@ -119,6 +124,6 @@ public class NamedType extends Type
   @Override
   public String toString()
   {
-    return name;
+    return (isNullable() ? "?" : "") + name;
   }
 }

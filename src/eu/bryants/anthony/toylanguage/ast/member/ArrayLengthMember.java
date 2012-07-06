@@ -17,5 +17,5 @@ public class ArrayLengthMember extends Member
     super(null);
   }
 
-  public static final PrimitiveType ARRAY_LENGTH_TYPE = new PrimitiveType(PrimitiveTypeType.UINT, null);
+  public static final PrimitiveType ARRAY_LENGTH_TYPE = new PrimitiveType(false, PrimitiveTypeType.UINT, null);
 }

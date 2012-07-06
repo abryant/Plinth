@@ -76,9 +76,9 @@ public class PrimitiveType extends Type
 
   private PrimitiveTypeType primitiveTypeType;
 
-  public PrimitiveType(PrimitiveTypeType primitiveTypeType, LexicalPhrase lexicalPhrase)
+  public PrimitiveType(boolean nullable, PrimitiveTypeType primitiveTypeType, LexicalPhrase lexicalPhrase)
   {
-    super(lexicalPhrase);
+    super(nullable, lexicalPhrase);
     this.primitiveTypeType = primitiveTypeType;
   }
 
@@ -101,6 +101,12 @@ public class PrimitiveType extends Type
       return false;
     }
     PrimitiveTypeType otherType = ((PrimitiveType) type).getPrimitiveTypeType();
+    // a nullable type cannot be assigned to a non-nullable type
+    if (!isNullable() && type.isNullable())
+    {
+      return false;
+    }
+
     // a boolean can only be assigned to a boolean
     // also, only a boolean can be assigned to a boolean
     // (if either of them are booleans, they must both be booleans to be assignment compatible)
@@ -191,7 +197,7 @@ public class PrimitiveType extends Type
   @Override
   public boolean isEquivalent(Type type)
   {
-    return type instanceof PrimitiveType && ((PrimitiveType) type).getPrimitiveTypeType() == primitiveTypeType;
+    return type instanceof PrimitiveType && isNullable() == type.isNullable() && ((PrimitiveType) type).getPrimitiveTypeType() == primitiveTypeType;
   }
 
   /**
@@ -210,12 +216,12 @@ public class PrimitiveType extends Type
   @Override
   public String getMangledName()
   {
-    return primitiveTypeType.mangledName;
+    return (isNullable() ? "?" : "") + primitiveTypeType.mangledName;
   }
 
   @Override
   public String toString()
   {
-    return primitiveTypeType.name;
+    return (isNullable() ? "?" : "") + primitiveTypeType.name;
   }
 }

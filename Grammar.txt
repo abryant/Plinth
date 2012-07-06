@@ -56,15 +56,15 @@ ForUpdate = DoublePlus Assignee | DoubleMinus Assignee | AssigneeList Equals Tup
 ForStatement = ForKeyword LParen ForInit TupleExpression Semicolon ForUpdate RParen Block
              | ForKeyword LParen ForInit Semicolon ForUpdate RParen Block
 
-Type = BooleanKeyword |
-       DoubleKeyword  | FloatKeyword  |
-       ULongKeyword   | LongKeyword   |
-       UIntKeyword    | IntKeyword    |
-       UShortKeyword  | ShortKeyword  |
-       UByteKeyword   | ByteKeyword   |
-       Name |
-       LSquare RSquare Type |
-       LParen TypeList RParen
+Type = BooleanKeyword |                 QuestionMark BooleanKeyword |
+       DoubleKeyword  | FloatKeyword  | QuestionMark DoubleKeyword  | QuestionMark FloatKeyword  |
+       ULongKeyword   | LongKeyword   | QuestionMark ULongKeyword   | QuestionMark LongKeyword   |
+       UIntKeyword    | IntKeyword    | QuestionMark UIntKeyword    | QuestionMark IntKeyword    |
+       UShortKeyword  | ShortKeyword  | QuestionMark UShortKeyword  | QuestionMark ShortKeyword  |
+       UByteKeyword   | ByteKeyword   | QuestionMark UByteKeyword   | QuestionMark ByteKeyword   |
+       Name                           | QuestionMark Name |
+       LSquare RSquare Type           | QuestionMark LSquare RSquare Type |
+       LParen TypeList RParen         | QuestionMark LParen TypeList RParen
 TypeList = Type | TypeList Comma Type
 
 

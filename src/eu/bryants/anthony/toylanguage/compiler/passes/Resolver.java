@@ -587,7 +587,7 @@ public class Resolver
           {
             throw e;
           }
-          currentType = new NamedType(compoundDefinition);
+          currentType = new NamedType(false, compoundDefinition);
         }
       }
       else
@@ -970,7 +970,7 @@ public class Resolver
       {
         throw new ConceptualException("'this' does not refer to anything in this context", thisExpression.getLexicalPhrase());
       }
-      thisExpression.setType(new NamedType(enclosingDefinition));
+      thisExpression.setType(new NamedType(false, enclosingDefinition));
     }
     else if (expression instanceof TupleExpression)
     {

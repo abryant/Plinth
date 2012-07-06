@@ -20,7 +20,7 @@ public class VoidType extends Type
 
   public VoidType(LexicalPhrase lexicalPhrase)
   {
-    super(lexicalPhrase);
+    super(false, lexicalPhrase);
   }
 
   /**

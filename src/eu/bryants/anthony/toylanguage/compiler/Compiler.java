@@ -116,6 +116,7 @@ public class Compiler
     catch (ConceptualException e)
     {
       printConceptualException(e.getMessage(), e.getLexicalPhrase());
+      e.printStackTrace();
       System.exit(6);
     }
     catch (NameNotResolvedException e)

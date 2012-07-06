@@ -165,7 +165,7 @@ public class CodeGenerator
         {
           types[i] = findNativeType(parameters[i].getType());
         }
-        LLVMTypeRef resultType = findNativeType(new NamedType(compoundDefinition));
+        LLVMTypeRef resultType = findNativeType(new NamedType(false, compoundDefinition));
 
         Pointer paramTypes = C.toNativePointerArray(types, false, true);
         LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, paramTypes, types.length, false);
@@ -202,7 +202,7 @@ public class CodeGenerator
         {
           types = new LLVMTypeRef[1 + parameters.length];
           // add the 'this' type to the function
-          types[0] = LLVM.LLVMPointerType(findNativeType(new NamedType(compoundDefinition)), 0);
+          types[0] = LLVM.LLVMPointerType(findNativeType(new NamedType(false, compoundDefinition)), 0);
           for (int i = 0; i < parameters.length; i++)
           {
             types[i + 1] = findNativeType(parameters[i].getType());
@@ -399,7 +399,7 @@ public class CodeGenerator
         LLVM.LLVMBuildStore(builder, LLVM.LLVMGetParam(llvmFunction, p.getIndex()), variables.get(p.getVariable()));
       }
 
-      final LLVMValueRef thisValue = LLVM.LLVMBuildAlloca(builder, findNativeType(new NamedType(compoundDefinition)), "this");
+      final LLVMValueRef thisValue = LLVM.LLVMBuildAlloca(builder, findNativeType(new NamedType(false, compoundDefinition)), "this");
 
       buildStatement(constructor.getBlock(), VoidType.VOID_TYPE, llvmFunction, thisValue, variables, new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new Runnable()
       {
@@ -1412,7 +1412,7 @@ public class CodeGenerator
         {
           parameterTypes[i] = params[i].getType();
         }
-        returnType = new NamedType(resolvedConstructor.getContainingDefinition());
+        returnType = new NamedType(false, resolvedConstructor.getContainingDefinition());
         mangledName = resolvedConstructor.getMangledName();
       }
       else if (resolvedMethod != null)

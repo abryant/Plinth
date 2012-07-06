@@ -18,9 +18,9 @@ public class TupleType extends Type
 
   private Type[] subTypes;
 
-  public TupleType(Type[] subTypes, LexicalPhrase lexicalPhrase)
+  public TupleType(boolean nullable, Type[] subTypes, LexicalPhrase lexicalPhrase)
   {
-    super(lexicalPhrase);
+    super(nullable, lexicalPhrase);
     this.subTypes = subTypes;
   }
 
@@ -43,6 +43,11 @@ public class TupleType extends Type
       return subTypes.length == 1 && subTypes[0].canAssign(type);
     }
     TupleType otherTuple = (TupleType) type;
+    // a nullable type cannot be assigned to a non-nullable type
+    if (!isNullable() && otherTuple.isNullable())
+    {
+      return false;
+    }
     if (subTypes.length != otherTuple.subTypes.length)
     {
       return false;
@@ -68,6 +73,10 @@ public class TupleType extends Type
       return false;
     }
     TupleType otherType = (TupleType) type;
+    if (isNullable() != otherType.isNullable())
+    {
+      return false;
+    }
     if (subTypes.length != otherType.subTypes.length)
     {
       return false;
@@ -99,6 +108,10 @@ public class TupleType extends Type
   public String getMangledName()
   {
     StringBuffer buffer = new StringBuffer();
+    if (isNullable())
+    {
+      buffer.append('?');
+    }
     buffer.append("(");
     for (int i = 0; i < subTypes.length; i++)
     {
@@ -114,7 +127,12 @@ public class TupleType extends Type
   @Override
   public String toString()
   {
-    StringBuffer buffer = new StringBuffer("(");
+    StringBuffer buffer = new StringBuffer();
+    if (isNullable())
+    {
+      buffer.append('?');
+    }
+    buffer.append('(');
     for (int i = 0; i < subTypes.length; i++)
     {
       buffer.append(subTypes[i]);

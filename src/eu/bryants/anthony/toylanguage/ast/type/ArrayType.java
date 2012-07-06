@@ -22,9 +22,9 @@ public class ArrayType extends Type
 
   private Type baseType;
 
-  public ArrayType(Type baseType, LexicalPhrase lexicalPhrase)
+  public ArrayType(boolean nullable, Type baseType, LexicalPhrase lexicalPhrase)
   {
-    super(lexicalPhrase);
+    super(nullable, lexicalPhrase);
     this.baseType = baseType;
   }
 
@@ -34,7 +34,7 @@ public class ArrayType extends Type
   @Override
   public boolean canAssign(Type type)
   {
-    // only allow assignment if it would work both ways,
+    // only allow assignment if base type assignment would work both ways,
     // so we cannot do either of the following (for some Bar extends Foo)
 
     // 1:
@@ -51,6 +51,11 @@ public class ArrayType extends Type
     {
       return false;
     }
+    // a nullable type cannot be assigned to a non-nullable type
+    if (!isNullable() && type.isNullable())
+    {
+      return false;
+    }
     Type otherBaseType = ((ArrayType) type).getBaseType();
     return baseType.canAssign(otherBaseType) && otherBaseType.canAssign(baseType);
   }
@@ -61,7 +66,7 @@ public class ArrayType extends Type
   @Override
   public boolean isEquivalent(Type type)
   {
-    return type instanceof ArrayType && baseType.isEquivalent(((ArrayType) type).getBaseType());
+    return type instanceof ArrayType && isNullable() == type.isNullable() && baseType.isEquivalent(((ArrayType) type).getBaseType());
   }
 
   /**
@@ -92,7 +97,7 @@ public class ArrayType extends Type
   @Override
   public String getMangledName()
   {
-    return "[" + baseType.getMangledName() + "]";
+    return (isNullable() ? "?" : "") + "[" + baseType.getMangledName() + "]";
   }
 
   /**
@@ -101,6 +106,6 @@ public class ArrayType extends Type
   @Override
   public String toString()
   {
-    return "[]" + baseType;
+    return (isNullable() ? "?" : "") + "[]" + baseType;
   }
 }

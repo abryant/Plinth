@@ -592,7 +592,7 @@ public class TypeChecker
         for (Expression e : creationExpression.getDimensionExpressions())
         {
           Type type = checkTypes(e, compilationUnit);
-          if (!new PrimitiveType(PrimitiveTypeType.UINT, null).canAssign(type))
+          if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(type))
           {
             throw new ConceptualException("Cannot use an expression of type " + type + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, e.getLexicalPhrase());
           }
@@ -628,7 +628,7 @@ public class TypeChecker
     }
     else if (expression instanceof BooleanLiteralExpression)
     {
-      Type type = new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
+      Type type = new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null);
       expression.setType(type);
       return type;
     }
@@ -689,7 +689,7 @@ public class TypeChecker
         {
           // comparing booleans is only valid when using '==' or '!='
           comparisonExpression.setComparisonType((PrimitiveType) leftType);
-          PrimitiveType type = new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
+          PrimitiveType type = new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null);
           comparisonExpression.setType(type);
           return type;
         }
@@ -712,7 +712,7 @@ public class TypeChecker
           }
 
           // comparing any numeric types is always valid
-          Type resultType = new PrimitiveType(PrimitiveTypeType.BOOLEAN, null);
+          Type resultType = new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null);
           comparisonExpression.setType(resultType);
           return resultType;
         }
@@ -752,11 +752,11 @@ public class TypeChecker
       if (Float.parseFloat(floatingString) == Double.parseDouble(floatingString))
       {
         // the value fits in a float, so that is its initial type (which will automatically be casted to double if necessary)
-        Type type = new PrimitiveType(PrimitiveTypeType.FLOAT, null);
+        Type type = new PrimitiveType(false, PrimitiveTypeType.FLOAT, null);
         expression.setType(type);
         return type;
       }
-      Type type = new PrimitiveType(PrimitiveTypeType.DOUBLE, null);
+      Type type = new PrimitiveType(false, PrimitiveTypeType.DOUBLE, null);
       expression.setType(type);
       return type;
     }
@@ -786,7 +786,7 @@ public class TypeChecker
       else if (functionCallExpression.getResolvedConstructor() != null)
       {
         parameters = functionCallExpression.getResolvedConstructor().getParameters();
-        returnType = new NamedType(functionCallExpression.getResolvedConstructor().getContainingDefinition());
+        returnType = new NamedType(false, functionCallExpression.getResolvedConstructor().getContainingDefinition());
         name = functionCallExpression.getResolvedConstructor().getName();
       }
       else if (functionCallExpression.getResolvedBaseExpression() != null)
@@ -915,7 +915,7 @@ public class TypeChecker
           throw new ConceptualException("Integer literal will not fit into a ulong", expression.getLexicalPhrase());
         }
       }
-      Type type = new PrimitiveType(primitiveTypeType, null);
+      Type type = new PrimitiveType(false, primitiveTypeType, null);
       expression.setType(type);
       return type;
     }
@@ -972,25 +972,25 @@ public class TypeChecker
         // allow the unary minus operator to automatically convert from unsigned to signed integer values
         if (primitiveTypeType == PrimitiveTypeType.UBYTE)
         {
-          PrimitiveType signedType = new PrimitiveType(PrimitiveTypeType.BYTE, null);
+          PrimitiveType signedType = new PrimitiveType(false, PrimitiveTypeType.BYTE, null);
           expression.setType(signedType);
           return signedType;
         }
         if (primitiveTypeType == PrimitiveTypeType.USHORT)
         {
-          PrimitiveType signedType = new PrimitiveType(PrimitiveTypeType.SHORT, null);
+          PrimitiveType signedType = new PrimitiveType(false, PrimitiveTypeType.SHORT, null);
           expression.setType(signedType);
           return signedType;
         }
         if (primitiveTypeType == PrimitiveTypeType.UINT)
         {
-          PrimitiveType signedType = new PrimitiveType(PrimitiveTypeType.INT, null);
+          PrimitiveType signedType = new PrimitiveType(false, PrimitiveTypeType.INT, null);
           expression.setType(signedType);
           return signedType;
         }
         if (primitiveTypeType == PrimitiveTypeType.ULONG)
         {
-          PrimitiveType signedType = new PrimitiveType(PrimitiveTypeType.LONG, null);
+          PrimitiveType signedType = new PrimitiveType(false, PrimitiveTypeType.LONG, null);
           expression.setType(signedType);
           return signedType;
         }
@@ -1039,7 +1039,7 @@ public class TypeChecker
       {
         subTypes[i] = checkTypes(subExpressions[i], compilationUnit);
       }
-      TupleType type = new TupleType(subTypes, null);
+      TupleType type = new TupleType(false, subTypes, null);
       tupleExpression.setType(type);
       return type;
     }
