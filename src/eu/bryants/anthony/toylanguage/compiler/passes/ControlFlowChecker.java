@@ -102,7 +102,11 @@ public class ControlFlowChecker
         {
           initialisedVariables.add(p.getVariable());
         }
-        checkControlFlow(method.getBlock(), initialisedVariables, new LinkedList<BreakableStatement>(), false, method.isStatic());
+        boolean returned = checkControlFlow(method.getBlock(), initialisedVariables, new LinkedList<BreakableStatement>(), false, method.isStatic());
+        if (!returned && !(method.getReturnType() instanceof VoidType))
+        {
+          throw new ConceptualException("Method does not always return a value", method.getLexicalPhrase());
+        }
       }
     }
     for (Function f : compilationUnit.getFunctions())
