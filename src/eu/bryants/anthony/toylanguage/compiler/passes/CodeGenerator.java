@@ -90,6 +90,8 @@ public class CodeGenerator
   private LLVMModuleRef module;
   private LLVMBuilderRef builder;
 
+  private LLVMValueRef callocFunction;
+
   private Map<GlobalVariable, LLVMValueRef> globalVariables = new HashMap<GlobalVariable, LLVMValueRef>();
 
   public CodeGenerator(CompilationUnit compilationUnit)
@@ -124,7 +126,7 @@ public class CodeGenerator
         {
           GlobalVariable globalVariable = field.getGlobalVariable();
           LLVMValueRef value = LLVM.LLVMAddGlobal(module, findNativeType(field.getType()), globalVariable.getMangledName());
-          LLVM.LLVMSetInitializer(value, findDefaultValue(field.getType()));
+          LLVM.LLVMSetInitializer(value, LLVM.LLVMConstNull(findNativeType(field.getType())));
           globalVariables.put(globalVariable, value);
         }
       }
@@ -141,17 +143,17 @@ public class CodeGenerator
     // lazily initialise globals which do not yet exist
     Type type = globalVariable.getType();
     LLVMValueRef newValue = LLVM.LLVMAddGlobal(module, findNativeType(type), globalVariable.getMangledName());
-    LLVM.LLVMSetInitializer(newValue, findDefaultValue(type));
+    LLVM.LLVMSetInitializer(newValue, LLVM.LLVMConstNull(findNativeType(type)));
     globalVariables.put(globalVariable, newValue);
     return newValue;
   }
 
   private void addFunctions()
   {
-    // add malloc() as an external function
-    LLVMTypeRef mallocReturnType = LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0);
-    LLVMTypeRef[] mallocParamTypes = new LLVMTypeRef[] {LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount())};
-    LLVM.LLVMAddFunction(module, "malloc", LLVM.LLVMFunctionType(mallocReturnType, C.toNativePointerArray(mallocParamTypes, false, true), mallocParamTypes.length, false));
+    // add calloc() as an external function
+    LLVMTypeRef callocReturnType = LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0);
+    LLVMTypeRef[] callocParamTypes = new LLVMTypeRef[] {LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount())};
+    callocFunction = LLVM.LLVMAddFunction(module, "calloc", LLVM.LLVMFunctionType(callocReturnType, C.toNativePointerArray(callocParamTypes, false, true), callocParamTypes.length, false));
 
     for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
     {
@@ -282,16 +284,27 @@ public class CodeGenerator
   {
     if (type instanceof PrimitiveType)
     {
+      LLVMTypeRef nonNullableType;
       PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
       if (primitiveTypeType == PrimitiveTypeType.DOUBLE)
       {
-        return LLVM.LLVMDoubleType();
+        nonNullableType = LLVM.LLVMDoubleType();
       }
-      if (primitiveTypeType == PrimitiveTypeType.FLOAT)
+      else if (primitiveTypeType == PrimitiveTypeType.FLOAT)
       {
-        return LLVM.LLVMFloatType();
+        nonNullableType = LLVM.LLVMFloatType();
       }
-      return LLVM.LLVMIntType(primitiveTypeType.getBitCount());
+      else
+      {
+        nonNullableType = LLVM.LLVMIntType(primitiveTypeType.getBitCount());
+      }
+      if (type.isNullable())
+      {
+        // tuple the non-nullable type with a boolean, so that we can tell whether or not the value is null
+        LLVMTypeRef[] types = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), nonNullableType};
+        return LLVM.LLVMStructType(C.toNativePointerArray(types, false, true), types.length, false);
+      }
+      return nonNullableType;
     }
     if (type instanceof ArrayType)
     {
@@ -311,7 +324,14 @@ public class CodeGenerator
       {
         llvmSubTypes[i] = findNativeType(subTypes[i]);
       }
-      return LLVM.LLVMStructType(C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
+      LLVMTypeRef nonNullableType = LLVM.LLVMStructType(C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
+      if (tupleType.isNullable())
+      {
+        // tuple the non-nullable type with a boolean, so that we can tell whether or not the value is null
+        LLVMTypeRef[] types = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), nonNullableType};
+        return LLVM.LLVMStructType(C.toNativePointerArray(types, false, true), types.length, false);
+      }
+      return nonNullableType;
     }
     if (type instanceof NamedType)
     {
@@ -323,56 +343,20 @@ public class CodeGenerator
       {
         llvmSubTypes[i] = findNativeType(fields[i].getType());
       }
-      return LLVM.LLVMStructType(C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
+      LLVMTypeRef nonNullableType = LLVM.LLVMStructType(C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
+      if (namedType.isNullable())
+      {
+        // tuple the non-nullable type with a boolean, so that we can tell whether or not the value is null
+        LLVMTypeRef[] types = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), nonNullableType};
+        return LLVM.LLVMStructType(C.toNativePointerArray(types, false, true), types.length, false);
+      }
+      return nonNullableType;
     }
     if (type instanceof VoidType)
     {
       return LLVM.LLVMVoidType();
     }
     throw new IllegalStateException("Unexpected Type: " + type);
-  }
-
-  private LLVMValueRef findDefaultValue(Type type)
-  {
-    if (type instanceof PrimitiveType)
-    {
-      PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
-      if (primitiveTypeType.isFloating())
-      {
-        return LLVM.LLVMConstReal(findNativeType(type), 0.0);
-      }
-      return LLVM.LLVMConstInt(findNativeType(type), 0, false);
-    }
-    if (type instanceof ArrayType)
-    {
-      // TODO: enforce that this is nullable
-      return LLVM.LLVMConstNull(findNativeType(type));
-    }
-    if (type instanceof TupleType)
-    {
-      TupleType tupleType = (TupleType) type;
-      Type[] subTypes = tupleType.getSubTypes();
-      LLVMValueRef[] constantValues = new LLVMValueRef[subTypes.length];
-      for (int i = 0; i < constantValues.length; ++i)
-      {
-        constantValues[i] = findDefaultValue(subTypes[i]);
-      }
-      return LLVM.LLVMConstStruct(C.toNativePointerArray(constantValues, false, true), constantValues.length, false);
-    }
-    if (type instanceof NamedType)
-    {
-      // TODO: when we have nullable value types, enforce that this is nullable, and return a null value instead of initialising things like this
-      NamedType namedType = (NamedType) type;
-      CompoundDefinition compound = namedType.getResolvedDefinition();
-      Field[] fields = compound.getNonStaticFields();
-      LLVMValueRef[] constantValues = new LLVMValueRef[fields.length];
-      for (int i = 0; i < fields.length; ++i)
-      {
-        constantValues[i] = findDefaultValue(fields[i].getType());
-      }
-      return LLVM.LLVMConstStruct(C.toNativePointerArray(constantValues, false, true), constantValues.length, false);
-    }
-    throw new IllegalArgumentException("Unexpected Type: " + type);
   }
 
   private void addConstructorBodies(CompoundDefinition compoundDefinition)
@@ -986,6 +970,10 @@ public class CodeGenerator
     if (from instanceof ArrayType && to instanceof ArrayType)
     {
       // array casts are illegal unless from and to types are the same, so they must have the same type
+      // nullability will be checked by the type checker, but has no effect on the native type, so we do not need to do anything special here
+
+      // if from and to are nullable and value is null, then the value we are returning here is undefined
+      // TODO: if from and to are nullable and value is null, throw an exception here instead of having undefined behaviour
       return value;
     }
     if (from instanceof NamedType && to instanceof NamedType) // TODO: when it doesn't cause a warning, add: &&
@@ -993,7 +981,31 @@ public class CodeGenerator
         //((NamedType) to).getResolvedDefinition() instanceof CompoundDefinition)
     {
       // compound type casts are illegal unless from and to types are the same, so they must have the same type
-      return value;
+      LLVMValueRef isNotNullValue = null;
+      LLVMValueRef namedValue = value;
+      if (from.isNullable())
+      {
+        isNotNullValue = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
+        namedValue = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
+      }
+      if (to.isNullable())
+      {
+        LLVMValueRef result = LLVM.LLVMGetUndef(findNativeType(to));
+        if (from.isNullable())
+        {
+          result = LLVM.LLVMBuildInsertValue(builder, result, isNotNullValue, 0, "");
+        }
+        else
+        {
+          // set the flag to one to indicate that this value is not null
+          result = LLVM.LLVMBuildInsertValue(builder, result, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false), 0, "");
+        }
+        return LLVM.LLVMBuildInsertValue(builder, result, namedValue, 1, "");
+      }
+      // return the primitive value directly, since the to type is not nullable
+      // if from is nullable and value is null, then the value we are returning here is undefined
+      // TODO: if from is nullable and value is null, throw an exception here instead of having undefined behaviour
+      return namedValue;
     }
     if (from instanceof TupleType && !(to instanceof TupleType))
     {
@@ -1001,6 +1013,13 @@ public class CodeGenerator
       if (fromTuple.getSubTypes().length != 1)
       {
         throw new IllegalArgumentException("Cannot convert from a " + from + " to a " + to);
+      }
+      if (from.isNullable())
+      {
+        // extract the value of the tuple from the nullable structure
+        // if from is nullable and value is null, then the value we are using here is undefined
+        // TODO: if from is nullable and value is null, throw an exception here instead of having undefined behaviour
+        value = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
       }
       return LLVM.LLVMBuildExtractValue(builder, value, 0, "");
     }
@@ -1011,7 +1030,15 @@ public class CodeGenerator
       {
         throw new IllegalArgumentException("Cannot convert from a " + from + " to a " + to);
       }
-      return LLVM.LLVMBuildInsertValue(builder, LLVM.LLVMGetUndef(findNativeType(to)), value, 0, "");
+      LLVMValueRef tupledValue = LLVM.LLVMGetUndef(findNativeType(new TupleType(false, toTuple.getSubTypes(), null)));
+      tupledValue = LLVM.LLVMBuildInsertValue(builder, tupledValue, value, 0, "");
+      if (to.isNullable())
+      {
+        LLVMValueRef result = LLVM.LLVMGetUndef(findNativeType(to));
+        result = LLVM.LLVMBuildInsertValue(builder, result, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false), 0, "");
+        return LLVM.LLVMBuildInsertValue(builder, result, tupledValue, 1, "");
+      }
+      return tupledValue;
     }
     if (from instanceof TupleType && to instanceof TupleType)
     {
@@ -1023,13 +1050,72 @@ public class CodeGenerator
       }
       Type[] fromSubTypes = fromTuple.getSubTypes();
       Type[] toSubTypes = toTuple.getSubTypes();
+      if (fromSubTypes.length != toSubTypes.length)
+      {
+        throw new IllegalArgumentException("Cannot convert from a " + from + " to a " + to);
+      }
+      boolean subTypesEquivalent = true;
+      for (int i = 0; i < fromSubTypes.length; ++i)
+      {
+        if (!fromSubTypes[i].isEquivalent(toSubTypes[i]))
+        {
+          subTypesEquivalent = false;
+          break;
+        }
+      }
+      if (subTypesEquivalent)
+      {
+        // just convert the nullability
+        if (from.isNullable() && !to.isNullable())
+        {
+          // extract the value of the tuple from the nullable structure
+          // if from is nullable and value is null, then the value we are using here is undefined
+          // TODO: if from is nullable and value is null, throw an exception here instead of having undefined behaviour
+          return LLVM.LLVMBuildExtractValue(builder, value, 1, "");
+        }
+        if (!from.isNullable() && to.isNullable())
+        {
+          LLVMValueRef result = LLVM.LLVMGetUndef(findNativeType(to));
+          // set the flag to one to indicate that this value is not null
+          result = LLVM.LLVMBuildInsertValue(builder, result, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false), 0, "");
+          return LLVM.LLVMBuildInsertValue(builder, result, value, 1, "");
+        }
+        throw new IllegalArgumentException("Unable to convert from a " + from + " to a " + to + " - their sub types and nullability are equivalent, but the types themselves are not");
+      }
+
+      LLVMValueRef isNotNullValue = null;
+      LLVMValueRef tupleValue = value;
+      if (from.isNullable())
+      {
+        isNotNullValue = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
+        tupleValue = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
+      }
+
       LLVMValueRef currentValue = LLVM.LLVMGetUndef(findNativeType(toTuple));
       for (int i = 0; i < fromTuple.getSubTypes().length; i++)
       {
-        LLVMValueRef current = LLVM.LLVMBuildExtractValue(builder, value, i, "");
+        LLVMValueRef current = LLVM.LLVMBuildExtractValue(builder, tupleValue, i, "");
         LLVMValueRef converted = convertType(current, fromSubTypes[i], toSubTypes[i]);
         currentValue = LLVM.LLVMBuildInsertValue(builder, currentValue, converted, i, "");
       }
+
+      if (to.isNullable())
+      {
+        LLVMValueRef result = LLVM.LLVMGetUndef(findNativeType(to));
+        if (from.isNullable())
+        {
+          result = LLVM.LLVMBuildInsertValue(builder, result, isNotNullValue, 0, "");
+        }
+        else
+        {
+          // set the flag to one to indicate that this value is not null
+          result = LLVM.LLVMBuildInsertValue(builder, result, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false), 0, "");
+        }
+        return LLVM.LLVMBuildInsertValue(builder, result, currentValue, 1, "");
+      }
+      // return the primitive value directly, since the to type is not nullable
+      // if from is nullable and value is null, then the value we are using here is undefined
+      // TODO: if from is nullable and value is null, throw an exception here instead of having undefined behaviour
       return currentValue;
     }
     throw new IllegalArgumentException("Unknown type conversion, from '" + from + "' to '" + to + "'");
@@ -1039,46 +1125,86 @@ public class CodeGenerator
   {
     PrimitiveTypeType fromType = from.getPrimitiveTypeType();
     PrimitiveTypeType toType = to.getPrimitiveTypeType();
-    if (fromType == toType)
+    if (fromType == toType && from.isNullable() == to.isNullable())
     {
       return value;
     }
-    LLVMTypeRef toNativeType = findNativeType(to);
-    if (fromType.isFloating() && toType.isFloating())
+    LLVMValueRef isNotNullValue = null;
+    LLVMValueRef primitiveValue = value;
+    if (from.isNullable())
     {
-      return LLVM.LLVMBuildFPCast(builder, value, toNativeType, "");
+      isNotNullValue = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
+      primitiveValue = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
     }
-    if (fromType.isFloating() && !toType.isFloating())
+    // perform the conversion
+    LLVMTypeRef toNativeType = findNativeType(new PrimitiveType(false, toType, null));
+    if (fromType == PrimitiveTypeType.BOOLEAN && toType == PrimitiveTypeType.BOOLEAN)
+    {
+      // do not alter primitiveValue, we only need to change the nullability
+    }
+    else if (fromType.isFloating() && toType.isFloating())
+    {
+      primitiveValue = LLVM.LLVMBuildFPCast(builder, value, toNativeType, "");
+    }
+    else if (fromType.isFloating() && !toType.isFloating())
     {
       if (toType.isSigned())
       {
-        return LLVM.LLVMBuildFPToSI(builder, value, toNativeType, "");
+        primitiveValue = LLVM.LLVMBuildFPToSI(builder, value, toNativeType, "");
       }
-      return LLVM.LLVMBuildFPToUI(builder, value, toNativeType, "");
+      else
+      {
+        primitiveValue = LLVM.LLVMBuildFPToUI(builder, value, toNativeType, "");
+      }
     }
-    if (!fromType.isFloating() && toType.isFloating())
+    else if (!fromType.isFloating() && toType.isFloating())
     {
       if (fromType.isSigned())
       {
-        return LLVM.LLVMBuildSIToFP(builder, value, toNativeType, "");
+        primitiveValue = LLVM.LLVMBuildSIToFP(builder, value, toNativeType, "");
       }
-      return LLVM.LLVMBuildUIToFP(builder, value, toNativeType, "");
+      else
+      {
+        primitiveValue = LLVM.LLVMBuildUIToFP(builder, value, toNativeType, "");
+      }
     }
     // both integer types, so perform a sign-extend, zero-extend, or truncation
-    if (fromType.getBitCount() > toType.getBitCount())
+    else if (fromType.getBitCount() > toType.getBitCount())
     {
-      return LLVM.LLVMBuildTrunc(builder, value, toNativeType, "");
+      primitiveValue = LLVM.LLVMBuildTrunc(builder, value, toNativeType, "");
     }
-    if (fromType.getBitCount() == toType.getBitCount() && fromType.isSigned() != toType.isSigned())
+    else if (fromType.getBitCount() == toType.getBitCount() && fromType.isSigned() != toType.isSigned())
     {
-      return LLVM.LLVMBuildBitCast(builder, value, toNativeType, "");
+      primitiveValue = LLVM.LLVMBuildBitCast(builder, value, toNativeType, "");
     }
     // the value needs extending, so decide whether to do a sign-extend or a zero-extend based on whether the from type is signed
-    if (fromType.isSigned())
+    else if (fromType.isSigned())
     {
-      return LLVM.LLVMBuildSExt(builder, value, toNativeType, "");
+      primitiveValue = LLVM.LLVMBuildSExt(builder, value, toNativeType, "");
     }
-    return LLVM.LLVMBuildZExt(builder, value, toNativeType, "");
+    else
+    {
+      primitiveValue = LLVM.LLVMBuildZExt(builder, value, toNativeType, "");
+    }
+    // pack up the result before returning it
+    if (to.isNullable())
+    {
+      LLVMValueRef result = LLVM.LLVMGetUndef(findNativeType(to));
+      if (from.isNullable())
+      {
+        result = LLVM.LLVMBuildInsertValue(builder, result, isNotNullValue, 0, "");
+      }
+      else
+      {
+        // set the flag to one to indicate that this value is not null
+        result = LLVM.LLVMBuildInsertValue(builder, result, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false), 0, "");
+      }
+      return LLVM.LLVMBuildInsertValue(builder, result, primitiveValue, 1, "");
+    }
+    // return the primitive value directly, since the to type is not nullable
+    // if from was null, then the value we are returning here is undefined
+    // TODO: if from was null, throw an exception here instead of having undefined behaviour
+    return primitiveValue;
   }
 
   private int getPredicate(ComparisonOperator operator, boolean floating, boolean signed)
@@ -1131,10 +1257,9 @@ public class CodeGenerator
     LLVMValueRef llvmArraySize = LLVM.LLVMBuildGEP(builder, LLVM.LLVMConstNull(llvmArrayType), C.toNativePointerArray(indices, false, true), indices.length, "");
     LLVMValueRef llvmSize = LLVM.LLVMBuildPtrToInt(builder, llvmArraySize, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
 
-    LLVMValueRef mallocFunction = LLVM.LLVMGetNamedFunction(module, "malloc");
-
-    LLVMValueRef[] arguments = new LLVMValueRef[] {llvmSize};
-    LLVMValueRef memoryPointer = LLVM.LLVMBuildCall(builder, mallocFunction, C.toNativePointerArray(arguments, false, true), 1, "");
+    // call calloc to allocate the memory and initialise it to a string of zeros
+    LLVMValueRef[] arguments = new LLVMValueRef[] {llvmSize, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
+    LLVMValueRef memoryPointer = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
     LLVMValueRef allocatedPointer = LLVM.LLVMBuildBitCast(builder, memoryPointer, llvmArrayType, "");
 
     LLVMValueRef[] sizeIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),

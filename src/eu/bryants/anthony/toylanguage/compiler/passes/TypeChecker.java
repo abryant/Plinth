@@ -95,7 +95,7 @@ public class TypeChecker
       AssignStatement assignStatement = (AssignStatement) statement;
       Type declaredType = assignStatement.getType();
       Assignee[] assignees = assignStatement.getAssignees();
-      boolean distributedTupleType = declaredType != null && declaredType instanceof TupleType && ((TupleType) declaredType).getSubTypes().length == assignees.length;
+      boolean distributedTupleType = declaredType != null && declaredType instanceof TupleType && !declaredType.isNullable() && ((TupleType) declaredType).getSubTypes().length == assignees.length;
       Type[] tupledSubTypes;
       if (distributedTupleType)
       {
@@ -300,7 +300,7 @@ public class TypeChecker
       if (condition != null)
       {
         Type conditionType = checkTypes(condition, compilationUnit);
-        if (!(conditionType instanceof PrimitiveType) || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+        if (conditionType.isNullable() || !(conditionType instanceof PrimitiveType) || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
         {
           throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + conditionType + "'", condition.getLexicalPhrase());
         }
@@ -316,7 +316,7 @@ public class TypeChecker
     {
       IfStatement ifStatement = (IfStatement) statement;
       Type exprType = checkTypes(ifStatement.getExpression(), compilationUnit);
-      if (!(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+      if (exprType.isNullable() || !(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
       {
         throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", ifStatement.getExpression().getLexicalPhrase());
       }
@@ -357,7 +357,7 @@ public class TypeChecker
         // ignore blank assignees, they shouldn't be able to get through variable resolution
         throw new IllegalStateException("Unknown Assignee type: " + assignee);
       }
-      if (!(assigneeType instanceof PrimitiveType) || ((PrimitiveType) assigneeType).getPrimitiveTypeType() == PrimitiveTypeType.BOOLEAN)
+      if (assigneeType.isNullable() || !(assigneeType instanceof PrimitiveType) || ((PrimitiveType) assigneeType).getPrimitiveTypeType() == PrimitiveTypeType.BOOLEAN)
       {
         throw new ConceptualException("Cannot " + (prefixIncDecStatement.isIncrement() ? "inc" : "dec") + "rement an assignee of type " + assigneeType, assignee.getLexicalPhrase());
       }
@@ -452,7 +452,7 @@ public class TypeChecker
       }
       Type expressionType = checkTypes(shorthandAssignStatement.getExpression(), compilationUnit);
       Type[] rightTypes;
-      if (expressionType instanceof TupleType && ((TupleType) expressionType).getSubTypes().length == assignees.length)
+      if (expressionType instanceof TupleType && !expressionType.isNullable() && ((TupleType) expressionType).getSubTypes().length == assignees.length)
       {
         TupleType expressionTupleType = (TupleType) expressionType;
         rightTypes = expressionTupleType.getSubTypes();
@@ -478,7 +478,7 @@ public class TypeChecker
           types[i] = left;
           assignees[i].setResolvedType(left);
         }
-        if (!(left instanceof PrimitiveType) || !(right instanceof PrimitiveType))
+        if (!(left instanceof PrimitiveType) || !(right instanceof PrimitiveType) || left.isNullable() || right.isNullable())
         {
           throw new ConceptualException("The operator '" + operator + "' is not defined for types " + left + " and " + right, shorthandAssignStatement.getLexicalPhrase());
         }
@@ -519,7 +519,7 @@ public class TypeChecker
     {
       WhileStatement whileStatement = (WhileStatement) statement;
       Type exprType = checkTypes(whileStatement.getExpression(), compilationUnit);
-      if (!(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+      if (exprType.isNullable() || !(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
       {
         throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", whileStatement.getExpression().getLexicalPhrase());
       }
@@ -546,7 +546,7 @@ public class TypeChecker
       ArithmeticExpression arithmeticExpression = (ArithmeticExpression) expression;
       Type leftType = checkTypes(arithmeticExpression.getLeftSubExpression(), compilationUnit);
       Type rightType = checkTypes(arithmeticExpression.getRightSubExpression(), compilationUnit);
-      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType))
+      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.isNullable() && !rightType.isNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
         PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
@@ -571,7 +571,7 @@ public class TypeChecker
     {
       ArrayAccessExpression arrayAccessExpression = (ArrayAccessExpression) expression;
       Type type = checkTypes(arrayAccessExpression.getArrayExpression(), compilationUnit);
-      if (!(type instanceof ArrayType))
+      if (!(type instanceof ArrayType) || type.isNullable())
       {
         throw new ConceptualException("Array accesses are not defined for type " + type, arrayAccessExpression.getLexicalPhrase());
       }
@@ -598,9 +598,16 @@ public class TypeChecker
           }
         }
       }
-      if (creationExpression.getValueExpressions() != null)
+      Type baseType = creationExpression.getType().getBaseType();
+      if (creationExpression.getValueExpressions() == null)
       {
-        Type baseType = creationExpression.getType().getBaseType();
+        if (!baseType.isNullable())
+        {
+          throw new ConceptualException("Cannot create an array of '" + baseType + "' without an initialiser.", creationExpression.getLexicalPhrase());
+        }
+      }
+      else
+      {
         for (Expression e : creationExpression.getValueExpressions())
         {
           Type type = checkTypes(e, compilationUnit);
@@ -615,7 +622,7 @@ public class TypeChecker
     else if (expression instanceof BitwiseNotExpression)
     {
       Type type = checkTypes(((BitwiseNotExpression) expression).getExpression(), compilationUnit);
-      if (type instanceof PrimitiveType)
+      if (type instanceof PrimitiveType && !type.isNullable())
       {
         PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
         if (!primitiveTypeType.isFloating())
@@ -635,7 +642,7 @@ public class TypeChecker
     else if (expression instanceof BooleanNotExpression)
     {
       Type type = checkTypes(((BooleanNotExpression) expression).getExpression(), compilationUnit);
-      if (type instanceof PrimitiveType && ((PrimitiveType) type).getPrimitiveTypeType() == PrimitiveTypeType.BOOLEAN)
+      if (type instanceof PrimitiveType && !type.isNullable() && ((PrimitiveType) type).getPrimitiveTypeType() == PrimitiveTypeType.BOOLEAN)
       {
         expression.setType(type);
         return type;
@@ -660,7 +667,7 @@ public class TypeChecker
         // return the type of the cast expression (it has already been set during parsing)
         return expression.getType();
       }
-      if (exprType instanceof PrimitiveType && castedType instanceof PrimitiveType)
+      if (exprType instanceof PrimitiveType && castedType instanceof PrimitiveType && !exprType.isNullable() && !castedType.isNullable())
       {
         // allow non-floating primitive types with the same bit count to be casted to each other
         PrimitiveTypeType exprPrimitiveTypeType = ((PrimitiveType) exprType).getPrimitiveTypeType();
@@ -680,7 +687,7 @@ public class TypeChecker
       ComparisonOperator operator = comparisonExpression.getOperator();
       Type leftType = checkTypes(comparisonExpression.getLeftSubExpression(), compilationUnit);
       Type rightType = checkTypes(comparisonExpression.getRightSubExpression(), compilationUnit);
-      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType))
+      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.isNullable() && !rightType.isNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
         PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
@@ -722,8 +729,17 @@ public class TypeChecker
     else if (expression instanceof FieldAccessExpression)
     {
       FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
-      // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
+      // no need to do the following type check here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
       // Type type = checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
+      if (fieldAccessExpression.getBaseExpression() != null)
+      {
+        Type baseExpressionType = fieldAccessExpression.getBaseExpression().getType();
+        if (baseExpressionType.isNullable())
+        {
+          // TODO: add the '?.' operator, which this exception refers to
+          throw new ConceptualException("Cannot access the field '" + fieldAccessExpression.getFieldName() + "' on something which is nullable. Consider using the '?.' operator.", fieldAccessExpression.getLexicalPhrase());
+        }
+      }
       Member member = fieldAccessExpression.getResolvedMember();
       Type type;
       if (member instanceof Field)
@@ -762,6 +778,7 @@ public class TypeChecker
     }
     else if (expression instanceof FunctionCallExpression)
     {
+      // TODO: finish the type-checking for nullability
       FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
       Expression[] arguments = functionCallExpression.getArguments();
       Parameter[] parameters = null;
@@ -773,6 +790,11 @@ public class TypeChecker
         if (functionCallExpression.getResolvedBaseExpression() != null)
         {
           Type type = checkTypes(functionCallExpression.getResolvedBaseExpression(), compilationUnit);
+          if (type.isNullable())
+          {
+            // TODO: add the '?.' operator, which this exception refers to
+            throw new ConceptualException("Cannot access the method '" + functionCallExpression.getResolvedMethod().getName() + "' on something which is nullable. Consider using the '?.' operator.", functionCallExpression.getLexicalPhrase());
+          }
           Set<Member> memberSet = type.getMembers(functionCallExpression.getResolvedMethod().getName());
           if (!memberSet.contains(functionCallExpression.getResolvedMethod()))
           {
@@ -793,6 +815,10 @@ public class TypeChecker
       {
         Expression baseExpression = functionCallExpression.getResolvedBaseExpression();
         Type baseType = checkTypes(baseExpression, compilationUnit);
+        if (baseType.isNullable())
+        {
+          throw new ConceptualException("Cannot call a nullable function.", functionCallExpression.getLexicalPhrase());
+        }
         if (!(baseType instanceof FunctionType))
         {
           throw new ConceptualException("Cannot call something which is not a method or a constructor", functionCallExpression.getLexicalPhrase());
@@ -842,7 +868,7 @@ public class TypeChecker
     {
       InlineIfExpression inlineIf = (InlineIfExpression) expression;
       Type conditionType = checkTypes(inlineIf.getCondition(), compilationUnit);
-      if (!(conditionType instanceof PrimitiveType) || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+      if (!(conditionType instanceof PrimitiveType) || conditionType.isNullable() || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
       {
         throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + conditionType + "'", inlineIf.getCondition().getLexicalPhrase());
       }
@@ -924,7 +950,7 @@ public class TypeChecker
       LogicalExpression logicalExpression = (LogicalExpression) expression;
       Type leftType = checkTypes(logicalExpression.getLeftSubExpression(), compilationUnit);
       Type rightType = checkTypes(logicalExpression.getRightSubExpression(), compilationUnit);
-      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType))
+      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.isNullable() && !rightType.isNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
         PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
@@ -966,7 +992,7 @@ public class TypeChecker
     else if (expression instanceof MinusExpression)
     {
       Type type = checkTypes(((MinusExpression) expression).getExpression(), compilationUnit);
-      if (type instanceof PrimitiveType)
+      if (type instanceof PrimitiveType && !type.isNullable())
       {
         PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
         // allow the unary minus operator to automatically convert from unsigned to signed integer values
@@ -1008,7 +1034,7 @@ public class TypeChecker
       ShiftExpression shiftExpression = (ShiftExpression) expression;
       Type leftType = checkTypes(shiftExpression.getLeftExpression(), compilationUnit);
       Type rightType = checkTypes(shiftExpression.getRightExpression(), compilationUnit);
-      if (leftType instanceof PrimitiveType && rightType instanceof PrimitiveType)
+      if (leftType instanceof PrimitiveType && rightType instanceof PrimitiveType && !leftType.isNullable() && !rightType.isNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
         PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
@@ -1050,6 +1076,10 @@ public class TypeChecker
       if (!(type instanceof TupleType))
       {
         throw new ConceptualException("Cannot index into the non-tuple type: " + type, indexExpression.getLexicalPhrase());
+      }
+      if (type.isNullable())
+      {
+        throw new ConceptualException("Cannot index into a nullable tuple type: " + type, indexExpression.getLexicalPhrase());
       }
       TupleType tupleType = (TupleType) type;
       IntegerLiteral indexLiteral = indexExpression.getIndexLiteral();

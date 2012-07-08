@@ -1,6 +1,7 @@
 compound complex
 {
   static :complex asdf;
+  static ?(:complex, uint, ?[]float) test;
   double real;
   double imag;
   complex()
@@ -48,9 +49,11 @@ compound complex
 
   static native uint main(uint argc)
   {
-    complex.asdf = complex(argc, 12);
+    ?[](uint, int) arr = new [](uint, int) {(argc, 2), (8, -4)};
+
+    complex.asdf = complex(argc, (cast<[](uint, int)> arr)[0] ! 1);
 
     complex.asdf = complex.rotateLeft(complex.asdf);
-    return cast<uint> complex.swap(complex.asdf).getReal();
+    return cast<uint> complex.swap(complex.asdf).getImag();
   }
 }
