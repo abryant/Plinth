@@ -481,7 +481,7 @@ public class CodeGenerator
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
           LLVMValueRef array = buildExpression(arrayElementAssignee.getArrayExpression(), llvmFunction, thisValue, variables);
           LLVMValueRef dimension = buildExpression(arrayElementAssignee.getDimensionExpression(), llvmFunction, thisValue, variables);
-          LLVMValueRef convertedDimension = convertType(dimension, arrayElementAssignee.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE);
+          LLVMValueRef convertedDimension = convertType(dimension, arrayElementAssignee.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE, llvmFunction);
           LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                        LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
                                                        convertedDimension};
@@ -529,7 +529,7 @@ public class CodeGenerator
         {
           if (llvmAssigneePointers[0] != null)
           {
-            LLVMValueRef convertedValue = convertType(value, assignStatement.getExpression().getType(), assignees[0].getResolvedType());
+            LLVMValueRef convertedValue = convertType(value, assignStatement.getExpression().getType(), assignees[0].getResolvedType(), llvmFunction);
             Type type = assignees[0].getResolvedType();
             if (type instanceof NamedType) // TODO: when this does not cause a warning, add it: && ((NamedType) type).getResolvedDefinition() instanceof CompoundDefinition)
             {
@@ -547,7 +547,7 @@ public class CodeGenerator
             if (llvmAssigneePointers[i] != null)
             {
               LLVMValueRef extracted = LLVM.LLVMBuildExtractValue(builder, value, i, "");
-              LLVMValueRef convertedValue = convertType(extracted, expressionSubTypes[i], assignees[i].getResolvedType());
+              LLVMValueRef convertedValue = convertType(extracted, expressionSubTypes[i], assignees[i].getResolvedType(), llvmFunction);
               // since we are extracting from a tuple here, we do not need to treat compound types differently
               LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[i]);
             }
@@ -702,7 +702,7 @@ public class CodeGenerator
         ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
         LLVMValueRef array = buildExpression(arrayElementAssignee.getArrayExpression(), llvmFunction, thisValue, variables);
         LLVMValueRef dimension = buildExpression(arrayElementAssignee.getDimensionExpression(), llvmFunction, thisValue, variables);
-        LLVMValueRef convertedDimension = convertType(dimension, arrayElementAssignee.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE);
+        LLVMValueRef convertedDimension = convertType(dimension, arrayElementAssignee.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE, llvmFunction);
         LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                      LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
                                                      convertedDimension};
@@ -752,7 +752,7 @@ public class CodeGenerator
       else
       {
         LLVMValueRef value = buildExpression(returnedExpression, llvmFunction, thisValue, variables);
-        LLVMValueRef convertedValue = convertType(value, returnedExpression.getType(), returnType);
+        LLVMValueRef convertedValue = convertType(value, returnedExpression.getType(), returnType, llvmFunction);
         if (returnType instanceof NamedType) // TODO: when this does not cause a warning, add it: && ((NamedType) returnType).getResolvedDefinition() instanceof CompoundDefinition)
         {
           // for compound types, we need to load from the result of the expression and return that value
@@ -792,7 +792,7 @@ public class CodeGenerator
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
           LLVMValueRef array = buildExpression(arrayElementAssignee.getArrayExpression(), llvmFunction, thisValue, variables);
           LLVMValueRef dimension = buildExpression(arrayElementAssignee.getDimensionExpression(), llvmFunction, thisValue, variables);
-          LLVMValueRef convertedDimension = convertType(dimension, arrayElementAssignee.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE);
+          LLVMValueRef convertedDimension = convertType(dimension, arrayElementAssignee.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE, llvmFunction);
           LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                        LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
                                                        convertedDimension};
@@ -866,7 +866,7 @@ public class CodeGenerator
           continue;
         }
         LLVMValueRef leftValue = LLVM.LLVMBuildLoad(builder, llvmAssigneePointers[i], "");
-        LLVMValueRef rightValue = convertType(resultValues[i], resultValueTypes[i], assignees[i].getResolvedType());
+        LLVMValueRef rightValue = convertType(resultValues[i], resultValueTypes[i], assignees[i].getResolvedType(), llvmFunction);
         PrimitiveTypeType primitiveType = ((PrimitiveType) assignees[i].getResolvedType()).getPrimitiveTypeType();
         boolean floating = primitiveType.isFloating();
         boolean signed = primitiveType.isSigned();
@@ -957,7 +957,7 @@ public class CodeGenerator
     }
   }
 
-  private LLVMValueRef convertType(LLVMValueRef value, Type from, Type to)
+  private LLVMValueRef convertType(LLVMValueRef value, Type from, Type to, LLVMValueRef llvmFunction)
   {
     if (from.isEquivalent(to))
     {
@@ -981,16 +981,18 @@ public class CodeGenerator
         //((NamedType) to).getResolvedDefinition() instanceof CompoundDefinition)
     {
       // compound type casts are illegal unless from and to types are the same, so they must have the same type
+      LLVMValueRef loadedValue = LLVM.LLVMBuildLoad(builder, value, "");
       LLVMValueRef isNotNullValue = null;
-      LLVMValueRef namedValue = value;
+      LLVMValueRef namedValue = loadedValue;
       if (from.isNullable())
       {
-        isNotNullValue = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
-        namedValue = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
+        isNotNullValue = LLVM.LLVMBuildExtractValue(builder, loadedValue, 0, "");
+        namedValue = LLVM.LLVMBuildExtractValue(builder, loadedValue, 1, "");
       }
+      LLVMValueRef result;
       if (to.isNullable())
       {
-        LLVMValueRef result = LLVM.LLVMGetUndef(findNativeType(to));
+        result = LLVM.LLVMGetUndef(findNativeType(to));
         if (from.isNullable())
         {
           result = LLVM.LLVMBuildInsertValue(builder, result, isNotNullValue, 0, "");
@@ -1000,12 +1002,23 @@ public class CodeGenerator
           // set the flag to one to indicate that this value is not null
           result = LLVM.LLVMBuildInsertValue(builder, result, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false), 0, "");
         }
-        return LLVM.LLVMBuildInsertValue(builder, result, namedValue, 1, "");
+        result = LLVM.LLVMBuildInsertValue(builder, result, namedValue, 1, "");
       }
-      // return the primitive value directly, since the to type is not nullable
-      // if from is nullable and value is null, then the value we are returning here is undefined
-      // TODO: if from is nullable and value is null, throw an exception here instead of having undefined behaviour
-      return namedValue;
+      else
+      {
+        // return the primitive value directly, since the to type is not nullable
+        // if from is nullable and value is null, then the value we are returning here is undefined
+        // TODO: if from is nullable and value is null, throw an exception here instead of having undefined behaviour
+        result = namedValue;
+      }
+      // for compound types, we need to return a pointer to the value
+      // so build an alloca in the entry block
+      LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMPositionBuilderBefore(builder, LLVM.LLVMGetFirstInstruction(LLVM.LLVMGetEntryBasicBlock(llvmFunction)));
+      LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, findNativeType(to), "");
+      LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+      LLVM.LLVMBuildStore(builder, result, alloca);
+      return alloca;
     }
     if (from instanceof TupleType && !(to instanceof TupleType))
     {
@@ -1095,7 +1108,7 @@ public class CodeGenerator
       for (int i = 0; i < fromTuple.getSubTypes().length; i++)
       {
         LLVMValueRef current = LLVM.LLVMBuildExtractValue(builder, tupleValue, i, "");
-        LLVMValueRef converted = convertType(current, fromSubTypes[i], toSubTypes[i]);
+        LLVMValueRef converted = convertType(current, fromSubTypes[i], toSubTypes[i], llvmFunction);
         currentValue = LLVM.LLVMBuildInsertValue(builder, currentValue, converted, i, "");
       }
 
@@ -1361,7 +1374,7 @@ public class CodeGenerator
       ArrayAccessExpression arrayAccessExpression = (ArrayAccessExpression) expression;
       LLVMValueRef arrayValue = buildExpression(arrayAccessExpression.getArrayExpression(), llvmFunction, thisValue, variables);
       LLVMValueRef dimensionValue = buildExpression(arrayAccessExpression.getDimensionExpression(), llvmFunction, thisValue, variables);
-      LLVMValueRef convertedDimensionValue = convertType(dimensionValue, arrayAccessExpression.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE);
+      LLVMValueRef convertedDimensionValue = convertType(dimensionValue, arrayAccessExpression.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE, llvmFunction);
       LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                                      LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
                                                                      convertedDimensionValue};
@@ -1387,7 +1400,7 @@ public class CodeGenerator
         for (int i = 0; i < valueExpressions.length; i++)
         {
           LLVMValueRef expressionValue = buildExpression(valueExpressions[i], llvmFunction, thisValue, variables);
-          LLVMValueRef convertedValue = convertType(expressionValue, valueExpressions[i].getType(), type.getBaseType());
+          LLVMValueRef convertedValue = convertType(expressionValue, valueExpressions[i].getType(), type.getBaseType(), llvmFunction);
           Type valueType = valueExpressions[i].getType();
           if (valueType instanceof NamedType) // TODO: when it doesn't cause a warning, add: && ((NamedType) valueType).getResolvedDefinition() instanceof CompoundDefinition)
           {
@@ -1407,7 +1420,7 @@ public class CodeGenerator
       for (int i = 0; i < llvmLengths.length; i++)
       {
         LLVMValueRef expressionValue = buildExpression(dimensionExpressions[i], llvmFunction, thisValue, variables);
-        llvmLengths[i] = convertType(expressionValue, dimensionExpressions[i].getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE);
+        llvmLengths[i] = convertType(expressionValue, dimensionExpressions[i].getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE, llvmFunction);
       }
       return buildArrayCreation(llvmFunction, llvmLengths, type);
     }
@@ -1433,7 +1446,7 @@ public class CodeGenerator
     {
       CastExpression castExpression = (CastExpression) expression;
       LLVMValueRef value = buildExpression(castExpression.getExpression(), llvmFunction, thisValue, variables);
-      return convertType(value, castExpression.getExpression().getType(), castExpression.getType());
+      return convertType(value, castExpression.getExpression().getType(), castExpression.getType(), llvmFunction);
     }
     if (expression instanceof ComparisonExpression)
     {
@@ -1574,7 +1587,7 @@ public class CodeGenerator
       for (int i = 0; i < arguments.length; i++)
       {
         LLVMValueRef arg = buildExpression(arguments[i], llvmFunction, thisValue, variables);
-        values[i] = convertType(arg, arguments[i].getType(), parameterTypes[i]);
+        values[i] = convertType(arg, arguments[i].getType(), parameterTypes[i], llvmFunction);
         if (parameterTypes[i] instanceof NamedType) // TODO: when it doesn't cause a warning, add: && ((NamedType) parameterTypes[i]).getResolvedDefinition() instanceof CompoundDefinition)
         {
           // for compound types, we need to pass the value itself, not the pointer to the value
@@ -1648,13 +1661,13 @@ public class CodeGenerator
 
       LLVM.LLVMPositionBuilderAtEnd(builder, thenBlock);
       LLVMValueRef thenValue = buildExpression(inlineIf.getThenExpression(), llvmFunction, thisValue, variables);
-      LLVMValueRef convertedThenValue = convertType(thenValue, inlineIf.getThenExpression().getType(), inlineIf.getType());
+      LLVMValueRef convertedThenValue = convertType(thenValue, inlineIf.getThenExpression().getType(), inlineIf.getType(), llvmFunction);
       LLVMBasicBlockRef thenBranchBlock = LLVM.LLVMGetInsertBlock(builder);
       LLVM.LLVMBuildBr(builder, continuationBlock);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, elseBlock);
       LLVMValueRef elseValue = buildExpression(inlineIf.getElseExpression(), llvmFunction, thisValue, variables);
-      LLVMValueRef convertedElseValue = convertType(elseValue, inlineIf.getElseExpression().getType(), inlineIf.getType());
+      LLVMValueRef convertedElseValue = convertType(elseValue, inlineIf.getElseExpression().getType(), inlineIf.getType(), llvmFunction);
       LLVMBasicBlockRef elseBranchBlock = LLVM.LLVMGetInsertBlock(builder);
       LLVM.LLVMBuildBr(builder, continuationBlock);
 
@@ -1734,8 +1747,8 @@ public class CodeGenerator
       ShiftExpression shiftExpression = (ShiftExpression) expression;
       LLVMValueRef leftValue = buildExpression(shiftExpression.getLeftExpression(), llvmFunction, thisValue, variables);
       LLVMValueRef rightValue = buildExpression(shiftExpression.getRightExpression(), llvmFunction, thisValue, variables);
-      LLVMValueRef convertedLeft = convertType(leftValue, shiftExpression.getLeftExpression().getType(), shiftExpression.getType());
-      LLVMValueRef convertedRight = convertType(rightValue, shiftExpression.getRightExpression().getType(), shiftExpression.getType());
+      LLVMValueRef convertedLeft = convertType(leftValue, shiftExpression.getLeftExpression().getType(), shiftExpression.getType(), llvmFunction);
+      LLVMValueRef convertedRight = convertType(rightValue, shiftExpression.getRightExpression().getType(), shiftExpression.getType(), llvmFunction);
       switch (shiftExpression.getOperator())
       {
       case RIGHT_SHIFT:
