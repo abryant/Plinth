@@ -81,10 +81,28 @@ public class TypeChecker
       {
         checkTypes(constructor.getBlock(), VoidType.VOID_TYPE, compilationUnit);
       }
+      for (Field field : compoundDefinition.getFields())
+      {
+        checkTypes(field);
+      }
       for (Method method : compoundDefinition.getAllMethods())
       {
         checkTypes(method.getBlock(), method.getReturnType(), compilationUnit);
       }
+    }
+  }
+
+  private static void checkTypes(Field field) throws ConceptualException
+  {
+    if (!field.isStatic())
+    {
+      // allow any types on a non-static field
+      return;
+    }
+    Type type = field.getType();
+    if (!type.isNullable())
+    {
+      throw new ConceptualException("Static fields must always have a type which has a language-defined default value (e.g. 0 for uint). Consider making this field nullable.", type.getLexicalPhrase());
     }
   }
 
