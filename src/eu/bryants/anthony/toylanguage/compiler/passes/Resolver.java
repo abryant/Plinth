@@ -777,6 +777,8 @@ public class Resolver
       Expression functionExpression = expr.getFunctionExpression();
       Type expressionType = null;
       Exception cachedException = null;
+      // first, try to resolve the function call as a normal expression
+      // this MUST be done first, so that local variables with function types are considered before outside methods
       try
       {
         resolve(functionExpression, block, enclosingDefinition, compilationUnit);
