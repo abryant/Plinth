@@ -7,6 +7,7 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
+import eu.bryants.anthony.toylanguage.parser.parseAST.QName;
 
 /*
  * Created on 2 Apr 2012
@@ -20,12 +21,13 @@ public class CompilationUnitRule extends Rule<ParseType>
   private static final long serialVersionUID = 1L;
 
   private static Production<ParseType> BLANK_PRODUCTION = new Production<ParseType>();
+  private static Production<ParseType> PACKAGE_PRODUCTION = new Production<ParseType>(ParseType.PACKAGE_KEYWORD, ParseType.QNAME, ParseType.SEMICOLON);
   private static Production<ParseType> COMPOUND_PRODUCTION = new Production<ParseType>(ParseType.COMPILATION_UNIT, ParseType.COMPOUND_DEFINITION);
 
   @SuppressWarnings("unchecked")
   public CompilationUnitRule()
   {
-    super(ParseType.COMPILATION_UNIT, BLANK_PRODUCTION, COMPOUND_PRODUCTION);
+    super(ParseType.COMPILATION_UNIT, BLANK_PRODUCTION, PACKAGE_PRODUCTION, COMPOUND_PRODUCTION);
   }
 
   /**
@@ -36,7 +38,12 @@ public class CompilationUnitRule extends Rule<ParseType>
   {
     if (production == BLANK_PRODUCTION)
     {
-      return new CompilationUnit(null);
+      return new CompilationUnit(new String[0], null);
+    }
+    if (production == PACKAGE_PRODUCTION)
+    {
+      QName qname = (QName) args[1];
+      return new CompilationUnit(qname.getNames(), LexicalPhrase.combine((LexicalPhrase) args[0], qname.getLexicalPhrase(), (LexicalPhrase) args[2]));
     }
     if (production == COMPOUND_PRODUCTION)
     {

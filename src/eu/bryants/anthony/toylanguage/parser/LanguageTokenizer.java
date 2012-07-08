@@ -46,6 +46,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("long",     ParseType.LONG_KEYWORD);
     KEYWORDS.put("native",   ParseType.NATIVE_KEYWORD);
     KEYWORDS.put("new",      ParseType.NEW_KEYWORD);
+    KEYWORDS.put("package",  ParseType.PACKAGE_KEYWORD);
     KEYWORDS.put("return",   ParseType.RETURN_KEYWORD);
     KEYWORDS.put("short",    ParseType.SHORT_KEYWORD);
     KEYWORDS.put("static",   ParseType.STATIC_KEYWORD);

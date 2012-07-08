@@ -1,4 +1,6 @@
-CompilationUnit = epsilon | CompilationUnit Function | CompilationUnit CompoundTypeDef
+CompilationUnit = epsilon | PackageKeyword QName Semicolon | CompilationUnit CompoundTypeDef
+
+QName = Name | QName Dot Name
 
 CompoundTypeDef = CompoundKeyword Name LBrace MemberList RBrace
 MemberList = epsilon |

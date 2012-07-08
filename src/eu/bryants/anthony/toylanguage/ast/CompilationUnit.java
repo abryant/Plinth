@@ -15,12 +15,15 @@ import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
  */
 public class CompilationUnit
 {
+  private String[] declaredPackage;
+
   private Map<String, CompoundDefinition> compoundDefinitions = new HashMap<String, CompoundDefinition>();
 
   private LexicalPhrase lexicalPhrase;
 
-  public CompilationUnit(LexicalPhrase lexicalPhrase)
+  public CompilationUnit(String[] declaredPackage, LexicalPhrase lexicalPhrase)
   {
+    this.declaredPackage = declaredPackage;
     this.lexicalPhrase = lexicalPhrase;
   }
 
@@ -38,6 +41,14 @@ public class CompilationUnit
       throw new LanguageParseException("Duplicated compound type: " + compound.getName(), compound.getLexicalPhrase());
     }
     lexicalPhrase = newLexicalPhrase;
+  }
+
+  /**
+   * @return the declaredPackage
+   */
+  public String[] getDeclaredPackage()
+  {
+    return declaredPackage;
   }
 
   /**
@@ -69,6 +80,19 @@ public class CompilationUnit
   public String toString()
   {
     StringBuffer buffer = new StringBuffer();
+    if (declaredPackage.length > 0)
+    {
+      buffer.append("package ");
+      for (int i = 0; i < declaredPackage.length; ++i)
+      {
+        buffer.append(declaredPackage[i]);
+        if (i != declaredPackage.length - 1)
+        {
+          buffer.append('.');
+        }
+      }
+      buffer.append(";\n\n");
+    }
     for (CompoundDefinition compoundDefinition : compoundDefinitions.values())
     {
       buffer.append(compoundDefinition);

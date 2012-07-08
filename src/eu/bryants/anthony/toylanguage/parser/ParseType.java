@@ -31,6 +31,7 @@ public enum ParseType
   FOR_INIT,                      // ParseContainer<Statement> (possibly containing null)
   FOR_UPDATE,                    // Statement or null
   MODIFIERS,                     // ParseList<Modifier>
+  QNAME,                         // QName
 
   // Statements
   BLOCK,                         // Block
@@ -139,6 +140,7 @@ public enum ParseType
   LONG_KEYWORD,
   NATIVE_KEYWORD,
   NEW_KEYWORD,
+  PACKAGE_KEYWORD,
   RETURN_KEYWORD,
   SHORT_KEYWORD,
   STATIC_KEYWORD,
