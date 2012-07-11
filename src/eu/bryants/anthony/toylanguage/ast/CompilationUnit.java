@@ -4,6 +4,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import eu.bryants.anthony.toylanguage.ast.metadata.PackageNode;
+import eu.bryants.anthony.toylanguage.ast.misc.QName;
 import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 
 /*
@@ -15,13 +17,14 @@ import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
  */
 public class CompilationUnit
 {
-  private String[] declaredPackage;
-
+  private QName declaredPackage;
   private Map<String, CompoundDefinition> compoundDefinitions = new HashMap<String, CompoundDefinition>();
 
   private LexicalPhrase lexicalPhrase;
 
-  public CompilationUnit(String[] declaredPackage, LexicalPhrase lexicalPhrase)
+  private PackageNode resolvedPackage;
+
+  public CompilationUnit(QName declaredPackage, LexicalPhrase lexicalPhrase)
   {
     this.declaredPackage = declaredPackage;
     this.lexicalPhrase = lexicalPhrase;
@@ -40,15 +43,39 @@ public class CompilationUnit
     {
       throw new LanguageParseException("Duplicated compound type: " + compound.getName(), compound.getLexicalPhrase());
     }
+    if (declaredPackage == null)
+    {
+      compound.setQName(new QName(compound.getName(), null));
+    }
+    else
+    {
+      compound.setQName(new QName(declaredPackage, compound.getName(), null));
+    }
     lexicalPhrase = newLexicalPhrase;
   }
 
   /**
    * @return the declaredPackage
    */
-  public String[] getDeclaredPackage()
+  public QName getDeclaredPackage()
   {
     return declaredPackage;
+  }
+
+  /**
+   * @return the resolvedPackage
+   */
+  public PackageNode getResolvedPackage()
+  {
+    return resolvedPackage;
+  }
+
+  /**
+   * @param resolvedPackage - the resolvedPackage to set
+   */
+  public void setResolvedPackage(PackageNode resolvedPackage)
+  {
+    this.resolvedPackage = resolvedPackage;
   }
 
   /**
@@ -80,17 +107,10 @@ public class CompilationUnit
   public String toString()
   {
     StringBuffer buffer = new StringBuffer();
-    if (declaredPackage.length > 0)
+    if (declaredPackage != null)
     {
       buffer.append("package ");
-      for (int i = 0; i < declaredPackage.length; ++i)
-      {
-        buffer.append(declaredPackage[i]);
-        if (i != declaredPackage.length - 1)
-        {
-          buffer.append('.');
-        }
-      }
+      buffer.append(declaredPackage);
       buffer.append(";\n\n");
     }
     for (CompoundDefinition compoundDefinition : compoundDefinitions.values())

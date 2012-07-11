@@ -16,6 +16,7 @@ import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
 import eu.bryants.anthony.toylanguage.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.toylanguage.ast.metadata.MemberVariable;
+import eu.bryants.anthony.toylanguage.ast.misc.QName;
 import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 
 /*
@@ -28,6 +29,7 @@ import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 public class CompoundDefinition
 {
   private String name;
+  private QName qname;
 
   // fields needs a guaranteed order, so use a LinkedHashMap to store them
   private Map<String, Field> fields = new LinkedHashMap<String, Field>();
@@ -102,11 +104,27 @@ public class CompoundDefinition
   }
 
   /**
-   * @return the name
+   * @return the name of this CompoundDefinition
    */
   public String getName()
   {
     return name;
+  }
+
+  /**
+   * @param qname - the new QName for this CompoundDefinition
+   */
+  public void setQName(QName qname)
+  {
+    this.qname = qname;
+  }
+
+  /**
+   * @return the name
+   */
+  public QName getQualifiedName()
+  {
+    return qname;
   }
 
   /**

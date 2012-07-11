@@ -64,7 +64,7 @@ Type = BooleanKeyword |                 QuestionMark BooleanKeyword |
        UIntKeyword    | IntKeyword    | QuestionMark UIntKeyword    | QuestionMark IntKeyword    |
        UShortKeyword  | ShortKeyword  | QuestionMark UShortKeyword  | QuestionMark ShortKeyword  |
        UByteKeyword   | ByteKeyword   | QuestionMark UByteKeyword   | QuestionMark ByteKeyword   |
-       Name                           | QuestionMark Name |
+       QName                          | QuestionMark QName |
        LSquare RSquare Type           | QuestionMark LSquare RSquare Type |
        LParen TypeList RParen         | QuestionMark LParen TypeList RParen
 TypeList = Type | TypeList Comma Type

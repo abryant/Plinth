@@ -6,8 +6,8 @@ import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.ast.misc.QName;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
-import eu.bryants.anthony.toylanguage.parser.parseAST.QName;
 
 /*
  * Created on 2 Apr 2012
@@ -38,12 +38,12 @@ public class CompilationUnitRule extends Rule<ParseType>
   {
     if (production == BLANK_PRODUCTION)
     {
-      return new CompilationUnit(new String[0], null);
+      return new CompilationUnit(null, null);
     }
     if (production == PACKAGE_PRODUCTION)
     {
       QName qname = (QName) args[1];
-      return new CompilationUnit(qname.getNames(), LexicalPhrase.combine((LexicalPhrase) args[0], qname.getLexicalPhrase(), (LexicalPhrase) args[2]));
+      return new CompilationUnit(qname, LexicalPhrase.combine((LexicalPhrase) args[0], qname.getLexicalPhrase(), (LexicalPhrase) args[2]));
     }
     if (production == COMPOUND_PRODUCTION)
     {

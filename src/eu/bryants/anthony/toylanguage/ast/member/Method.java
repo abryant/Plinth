@@ -120,7 +120,7 @@ public class Method extends Member
   public String getMangledName()
   {
     StringBuffer buffer = new StringBuffer();
-    buffer.append(containingDefinition.getName());
+    buffer.append(containingDefinition.getQualifiedName());
     buffer.append('$');
     buffer.append(name);
     if (isStatic)

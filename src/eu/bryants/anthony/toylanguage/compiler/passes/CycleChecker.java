@@ -61,7 +61,7 @@ public class CycleChecker
             buffer.append(".");
           }
           buffer.append(field.getName());
-          throw new ConceptualException("Cycle detected in compound type '" + startDefinition.getName() + "' at: " + buffer, field.getLexicalPhrase());
+          throw new ConceptualException("Cycle detected in compound type '" + startDefinition.getQualifiedName() + "' at: " + buffer, field.getLexicalPhrase());
         }
         fieldStack.add(field);
         visited.add(resolvedDefinition);

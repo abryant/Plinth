@@ -8,6 +8,7 @@ import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
+import eu.bryants.anthony.toylanguage.ast.misc.QName;
 
 /*
  * Created on 9 May 2012
@@ -19,29 +20,29 @@ import eu.bryants.anthony.toylanguage.ast.member.Method;
 public class NamedType extends Type
 {
 
-  private String name;
+  private QName qname;
 
   private CompoundDefinition resolvedDefinition;
 
-  public NamedType(boolean nullable, String name, LexicalPhrase lexicalPhrase)
+  public NamedType(boolean nullable, QName qname, LexicalPhrase lexicalPhrase)
   {
     super(nullable, lexicalPhrase);
-    this.name = name;
+    this.qname = qname;
   }
 
   public NamedType(boolean nullable, CompoundDefinition compoundDefinition)
   {
     super(nullable, null);
-    this.name = compoundDefinition.getName();
+    this.qname = compoundDefinition.getQualifiedName();
     this.resolvedDefinition = compoundDefinition;
   }
 
   /**
-   * @return the name
+   * @return the qualified name
    */
-  public String getName()
+  public QName getQualifiedName()
   {
-    return name;
+    return qname;
   }
 
   /**
@@ -115,7 +116,7 @@ public class NamedType extends Type
   public String getMangledName()
   {
     // TODO: this should eventually use the fully-qualified name, and may need to differ between compound and class types
-    return (isNullable() ? "?" : "") + "{" + resolvedDefinition.getName() + "}";
+    return (isNullable() ? "?" : "") + "{" + resolvedDefinition.getQualifiedName() + "}";
   }
 
   /**
@@ -124,6 +125,6 @@ public class NamedType extends Type
   @Override
   public String toString()
   {
-    return (isNullable() ? "?" : "") + name;
+    return (isNullable() ? "?" : "") + qname;
   }
 }

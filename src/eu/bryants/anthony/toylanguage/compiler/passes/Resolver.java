@@ -37,6 +37,7 @@ import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
+import eu.bryants.anthony.toylanguage.ast.metadata.PackageNode;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
@@ -76,62 +77,30 @@ import eu.bryants.anthony.toylanguage.compiler.NameNotResolvedException;
 public class Resolver
 {
 
-  /**
-   * Finds all of the nested variables of a block.
-   * Before calling this, resolve() must have been called on the compilation unit containing the block.
-   * @param block - the block to get all the nested variables of
-   * @return a set containing all of the variables defined in this block, including in nested blocks
-   */
-  public static Set<Variable> getAllNestedVariables(Block block)
+  private PackageNode rootPackage;
+
+  public Resolver(PackageNode rootPackage)
   {
-    Set<Variable> result = new HashSet<Variable>();
-    Deque<Statement> stack = new LinkedList<Statement>();
-    stack.push(block);
-    while (!stack.isEmpty())
-    {
-      Statement statement = stack.pop();
-      if (statement instanceof Block)
-      {
-        // add all variables from this block to the result set
-        result.addAll(((Block) statement).getVariables());
-        for (Statement s : ((Block) statement).getStatements())
-        {
-          stack.push(s);
-        }
-      }
-      else if (statement instanceof ForStatement)
-      {
-        ForStatement forStatement = (ForStatement) statement;
-        if (forStatement.getInitStatement() != null)
-        {
-          stack.push(forStatement.getInitStatement());
-        }
-        if (forStatement.getUpdateStatement() != null)
-        {
-          stack.push(forStatement.getUpdateStatement());
-        }
-        stack.push(forStatement.getBlock());
-      }
-      else if (statement instanceof IfStatement)
-      {
-        IfStatement ifStatement = (IfStatement) statement;
-        stack.push(ifStatement.getThenClause());
-        if (ifStatement.getElseClause() != null)
-        {
-          stack.push(ifStatement.getElseClause());
-        }
-      }
-      else if (statement instanceof WhileStatement)
-      {
-        stack.push(((WhileStatement) statement).getStatement());
-      }
-    }
-    return result;
+    this.rootPackage = rootPackage;
   }
 
-  public static void resolve(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  public void resolve(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
-    // resolve the top level types first, e.g. function parameters and return types, field types
+    // find the package for this compilation unit
+    PackageNode compilationUnitPackage = rootPackage;
+    if (compilationUnit.getDeclaredPackage() != null)
+    {
+      compilationUnitPackage = rootPackage.addPackageTree(compilationUnit.getDeclaredPackage());
+      compilationUnit.setResolvedPackage(compilationUnitPackage);
+    }
+
+    // first, add all of the type definitions in this compilation unit to the file's package
+    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    {
+      compilationUnitPackage.addCompoundDefinition(compoundDefinition);
+    }
+
+    // resolve the top level types, e.g. function parameters and return types, field types
     // so that they can be used anywhere in statements and expressions
     for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
     {
@@ -144,7 +113,7 @@ public class Resolver
     }
   }
 
-  private static void resolveTypes(CompoundDefinition compound, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private void resolveTypes(CompoundDefinition compound, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     for (Field field : compound.getFields())
     {
@@ -227,7 +196,7 @@ public class Resolver
     }
   }
 
-  private static void resolve(CompoundDefinition compound, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private void resolve(CompoundDefinition compound, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     // TODO: resolve field expressions, when they exist
     for (Constructor constructor : compound.getConstructors())
@@ -248,7 +217,7 @@ public class Resolver
     }
   }
 
-  private static void resolve(Type type, CompilationUnit compilationUnit) throws NameNotResolvedException
+  private void resolve(Type type, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     if (type instanceof ArrayType)
     {
@@ -261,12 +230,56 @@ public class Resolver
       {
         return;
       }
-      CompoundDefinition compoundDefinition = compilationUnit.getCompoundDefinition(namedType.getName());
-      if (compoundDefinition == null)
+
+      String[] names = namedType.getQualifiedName().getNames();
+      // start by looking up the first name in the compilation unit
+      CompoundDefinition currentDefinition = compilationUnit.getCompoundDefinition(names[0]);
+      PackageNode currentPackage = null;
+      if (currentDefinition == null)
       {
-        throw new NameNotResolvedException("Unable to resolve: " + namedType.getName(), namedType.getLexicalPhrase());
+        // the lookup in the compilation unit failed, so try to look up the first name on the compilation unit's package instead
+        // (at most one of the following lookups can succeed)
+        currentPackage = compilationUnit.getResolvedPackage().getSubPackage(names[0]);
+        currentDefinition = compilationUnit.getResolvedPackage().getCompoundDefinition(names[0]);
+        if (currentPackage == null && currentDefinition == null)
+        {
+          // all other lookups failed, so try to look up the first name on the root package
+          // (at most one of the following lookups can succeed)
+          currentPackage = rootPackage.getSubPackage(names[0]);
+          currentDefinition = rootPackage.getCompoundDefinition(names[0]);
+        }
       }
-      namedType.setResolvedDefinition(compoundDefinition);
+      // now resolve the rest of the names (or as many as possible until the current items are all null)
+      for (int i = 1; i < names.length; ++i)
+      {
+        if (currentPackage != null)
+        {
+          // at most one of these lookups can succeed
+          currentDefinition = currentPackage.getCompoundDefinition(names[i]);
+          // update currentPackage last
+          currentPackage = currentPackage.getSubPackage(names[i]);
+        }
+        else if (currentDefinition != null)
+        {
+          // TODO: if/when we add inner types, resolve the sub-type here
+          // for now, we cannot resolve the name on this definition, so fail by setting everything to null
+          currentDefinition = null;
+        }
+        else
+        {
+          break;
+        }
+      }
+
+      if (currentDefinition == null)
+      {
+        if (currentPackage != null)
+        {
+          throw new ConceptualException("A package cannot be used as a type", namedType.getLexicalPhrase());
+        }
+        throw new NameNotResolvedException("Unable to resolve: " + namedType.getQualifiedName(), namedType.getLexicalPhrase());
+      }
+      namedType.setResolvedDefinition(currentDefinition);
     }
     else if (type instanceof PrimitiveType)
     {
@@ -290,7 +303,7 @@ public class Resolver
     }
   }
 
-  private static void resolve(Statement statement, Block enclosingBlock, CompoundDefinition enclosingDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private void resolve(Statement statement, Block enclosingBlock, CompoundDefinition enclosingDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     if (statement instanceof AssignStatement)
     {
@@ -534,7 +547,7 @@ public class Resolver
     }
   }
 
-  private static void resolve(Expression expression, Block block, CompoundDefinition enclosingDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private void resolve(Expression expression, Block block, CompoundDefinition enclosingDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     if (expression instanceof ArithmeticExpression)
     {
@@ -918,6 +931,59 @@ public class Resolver
     {
       throw new ConceptualException("Internal name resolution error: Unknown expression type", expression.getLexicalPhrase());
     }
+  }
+
+  /**
+   * Finds all of the nested variables of a block.
+   * Before calling this, resolve() must have been called on the compilation unit containing the block.
+   * @param block - the block to get all the nested variables of
+   * @return a set containing all of the variables defined in this block, including in nested blocks
+   */
+  public static Set<Variable> getAllNestedVariables(Block block)
+  {
+    Set<Variable> result = new HashSet<Variable>();
+    Deque<Statement> stack = new LinkedList<Statement>();
+    stack.push(block);
+    while (!stack.isEmpty())
+    {
+      Statement statement = stack.pop();
+      if (statement instanceof Block)
+      {
+        // add all variables from this block to the result set
+        result.addAll(((Block) statement).getVariables());
+        for (Statement s : ((Block) statement).getStatements())
+        {
+          stack.push(s);
+        }
+      }
+      else if (statement instanceof ForStatement)
+      {
+        ForStatement forStatement = (ForStatement) statement;
+        if (forStatement.getInitStatement() != null)
+        {
+          stack.push(forStatement.getInitStatement());
+        }
+        if (forStatement.getUpdateStatement() != null)
+        {
+          stack.push(forStatement.getUpdateStatement());
+        }
+        stack.push(forStatement.getBlock());
+      }
+      else if (statement instanceof IfStatement)
+      {
+        IfStatement ifStatement = (IfStatement) statement;
+        stack.push(ifStatement.getThenClause());
+        if (ifStatement.getElseClause() != null)
+        {
+          stack.push(ifStatement.getElseClause());
+        }
+      }
+      else if (statement instanceof WhileStatement)
+      {
+        stack.push(((WhileStatement) statement).getStatement());
+      }
+    }
+    return result;
   }
 
 }

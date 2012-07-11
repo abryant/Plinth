@@ -8,6 +8,7 @@ import parser.ParseException;
 import parser.Token;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.ast.metadata.PackageNode;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.toylanguage.ast.terminal.Name;
 import eu.bryants.anthony.toylanguage.compiler.passes.CodeGenerator;
@@ -105,9 +106,13 @@ public class Compiler
       return;
     }
 
+    PackageNode rootPackage = new PackageNode();
+
+    Resolver resolver = new Resolver(rootPackage);
+
     try
     {
-      Resolver.resolve(compilationUnit);
+      resolver.resolve(compilationUnit);
       CycleChecker.checkCycles(compilationUnit);
       ControlFlowChecker.checkControlFlow(compilationUnit);
       TypeChecker.checkTypes(compilationUnit);

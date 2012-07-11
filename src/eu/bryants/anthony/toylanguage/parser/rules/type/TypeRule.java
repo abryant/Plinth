@@ -4,7 +4,7 @@ import parser.ParseException;
 import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
-import eu.bryants.anthony.toylanguage.ast.terminal.Name;
+import eu.bryants.anthony.toylanguage.ast.misc.QName;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
 import eu.bryants.anthony.toylanguage.ast.type.NamedType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
@@ -49,11 +49,11 @@ public class TypeRule extends Rule<ParseType>
   private static final Production<ParseType>    NULLABLE_BYTE_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.   BYTE_KEYWORD);
   private static final Production<ParseType>   NULLABLE_UBYTE_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.  UBYTE_KEYWORD);
 
-  private static final Production<ParseType> NAMED_PRODUCTION = new Production<ParseType>(ParseType.COLON, ParseType.NAME);
+  private static final Production<ParseType> NAMED_PRODUCTION = new Production<ParseType>(ParseType.COLON, ParseType.QNAME);
   private static final Production<ParseType> ARRAY_PRODUCTION = new Production<ParseType>(ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE);
   private static final Production<ParseType> TUPLE_PRODUCTION = new Production<ParseType>(ParseType.LPAREN, ParseType.TYPE_LIST, ParseType.RPAREN);
 
-  private static final Production<ParseType> NULLABLE_NAMED_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.COLON, ParseType.NAME);
+  private static final Production<ParseType> NULLABLE_NAMED_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.COLON, ParseType.QNAME);
   private static final Production<ParseType> NULLABLE_ARRAY_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE);
   private static final Production<ParseType> NULLABLE_TUPLE_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LPAREN, ParseType.TYPE_LIST, ParseType.RPAREN);
 
@@ -91,8 +91,8 @@ public class TypeRule extends Rule<ParseType>
     }
     if (production == NAMED_PRODUCTION)
     {
-      Name name = (Name) args[1];
-      return new NamedType(false, name.getName(), name.getLexicalPhrase());
+      QName name = (QName) args[1];
+      return new NamedType(false, name, name.getLexicalPhrase());
     }
 
     if (production == NULLABLE_ARRAY_PRODUCTION)
@@ -109,8 +109,8 @@ public class TypeRule extends Rule<ParseType>
     }
     if (production == NULLABLE_NAMED_PRODUCTION)
     {
-      Name name = (Name) args[2];
-      return new NamedType(true, name.getName(), LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase()));
+      QName name = (QName) args[2];
+      return new NamedType(true, name, LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase()));
     }
 
     PrimitiveTypeType type;

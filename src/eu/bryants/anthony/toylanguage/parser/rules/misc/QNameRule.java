@@ -4,9 +4,9 @@ import parser.ParseException;
 import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.ast.misc.QName;
 import eu.bryants.anthony.toylanguage.ast.terminal.Name;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
-import eu.bryants.anthony.toylanguage.parser.parseAST.QName;
 
 /*
  * Created on 8 Jul 2012
@@ -37,17 +37,13 @@ public class QNameRule extends Rule<ParseType>
     if (production == START_PRODUCTION)
     {
       Name name = (Name) args[0];
-      return new QName(new String[] {name.getName()}, name.getLexicalPhrase());
+      return new QName(name.getName(), name.getLexicalPhrase());
     }
     if (production == CONTINUATION_PRODUCTION)
     {
       QName qname = (QName) args[0];
       Name name = (Name) args[2];
-      String[] oldNames = qname.getNames();
-      String[] newNames = new String[oldNames.length + 1];
-      System.arraycopy(oldNames, 0, newNames, 0, oldNames.length);
-      newNames[oldNames.length] = name.getName();
-      return new QName(newNames, LexicalPhrase.combine(qname.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
+      return new QName(qname, name.getName(), LexicalPhrase.combine(qname.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
     }
     throw badTypeList();
   }

@@ -44,7 +44,7 @@ public class GlobalVariable extends Variable
    */
   public String getMangledName()
   {
-    return enclosingDefinition.getName() + "$" + field.getName() + "$" + getType().getMangledName();
+    return enclosingDefinition.getQualifiedName() + "$" + field.getName() + "$" + getType().getMangledName();
   }
 
 }
