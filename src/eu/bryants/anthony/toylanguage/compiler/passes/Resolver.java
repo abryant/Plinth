@@ -534,104 +534,6 @@ public class Resolver
     }
   }
 
-  /**
-   * Checks through the specified possibly-nested FieldAccessExpression and, if appropriate, replaces some of the chain with a base type.
-   * This method will only ever resolve a name to a type if it fails to resolve it to a field.
-   * Once this method has finished running, the normal field access resolution must be run in order to finish resolving the fields.
-   * @param fieldAccessExpression - the FieldAccessExpression to check
-   * @param block - the enclosing block
-   * @param enclosingDefinition - the enclosing type definition
-   * @param compilationUnit - the enclosing compilation unit
-   * @throws ConceptualException - if a conceptual problem is found while resolving the field access' base type
-   * @throws NameNotResolvedException - if a name cannot be resolved at any point while resolving the field access' base type
-   */
-  private static void resolveFieldAccessType(FieldAccessExpression fieldAccessExpression, Block block, CompoundDefinition enclosingDefinition, CompilationUnit compilationUnit) throws ConceptualException, NameNotResolvedException
-  {
-    // build a stack of field accesses down until the field being accessed does not have a FieldAccessExpression as its base
-    Deque<FieldAccessExpression> fieldStack = new LinkedList<FieldAccessExpression>();
-    FieldAccessExpression current = fieldAccessExpression;
-    Expression baseExpr = null;
-    Type baseType = null;
-    while (current != null)
-    {
-      fieldStack.push(current);
-      baseExpr = current.getBaseExpression();
-      baseType = current.getBaseType();
-      if (baseExpr != null && baseExpr instanceof FieldAccessExpression)
-      {
-        current = (FieldAccessExpression) baseExpr;
-      }
-      else
-      {
-        current = null;
-      }
-    }
-
-    // find out what the type of the base of the stack is
-    // baseExpr/baseType is the expression/type which the field access at the top of the stack (which is the field access at the bottom level in the AST) points to, and we need to extract a currentType from it
-    Type currentType;
-    if (baseExpr != null)
-    {
-      if (baseExpr instanceof VariableExpression)
-      {
-        try
-        {
-          resolve(baseExpr, block, enclosingDefinition, compilationUnit);
-          // the base VariableExpression resolves to a variable, not a type, so return to resolve() so that it can finish resolution
-          return;
-        }
-        catch (NameNotResolvedException e)
-        {
-          CompoundDefinition compoundDefinition = compilationUnit.getCompoundDefinition(((VariableExpression) baseExpr).getName());
-          if (compoundDefinition == null)
-          {
-            throw e;
-          }
-          currentType = new NamedType(false, compoundDefinition);
-        }
-      }
-      else
-      {
-        // the base expression is not a variable access, so return to resolve() so that it can finish resolution
-        return;
-      }
-    }
-    else if (baseType != null)
-    {
-      currentType = baseType;
-    }
-    else
-    {
-      throw new IllegalStateException("Field access expression does not have a base: " + fieldStack.pop());
-    }
-
-    // the base VariableExpression resolves to compoundDefinition, so traverse up the hierarchy until the field resolves to a variable
-    while (!fieldStack.isEmpty())
-    {
-      FieldAccessExpression expression = fieldStack.pop();
-      expression.setBaseExpression(null);
-      expression.setBaseType(currentType);
-      if (fieldStack.isEmpty())
-      {
-        // always ignore the last FieldAccessExpression on the stack, so that we do not try to resolve() it and recursively call ourselves again with the same arguments
-        return;
-      }
-      try
-      {
-        resolve(expression, block, enclosingDefinition, compilationUnit);
-        // this field access resolves to a field, not a type, so return to resolve() so that it can finish resolution
-        return;
-      }
-      catch (NameNotResolvedException e)
-      {
-        // TODO: If/when we add nested types, add some code here to traverse down the field stack.
-        //       For now, only the base of the field access on the top of the stack can refer to a type.
-        //       So, since this field access cannot refer to a type yet, re-throw the exception.
-        throw e;
-      }
-    }
-  }
-
   private static void resolve(Expression expression, Block block, CompoundDefinition enclosingDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     if (expression instanceof ArithmeticExpression)
@@ -693,7 +595,6 @@ public class Resolver
     else if (expression instanceof FieldAccessExpression)
     {
       FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
-      resolveFieldAccessType(fieldAccessExpression, block, enclosingDefinition, compilationUnit);
       String fieldName = fieldAccessExpression.getFieldName();
 
       Type baseType;

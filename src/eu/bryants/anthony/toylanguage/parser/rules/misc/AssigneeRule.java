@@ -27,8 +27,8 @@ public class AssigneeRule extends Rule<ParseType>
 
   private static final Production<ParseType> VARIABLE_PRODUCTION = new Production<ParseType>(ParseType.NAME);
   private static final Production<ParseType> ARRAY_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.LSQUARE, ParseType.TUPLE_EXPRESSION, ParseType.RSQUARE);
-  private static final Production<ParseType> FIELD_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.DOT, ParseType.NAME);
-  private static final Production<ParseType> TYPE_FIELD_PRODUCTION = new Production<ParseType>(ParseType.TYPE, ParseType.DOT, ParseType.NAME);
+  private static final Production<ParseType> FIELD_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY_NO_TRAILING_TYPE, ParseType.DOT, ParseType.NAME);
+  private static final Production<ParseType> TYPE_FIELD_PRODUCTION = new Production<ParseType>(ParseType.TYPE, ParseType.DOUBLE_COLON, ParseType.NAME);
   private static final Production<ParseType> UNDERSCORE_PRODUCTION = new Production<ParseType>(ParseType.UNDERSCORE);
 
   @SuppressWarnings("unchecked")

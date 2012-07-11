@@ -111,6 +111,6 @@ public class FieldAccessExpression extends Expression
     {
       return baseExpression + "." + fieldName;
     }
-    return baseType + "." + fieldName;
+    return baseType + "::" + fieldName;
   }
 }

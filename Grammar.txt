@@ -30,7 +30,7 @@ Statement = Assignment | Block | BreakStatement | ContinueStatement | ForStateme
 Assignee = Name |
            Primary LSquare TupleExpression RSquare |
            Primary Dot Name |
-           Type Dot Name |
+           Type DoubleColon Name |
            Underscore
 AssigneeList = Assignee | AssigneeList Comma Assignee
 
@@ -102,16 +102,16 @@ UnaryExpression = Primary |
                   Minus UnaryExpression |
                   Tilde UnaryExpression |
                   ExclaimationMark UnaryExpression
-Primary = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword | ThisKeyword |
-          Name |
-          Primary LSquare TupleExpression RSquare |
-          NewKeyword Dimensions Type |
-          NewKeyword LSquare RSquare Type LBrace RBrace |
-          NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace |
-          Primary Dot Name |
-          Type Dot Name |
-          FunctionCallExpression |
-          LParen TupleExpression RParen
+Primary = PrimaryNoTrailingType | NewKeyword Dimensions Type
+PrimaryNoTrailingType = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword | ThisKeyword |
+                        Name |
+                        Primary LSquare TupleExpression RSquare |
+                        NewKeyword LSquare RSquare Type LBrace RBrace |
+                        NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace |
+                        Primary Dot Name |
+                        Type DoubleColon Name |
+                        FunctionCallExpression |
+                        LParen TupleExpression RParen
 FunctionCallExpression = Primary LParen ExpressionList RParen | Primary LParen RParen
 ExpressionList = Expression | ExpressionList Comma Expression
 

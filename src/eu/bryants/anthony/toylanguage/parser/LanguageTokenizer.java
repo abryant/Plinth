@@ -702,6 +702,11 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     }
     if (nextChar == ':')
     {
+      int secondChar = reader.read(1);
+      if (secondChar == ':')
+      {
+        return makeSymbolToken(ParseType.DOUBLE_COLON, 2);
+      }
       return makeSymbolToken(ParseType.COLON, 1);
     }
     if (nextChar == ',')

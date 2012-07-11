@@ -62,6 +62,7 @@ public enum ParseType
   TUPLE_INDEX_EXPRESSION,        // Expression
   UNARY_EXPRESSION,              // Expression
   PRIMARY,                       // Expression
+  PRIMARY_NO_TRAILING_TYPE,      // Expression
   FUNCTION_CALL_EXPRESSION,      // FunctionCallExpression
   EXPRESSION_LIST,               // ParseList<Expression>
   DIMENSIONS,                    // ParseList<Expression>
@@ -82,6 +83,7 @@ public enum ParseType
   COLON,
   COMMA,
   DOUBLE_AMPERSAND,
+  DOUBLE_COLON,
   DOUBLE_EQUALS,
   DOUBLE_LANGLE,
   DOUBLE_LANGLE_EQUALS,

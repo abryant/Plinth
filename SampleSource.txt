@@ -53,9 +53,9 @@ compound complex
   {
     ?[](uint, int) arr = new [](uint, int) {(argc, 2), (8, -4)};
 
-    complex.asdf = complex(argc, (cast<[](uint, int)> arr)[0] ! 1);
+    :complex::asdf = complex(argc, (cast<[](uint, int)> arr)[0] ! 1);
 
-    complex.asdf = complex.rotateLeft(cast<:complex> complex.asdf);
-    return cast<uint> complex.swap(cast<:complex> complex.asdf).getImag();
+    :complex::asdf = :complex::rotateLeft(cast<:complex> :complex::asdf);
+    return cast<uint> :complex::swap(cast<:complex> :complex::asdf).getImag();
   }
 }

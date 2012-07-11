@@ -12,6 +12,7 @@ import eu.bryants.anthony.toylanguage.parser.rules.expression.FunctionCallExpres
 import eu.bryants.anthony.toylanguage.parser.rules.expression.InlineIfExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.LogicalExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.MultiplicativeExpressionRule;
+import eu.bryants.anthony.toylanguage.parser.rules.expression.PrimaryNoTrailingTypeRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.PrimaryRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.ShiftExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.TupleExpressionRule;
@@ -66,6 +67,7 @@ public class ToyLanguageRules
     new InlineIfExpressionRule(),
     new LogicalExpressionRule(),
     new MultiplicativeExpressionRule(),
+    new PrimaryNoTrailingTypeRule(),
     new PrimaryRule(),
     new ShiftExpressionRule(),
     new TupleExpressionRule(),
