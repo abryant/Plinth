@@ -14,7 +14,7 @@ To compile the compiler:
 
 To run:
 
-    bin$ java -cp ../lib/jna.jar:. eu.bryants.anthony.toylanguage.compiler.Compiler /path/to/source.txt /path/to/binary.bc
+    bin$ java -cp ../lib/jna.jar:. eu.bryants.anthony.toylanguage.compiler.Compiler -d /path/to/output/folder /path/to/source.txt /path/to/source2.txt
 
 To generate machine code from the given LLVM bitcode:
 
