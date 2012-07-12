@@ -14,7 +14,6 @@ import nativelib.llvm.LLVM.LLVMValueRef;
 
 import com.sun.jna.Pointer;
 
-import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
@@ -85,7 +84,7 @@ import eu.bryants.anthony.toylanguage.ast.type.VoidType;
  */
 public class CodeGenerator
 {
-  private CompilationUnit compilationUnit;
+  private CompoundDefinition compoundDefinition;
 
   private LLVMModuleRef module;
   private LLVMBuilderRef builder;
@@ -94,10 +93,10 @@ public class CodeGenerator
 
   private Map<GlobalVariable, LLVMValueRef> globalVariables = new HashMap<GlobalVariable, LLVMValueRef>();
 
-  public CodeGenerator(CompilationUnit compilationUnit)
+  public CodeGenerator(CompoundDefinition compoundDefinition)
   {
-    this.compilationUnit = compilationUnit;
-    module = LLVM.LLVMModuleCreateWithName("MainModule");
+    this.compoundDefinition = compoundDefinition;
+    module = LLVM.LLVMModuleCreateWithName(compoundDefinition.getQualifiedName().toString());
     builder = LLVM.LLVMCreateBuilder();
   }
 
@@ -108,27 +107,21 @@ public class CodeGenerator
     // add all of the LLVM functions, including constructors, methods, and normal functions
     addFunctions();
 
-    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
-    {
-      addConstructorBodies(compoundDefinition);
-      addMethodBodies(compoundDefinition);
-    }
+    addConstructorBodies(compoundDefinition);
+    addMethodBodies(compoundDefinition);
     LLVM.LLVMWriteBitcodeToFile(module, outputPath);
   }
 
   private void addGlobalVariables()
   {
-    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    for (Field field : compoundDefinition.getFields())
     {
-      for (Field field : compoundDefinition.getFields())
+      if (field.isStatic())
       {
-        if (field.isStatic())
-        {
-          GlobalVariable globalVariable = field.getGlobalVariable();
-          LLVMValueRef value = LLVM.LLVMAddGlobal(module, findNativeType(field.getType()), globalVariable.getMangledName());
-          LLVM.LLVMSetInitializer(value, LLVM.LLVMConstNull(findNativeType(field.getType())));
-          globalVariables.put(globalVariable, value);
-        }
+        GlobalVariable globalVariable = field.getGlobalVariable();
+        LLVMValueRef value = LLVM.LLVMAddGlobal(module, findNativeType(field.getType()), globalVariable.getMangledName());
+        LLVM.LLVMSetInitializer(value, LLVM.LLVMConstNull(findNativeType(field.getType())));
+        globalVariables.put(globalVariable, value);
       }
     }
   }
@@ -155,98 +148,128 @@ public class CodeGenerator
     LLVMTypeRef[] callocParamTypes = new LLVMTypeRef[] {LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount())};
     callocFunction = LLVM.LLVMAddFunction(module, "calloc", LLVM.LLVMFunctionType(callocReturnType, C.toNativePointerArray(callocParamTypes, false, true), callocParamTypes.length, false));
 
-    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    for (Constructor constructor : compoundDefinition.getConstructors())
     {
-      for (Constructor constructor : compoundDefinition.getConstructors())
+      getConstructorFunction(constructor);
+    }
+
+    for (Method method : compoundDefinition.getAllMethods())
+    {
+      getMethodFunction(method);
+    }
+  }
+
+  /**
+   * Gets the function definition for the specified Constructor. If necessary, it is added first.
+   * @param constructor - the Constructor to find the declaration of (or to declare)
+   * @return the function declaration for the specified Constructor
+   */
+  private LLVMValueRef getConstructorFunction(Constructor constructor)
+  {
+    String mangledName = constructor.getMangledName();
+    LLVMValueRef existingFunc = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunc != null)
+    {
+      return existingFunc;
+    }
+
+    Parameter[] parameters = constructor.getParameters();
+    LLVMTypeRef[] types = new LLVMTypeRef[parameters.length];
+    for (int i = 0; i < types.length; i++)
+    {
+      types[i] = findNativeType(parameters[i].getType());
+    }
+    LLVMTypeRef resultType = findNativeType(new NamedType(false, compoundDefinition));
+
+    Pointer paramTypes = C.toNativePointerArray(types, false, true);
+    LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, paramTypes, types.length, false);
+    LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, mangledName, functionType);
+    LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
+
+    int paramCount = LLVM.LLVMCountParams(llvmFunc);
+    if (paramCount != parameters.length)
+    {
+      throw new IllegalStateException("LLVM returned wrong number of parameters");
+    }
+    for (int i = 0; i < paramCount; i++)
+    {
+      LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i);
+      LLVM.LLVMSetValueName(parameter, parameters[i].getName());
+    }
+    return llvmFunc;
+  }
+
+  /**
+   * Gets the function definition for the specified Method. If necessary, it is added first.
+   * @param method - the Method to find the declaration of (or to declare)
+   * @return the function declaration for the specified Method
+   */
+  private LLVMValueRef getMethodFunction(Method method)
+  {
+    String mangledName = method.getMangledName();
+    LLVMValueRef existingFunc = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunc != null)
+    {
+      return existingFunc;
+    }
+
+    Parameter[] parameters = method.getParameters();
+    LLVMTypeRef[] types;
+    if (method.isStatic())
+    {
+      types = new LLVMTypeRef[parameters.length];
+      for (int i = 0; i < parameters.length; ++i)
       {
-        String mangledName = constructor.getMangledName();
-
-        Parameter[] parameters = constructor.getParameters();
-        LLVMTypeRef[] types = new LLVMTypeRef[parameters.length];
-        for (int i = 0; i < types.length; i++)
-        {
-          types[i] = findNativeType(parameters[i].getType());
-        }
-        LLVMTypeRef resultType = findNativeType(new NamedType(false, compoundDefinition));
-
-        Pointer paramTypes = C.toNativePointerArray(types, false, true);
-        LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, paramTypes, types.length, false);
-        LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, mangledName, functionType);
-        LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
-
-        int paramCount = LLVM.LLVMCountParams(llvmFunc);
-        if (paramCount != parameters.length)
-        {
-          throw new IllegalStateException("LLVM returned wrong number of parameters");
-        }
-        for (int i = 0; i < paramCount; i++)
-        {
-          LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i);
-          LLVM.LLVMSetValueName(parameter, parameters[i].getName());
-        }
-      }
-
-      for (Method method : compoundDefinition.getAllMethods())
-      {
-        String mangledName = method.getMangledName();
-
-        Parameter[] parameters = method.getParameters();
-        LLVMTypeRef[] types;
-        if (method.isStatic())
-        {
-          types = new LLVMTypeRef[parameters.length];
-          for (int i = 0; i < parameters.length; ++i)
-          {
-            types[i] = findNativeType(parameters[i].getType());
-          }
-        }
-        else
-        {
-          types = new LLVMTypeRef[1 + parameters.length];
-          // add the 'this' type to the function
-          types[0] = LLVM.LLVMPointerType(findNativeType(new NamedType(false, compoundDefinition)), 0);
-          for (int i = 0; i < parameters.length; i++)
-          {
-            types[i + 1] = findNativeType(parameters[i].getType());
-          }
-        }
-        LLVMTypeRef resultType = findNativeType(method.getReturnType());
-
-        Pointer paramTypes = C.toNativePointerArray(types, false, true);
-        LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, paramTypes, types.length, false);
-        LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, mangledName, functionType);
-        LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
-
-        int paramCount = LLVM.LLVMCountParams(llvmFunc);
-        if (paramCount != types.length)
-        {
-          throw new IllegalStateException("LLVM returned wrong number of parameters");
-        }
-        if (method.isStatic())
-        {
-          for (int i = 0; i < paramCount; i++)
-          {
-            LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i);
-            LLVM.LLVMSetValueName(parameter, parameters[i].getName());
-          }
-        }
-        else
-        {
-          LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), "this");
-          for (int i = 1; i < paramCount; i++)
-          {
-            LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i);
-            LLVM.LLVMSetValueName(parameter, parameters[i - 1].getName());
-          }
-        }
-
-        // add the native function if the programmer specified one
-        if (method.getNativeName() != null)
-        {
-          addNativeFunction(method.getNativeName(), !(method.getReturnType() instanceof VoidType), functionType, llvmFunc);
-        }
+        types[i] = findNativeType(parameters[i].getType());
       }
     }
+    else
+    {
+      types = new LLVMTypeRef[1 + parameters.length];
+      // add the 'this' type to the function
+      types[0] = LLVM.LLVMPointerType(findNativeType(new NamedType(false, compoundDefinition)), 0);
+      for (int i = 0; i < parameters.length; i++)
+      {
+        types[i + 1] = findNativeType(parameters[i].getType());
+      }
+    }
+    LLVMTypeRef resultType = findNativeType(method.getReturnType());
+
+    Pointer paramTypes = C.toNativePointerArray(types, false, true);
+    LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, paramTypes, types.length, false);
+    LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, mangledName, functionType);
+    LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
+
+    int paramCount = LLVM.LLVMCountParams(llvmFunc);
+    if (paramCount != types.length)
+    {
+      throw new IllegalStateException("LLVM returned wrong number of parameters");
+    }
+    if (method.isStatic())
+    {
+      for (int i = 0; i < paramCount; i++)
+      {
+        LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i);
+        LLVM.LLVMSetValueName(parameter, parameters[i].getName());
+      }
+    }
+    else
+    {
+      LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), "this");
+      for (int i = 1; i < paramCount; i++)
+      {
+        LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i);
+        LLVM.LLVMSetValueName(parameter, parameters[i - 1].getName());
+      }
+    }
+
+    // add the native function if the programmer specified one
+    if (method.getNativeName() != null)
+    {
+      addNativeFunction(method.getNativeName(), !(method.getReturnType() instanceof VoidType), functionType, llvmFunc);
+    }
+
+    return llvmFunc;
   }
 
   /**
@@ -363,7 +386,7 @@ public class CodeGenerator
   {
     for (Constructor constructor : compoundDefinition.getConstructors())
     {
-      LLVMValueRef llvmFunction = LLVM.LLVMGetNamedFunction(module, constructor.getMangledName());
+      LLVMValueRef llvmFunction = getConstructorFunction(constructor);
 
       LLVMBasicBlockRef block = LLVM.LLVMAppendBasicBlock(llvmFunction, "entry");
       LLVM.LLVMPositionBuilderAtEnd(builder, block);
@@ -408,7 +431,7 @@ public class CodeGenerator
   {
     for (Method method : compoundDefinition.getAllMethods())
     {
-      LLVMValueRef llvmFunction = LLVM.LLVMGetNamedFunction(module, method.getMangledName());
+      LLVMValueRef llvmFunction = getMethodFunction(method);
 
       LLVMBasicBlockRef block = LLVM.LLVMAppendBasicBlock(llvmFunction, "entry");
       LLVM.LLVMPositionBuilderAtEnd(builder, block);
@@ -1541,7 +1564,7 @@ public class CodeGenerator
 
       Type[] parameterTypes;
       Type returnType;
-      String mangledName;
+      LLVMValueRef llvmResolvedFunction;
       if (resolvedConstructor != null)
       {
         Parameter[] params = resolvedConstructor.getParameters();
@@ -1551,7 +1574,7 @@ public class CodeGenerator
           parameterTypes[i] = params[i].getType();
         }
         returnType = new NamedType(false, resolvedConstructor.getContainingDefinition());
-        mangledName = resolvedConstructor.getMangledName();
+        llvmResolvedFunction = getConstructorFunction(resolvedConstructor);
       }
       else if (resolvedMethod != null)
       {
@@ -1562,14 +1585,14 @@ public class CodeGenerator
           parameterTypes[i] = params[i].getType();
         }
         returnType = resolvedMethod.getReturnType();
-        mangledName = resolvedMethod.getMangledName();
+        llvmResolvedFunction = getMethodFunction(resolvedMethod);
       }
       else if (resolvedBaseExpression != null)
       {
         FunctionType baseType = (FunctionType) resolvedBaseExpression.getType();
         parameterTypes = baseType.getParameterTypes();
         returnType = baseType.getReturnType();
-        mangledName = null;
+        llvmResolvedFunction = null;
       }
       else
       {
@@ -1598,12 +1621,10 @@ public class CodeGenerator
       LLVMValueRef result;
       if (resolvedConstructor != null)
       {
-        LLVMValueRef llvmResolvedFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
         result = LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(values, false, true), values.length, "");
       }
       else if (resolvedMethod != null)
       {
-        LLVMValueRef llvmResolvedFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
         LLVMValueRef[] realArguments;
         if (resolvedMethod.isStatic())
         {

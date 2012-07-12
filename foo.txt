@@ -1,0 +1,20 @@
+package test;
+
+compound asdf
+{
+  uint a;
+  asdf(:asdf other)
+  {
+    a = other.a;
+  }
+  asdf(uint b)
+  {
+    a = b;
+  }
+  
+  static :foo.bar.complex process(:foo.bar.complex c)
+  {
+    return :foo.bar.complex::rotateLeft(c);
+  }
+}
+

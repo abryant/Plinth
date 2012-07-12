@@ -55,7 +55,7 @@ compound complex
 
     :foo.bar.complex::asdf = complex(argc, (cast<[](uint, int)> arr)[0] ! 1);
 
-    :complex::asdf = :complex::rotateLeft(cast<:complex> :complex::asdf);
+    :complex::asdf = :test.asdf::process(cast<:complex> :complex::asdf);
     return cast<uint> :complex::swap(cast<:complex> :complex::asdf).getImag();
   }
 }

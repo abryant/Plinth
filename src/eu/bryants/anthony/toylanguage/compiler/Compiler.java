@@ -2,11 +2,15 @@ package eu.bryants.anthony.toylanguage.compiler;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import parser.BadTokenException;
 import parser.ParseException;
 import parser.Token;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
+import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.metadata.PackageNode;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
@@ -30,80 +34,86 @@ import eu.bryants.anthony.toylanguage.parser.ToyLanguageParser;
  */
 public class Compiler
 {
-  private static final String USAGE = "Usage: java eu.bryants.anthony.toylanguage.compiler.Compiler <input-file> <output-file>";
-
   public static void main(String... args) throws FileNotFoundException
   {
-    if (args.length != 2)
+    ArgumentParser argumentParser = new ArgumentParser(args);
+    String[] sources = argumentParser.getSources();
+    String outputDir = argumentParser.getOutputDir();
+    if (sources.length < 1 || outputDir == null)
     {
-      System.err.println(USAGE);
+      ArgumentParser.usage();
       System.exit(1);
     }
-    File input = new File(args[0]);
-    File output = new File(args[1]);
-    if (!input.isFile())
+    File outputDirFile = new File(outputDir);
+    if (!outputDirFile.isDirectory())
     {
-      System.err.println(USAGE);
+      ArgumentParser.usage();
       System.exit(2);
     }
-    if (output.exists() && !output.isFile())
-    {
-      System.err.println(USAGE);
-      System.exit(3);
-    }
 
-    CompilationUnit compilationUnit;
-    try
+    File[] sourceFiles = new File[sources.length];
+    CompilationUnit[] compilationUnits = new CompilationUnit[sources.length];
+    for (int i = 0; i < sources.length; ++i)
     {
-      compilationUnit = ToyLanguageParser.parse(input);
-    }
-    catch (LanguageParseException e)
-    {
-      printParseError(e.getMessage(), e.getLexicalPhrase());
-      System.exit(4);
-      return;
-    }
-    catch (ParseException e)
-    {
-      e.printStackTrace();
-      System.exit(5);
-      return;
-    }
-    catch (BadTokenException e)
-    {
-      Token<ParseType> token = e.getBadToken();
-      String message;
-      LexicalPhrase lexicalPhrase;
-      if (token.getType() == null)
+      sourceFiles[i] = new File(sources[i]);
+      if (!sourceFiles[i].isFile())
       {
-        message = "Unexpected end of input, expected one of: " + buildStringList(e.getExpectedTokenTypes());
-        lexicalPhrase = (LexicalPhrase) token.getValue();
+        System.err.println("Source is not a file: " + sourceFiles[i]);
+        System.exit(3);
       }
-      else
+
+      try
       {
-        message = "Unexpected " + token.getType() + ", expected one of: " + buildStringList(e.getExpectedTokenTypes());
-        // extract the LexicalPhrase from the token's value
-        // this is simply a matter of casting in most cases, but for literals it must be extracted differently
-        if (token.getType() == ParseType.NAME)
+        compilationUnits[i] = ToyLanguageParser.parse(sourceFiles[i]);
+      }
+      catch (LanguageParseException e)
+      {
+        printParseError(e.getMessage(), e.getLexicalPhrase());
+        System.exit(4);
+        return;
+      }
+      catch (ParseException e)
+      {
+        e.printStackTrace();
+        System.exit(5);
+        return;
+      }
+      catch (BadTokenException e)
+      {
+        Token<ParseType> token = e.getBadToken();
+        String message;
+        LexicalPhrase lexicalPhrase;
+        if (token.getType() == null)
         {
-          lexicalPhrase = ((Name) token.getValue()).getLexicalPhrase();
-        }
-        else if (token.getType() == ParseType.INTEGER_LITERAL)
-        {
-          lexicalPhrase = ((IntegerLiteral) token.getValue()).getLexicalPhrase();
-        }
-        else if (token.getValue() instanceof LexicalPhrase)
-        {
+          message = "Unexpected end of input, expected one of: " + buildStringList(e.getExpectedTokenTypes());
           lexicalPhrase = (LexicalPhrase) token.getValue();
         }
         else
         {
-          lexicalPhrase = null;
+          message = "Unexpected " + token.getType() + ", expected one of: " + buildStringList(e.getExpectedTokenTypes());
+          // extract the LexicalPhrase from the token's value
+          // this is simply a matter of casting in most cases, but for literals it must be extracted differently
+          if (token.getType() == ParseType.NAME)
+          {
+            lexicalPhrase = ((Name) token.getValue()).getLexicalPhrase();
+          }
+          else if (token.getType() == ParseType.INTEGER_LITERAL)
+          {
+            lexicalPhrase = ((IntegerLiteral) token.getValue()).getLexicalPhrase();
+          }
+          else if (token.getValue() instanceof LexicalPhrase)
+          {
+            lexicalPhrase = (LexicalPhrase) token.getValue();
+          }
+          else
+          {
+            lexicalPhrase = null;
+          }
         }
+        printParseError(message, lexicalPhrase);
+        System.exit(4);
+        return;
       }
-      printParseError(message, lexicalPhrase);
-      System.exit(4);
-      return;
     }
 
     PackageNode rootPackage = new PackageNode();
@@ -112,11 +122,34 @@ public class Compiler
 
     try
     {
-      resolver.resolve(compilationUnit);
-      CycleChecker.checkCycles(compilationUnit);
-      ControlFlowChecker.checkControlFlow(compilationUnit);
-      TypeChecker.checkTypes(compilationUnit);
-      NativeNameChecker.checkNativeNames(compilationUnit);
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        resolver.resolvePackages(compilationUnit);
+      }
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        resolver.resolveTopLevelTypes(compilationUnit);
+      }
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        resolver.resolve(compilationUnit);
+      }
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        CycleChecker.checkCycles(compilationUnit);
+      }
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        ControlFlowChecker.checkControlFlow(compilationUnit);
+      }
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        TypeChecker.checkTypes(compilationUnit);
+      }
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        NativeNameChecker.checkNativeNames(compilationUnit);
+      }
     }
     catch (ConceptualException e)
     {
@@ -127,11 +160,72 @@ public class Compiler
     catch (NameNotResolvedException e)
     {
       printConceptualException(e.getMessage(), e.getLexicalPhrase());
+      e.printStackTrace();
       System.exit(6);
     }
 
-    new CodeGenerator(compilationUnit).generate(output.getAbsolutePath());
-    System.out.println(compilationUnit);
+    Map<CompoundDefinition, File> resultFiles = new HashMap<CompoundDefinition, File>();
+    for (CompilationUnit compilationUnit : compilationUnits)
+    {
+      PackageNode declaredPackage = compilationUnit.getResolvedPackage();
+      File packageDir = findPackageDir(outputDirFile, declaredPackage);
+      for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+      {
+        File outputFile = new File(packageDir, compoundDefinition.getName() + ".bc");
+        if (outputFile.exists() && !outputFile.isFile())
+        {
+          System.err.println("Cannot create output file for " + compoundDefinition.getQualifiedName() + ", a non-file with that name already exists");
+          System.exit(9);
+        }
+        if (outputFile.exists())
+        {
+          if (!outputFile.delete())
+          {
+            System.err.println("Cannot create output file for " + compoundDefinition.getQualifiedName() + ", failed to delete existing file");
+            System.exit(10);
+          }
+        }
+        resultFiles.put(compoundDefinition, outputFile);
+      }
+    }
+
+    for (Entry<CompoundDefinition, File> entry : resultFiles.entrySet())
+    {
+      CompoundDefinition compoundDefinition = entry.getKey();
+      File file = entry.getValue();
+      new CodeGenerator(compoundDefinition).generate(file.getAbsolutePath());
+    }
+  }
+
+  /**
+   * Finds the directory for the specified package node in the given root package directory, creating subdirectories as necessary.
+   * This method assumes that rootPackageDir exists and is a directory.
+   * @param rootPackageDir - the root package directory
+   * @param packageNode - the PackageNode to find the package of
+   * @return the File representing the PackageNode's directory
+   */
+  private static File findPackageDir(File rootPackageDir, PackageNode packageNode)
+  {
+    String[] names = packageNode.getQualifiedName().getNames();
+    File current = rootPackageDir;
+    for (String name : names)
+    {
+      current = new File(current, name);
+      if (current.exists() && !current.isDirectory())
+      {
+        System.err.println("Cannot create a sub-directory for package: " + packageNode.getQualifiedName() + " - a file with that name already exists");
+        System.exit(7);
+      }
+      if (!current.isDirectory())
+      {
+        if (!current.mkdir())
+        {
+          System.err.println("Failed to create a sub-directory for package: " + packageNode.getQualifiedName());
+          System.exit(8);
+        }
+      }
+    }
+    return current;
   }
 
   /**
@@ -217,6 +311,11 @@ public class Compiler
     StringBuffer buffer = new StringBuffer();
     for (int i = 0; i < lexicalPhrases.length; i++)
     {
+      if (lexicalPhrases[i] == null)
+      {
+        System.err.println(message);
+        return;
+      }
       // line:start-end
       buffer.append(lexicalPhrases[i].getLocationText());
       if (i != lexicalPhrases.length - 1)

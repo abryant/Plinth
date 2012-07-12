@@ -84,7 +84,12 @@ public class Resolver
     this.rootPackage = rootPackage;
   }
 
-  public void resolve(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  /**
+   * Resolves the specified compilation unit's declared package, and the type definitions it makes to that package.
+   * @param compilationUnit - the compilation unit to resolve
+   * @throws ConceptualException - if there is a problem adding something to a package (e.g. a name conflict)
+   */
+  public void resolvePackages(CompilationUnit compilationUnit) throws ConceptualException
   {
     // find the package for this compilation unit
     PackageNode compilationUnitPackage = rootPackage;
@@ -94,18 +99,30 @@ public class Resolver
       compilationUnit.setResolvedPackage(compilationUnitPackage);
     }
 
-    // first, add all of the type definitions in this compilation unit to the file's package
+    // add all of the type definitions in this compilation unit to the file's package
     for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
     {
       compilationUnitPackage.addCompoundDefinition(compoundDefinition);
     }
+  }
 
-    // resolve the top level types, e.g. function parameters and return types, field types
-    // so that they can be used anywhere in statements and expressions
+  /**
+   * Resolves the top level types in the specified compilation unit (e.g. function parameters and return types, field types),
+   * so that they can be used anywhere in statements and expressions later on.
+   * @param compilationUnit - the compilation unit to resolve the top level types of
+   * @throws NameNotResolvedException - if a name could not be resolved
+   * @throws ConceptualException - if there is a conceptual problem while resolving the names
+   */
+  public void resolveTopLevelTypes(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  {
     for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
     {
       resolveTypes(compoundDefinition, compilationUnit);
     }
+  }
+
+  public void resolve(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  {
     // resolve the bodies of methods, field assignments, etc.
     for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
     {

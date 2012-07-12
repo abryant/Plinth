@@ -75,11 +75,11 @@ public class PackageNode
     String packageName = packageNode.getQualifiedName().getLastName();
     if (subPackages.containsKey(packageName))
     {
-      throw new ConceptualException("Cannot add sub-package to " + qname + " - a sub-package called \"" + packageName + "\" already exists.", null);
+      throw new ConceptualException("Cannot add sub-package to " + (qname == null ? "the root package" : qname) + " - a sub-package called \"" + packageName + "\" already exists.", null);
     }
     if (compoundDefinitions.containsKey(packageName))
     {
-      throw new ConceptualException("Cannot add sub-package to " + qname + " - a compound type called \"" + packageName + "\" already exists.", null);
+      throw new ConceptualException("Cannot add sub-package to " + (qname == null ? "the root package" : qname) + " - a compound type called \"" + packageName + "\" already exists.", null);
     }
     subPackages.put(packageName, packageNode);
   }
@@ -94,11 +94,11 @@ public class PackageNode
     String compoundName = compoundDefinition.getName();
     if (subPackages.containsKey(compoundName))
     {
-      throw new ConceptualException("Cannot add compound type to " + qname + " - a sub-package called \"" + compoundName + "\" already exists.", null);
+      throw new ConceptualException("Cannot add compound type to " + (qname == null ? "the root package" : qname) + " - a sub-package called \"" + compoundName + "\" already exists.", null);
     }
     if (compoundDefinitions.containsKey(compoundName))
     {
-      throw new ConceptualException("Cannot add compound type to " + qname + " - a compound type called \"" + compoundName + "\" already exists.", null);
+      throw new ConceptualException("Cannot add compound type to " + (qname == null ? "the root package" : qname) + " - a compound type called \"" + compoundName + "\" already exists.", null);
     }
     compoundDefinitions.put(compoundName, compoundDefinition);
   }
