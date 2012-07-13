@@ -31,7 +31,7 @@ Statement = Assignment | Block | BreakStatement | ContinueStatement | ForStateme
 
 Assignee = Name |
            Primary LSquare TupleExpression RSquare |
-           Primary Dot Name |
+           PrimaryNoTrailingType Dot Name |
            Type DoubleColon Name |
            Underscore
 AssigneeList = Assignee | AssigneeList Comma Assignee
@@ -110,7 +110,7 @@ PrimaryNoTrailingType = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyw
                         Primary LSquare TupleExpression RSquare |
                         NewKeyword LSquare RSquare Type LBrace RBrace |
                         NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace |
-                        Primary Dot Name |
+                        PrimaryNoTrailingType Dot Name |
                         Type DoubleColon Name |
                         FunctionCallExpression |
                         LParen TupleExpression RParen
