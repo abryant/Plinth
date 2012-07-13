@@ -1,4 +1,6 @@
-CompilationUnit = epsilon | PackageKeyword QName Semicolon | CompilationUnit CompoundTypeDef
+CompilationUnit = Imports | PackageKeyword QName Semicolon Imports | CompilationUnit CompoundTypeDef
+
+Imports = epsilon | Imports ImportKeyword QName Semicolon | Imports ImportKeyword QName Dot Star Semicolon
 
 QName = Name | QName Dot Name
 

@@ -16,6 +16,7 @@ public enum ParseType
   // NON-TERMINALS:
 
   COMPILATION_UNIT,              // CompilationUnit
+  IMPORTS,                       // ParseList<Import>
   COMPOUND_DEFINITION,           // CompoundDefinition
 
   // Members
@@ -138,6 +139,7 @@ public enum ParseType
   FLOAT_KEYWORD,
   FOR_KEYWORD,
   IF_KEYWORD,
+  IMPORT_KEYWORD,
   INT_KEYWORD,
   LONG_KEYWORD,
   NATIVE_KEYWORD,

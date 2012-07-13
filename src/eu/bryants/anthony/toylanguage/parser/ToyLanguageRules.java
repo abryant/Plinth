@@ -26,6 +26,7 @@ import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.ForInitRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.ForUpdateRule;
+import eu.bryants.anthony.toylanguage.parser.rules.misc.ImportsRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.ModifiersRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.ParametersRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.QNameRule;
@@ -85,6 +86,7 @@ public class ToyLanguageRules
     new AssigneeRule(),
     new ForInitRule(),
     new ForUpdateRule(),
+    new ImportsRule(),
     new ModifiersRule(),
     new ParametersRule(),
     new QNameRule(),

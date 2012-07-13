@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import eu.bryants.anthony.toylanguage.ast.metadata.PackageNode;
+import eu.bryants.anthony.toylanguage.ast.misc.Import;
 import eu.bryants.anthony.toylanguage.ast.misc.QName;
 import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 
@@ -18,15 +19,18 @@ import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 public class CompilationUnit
 {
   private QName declaredPackage;
+  private Import[] imports;
+
   private Map<String, CompoundDefinition> compoundDefinitions = new HashMap<String, CompoundDefinition>();
 
   private LexicalPhrase lexicalPhrase;
 
   private PackageNode resolvedPackage;
 
-  public CompilationUnit(QName declaredPackage, LexicalPhrase lexicalPhrase)
+  public CompilationUnit(QName declaredPackage, Import[] imports, LexicalPhrase lexicalPhrase)
   {
     this.declaredPackage = declaredPackage;
+    this.imports = imports;
     this.lexicalPhrase = lexicalPhrase;
   }
 
@@ -79,6 +83,14 @@ public class CompilationUnit
   }
 
   /**
+   * @return the imports
+   */
+  public Import[] getImports()
+  {
+    return imports;
+  }
+
+  /**
    * @return the compoundDefinitions
    */
   public Collection<CompoundDefinition> getCompoundDefinitions()
@@ -112,6 +124,15 @@ public class CompilationUnit
       buffer.append("package ");
       buffer.append(declaredPackage);
       buffer.append(";\n\n");
+    }
+    if (imports.length > 0)
+    {
+      for (Import i : imports)
+      {
+        buffer.append(i);
+        buffer.append('\n');
+      }
+      buffer.append('\n');
     }
     for (CompoundDefinition compoundDefinition : compoundDefinitions.values())
     {

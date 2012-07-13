@@ -187,6 +187,8 @@ public class Compiler
         }
         resultFiles.put(compoundDefinition, outputFile);
       }
+      // print each compilation unit before writing their bitcode files
+      System.out.println(compilationUnit);
     }
 
     for (Entry<CompoundDefinition, File> entry : resultFiles.entrySet())
