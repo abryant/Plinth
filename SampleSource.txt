@@ -1,5 +1,7 @@
 package foo.bar;
 
+import test.asdf;
+
 compound complex
 {
   static ?:complex asdf;
@@ -55,7 +57,7 @@ compound complex
 
     :foo.bar.complex::asdf = complex(argc, (cast<[](uint, int)> arr)[0] ! 1);
 
-    :complex::asdf = :test.asdf::process(cast<:complex> :complex::asdf);
+    :complex::asdf = :asdf::process(cast<:complex> :complex::asdf);
     return cast<uint> :complex::swap(cast<:complex> :complex::asdf).getImag();
   }
 }

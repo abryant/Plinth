@@ -43,7 +43,9 @@ import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
 import eu.bryants.anthony.toylanguage.ast.misc.BlankAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.FieldAssignee;
+import eu.bryants.anthony.toylanguage.ast.misc.Import;
 import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
+import eu.bryants.anthony.toylanguage.ast.misc.QName;
 import eu.bryants.anthony.toylanguage.ast.misc.VariableAssignee;
 import eu.bryants.anthony.toylanguage.ast.statement.AssignStatement;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
@@ -115,6 +117,49 @@ public class Resolver
    */
   public void resolveTopLevelTypes(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
+    // first, check that all of the imports resolve to something
+    for (Import currentImport : compilationUnit.getImports())
+    {
+      QName qname = currentImport.getImported();
+      String[] names = qname.getNames();
+      PackageNode currentPackage = rootPackage;
+      CompoundDefinition currentDefinition = null;
+
+      // now resolve the rest of the names (or as many as possible until the current items are all null)
+      for (int i = 0; i < names.length; ++i)
+      {
+        if (currentPackage != null)
+        {
+          // at most one of these lookups can succeed
+          currentDefinition = currentPackage.getCompoundDefinition(names[i]);
+          // update currentPackage last
+          currentPackage = currentPackage.getSubPackage(names[i]);
+        }
+        else if (currentDefinition != null)
+        {
+          // TODO: if/when we add inner types, resolve the sub-type here
+          // for now, we cannot resolve the name on this definition, so fail by setting everything to null
+          currentDefinition = null;
+        }
+        else
+        {
+          break;
+        }
+      }
+
+      if (currentDefinition == null && currentPackage == null)
+      {
+        throw new NameNotResolvedException("Unable to resolve the import: " + qname, qname.getLexicalPhrase());
+      }
+      if (currentPackage != null && !currentImport.isWildcard())
+      {
+        throw new NameNotResolvedException("A non-wildcard import cannot resolve to a package", qname.getLexicalPhrase());
+      }
+      // only one of these calls will set the resolved object to a non-null value
+      currentImport.setResolvedPackage(currentPackage);
+      currentImport.setResolvedCompoundDefinition(currentDefinition);
+    }
+
     for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
     {
       resolveTypes(compoundDefinition, compilationUnit);
@@ -254,16 +299,47 @@ public class Resolver
       PackageNode currentPackage = null;
       if (currentDefinition == null)
       {
-        // the lookup in the compilation unit failed, so try to look up the first name on the compilation unit's package instead
-        // (at most one of the following lookups can succeed)
-        currentPackage = compilationUnit.getResolvedPackage().getSubPackage(names[0]);
-        currentDefinition = compilationUnit.getResolvedPackage().getCompoundDefinition(names[0]);
+        // the lookup in the compilation unit failed, so try each of the imports in turn
+        for (Import currentImport : compilationUnit.getImports())
+        {
+          PackageNode importPackage = currentImport.getResolvedPackage();
+          CompoundDefinition importDefinition = currentImport.getResolvedCompoundDefinition();
+          if (currentImport.isWildcard())
+          {
+            if (importPackage != null)
+            {
+              currentPackage = importPackage.getSubPackage(names[0]);
+              currentDefinition = importPackage.getCompoundDefinition(names[0]);
+            }
+            else // if (importDefinition != null)
+            {
+              // TODO: if/when inner types are added, resolve the sub-type of importDefinition here
+            }
+          }
+          else if (currentImport.getName().equals(names[0]))
+          {
+            currentPackage = importPackage;
+            currentDefinition = importDefinition;
+          }
+          if (currentPackage != null || currentDefinition != null)
+          {
+            break;
+          }
+        }
+
         if (currentPackage == null && currentDefinition == null)
         {
-          // all other lookups failed, so try to look up the first name on the root package
+          // the lookup from the imports failed, so try to look up the first name on the compilation unit's package instead
           // (at most one of the following lookups can succeed)
-          currentPackage = rootPackage.getSubPackage(names[0]);
-          currentDefinition = rootPackage.getCompoundDefinition(names[0]);
+          currentPackage = compilationUnit.getResolvedPackage().getSubPackage(names[0]);
+          currentDefinition = compilationUnit.getResolvedPackage().getCompoundDefinition(names[0]);
+          if (currentPackage == null && currentDefinition == null)
+          {
+            // all other lookups failed, so try to look up the first name on the root package
+            // (at most one of the following lookups can succeed)
+            currentPackage = rootPackage.getSubPackage(names[0]);
+            currentDefinition = rootPackage.getCompoundDefinition(names[0]);
+          }
         }
       }
       // now resolve the rest of the names (or as many as possible until the current items are all null)

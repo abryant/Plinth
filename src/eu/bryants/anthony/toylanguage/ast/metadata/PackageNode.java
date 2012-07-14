@@ -130,4 +130,13 @@ public class PackageNode
     }
     return current;
   }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String toString()
+  {
+    return qname.toString();
+  }
 }

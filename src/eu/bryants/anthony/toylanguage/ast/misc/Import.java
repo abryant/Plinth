@@ -1,6 +1,8 @@
 package eu.bryants.anthony.toylanguage.ast.misc;
 
+import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.ast.metadata.PackageNode;
 
 /*
  * Created on 13 Jul 2012
@@ -15,6 +17,9 @@ public class Import
   private QName imported;
 
   private LexicalPhrase lexicalPhrase;
+
+  private PackageNode resolvedPackage;
+  private CompoundDefinition resolvedCompoundDefinition;
 
   /**
    * Creates a new Import which imports the specified QName as the specified name.
@@ -38,6 +43,14 @@ public class Import
   }
 
   /**
+   * @return true if this import is a wildcard import, false otherwise
+   */
+  public boolean isWildcard()
+  {
+    return name == null;
+  }
+
+  /**
    * @return the imported QName
    */
   public QName getImported()
@@ -51,6 +64,38 @@ public class Import
   public LexicalPhrase getLexicalPhrase()
   {
     return lexicalPhrase;
+  }
+
+  /**
+   * @return the resolvedPackage
+   */
+  public PackageNode getResolvedPackage()
+  {
+    return resolvedPackage;
+  }
+
+  /**
+   * @param resolvedPackage - the resolvedPackage to set
+   */
+  public void setResolvedPackage(PackageNode resolvedPackage)
+  {
+    this.resolvedPackage = resolvedPackage;
+  }
+
+  /**
+   * @return the resolvedCompoundDefinition
+   */
+  public CompoundDefinition getResolvedCompoundDefinition()
+  {
+    return resolvedCompoundDefinition;
+  }
+
+  /**
+   * @param resolvedCompoundDefinition - the resolvedCompoundDefinition to set
+   */
+  public void setResolvedCompoundDefinition(CompoundDefinition resolvedCompoundDefinition)
+  {
+    this.resolvedCompoundDefinition = resolvedCompoundDefinition;
   }
 
   /**

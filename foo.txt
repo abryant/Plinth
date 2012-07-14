@@ -14,9 +14,9 @@ compound asdf
     a = b;
   }
   
-  static :foo.bar.complex process(:foo.bar.complex c)
+  static :complex process(:complex c)
   {
-    return :foo.bar.complex::rotateLeft(c);
+    return :complex::rotateLeft(c);
   }
 }
 
