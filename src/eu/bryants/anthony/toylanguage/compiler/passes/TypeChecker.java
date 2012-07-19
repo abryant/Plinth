@@ -773,7 +773,7 @@ public class TypeChecker
     {
       FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
       // no need to do the following type check here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
-      // Type type = checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
+      // Type type = checkTypes(fieldAccessExpression.getBaseExpression(), compilationUnit);
       if (fieldAccessExpression.getBaseExpression() != null)
       {
         Type baseExpressionType = fieldAccessExpression.getBaseExpression().getType();
@@ -821,7 +821,6 @@ public class TypeChecker
     }
     else if (expression instanceof FunctionCallExpression)
     {
-      // TODO: finish the type-checking for nullability
       FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
       Expression[] arguments = functionCallExpression.getArguments();
       Parameter[] parameters = null;
