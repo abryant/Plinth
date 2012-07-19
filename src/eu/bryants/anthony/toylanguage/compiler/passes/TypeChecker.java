@@ -370,6 +370,31 @@ public class TypeChecker
         assigneeType = ((ArrayType) arrayType).getBaseType();
         assignee.setResolvedType(assigneeType);
       }
+      else if (assignee instanceof FieldAssignee)
+      {
+        FieldAssignee fieldAssignee = (FieldAssignee) assignee;
+        FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
+        // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
+        // Type type = checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
+        Member member = fieldAccessExpression.getResolvedMember();
+        if (member instanceof ArrayLengthMember)
+        {
+          throw new ConceptualException("Cannot increment or decrement an array's length", fieldAssignee.getLexicalPhrase());
+        }
+        else if (member instanceof Field)
+        {
+          assigneeType = ((Field) member).getType();
+        }
+        else if (member instanceof Method)
+        {
+          throw new ConceptualException("Cannot increment or decrement a method", fieldAssignee.getLexicalPhrase());
+        }
+        else
+        {
+          throw new IllegalStateException("Unknown member type in a FieldAccessExpression: " + member);
+        }
+        fieldAssignee.setResolvedType(assigneeType);
+      }
       else
       {
         // ignore blank assignees, they shouldn't be able to get through variable resolution
