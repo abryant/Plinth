@@ -1402,12 +1402,14 @@ public class CodeGenerator
                                                                      LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
                                                                      convertedDimensionValue};
       LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, arrayValue, C.toNativePointerArray(indices, false, true), indices.length, "");
-      if (arrayAccessExpression.getType() instanceof NamedType) // TODO (when it doesn't cause a warning): && ((NamedType) arrayAccessExpression.getType()).getResolvedDefinition() instanceof CompoundDefinition)
+      ArrayType arrayType = (ArrayType) arrayAccessExpression.getArrayExpression().getType();
+      if (arrayType.getBaseType() instanceof NamedType) // TODO (when it doesn't cause a warning): && ((NamedType) arrayAccessExpression.getType()).getResolvedDefinition() instanceof CompoundDefinition)
       {
         // for compound types, we do not need to load anything here
-        return elementPointer;
+        return convertType(elementPointer, arrayType.getBaseType(), arrayAccessExpression.getType(), llvmFunction);
       }
-      return LLVM.LLVMBuildLoad(builder, elementPointer, "");
+      LLVMValueRef value = LLVM.LLVMBuildLoad(builder, elementPointer, "");
+      return convertType(value, arrayType.getBaseType(), arrayAccessExpression.getType(), llvmFunction);
     }
     if (expression instanceof ArrayCreationExpression)
     {
@@ -1790,12 +1792,14 @@ public class CodeGenerator
     if (expression instanceof TupleExpression)
     {
       TupleExpression tupleExpression = (TupleExpression) expression;
+      Type[] tupleTypes = ((TupleType) tupleExpression.getType()).getSubTypes();
       Expression[] subExpressions = tupleExpression.getSubExpressions();
       LLVMValueRef currentValue = LLVM.LLVMGetUndef(findNativeType(tupleExpression.getType()));
       for (int i = 0; i < subExpressions.length; i++)
       {
         LLVMValueRef value = buildExpression(subExpressions[i], llvmFunction, thisValue, variables);
-        Type type = subExpressions[i].getType();
+        Type type = tupleTypes[i];
+        value = convertType(value, subExpressions[i].getType(), type, llvmFunction);
         if (type instanceof NamedType) // TODO: when this does not cause a warning, add it: && ((NamedType) type).getResolvedDefinition() instanceof CompoundDefinition)
         {
           // for compound types, we need to load from the result of the expression before storing the result in the tuple
@@ -1808,10 +1812,12 @@ public class CodeGenerator
     if (expression instanceof TupleIndexExpression)
     {
       TupleIndexExpression tupleIndexExpression = (TupleIndexExpression) expression;
+      TupleType tupleType = (TupleType) tupleIndexExpression.getExpression().getType();
       LLVMValueRef result = buildExpression(tupleIndexExpression.getExpression(), llvmFunction, thisValue, variables);
       // convert the 1-based indexing to 0-based before extracting the value
       int index = tupleIndexExpression.getIndexLiteral().getValue().intValue() - 1;
       LLVMValueRef value = LLVM.LLVMBuildExtractValue(builder, result, index, "");
+      LLVMValueRef convertedValue = convertType(value, tupleType.getSubTypes()[index], tupleIndexExpression.getType(), llvmFunction);
 
       Type type = tupleIndexExpression.getType();
       if (type instanceof NamedType) // TODO: when the doesn't cause a warning, add it: && ((NamedType) type).getResolvedDefinition() instanceof CompoundDefinition)
@@ -1822,10 +1828,10 @@ public class CodeGenerator
         LLVM.LLVMPositionBuilderBefore(builder, LLVM.LLVMGetFirstInstruction(LLVM.LLVMGetEntryBasicBlock(llvmFunction)));
         LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, findNativeType(type), "");
         LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
-        LLVM.LLVMBuildStore(builder, value, alloca);
+        LLVM.LLVMBuildStore(builder, convertedValue, alloca);
         return alloca;
       }
-      return value;
+      return convertedValue;
     }
     if (expression instanceof VariableExpression)
     {
