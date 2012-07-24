@@ -24,6 +24,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
@@ -57,6 +58,7 @@ import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
 import eu.bryants.anthony.toylanguage.ast.type.FunctionType;
 import eu.bryants.anthony.toylanguage.ast.type.NamedType;
+import eu.bryants.anthony.toylanguage.ast.type.NullType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.toylanguage.ast.type.TupleType;
@@ -243,11 +245,12 @@ public class TypeChecker
           {
             tupledSubTypes[0] = exprType;
           }
-          else if (!tupledSubTypes[0].canAssign(exprType))
+          if (!tupledSubTypes[0].canAssign(exprType))
           {
             throw new ConceptualException("Cannot assign an expression of type " + exprType + " to a variable of type " + tupledSubTypes[0], assignStatement.getLexicalPhrase());
           }
           assignees[0].setResolvedType(tupledSubTypes[0]);
+          assignStatement.setResolvedType(tupledSubTypes[0]);
         }
         else
         {
@@ -262,7 +265,7 @@ public class TypeChecker
               {
                 tupledSubTypes[i] = exprSubTypes[i];
               }
-              else if (!tupledSubTypes[i].canAssign(exprSubTypes[i]))
+              if (!tupledSubTypes[i].canAssign(exprSubTypes[i]))
               {
                 assignable = false;
                 break;
@@ -284,6 +287,7 @@ public class TypeChecker
             buffer.append(")");
             throw new ConceptualException("Cannot assign an expression of type " + exprType + " to a tuple of type " + buffer, assignStatement.getLexicalPhrase());
           }
+          assignStatement.setResolvedType(new TupleType(false, tupledSubTypes, null));
         }
       }
     }
@@ -1070,6 +1074,12 @@ public class TypeChecker
         }
       }
       throw new ConceptualException("The unary operator '-' is not defined for type '" + type + "'", expression.getLexicalPhrase());
+    }
+    else if (expression instanceof NullLiteralExpression)
+    {
+      Type type = new NullType(null);
+      expression.setType(type);
+      return type;
     }
     else if (expression instanceof ShiftExpression)
     {

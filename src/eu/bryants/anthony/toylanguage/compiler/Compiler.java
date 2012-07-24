@@ -21,6 +21,7 @@ import eu.bryants.anthony.toylanguage.compiler.passes.CycleChecker;
 import eu.bryants.anthony.toylanguage.compiler.passes.NativeNameChecker;
 import eu.bryants.anthony.toylanguage.compiler.passes.Resolver;
 import eu.bryants.anthony.toylanguage.compiler.passes.TypeChecker;
+import eu.bryants.anthony.toylanguage.compiler.passes.TypePropagator;
 import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
 import eu.bryants.anthony.toylanguage.parser.ToyLanguageParser;
@@ -145,6 +146,10 @@ public class Compiler
       for (CompilationUnit compilationUnit : compilationUnits)
       {
         TypeChecker.checkTypes(compilationUnit);
+      }
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        TypePropagator.propagateTypes(compilationUnit);
       }
       for (CompilationUnit compilationUnit : compilationUnits)
       {

@@ -12,6 +12,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.terminal.FloatingLiteral;
@@ -36,6 +37,7 @@ public class PrimaryNoTrailingTypeRule extends Rule<ParseType>
   private static Production<ParseType> TRUE_PRODUCTION = new Production<ParseType>(ParseType.TRUE_KEYWORD);
   private static Production<ParseType> FALSE_PRODUCTION = new Production<ParseType>(ParseType.FALSE_KEYWORD);
   private static Production<ParseType> THIS_PRODUCTION = new Production<ParseType>(ParseType.THIS_KEYWORD);
+  private static Production<ParseType> NULL_PRODUCTION = new Production<ParseType>(ParseType.NULL_KEYWORD);
   private static Production<ParseType> FLOATING_PRODUCTION = new Production<ParseType>(ParseType.FLOATING_LITERAL);
   private static Production<ParseType> INTEGER_PRODUCTION = new Production<ParseType>(ParseType.INTEGER_LITERAL);
   private static Production<ParseType> VARIABLE_PRODUCTION = new Production<ParseType>(ParseType.NAME);
@@ -51,7 +53,7 @@ public class PrimaryNoTrailingTypeRule extends Rule<ParseType>
   public PrimaryNoTrailingTypeRule()
   {
     super(ParseType.PRIMARY_NO_TRAILING_TYPE, TRUE_PRODUCTION, FALSE_PRODUCTION,
-                                              THIS_PRODUCTION,
+                                              THIS_PRODUCTION, NULL_PRODUCTION,
                                               FLOATING_PRODUCTION, INTEGER_PRODUCTION,
                                               VARIABLE_PRODUCTION,
                                               FIELD_ACCESS_PRODUCTION, TYPE_FIELD_ACCESS_PRODUCTION,
@@ -78,6 +80,10 @@ public class PrimaryNoTrailingTypeRule extends Rule<ParseType>
     if (production == THIS_PRODUCTION)
     {
       return new ThisExpression((LexicalPhrase) args[0]);
+    }
+    if (production == NULL_PRODUCTION)
+    {
+      return new NullLiteralExpression((LexicalPhrase) args[0]);
     }
     if (production == FLOATING_PRODUCTION)
     {

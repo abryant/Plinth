@@ -53,6 +53,7 @@ compound complex
 
   static native uint main(uint argc)
   {
+    ?uint a = true ? null : cast<?ubyte>5;
     ?[](uint, int) arr = new [](uint, int) {(argc, 2), (8, -4)};
 
     :foo.bar.complex::asdf = complex(argc, (cast<[](uint, int)> arr)[0] ! 1);

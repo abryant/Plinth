@@ -57,6 +57,11 @@ public class FunctionType extends Type
   @Override
   public boolean isEquivalent(Type type)
   {
+    if (type instanceof NullType && isNullable())
+    {
+      // all nullable types can have null assigned to them
+      return true;
+    }
     if (!(type instanceof FunctionType))
     {
       return false;

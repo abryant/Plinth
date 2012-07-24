@@ -96,6 +96,11 @@ public class PrimitiveType extends Type
   @Override
   public boolean canAssign(Type type)
   {
+    if (type instanceof NullType && isNullable())
+    {
+      // all nullable types can have null assigned to them
+      return true;
+    }
     if (!(type instanceof PrimitiveType))
     {
       return false;

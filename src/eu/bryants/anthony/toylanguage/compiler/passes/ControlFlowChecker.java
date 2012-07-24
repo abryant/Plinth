@@ -24,6 +24,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.InlineIfExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
@@ -601,6 +602,10 @@ public class ControlFlowChecker
     else if (expression instanceof MinusExpression)
     {
       checkUninitialisedVariables(((MinusExpression) expression).getExpression(), initialisedVariables, inConstructor, inStaticContext);
+    }
+    else if (expression instanceof NullLiteralExpression)
+    {
+      // do nothing
     }
     else if (expression instanceof ShiftExpression)
     {

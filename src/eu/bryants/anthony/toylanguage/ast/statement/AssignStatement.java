@@ -18,12 +18,15 @@ public class AssignStatement extends Statement
   private Assignee[] assignees;
   private Expression expression;
 
+  private Type resolvedType;
+
   public AssignStatement(Type type, Assignee[] assignees, Expression expression, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.type = type;
     this.assignees = assignees;
     this.expression = expression;
+    resolvedType = type;
   }
 
   /**
@@ -48,6 +51,22 @@ public class AssignStatement extends Statement
   public Expression getExpression()
   {
     return expression;
+  }
+
+  /**
+   * @return the resolvedType
+   */
+  public Type getResolvedType()
+  {
+    return resolvedType;
+  }
+
+  /**
+   * @param resolvedType - the resolvedType to set
+   */
+  public void setResolvedType(Type resolvedType)
+  {
+    this.resolvedType = resolvedType;
   }
 
   /**

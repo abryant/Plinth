@@ -47,6 +47,12 @@ public class ArrayType extends Type
     // fs[0] = new Foo();
     // []Bar bs = fs; // bs now contains a Foo, despite it being a []Bar
 
+    if (type instanceof NullType && isNullable())
+    {
+      // all nullable types can have null assigned to them
+      return true;
+    }
+
     if (!(type instanceof ArrayType))
     {
       return false;

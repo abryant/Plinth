@@ -38,6 +38,11 @@ public class TupleType extends Type
   @Override
   public boolean canAssign(Type type)
   {
+    if (type instanceof NullType && isNullable())
+    {
+      // all nullable types can have null assigned to them
+      return true;
+    }
     if (!(type instanceof TupleType))
     {
       return subTypes.length == 1 && subTypes[0].canAssign(type);

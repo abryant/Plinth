@@ -105,7 +105,8 @@ UnaryExpression = Primary |
                   Tilde UnaryExpression |
                   ExclaimationMark UnaryExpression
 Primary = PrimaryNoTrailingType | NewKeyword Dimensions Type
-PrimaryNoTrailingType = IntegerLiteral | DoubleLiteral | TrueKeyword | FalseKeyword | ThisKeyword |
+PrimaryNoTrailingType = IntegerLiteral | DoubleLiteral |
+                        TrueKeyword | FalseKeyword | ThisKeyword | NullKeyword |
                         Name |
                         Primary LSquare TupleExpression RSquare |
                         NewKeyword LSquare RSquare Type LBrace RBrace |

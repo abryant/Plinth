@@ -34,6 +34,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
@@ -69,6 +70,7 @@ import eu.bryants.anthony.toylanguage.ast.statement.WhileStatement;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
 import eu.bryants.anthony.toylanguage.ast.type.FunctionType;
 import eu.bryants.anthony.toylanguage.ast.type.NamedType;
+import eu.bryants.anthony.toylanguage.ast.type.NullType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.toylanguage.ast.type.TupleType;
@@ -374,6 +376,10 @@ public class CodeGenerator
         return LLVM.LLVMStructType(C.toNativePointerArray(types, false, true), types.length, false);
       }
       return nonNullableType;
+    }
+    if (type instanceof NullType)
+    {
+      return LLVM.LLVMStructType(C.toNativePointerArray(new LLVMTypeRef[0], false, true), 0, false);
     }
     if (type instanceof VoidType)
     {
@@ -1764,6 +1770,23 @@ public class CodeGenerator
         return LLVM.LLVMBuildFNeg(builder, value, "");
       }
       return LLVM.LLVMBuildNeg(builder, value, "");
+    }
+    if (expression instanceof NullLiteralExpression)
+    {
+      Type type = expression.getType();
+      LLVMValueRef value = LLVM.LLVMConstNull(findNativeType(type));
+      if (type instanceof NamedType) // TODO (when it doesn't cause a warning): && ((NamedType) type).getResolvedDefinition() instanceof CompoundDefinition)
+      {
+        // for compound types, we need to get a pointer from this null value
+        // so build an alloca in the entry block
+        LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMPositionBuilderBefore(builder, LLVM.LLVMGetFirstInstruction(LLVM.LLVMGetEntryBasicBlock(llvmFunction)));
+        LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, findNativeType(type), "");
+        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+        LLVM.LLVMBuildStore(builder, value, alloca);
+        return alloca;
+      }
+      return value;
     }
     if (expression instanceof ShiftExpression)
     {
