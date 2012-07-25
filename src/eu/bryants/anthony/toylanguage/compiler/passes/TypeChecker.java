@@ -1,6 +1,8 @@
 package eu.bryants.anthony.toylanguage.compiler.passes;
 
 import java.math.BigInteger;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
@@ -599,15 +601,11 @@ public class TypeChecker
         PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
         if (leftPrimitiveType != PrimitiveTypeType.BOOLEAN && rightPrimitiveType != PrimitiveTypeType.BOOLEAN)
         {
-          if (leftType.canAssign(rightType))
+          Type resultType = findCommonSuperType(leftType, rightType);
+          if (resultType != null)
           {
-            arithmeticExpression.setType(leftType);
-            return leftType;
-          }
-          if (rightType.canAssign(leftType))
-          {
-            arithmeticExpression.setType(rightType);
-            return rightType;
+            arithmeticExpression.setType(resultType);
+            return resultType;
           }
           // the type will now only be null if no conversion can be done, e.g. if leftType is UINT and rightType is INT
         }
@@ -749,6 +747,7 @@ public class TypeChecker
         }
         if (leftPrimitiveType != PrimitiveTypeType.BOOLEAN && rightPrimitiveType != PrimitiveTypeType.BOOLEAN)
         {
+          // we do not use findCommonSuperType() here, because that would make a comparison between a long and a ulong use a float comparison, which is not what we want
           if (leftType.canAssign(rightType))
           {
             comparisonExpression.setComparisonType((PrimitiveType) leftType);
@@ -920,15 +919,11 @@ public class TypeChecker
       }
       Type thenType = checkTypes(inlineIf.getThenExpression(), compilationUnit);
       Type elseType = checkTypes(inlineIf.getElseExpression(), compilationUnit);
-      if (thenType.canAssign(elseType))
+      Type resultType = findCommonSuperType(thenType, elseType);
+      if (resultType != null)
       {
-        inlineIf.setType(thenType);
-        return thenType;
-      }
-      if (elseType.canAssign(thenType))
-      {
-        inlineIf.setType(elseType);
-        return elseType;
+        inlineIf.setType(resultType);
+        return resultType;
       }
       throw new ConceptualException("The types of the then and else clauses of this inline if expression are incompatible, they are: " + thenType + " and " + elseType, inlineIf.getLexicalPhrase());
     }
@@ -1021,6 +1016,7 @@ public class TypeChecker
           }
           // both types are now integers or booleans
           // if one can be converted to the other (left -> right or right -> left), then do the conversion
+          // we cannot use findCommonSuperType() here, because it could choose a floating point type for the result if e.g. the input types were long and ulong
           if (leftType.canAssign(rightType))
           {
             logicalExpression.setType(leftType);
@@ -1167,5 +1163,182 @@ public class TypeChecker
       return type;
     }
     throw new ConceptualException("Internal type checking error: Unknown expression type", expression.getLexicalPhrase());
+  }
+
+  /**
+   * Finds the common super-type of the specified two types.
+   * @param a - the first type
+   * @param b - the second type
+   * @return the common super-type of a and b, that both a and b can be assigned to
+   */
+  private static Type findCommonSuperType(Type a, Type b)
+  {
+    // first, account for single-element tuple types
+    // these can be nested arbitrarily far, and can also be nullable
+    // the common supertype is the type where we have the maximum degree of nesting of the two,
+    // and a nested tuple is nullable iff it is nullable in at least one of the two types
+    if ((a instanceof TupleType && ((TupleType) a).getSubTypes().length == 1) ||
+        (b instanceof TupleType && ((TupleType) b).getSubTypes().length == 1))
+    {
+      List<TupleType> aTuples = new LinkedList<TupleType>();
+      Type baseA = a;
+      while (baseA instanceof TupleType && ((TupleType) baseA).getSubTypes().length == 1)
+      {
+        aTuples.add((TupleType) baseA);
+        baseA = ((TupleType) baseA).getSubTypes()[0];
+      }
+      List<TupleType> bTuples = new LinkedList<TupleType>();
+      Type baseB = b;
+      while (baseB instanceof TupleType && ((TupleType) baseB).getSubTypes().length == 1)
+      {
+        bTuples.add((TupleType) baseB);
+        baseB = ((TupleType) baseB).getSubTypes()[0];
+      }
+      TupleType[] aTupleArray = aTuples.toArray(new TupleType[aTuples.size()]);
+      TupleType[] bTupleArray = bTuples.toArray(new TupleType[bTuples.size()]);
+      Type current = findCommonSuperType(baseA, baseB);
+      int tupleNesting = Math.max(aTupleArray.length, bTupleArray.length);
+      for (int i = 0; i < tupleNesting; ++i)
+      {
+        boolean nullable = false;
+        if (i < aTupleArray.length)
+        {
+          nullable |= aTupleArray[aTupleArray.length - 1 - i].isNullable();
+        }
+        if (i < bTupleArray.length)
+        {
+          nullable |= bTupleArray[bTupleArray.length - 1 - i].isNullable();
+        }
+        current = new TupleType(nullable, new Type[] {current}, null);
+      }
+      return current;
+    }
+
+    // try the obvious types first
+    if (a.canAssign(b))
+    {
+      return a;
+    }
+    if (b.canAssign(a))
+    {
+      return b;
+    }
+    // if one of them is NullType, make the other nullable
+    if (a instanceof NullType)
+    {
+      return findNullableType(b);
+    }
+    if (b instanceof NullType)
+    {
+      return findNullableType(a);
+    }
+    // if a nullable version of either can assign the other one, then return that nullable version
+    Type nullA = findNullableType(a);
+    if (nullA.canAssign(b))
+    {
+      return nullA;
+    }
+    Type nullB = findNullableType(b);
+    if (nullB.canAssign(a))
+    {
+      return nullB;
+    }
+    if (a instanceof PrimitiveType && b instanceof PrimitiveType)
+    {
+      PrimitiveTypeType aType = ((PrimitiveType) a).getPrimitiveTypeType();
+      PrimitiveTypeType bType = ((PrimitiveType) b).getPrimitiveTypeType();
+      if (aType == PrimitiveTypeType.BOOLEAN || bType == PrimitiveTypeType.BOOLEAN || aType.isFloating() || bType.isFloating())
+      {
+        // if either of them was either floating point or boolean, we would have found any compatibilities above
+        return null;
+      }
+      // check through the signed integer types for one which can assign both of them
+      // the resulting type must be signed, because if a and b had the same signedness, we would have found a common supertype above
+
+      // exclude the maximum bit width, because if one is signed and the other is unsigned, then they cannot both fit in the size allocated for either one of them
+      int minWidth = Math.max(aType.getBitCount(), bType.getBitCount()) + 1;
+      PrimitiveTypeType currentBest = null;
+      for (PrimitiveTypeType typeType : PrimitiveTypeType.values())
+      {
+        if (typeType != PrimitiveTypeType.BOOLEAN && !typeType.isFloating() &&
+            typeType.isSigned() && typeType.getBitCount() >= minWidth &&
+            (currentBest == null || typeType.getBitCount() < currentBest.getBitCount()))
+        {
+          currentBest = typeType;
+        }
+      }
+      if (currentBest == null)
+      {
+        currentBest = PrimitiveTypeType.FLOAT;
+      }
+      boolean nullable = a.isNullable() | b.isNullable();
+      return new PrimitiveType(nullable, currentBest, null);
+    }
+    if (a instanceof ArrayType && b instanceof ArrayType)
+    {
+      // array types are only compatible if their base types are the same, so we would have found a common supertype above if one existed
+      return null;
+    }
+    if (a instanceof FunctionType && b instanceof FunctionType)
+    {
+      // function types are only compatible if their parameter and return types are the same, so we would have found a common supertype above if one existed
+      return null;
+    }
+    if (a instanceof NamedType && b instanceof NamedType)
+    {
+      // named types are only compatible if they are based on the same class (we don't have inheritance yet), so we would have found a common supertype above if one existed
+      return null;
+    }
+    if (a instanceof TupleType && b instanceof TupleType)
+    {
+      // these TupleTypes must both have at least two elements, since we have handled all single-element tuples above already
+      Type[] aSubTypes = ((TupleType) a).getSubTypes();
+      Type[] bSubTypes = ((TupleType) b).getSubTypes();
+      if (aSubTypes.length != bSubTypes.length)
+      {
+        return null;
+      }
+      Type[] commonSubTypes = new Type[aSubTypes.length];
+      for (int i = 0; i < aSubTypes.length; ++i)
+      {
+        commonSubTypes[i] = findCommonSuperType(aSubTypes[i], bSubTypes[i]);
+      }
+      return new TupleType(a.isNullable() | b.isNullable(), commonSubTypes, null);
+    }
+    return null;
+  }
+
+  /**
+   * Finds the nullable equivalent of the specified type.
+   * @param type - the type to find the nullable version of
+   * @return the nullable version of the specified type, or the original type if it is already nullable
+   */
+  private static Type findNullableType(Type type)
+  {
+    if (type.isNullable())
+    {
+      return type;
+    }
+    if (type instanceof ArrayType)
+    {
+      return new ArrayType(true, ((ArrayType) type).getBaseType(), null);
+    }
+    if (type instanceof FunctionType)
+    {
+      return new FunctionType(true, ((FunctionType) type).getReturnType(), ((FunctionType) type).getParameterTypes(), null);
+    }
+    if (type instanceof NamedType)
+    {
+      return new NamedType(true, ((NamedType) type).getResolvedDefinition());
+    }
+    if (type instanceof PrimitiveType)
+    {
+      return new PrimitiveType(true, ((PrimitiveType) type).getPrimitiveTypeType(), null);
+    }
+    if (type instanceof TupleType)
+    {
+      return new TupleType(true, ((TupleType) type).getSubTypes(), null);
+    }
+    throw new IllegalArgumentException("Cannot find the nullable version of: " + type);
   }
 }
