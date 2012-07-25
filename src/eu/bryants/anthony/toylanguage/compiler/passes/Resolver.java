@@ -408,7 +408,7 @@ public class Resolver
         resolve(type, compilationUnit);
       }
       Assignee[] assignees = assignStatement.getAssignees();
-      boolean distributedTupleType = type != null && type instanceof TupleType && ((TupleType) type).getSubTypes().length == assignees.length;
+      boolean distributedTupleType = type != null && type instanceof TupleType && !type.isNullable() && ((TupleType) type).getSubTypes().length == assignees.length;
       for (int i = 0; i < assignees.length; i++)
       {
         if (assignees[i] instanceof VariableAssignee)
