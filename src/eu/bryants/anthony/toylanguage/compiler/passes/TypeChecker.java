@@ -1031,6 +1031,20 @@ public class TypeChecker
             logicalExpression.setType(rightType);
             return rightType;
           }
+          // handle types with the same bit count, which cannot be assigned to each other, but should be compatible for logical operators
+          if (leftPrimitiveType.getBitCount() == rightPrimitiveType.getBitCount())
+          {
+            if (!leftPrimitiveType.isSigned())
+            {
+              logicalExpression.setType(leftType);
+              return leftType;
+            }
+            if (!rightPrimitiveType.isSigned())
+            {
+              logicalExpression.setType(rightType);
+              return rightType;
+            }
+          }
         }
       }
       throw new ConceptualException("The operator '" + logicalExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", logicalExpression.getLexicalPhrase());
