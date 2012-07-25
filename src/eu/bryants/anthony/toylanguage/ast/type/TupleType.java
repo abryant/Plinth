@@ -43,9 +43,14 @@ public class TupleType extends Type
       // all nullable types can have null assigned to them
       return true;
     }
+    if (subTypes.length == 1 && subTypes[0].canAssign(type))
+    {
+      // if we are a single element tuple, and that element can assign the type, then we can also assign the type
+      return true;
+    }
     if (!(type instanceof TupleType))
     {
-      return subTypes.length == 1 && subTypes[0].canAssign(type);
+      return false;
     }
     TupleType otherTuple = (TupleType) type;
     // a nullable type cannot be assigned to a non-nullable type
