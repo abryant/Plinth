@@ -1471,7 +1471,9 @@ public class CodeGenerator
     }
     if (expression instanceof BracketedExpression)
     {
-      return buildExpression(((BracketedExpression) expression).getExpression(), llvmFunction, thisValue, variables);
+      BracketedExpression bracketedExpression = (BracketedExpression) expression;
+      LLVMValueRef value = buildExpression(bracketedExpression.getExpression(), llvmFunction, thisValue, variables);
+      return convertType(value, bracketedExpression.getExpression().getType(), expression.getType(), llvmFunction);
     }
     if (expression instanceof CastExpression)
     {
