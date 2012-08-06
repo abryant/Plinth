@@ -1180,53 +1180,53 @@ public class CodeGenerator
     }
     // perform the conversion
     LLVMTypeRef toNativeType = findNativeType(new PrimitiveType(false, toType, null));
-    if (fromType == PrimitiveTypeType.BOOLEAN && toType == PrimitiveTypeType.BOOLEAN)
+    if (fromType == toType)
     {
       // do not alter primitiveValue, we only need to change the nullability
     }
     else if (fromType.isFloating() && toType.isFloating())
     {
-      primitiveValue = LLVM.LLVMBuildFPCast(builder, value, toNativeType, "");
+      primitiveValue = LLVM.LLVMBuildFPCast(builder, primitiveValue, toNativeType, "");
     }
     else if (fromType.isFloating() && !toType.isFloating())
     {
       if (toType.isSigned())
       {
-        primitiveValue = LLVM.LLVMBuildFPToSI(builder, value, toNativeType, "");
+        primitiveValue = LLVM.LLVMBuildFPToSI(builder, primitiveValue, toNativeType, "");
       }
       else
       {
-        primitiveValue = LLVM.LLVMBuildFPToUI(builder, value, toNativeType, "");
+        primitiveValue = LLVM.LLVMBuildFPToUI(builder, primitiveValue, toNativeType, "");
       }
     }
     else if (!fromType.isFloating() && toType.isFloating())
     {
       if (fromType.isSigned())
       {
-        primitiveValue = LLVM.LLVMBuildSIToFP(builder, value, toNativeType, "");
+        primitiveValue = LLVM.LLVMBuildSIToFP(builder, primitiveValue, toNativeType, "");
       }
       else
       {
-        primitiveValue = LLVM.LLVMBuildUIToFP(builder, value, toNativeType, "");
+        primitiveValue = LLVM.LLVMBuildUIToFP(builder, primitiveValue, toNativeType, "");
       }
     }
     // both integer types, so perform a sign-extend, zero-extend, or truncation
     else if (fromType.getBitCount() > toType.getBitCount())
     {
-      primitiveValue = LLVM.LLVMBuildTrunc(builder, value, toNativeType, "");
+      primitiveValue = LLVM.LLVMBuildTrunc(builder, primitiveValue, toNativeType, "");
     }
     else if (fromType.getBitCount() == toType.getBitCount() && fromType.isSigned() != toType.isSigned())
     {
-      primitiveValue = LLVM.LLVMBuildBitCast(builder, value, toNativeType, "");
+      primitiveValue = LLVM.LLVMBuildBitCast(builder, primitiveValue, toNativeType, "");
     }
     // the value needs extending, so decide whether to do a sign-extend or a zero-extend based on whether the from type is signed
     else if (fromType.isSigned())
     {
-      primitiveValue = LLVM.LLVMBuildSExt(builder, value, toNativeType, "");
+      primitiveValue = LLVM.LLVMBuildSExt(builder, primitiveValue, toNativeType, "");
     }
     else
     {
-      primitiveValue = LLVM.LLVMBuildZExt(builder, value, toNativeType, "");
+      primitiveValue = LLVM.LLVMBuildZExt(builder, primitiveValue, toNativeType, "");
     }
     // pack up the result before returning it
     if (to.isNullable())
