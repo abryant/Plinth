@@ -4,7 +4,7 @@ import test.asdf;
 
 compound complex
 {
-  static ?:complex asdf;
+  static ? :complex asdf;
   static ?(:complex, uint, ?[]float) test;
   double real;
   double imag;
@@ -54,14 +54,10 @@ compound complex
   static native uint main(uint argc)
   {
     ?uint a = true ? null : 5;
-    ?(?(boolean)) ab = null;
-    ?((?boolean)) ac = null;
-    ?((boolean)) ad = true ? ab : ac;
-    ?[](uint, int) arr = new [](uint, int) {(argc, 2), (8, -4)};
+    ?[](?uint, int) arr = new [](?uint, int) {(argc, 2), (8, -4), (null, 2)};
 
-    :foo.bar.complex::asdf = complex(argc, (cast<[](uint, int)> arr)[0] ! 1);
+    uint f = (cast<?ubyte> a) ?: 5;
 
-    :complex::asdf = :asdf::process(cast<:complex> :complex::asdf);
-    return cast<uint> :complex::swap(cast<:complex> :complex::asdf).getImag();
+    return (cast<[](?uint, int)> arr)[2]!1 ?: (cast<[](?uint, int)> arr)[0]!1 ?: 34;
   }
 }

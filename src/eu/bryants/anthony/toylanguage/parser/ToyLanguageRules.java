@@ -9,7 +9,7 @@ import eu.bryants.anthony.toylanguage.parser.rules.expression.ComparisonExpressi
 import eu.bryants.anthony.toylanguage.parser.rules.expression.DimensionsRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.ExpressionListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.FunctionCallExpressionRule;
-import eu.bryants.anthony.toylanguage.parser.rules.expression.InlineIfExpressionRule;
+import eu.bryants.anthony.toylanguage.parser.rules.expression.ExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.LogicalExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.MultiplicativeExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.PrimaryNoTrailingTypeRule;
@@ -65,7 +65,7 @@ public class ToyLanguageRules
     new DimensionsRule(),
     new ExpressionListRule(),
     new FunctionCallExpressionRule(),
-    new InlineIfExpressionRule(),
+    new ExpressionRule(),
     new LogicalExpressionRule(),
     new MultiplicativeExpressionRule(),
     new PrimaryNoTrailingTypeRule(),

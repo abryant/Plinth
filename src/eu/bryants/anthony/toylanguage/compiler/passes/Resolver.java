@@ -27,6 +27,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.InlineIfExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
@@ -967,6 +968,11 @@ public class Resolver
     else if (expression instanceof MinusExpression)
     {
       resolve(((MinusExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit);
+    }
+    else if (expression instanceof NullCoalescingExpression)
+    {
+      resolve(((NullCoalescingExpression) expression).getNullableExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((NullCoalescingExpression) expression).getAlternativeExpression(), block, enclosingDefinition, compilationUnit);
     }
     else if (expression instanceof NullLiteralExpression)
     {

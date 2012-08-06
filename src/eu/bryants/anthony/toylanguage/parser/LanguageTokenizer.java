@@ -835,6 +835,11 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     }
     if (nextChar == '?')
     {
+      int secondChar = reader.read(1);
+      if (secondChar == ':')
+      {
+        return makeSymbolToken(ParseType.QUESTION_MARK_COLON, 2);
+      }
       return makeSymbolToken(ParseType.QUESTION_MARK, 1);
     }
     if (nextChar == '>')

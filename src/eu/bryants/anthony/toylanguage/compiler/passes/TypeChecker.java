@@ -26,6 +26,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
@@ -1085,6 +1086,29 @@ public class TypeChecker
       }
       throw new ConceptualException("The unary operator '-' is not defined for type '" + type + "'", expression.getLexicalPhrase());
     }
+    else if (expression instanceof NullCoalescingExpression)
+    {
+      NullCoalescingExpression nullCoalescingExpression = (NullCoalescingExpression) expression;
+      Type nullableType = checkTypes(nullCoalescingExpression.getNullableExpression(), compilationUnit);
+      if (!nullableType.isNullable())
+      {
+        throw new ConceptualException("The null-coalescing operator '?:' is not defined when the left hand side (here '" + nullableType + "') is not nullable", expression.getLexicalPhrase());
+      }
+      Type alternativeType = checkTypes(nullCoalescingExpression.getAlternativeExpression(), compilationUnit);
+      if (nullableType instanceof NullType)
+      {
+        // if the left hand side has the null type, just use the right hand side's type as the result of the expression
+        nullCoalescingExpression.setType(alternativeType);
+        return alternativeType;
+      }
+      Type resultType = findCommonSuperType(findTypeWithNullability(nullableType, false), alternativeType);
+      if (resultType == null)
+      {
+        throw new ConceptualException("The null-coalescing operator '?:' is not defined for the types '" + nullableType + "' and '" + alternativeType + "'", expression.getLexicalPhrase());
+      }
+      nullCoalescingExpression.setType(resultType);
+      return resultType;
+    }
     else if (expression instanceof NullLiteralExpression)
     {
       Type type = new NullType(null);
@@ -1226,19 +1250,19 @@ public class TypeChecker
     // if one of them is NullType, make the other nullable
     if (a instanceof NullType)
     {
-      return findNullableType(b);
+      return findTypeWithNullability(b, true);
     }
     if (b instanceof NullType)
     {
-      return findNullableType(a);
+      return findTypeWithNullability(a, true);
     }
     // if a nullable version of either can assign the other one, then return that nullable version
-    Type nullA = findNullableType(a);
+    Type nullA = findTypeWithNullability(a, true);
     if (nullA.canAssign(b))
     {
       return nullA;
     }
-    Type nullB = findNullableType(b);
+    Type nullB = findTypeWithNullability(b, true);
     if (nullB.canAssign(a))
     {
       return nullB;
@@ -1309,36 +1333,37 @@ public class TypeChecker
   }
 
   /**
-   * Finds the nullable equivalent of the specified type.
-   * @param type - the type to find the nullable version of
-   * @return the nullable version of the specified type, or the original type if it is already nullable
+   * Finds the equivalent of the specified type with the specified nullability.
+   * @param type - the type to find the version of which has the specified nullability
+   * @param nullable - true if the returned type should be nullable, false otherwise
+   * @return the version of the specified type with the specified nullability, or the original type if it already has the requested nullability
    */
-  private static Type findNullableType(Type type)
+  public static Type findTypeWithNullability(Type type, boolean nullable)
   {
-    if (type.isNullable())
+    if (type.isNullable() == nullable)
     {
       return type;
     }
     if (type instanceof ArrayType)
     {
-      return new ArrayType(true, ((ArrayType) type).getBaseType(), null);
+      return new ArrayType(nullable, ((ArrayType) type).getBaseType(), null);
     }
     if (type instanceof FunctionType)
     {
-      return new FunctionType(true, ((FunctionType) type).getReturnType(), ((FunctionType) type).getParameterTypes(), null);
+      return new FunctionType(nullable, ((FunctionType) type).getReturnType(), ((FunctionType) type).getParameterTypes(), null);
     }
     if (type instanceof NamedType)
     {
-      return new NamedType(true, ((NamedType) type).getResolvedDefinition());
+      return new NamedType(nullable, ((NamedType) type).getResolvedDefinition());
     }
     if (type instanceof PrimitiveType)
     {
-      return new PrimitiveType(true, ((PrimitiveType) type).getPrimitiveTypeType(), null);
+      return new PrimitiveType(nullable, ((PrimitiveType) type).getPrimitiveTypeType(), null);
     }
     if (type instanceof TupleType)
     {
-      return new TupleType(true, ((TupleType) type).getSubTypes(), null);
+      return new TupleType(nullable, ((TupleType) type).getSubTypes(), null);
     }
-    throw new IllegalArgumentException("Cannot find the nullable version of: " + type);
+    throw new IllegalArgumentException("Cannot find the " + (nullable ? "nullable" : "non-nullable") + " version of: " + type);
   }
 }

@@ -34,6 +34,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
@@ -1352,6 +1353,45 @@ public class CodeGenerator
     return allocatedPointer;
   }
 
+  /**
+   * Builds the LLVM statements for a null check on the specified value.
+   * @param value - the LLVMValueRef to compare to null
+   * @param type - the type of the specified LLVMValueRef
+   * @return an LLVMValueRef for an i1, which will be 1 if the value is non-null, and 0 if the value is null
+   */
+  private LLVMValueRef buildNullCheck(LLVMValueRef value, Type type)
+  {
+    if (!type.isNullable())
+    {
+      throw new IllegalArgumentException("A null check can only work on a nullable type");
+    }
+    if (type instanceof ArrayType)
+    {
+      return LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntNE, value, LLVM.LLVMConstNull(findNativeType(type)), "");
+    }
+    if (type instanceof FunctionType)
+    {
+      return LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntNE, value, LLVM.LLVMConstNull(findNativeType(type)), "");
+    }
+    if (type instanceof NamedType)
+    {
+      return LLVM.LLVMBuildExtractValue(builder, value, 0, "");
+    }
+    if (type instanceof NullType)
+    {
+      return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false);
+    }
+    if (type instanceof PrimitiveType)
+    {
+      return LLVM.LLVMBuildExtractValue(builder, value, 0, "");
+    }
+    if (type instanceof TupleType)
+    {
+      return LLVM.LLVMBuildExtractValue(builder, value, 0, "");
+    }
+    throw new IllegalArgumentException("Cannot build a null check for the unrecognised type: " + type);
+  }
+
   private LLVMValueRef buildExpression(Expression expression, LLVMValueRef llvmFunction, LLVMValueRef thisValue, Map<Variable, LLVMValueRef> variables)
   {
     if (expression instanceof ArithmeticExpression)
@@ -1771,6 +1811,39 @@ public class CodeGenerator
         return LLVM.LLVMBuildFNeg(builder, value, "");
       }
       return LLVM.LLVMBuildNeg(builder, value, "");
+    }
+    if (expression instanceof NullCoalescingExpression)
+    {
+      NullCoalescingExpression nullCoalescingExpression = (NullCoalescingExpression) expression;
+
+      LLVMValueRef nullableValue = buildExpression(nullCoalescingExpression.getNullableExpression(), llvmFunction, thisValue, variables);
+      nullableValue = convertType(nullableValue, nullCoalescingExpression.getNullableExpression().getType(), TypeChecker.findTypeWithNullability(nullCoalescingExpression.getType(), true), llvmFunction);
+      LLVMValueRef checkResult = buildNullCheck(nullableValue, nullCoalescingExpression.getNullableExpression().getType());
+
+      LLVMBasicBlockRef conversionBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "nullCoalescingConversion");
+      LLVMBasicBlockRef alternativeBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "nullCoalescingAlternative");
+      LLVMBasicBlockRef continuationBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "nullCoalescingContinuation");
+      LLVM.LLVMBuildCondBr(builder, checkResult, conversionBlock, alternativeBlock);
+
+      // create a block to convert the nullable value into a non-nullable value
+      LLVM.LLVMPositionBuilderAtEnd(builder, conversionBlock);
+      LLVMValueRef convertedNullableValue = convertType(nullableValue, TypeChecker.findTypeWithNullability(nullCoalescingExpression.getType(), true), nullCoalescingExpression.getType(), llvmFunction);
+      LLVMBasicBlockRef endConversionBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, alternativeBlock);
+      LLVMValueRef alternativeValue = buildExpression(nullCoalescingExpression.getAlternativeExpression(), llvmFunction, thisValue, variables);
+      alternativeValue = convertType(alternativeValue, nullCoalescingExpression.getAlternativeExpression().getType(), nullCoalescingExpression.getType(), llvmFunction);
+      LLVMBasicBlockRef endAlternativeBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+      // create a phi node for the result, and return it
+      LLVMValueRef result = LLVM.LLVMBuildPhi(builder, findNativeType(nullCoalescingExpression.getType()), "");
+      LLVMValueRef[] incomingValues = new LLVMValueRef[] {convertedNullableValue, alternativeValue};
+      LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {endConversionBlock, endAlternativeBlock};
+      LLVM.LLVMAddIncoming(result, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+      return result;
     }
     if (expression instanceof NullLiteralExpression)
     {

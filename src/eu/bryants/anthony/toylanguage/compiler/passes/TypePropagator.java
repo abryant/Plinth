@@ -19,6 +19,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.InlineIfExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
@@ -394,6 +395,14 @@ public class TypePropagator
     else if (expression instanceof MinusExpression)
     {
       propagateTypes(((MinusExpression) expression).getExpression(), expression.getType());
+    }
+    else if (expression instanceof NullCoalescingExpression)
+    {
+      NullCoalescingExpression nullCoalescingExpression = (NullCoalescingExpression) expression;
+      // propagate the parent's type down to the sub-expressions, accounting for nullability (the first sub-expression's type must be nullable)
+      nullCoalescingExpression.setType(type);
+      propagateTypes(nullCoalescingExpression.getNullableExpression(), TypeChecker.findTypeWithNullability(type, true));
+      propagateTypes(nullCoalescingExpression.getAlternativeExpression(), type);
     }
     else if (expression instanceof NullLiteralExpression)
     {

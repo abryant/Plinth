@@ -73,7 +73,7 @@ TypeList = Type | TypeList Comma Type
 
 
 TupleExpression = Expression | TupleExpression Comma Expression
-Expression = LogicalExpression | LogicalExpression QuestionMark TupleExpression Colon Expression
+Expression = LogicalExpression | LogicalExpression QuestionMark TupleExpression Colon Expression | LogicalExpression QuestionMarkColon Expression
 LogicalExpression = ComparisonExpression |
                     LogicalExpression Ampersand       ComparisonExpression |
                     LogicalExpression Pipe            ComparisonExpression |
