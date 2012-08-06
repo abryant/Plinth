@@ -1171,11 +1171,9 @@ public class CodeGenerator
     {
       return value;
     }
-    LLVMValueRef isNotNullValue = null;
     LLVMValueRef primitiveValue = value;
     if (from.isNullable())
     {
-      isNotNullValue = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
       primitiveValue = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
     }
     // perform the conversion
@@ -1234,6 +1232,7 @@ public class CodeGenerator
       LLVMValueRef result = LLVM.LLVMGetUndef(findNativeType(to));
       if (from.isNullable())
       {
+        LLVMValueRef isNotNullValue = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
         result = LLVM.LLVMBuildInsertValue(builder, result, isNotNullValue, 0, "");
       }
       else
