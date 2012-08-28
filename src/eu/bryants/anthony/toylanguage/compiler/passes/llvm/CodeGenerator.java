@@ -1,4 +1,4 @@
-package eu.bryants.anthony.toylanguage.compiler.passes;
+package eu.bryants.anthony.toylanguage.compiler.passes.llvm;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -77,6 +77,8 @@ import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.toylanguage.ast.type.TupleType;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
 import eu.bryants.anthony.toylanguage.ast.type.VoidType;
+import eu.bryants.anthony.toylanguage.compiler.passes.Resolver;
+import eu.bryants.anthony.toylanguage.compiler.passes.TypeChecker;
 
 /*
  * Created on 5 Apr 2012
