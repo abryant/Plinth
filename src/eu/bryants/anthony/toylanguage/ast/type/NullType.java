@@ -11,7 +11,7 @@ import eu.bryants.anthony.toylanguage.ast.member.Member;
  */
 
 /**
- * A special type that represents the value <code>null</code>. This should never be used anywhere except for the type of this value.
+ * A special type that represents the value <code>null</code>. It should never be possible to declare something (e.g. variable, returned value) to be of this type.
  * @author Anthony Bryant
  */
 public class NullType extends Type
