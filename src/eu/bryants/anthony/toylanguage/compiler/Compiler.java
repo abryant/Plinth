@@ -200,7 +200,10 @@ public class Compiler
     {
       CompoundDefinition compoundDefinition = entry.getKey();
       File file = entry.getValue();
-      new CodeGenerator(compoundDefinition).generate(file.getAbsolutePath());
+      CodeGenerator generator = new CodeGenerator(compoundDefinition);
+      generator.generateModule();
+
+      generator.writeModule(file.getAbsolutePath());
     }
   }
 

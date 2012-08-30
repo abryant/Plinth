@@ -133,6 +133,10 @@ public class LLVM
   public static native LLVMValueRef LLVMConstStruct(Pointer constantValues, int constantValueCount, boolean packed);
   public static native LLVMValueRef LLVMGetUndef(LLVMTypeRef type);
 
+  public static native LLVMValueRef LLVMMDString(String str, int length);
+  public static native LLVMValueRef LLVMMDNode(Pointer values, int count);
+  public static native void LLVMAddNamedMetadataOperand(LLVMModuleRef module, String name, LLVMValueRef value);
+
   public static native LLVMModuleRef LLVMModuleCreateWithName(String name);
   public static native LLVMValueRef LLVMAddFunction(LLVMModuleRef module, String name, LLVMTypeRef type);
   public static native LLVMValueRef LLVMGetNamedFunction(LLVMModuleRef module, String name);
