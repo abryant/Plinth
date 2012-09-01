@@ -13,6 +13,7 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.metadata.PackageNode;
+import eu.bryants.anthony.toylanguage.ast.metadata.PackageNode.PackageSearcher;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.toylanguage.ast.terminal.Name;
 import eu.bryants.anthony.toylanguage.compiler.passes.ControlFlowChecker;
@@ -117,7 +118,19 @@ public class Compiler
       }
     }
 
-    PackageNode rootPackage = new PackageNode();
+    PackageNode rootPackage = new PackageNode(new PackageSearcher()
+    {
+      @Override
+      public void searchForTypeDefinition(String name, PackageNode packageNode)
+      {
+        // do nothing (for now)
+      }
+      @Override
+      public void searchForSubPackage(String name, PackageNode packageNode)
+      {
+        // do nothing (for now)
+      }
+    });
 
     Resolver resolver = new Resolver(rootPackage);
 

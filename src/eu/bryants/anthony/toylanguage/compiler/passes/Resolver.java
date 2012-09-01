@@ -134,8 +134,15 @@ public class Resolver
         {
           // at most one of these lookups can succeed
           currentDefinition = currentPackage.getCompoundDefinition(names[i]);
-          // update currentPackage last
-          currentPackage = currentPackage.getSubPackage(names[i]);
+          // update currentPackage last (and only if we don't have a type definition)
+          if (currentDefinition == null)
+          {
+            currentPackage = currentPackage.getSubPackage(names[i]);
+          }
+          else
+          {
+            currentPackage = null;
+          }
         }
         else if (currentDefinition != null)
         {
@@ -310,8 +317,13 @@ public class Resolver
           {
             if (importPackage != null)
             {
-              currentPackage = importPackage.getSubPackage(names[0]);
+              // at most one of these lookups can succeed
               currentDefinition = importPackage.getCompoundDefinition(names[0]);
+              // update currentPackage last (and only if we don't have a type definition)
+              if (currentDefinition == null)
+              {
+                currentPackage = importPackage.getSubPackage(names[0]);
+              }
             }
             else // if (importDefinition != null)
             {
@@ -333,14 +345,22 @@ public class Resolver
         {
           // the lookup from the imports failed, so try to look up the first name on the compilation unit's package instead
           // (at most one of the following lookups can succeed)
-          currentPackage = compilationUnit.getResolvedPackage().getSubPackage(names[0]);
           currentDefinition = compilationUnit.getResolvedPackage().getCompoundDefinition(names[0]);
+          // update currentPackage last (and only if we don't have a type definition)
+          if (currentDefinition == null)
+          {
+            currentPackage = compilationUnit.getResolvedPackage().getSubPackage(names[0]);
+          }
           if (currentPackage == null && currentDefinition == null)
           {
             // all other lookups failed, so try to look up the first name on the root package
             // (at most one of the following lookups can succeed)
-            currentPackage = rootPackage.getSubPackage(names[0]);
             currentDefinition = rootPackage.getCompoundDefinition(names[0]);
+            // update currentPackage last (and only if we don't have a type definition)
+            if (currentDefinition == null)
+            {
+              currentPackage = rootPackage.getSubPackage(names[0]);
+            }
           }
         }
       }
@@ -351,8 +371,15 @@ public class Resolver
         {
           // at most one of these lookups can succeed
           currentDefinition = currentPackage.getCompoundDefinition(names[i]);
-          // update currentPackage last
-          currentPackage = currentPackage.getSubPackage(names[i]);
+          // update currentPackage last (and only if we don't have a type definition)
+          if (currentDefinition == null)
+          {
+            currentPackage = currentPackage.getSubPackage(names[i]);
+          }
+          else
+          {
+            currentPackage = null;
+          }
         }
         else if (currentDefinition != null)
         {
