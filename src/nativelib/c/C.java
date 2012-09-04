@@ -36,13 +36,13 @@ public class C
     Pointer[] pointerArray = new Pointer[javaArray.length];
     for (int i = 0; i < javaArray.length; i++)
     {
-      pointerArray[i] = javaArray[i].getPointer();
+      pointerArray[i] = javaArray[i] == null ? null : javaArray[i].getPointer();
     }
     int size = pointerArray.length * Pointer.SIZE + (nullTerminator ? Pointer.SIZE : 0);
     if (size == 0)
     {
       // don't bother allocating zero bytes of memory, malloc() can return null in this case anyway
-      return Pointer.NULL;
+      return null;
     }
     Pointer result = garbageCollect ? new Memory(size) : C.malloc(size);
     result.write(0, pointerArray, 0, pointerArray.length);
