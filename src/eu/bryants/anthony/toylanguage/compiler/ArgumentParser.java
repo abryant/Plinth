@@ -21,7 +21,7 @@ public class ArgumentParser
     List<String> sourceList = new LinkedList<String>();
     for (int i = 0; i < arguments.length; ++i)
     {
-      if (arguments[i].equals("-o"))
+      if (arguments[i].equals("-o") || arguments[i].equals("--output"))
       {
         if (i >= arguments.length - 1 | output != null | !sourceList.isEmpty())
         {
@@ -31,7 +31,7 @@ public class ArgumentParser
         output = arguments[i];
         continue;
       }
-      if (arguments[i].equals("-d"))
+      if (arguments[i].equals("-d") || arguments[i].equals("--output-dir"))
       {
         if (i >= arguments.length - 1 | outputDir != null | !sourceList.isEmpty())
         {
