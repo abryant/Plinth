@@ -158,7 +158,7 @@ public class PackageNode
   {
     if (qname != null)
     {
-      throw new IllegalStateException("Non-root PackageNodes cannot create a package tree.");
+      throw new UnsupportedOperationException("Non-root PackageNodes cannot create a package tree.");
     }
     PackageNode current = this;
     for (String subName : treeQName.getNames())
