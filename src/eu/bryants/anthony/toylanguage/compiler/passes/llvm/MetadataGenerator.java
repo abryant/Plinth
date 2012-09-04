@@ -37,7 +37,7 @@ public class MetadataGenerator
   public static void generateMetadata(CompoundDefinition compoundDefinition, LLVMModuleRef module)
   {
     String qualifiedName = compoundDefinition.getQualifiedName().toString();
-    LLVMValueRef nameNode = LLVM.LLVMMDString(qualifiedName, qualifiedName.getBytes().length);
+    LLVMValueRef nameNode = createMDString(qualifiedName);
 
     Field[] nonStaticFields = compoundDefinition.getNonStaticFields();
     LLVMValueRef[] nonStaticFieldNodes = new LLVMValueRef[nonStaticFields.length];
@@ -91,7 +91,7 @@ public class MetadataGenerator
   private static LLVMValueRef generateField(Field field)
   {
     LLVMValueRef typeNode = generateType(field.getType());
-    LLVMValueRef nameNode = LLVM.LLVMMDString(field.getName(), field.getName().getBytes().length);
+    LLVMValueRef nameNode = createMDString(field.getName());
     LLVMValueRef[] values = new LLVMValueRef[] {typeNode, nameNode};
     return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
   }
@@ -105,9 +105,9 @@ public class MetadataGenerator
 
   private static LLVMValueRef generateMethod(Method method)
   {
-    LLVMValueRef nameNode = LLVM.LLVMMDString(method.getName(), method.getName().getBytes().length);
-    LLVMValueRef isStaticNode = method.isStatic() ? LLVM.LLVMMDString("static", 6) : LLVM.LLVMMDString("not-static", 10);
-    LLVMValueRef nativeNameNode = method.getNativeName() == null ? LLVM.LLVMMDString("", 0) : LLVM.LLVMMDString(method.getNativeName(), method.getNativeName().getBytes().length);
+    LLVMValueRef nameNode = createMDString(method.getName());
+    LLVMValueRef isStaticNode = createMDString(method.isStatic() ? "static" : "not-static");
+    LLVMValueRef nativeNameNode = createMDString(method.getNativeName() == null ? "" : method.getNativeName());
     LLVMValueRef returnTypeNode = generateType(method.getReturnType());
     LLVMValueRef parametersNode = generateParameters(method.getParameters());
     LLVMValueRef[] values = new LLVMValueRef[] {nameNode, isStaticNode, nativeNameNode, returnTypeNode, parametersNode};
@@ -120,7 +120,7 @@ public class MetadataGenerator
     for (int i = 0; i < parameters.length; ++i)
     {
       LLVMValueRef typeNode = generateType(parameters[i].getType());
-      LLVMValueRef nameNode = LLVM.LLVMMDString(parameters[i].getName(), parameters[i].getName().getBytes().length);
+      LLVMValueRef nameNode = createMDString(parameters[i].getName());
       LLVMValueRef[] parameterValues = new LLVMValueRef[] {typeNode, nameNode};
       parameterNodes[i] = LLVM.LLVMMDNode(C.toNativePointerArray(parameterValues, false, true), parameterValues.length);
     }
@@ -129,10 +129,10 @@ public class MetadataGenerator
 
   private static LLVMValueRef generateType(Type type)
   {
-    LLVMValueRef nullableNode = type.isNullable() ? LLVM.LLVMMDString("nullable", 8) : LLVM.LLVMMDString("not-nullable", 12);
+    LLVMValueRef nullableNode = createMDString(type.isNullable() ? "nullable" : "not-nullable");
     if (type instanceof ArrayType)
     {
-      LLVMValueRef sortNode = LLVM.LLVMMDString("array", 5);
+      LLVMValueRef sortNode = createMDString("array");
       LLVMValueRef baseTypeNode = generateType(((ArrayType) type).getBaseType());
       LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, baseTypeNode};
       return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
@@ -140,7 +140,7 @@ public class MetadataGenerator
     if (type instanceof FunctionType)
     {
       FunctionType functionType = (FunctionType) type;
-      LLVMValueRef sortNode = LLVM.LLVMMDString("function", 8);
+      LLVMValueRef sortNode = createMDString("function");
       LLVMValueRef returnTypeNode = generateType(functionType.getReturnType());
       Type[] parameterTypes = functionType.getParameterTypes();
       LLVMValueRef[] parameterTypeNodes = new LLVMValueRef[parameterTypes.length];
@@ -155,24 +155,24 @@ public class MetadataGenerator
     if (type instanceof NamedType)
     {
       NamedType namedType = (NamedType) type;
-      LLVMValueRef sortNode = LLVM.LLVMMDString("compound", 8);
+      LLVMValueRef sortNode = createMDString("named");
       String qualifiedName = namedType.getResolvedDefinition().getQualifiedName().toString();
-      LLVMValueRef qualifiedNameNode = LLVM.LLVMMDString(qualifiedName, qualifiedName.getBytes().length);
+      LLVMValueRef qualifiedNameNode = createMDString(qualifiedName);
       LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, qualifiedNameNode};
       return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
     }
     if (type instanceof PrimitiveType)
     {
       PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
-      LLVMValueRef sortNode = LLVM.LLVMMDString("primitive", 9);
-      LLVMValueRef nameNode = LLVM.LLVMMDString(primitiveTypeType.name, primitiveTypeType.name.getBytes().length);
+      LLVMValueRef sortNode = createMDString("primitive");
+      LLVMValueRef nameNode = createMDString(primitiveTypeType.name);
       LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, nameNode};
       return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
     }
     if (type instanceof TupleType)
     {
       TupleType tupleType = (TupleType) type;
-      LLVMValueRef sortNode = LLVM.LLVMMDString("tuple", 5);
+      LLVMValueRef sortNode = createMDString("tuple");
       Type[] subTypes = tupleType.getSubTypes();
       LLVMValueRef[] subTypeNodes = new LLVMValueRef[subTypes.length];
       for (int i = 0; i < subTypes.length; ++i)
@@ -185,10 +185,15 @@ public class MetadataGenerator
     }
     if (type instanceof VoidType)
     {
-      LLVMValueRef sortNode = LLVM.LLVMMDString("void", 4);
+      LLVMValueRef sortNode = createMDString("void");
       LLVMValueRef[] values = new LLVMValueRef[] {sortNode};
       return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
     }
     throw new IllegalArgumentException("Internal metadata generation error: unknown sort of Type: " + type);
+  }
+
+  private static LLVMValueRef createMDString(String str)
+  {
+    return LLVM.LLVMMDString(str, str.getBytes().length);
   }
 }
