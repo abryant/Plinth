@@ -1660,7 +1660,9 @@ public class CodeGenerator
           parameterTypes[i] = params[i].getType();
         }
         returnType = resolvedMethod.getReturnType();
+        LLVMBasicBlockRef currentPos = LLVM.LLVMGetInsertBlock(builder);
         llvmResolvedFunction = getMethodFunction(resolvedMethod);
+        LLVM.LLVMPositionBuilderAtEnd(builder, currentPos);
       }
       else if (resolvedBaseExpression != null)
       {
