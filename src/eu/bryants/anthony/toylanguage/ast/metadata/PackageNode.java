@@ -163,7 +163,7 @@ public class PackageNode
     PackageNode current = this;
     for (String subName : treeQName.getNames())
     {
-      PackageNode child = current.getSubPackage(subName);
+      PackageNode child = current.subPackages.get(subName);
       if (child == null)
       {
         QName currentQName = current.getQualifiedName();
