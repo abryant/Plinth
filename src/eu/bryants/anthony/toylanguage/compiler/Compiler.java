@@ -36,6 +36,8 @@ import eu.bryants.anthony.toylanguage.parser.ToyLanguageParser;
  */
 public class Compiler
 {
+  public static final String BITCODE_EXTENSION = ".bc";
+
   public static void main(String... args) throws FileNotFoundException
   {
     ArgumentParser argumentParser = new ArgumentParser(args);
@@ -189,7 +191,7 @@ public class Compiler
       File packageDir = findPackageDir(outputDirFile, declaredPackage);
       for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
       {
-        File outputFile = new File(packageDir, compoundDefinition.getName() + ".bc");
+        File outputFile = new File(packageDir, compoundDefinition.getName() + BITCODE_EXTENSION);
         if (outputFile.exists() && !outputFile.isFile())
         {
           System.err.println("Cannot create output file for " + compoundDefinition.getQualifiedName() + ", a non-file with that name already exists");
