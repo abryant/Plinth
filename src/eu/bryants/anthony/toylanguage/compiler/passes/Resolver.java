@@ -575,6 +575,21 @@ public class Resolver
       {
         VariableAssignee variableAssignee = (VariableAssignee) assignee;
         Variable variable = enclosingBlock.getVariable(variableAssignee.getVariableName());
+        if (variable == null && enclosingDefinition != null)
+        {
+          Field field = enclosingDefinition.getField(variableAssignee.getVariableName());
+          if (field != null)
+          {
+            if (field.isStatic())
+            {
+              variable = field.getGlobalVariable();
+            }
+            else
+            {
+              variable = field.getMemberVariable();
+            }
+          }
+        }
         if (variable == null)
         {
           throw new NameNotResolvedException("Unable to resolve: " + variableAssignee.getVariableName(), variableAssignee.getLexicalPhrase());
@@ -590,6 +605,12 @@ public class Resolver
       else if (assignee instanceof BlankAssignee)
       {
         throw new ConceptualException("Cannot " + (prefixIncDecStatement.isIncrement() ? "inc" : "dec") + "rement a blank assignee", assignee.getLexicalPhrase());
+      }
+      else if (assignee instanceof FieldAssignee)
+      {
+        FieldAssignee fieldAssignee = (FieldAssignee) assignee;
+        // use the expression resolver to resolve the contained field access expression
+        resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
       }
       else
       {
