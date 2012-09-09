@@ -18,17 +18,19 @@ public class Field extends Member
   private Type type;
   private String name;
   private boolean isStatic;
+  private boolean isFinal;
 
   private MemberVariable memberVariable;
   private GlobalVariable globalVariable;
   private int memberIndex;
 
-  public Field(Type type, String name, boolean isStatic, LexicalPhrase lexicalPhrase)
+  public Field(Type type, String name, boolean isStatic, boolean isFinal, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.type = type;
     this.name = name;
     this.isStatic = isStatic;
+    this.isFinal = isFinal;
   }
 
   /**
@@ -45,6 +47,14 @@ public class Field extends Member
   public String getName()
   {
     return name;
+  }
+
+  /**
+   * @return the isFinal
+   */
+  public boolean isFinal()
+  {
+    return isFinal;
   }
 
   /**
@@ -109,6 +119,6 @@ public class Field extends Member
   @Override
   public String toString()
   {
-    return (isStatic ? "static " : "") + type + " " + name + ";";
+    return (isStatic ? "static " : "") + (isFinal ? "final " : "") + type + " " + name + ";";
   }
 }

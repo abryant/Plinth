@@ -18,7 +18,7 @@ public class MemberVariable extends Variable
 
   public MemberVariable(Field field, CompoundDefinition enclosingDefinition)
   {
-    super(field.getType(), field.getName());
+    super(field.isFinal(), field.getType(), field.getName());
     this.enclosingDefinition = enclosingDefinition;
     this.field = field;
   }

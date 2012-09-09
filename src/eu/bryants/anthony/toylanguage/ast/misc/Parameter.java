@@ -13,6 +13,7 @@ import eu.bryants.anthony.toylanguage.ast.type.Type;
  */
 public class Parameter
 {
+  private boolean isFinal;
   private Type type;
   private String name;
   private LexicalPhrase lexicalPhrase;
@@ -20,13 +21,22 @@ public class Parameter
   private Variable variable;
   private int index;
 
-  public Parameter(Type type, String name, LexicalPhrase lexicalPhrase)
+  public Parameter(boolean isFinal, Type type, String name, LexicalPhrase lexicalPhrase)
   {
+    this.isFinal = isFinal;
     this.type = type;
     this.name = name;
     this.lexicalPhrase = lexicalPhrase;
 
-    variable = new Variable(type, name);
+    variable = new Variable(isFinal, type, name);
+  }
+
+  /**
+   * @return the isFinal
+   */
+  public boolean isFinal()
+  {
+    return isFinal;
   }
 
   /**
@@ -80,6 +90,6 @@ public class Parameter
   @Override
   public String toString()
   {
-    return type + " " + name;
+    return (isFinal ? "final " : "") + type + " " + name;
   }
 }

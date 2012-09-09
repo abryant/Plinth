@@ -18,7 +18,7 @@ public class GlobalVariable extends Variable
 
   public GlobalVariable(Field field, CompoundDefinition enclosingDefinition)
   {
-    super(field.getType(), field.getName());
+    super(field.isFinal(), field.getType(), field.getName());
     this.enclosingDefinition = enclosingDefinition;
     this.field = field;
   }

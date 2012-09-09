@@ -468,11 +468,11 @@ public class Resolver
             if (distributedTupleType)
             {
               Type subType = ((TupleType) type).getSubTypes()[i];
-              variable = new Variable(subType, variableAssignee.getVariableName());
+              variable = new Variable(assignStatement.isFinal(), subType, variableAssignee.getVariableName());
             }
             else
             {
-              variable = new Variable(type, variableAssignee.getVariableName());
+              variable = new Variable(assignStatement.isFinal(), type, variableAssignee.getVariableName());
             }
             enclosingBlock.addVariable(variable);
           }

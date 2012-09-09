@@ -25,8 +25,8 @@ public class ConstructorRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NAME, ParseType.LPAREN, ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> PARAMETERS_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.NAME, ParseType.LPAREN, ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> PARAMETERS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
 
   @SuppressWarnings("unchecked")
   public ConstructorRule()
@@ -66,13 +66,17 @@ public class ConstructorRule extends Rule<ParseType>
   {
     for (Modifier modifier : modifiers)
     {
-      if (modifier.getModifierType() == ModifierType.STATIC)
+      if (modifier.getModifierType() == ModifierType.FINAL)
       {
-        throw new LanguageParseException("Unexpected modifier: Constructors cannot be static", modifier.getLexicalPhrase());
+        throw new LanguageParseException("Unexpected modifier: Constructors cannot be final", modifier.getLexicalPhrase());
       }
       else if (modifier.getModifierType() == ModifierType.NATIVE)
       {
         throw new LanguageParseException("Unexpected modifier: Constructors cannot be native functions", modifier.getLexicalPhrase());
+      }
+      else if (modifier.getModifierType() == ModifierType.STATIC)
+      {
+        throw new LanguageParseException("Unexpected modifier: Constructors cannot be static", modifier.getLexicalPhrase());
       }
       else
       {

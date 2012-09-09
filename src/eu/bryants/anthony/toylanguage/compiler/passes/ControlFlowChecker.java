@@ -87,7 +87,8 @@ public class ControlFlowChecker
         {
           initialisedVariables.add(p.getVariable());
         }
-        checkControlFlow(constructor.getBlock(), initialisedVariables, new LinkedList<BreakableStatement>(), true, false);
+        Set<Variable> possiblyInitialisedVariables = new HashSet<Variable>(initialisedVariables);
+        checkControlFlow(constructor.getBlock(), initialisedVariables, possiblyInitialisedVariables, new LinkedList<BreakableStatement>(), true, false);
         for (Field field : compoundDefinition.getNonStaticFields())
         {
           if (!initialisedVariables.contains(field.getMemberVariable()))
@@ -104,7 +105,8 @@ public class ControlFlowChecker
         {
           initialisedVariables.add(p.getVariable());
         }
-        boolean returned = checkControlFlow(method.getBlock(), initialisedVariables, new LinkedList<BreakableStatement>(), false, method.isStatic());
+        Set<Variable> possiblyInitialisedVariables = new HashSet<Variable>(initialisedVariables);
+        boolean returned = checkControlFlow(method.getBlock(), initialisedVariables, possiblyInitialisedVariables, new LinkedList<BreakableStatement>(), false, method.isStatic());
         if (!returned && !(method.getReturnType() instanceof VoidType))
         {
           throw new ConceptualException("Method does not always return a value", method.getLexicalPhrase());
@@ -117,13 +119,14 @@ public class ControlFlowChecker
    * Checks that the control flow of the specified statement is well defined.
    * @param statement - the statement to check
    * @param initialisedVariables - the set of variables which have definitely been initialised before the specified statement is executed - this will be added to with variables that are initialised in this statement
+   * @param possiblyInitialisedVariables - the set of variables which might have been initialised before the specified statement is executed - this will be added to with variables that might be initialised in this statement
    * @param enclosingBreakableStack - the stack of statements that can be broken out of that enclose this statement
    * @param inConstructor - true if the statement is part of a constructor call
    * @param inStaticContext - true if the statement is in a static context
    * @return true if the statement returns from its enclosing function or control cannot reach statements after it, false if control flow continues after it
    * @throws ConceptualException - if any unreachable code is detected
    */
-  private static boolean checkControlFlow(Statement statement, Set<Variable> initialisedVariables, LinkedList<BreakableStatement> enclosingBreakableStack, boolean inConstructor, boolean inStaticContext) throws ConceptualException
+  private static boolean checkControlFlow(Statement statement, Set<Variable> initialisedVariables, Set<Variable> possiblyInitialisedVariables, LinkedList<BreakableStatement> enclosingBreakableStack, boolean inConstructor, boolean inStaticContext) throws ConceptualException
   {
     if (statement instanceof AssignStatement)
     {
@@ -137,7 +140,42 @@ public class ControlFlowChecker
           // it hasn't been initialised unless there's an expression
           if (assignStatement.getExpression() != null)
           {
-            nowInitialisedVariables.add(((VariableAssignee) assignees[i]).getResolvedVariable());
+            Variable var = ((VariableAssignee) assignees[i]).getResolvedVariable();
+            if (var instanceof MemberVariable)
+            {
+              if (var.isFinal())
+              {
+                if (inConstructor)
+                {
+                  if (possiblyInitialisedVariables.contains(var))
+                  {
+                    throw new ConceptualException("Final field '" + var.getName() + "' may already have been initialised", assignStatement.getLexicalPhrase());
+                  }
+                }
+                else
+                {
+                  throw new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignStatement.getLexicalPhrase());
+                }
+              }
+              nowInitialisedVariables.add(var);
+            }
+            else if (var instanceof GlobalVariable)
+            {
+              if (var.isFinal())
+              {
+                // TODO: remedy this
+                throw new ConceptualException("Global final variables are not yet supported", assignStatement.getLexicalPhrase());
+              }
+              nowInitialisedVariables.add(var);
+            }
+            else // parameters and local variables
+            {
+              if (var.isFinal() && possiblyInitialisedVariables.contains(var))
+              {
+                throw new ConceptualException("Variable '" + var.getName() + "' may already have been initialised.", assignStatement.getLexicalPhrase());
+              }
+              nowInitialisedVariables.add(var);
+            }
           }
         }
         else if (assignees[i] instanceof ArrayElementAssignee)
@@ -150,6 +188,7 @@ public class ControlFlowChecker
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
           FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
+          Member resolvedMember = fieldAccessExpression.getResolvedMember();
 
           // if the field is being accessed on 'this' or '(this)' (to any number of brackets), then accept it as initialising that member variable
           Expression expression = fieldAccessExpression.getBaseExpression();
@@ -161,25 +200,40 @@ public class ControlFlowChecker
           // this allows the programmer to access fields before 'this' is fully initialised
           if (expression != null && expression instanceof ThisExpression && inConstructor)
           {
-            Member resolvedMember = fieldAccessExpression.getResolvedMember();
             if (resolvedMember instanceof Field)
             {
               if (((Field) resolvedMember).isStatic())
               {
                 throw new IllegalStateException("Field Assignee on 'this' resolves to a static member: " + fieldAssignee);
               }
-              nowInitialisedVariables.add(((Field) resolvedMember).getMemberVariable());
+              MemberVariable var = ((Field) resolvedMember).getMemberVariable();
+              if (var.isFinal() && possiblyInitialisedVariables.contains(var))
+              {
+                throw new ConceptualException("Field '" + var.getName() + "' may already have been initialised.", assignStatement.getLexicalPhrase());
+              }
+              nowInitialisedVariables.add(var);
             }
-          }
-          else if (fieldAccessExpression.getBaseExpression() != null)
-          {
-            // otherwise (if we aren't in a constructor, or the base expression isn't 'this', but we do have a base expression) check the uninitialised variables normally
-            checkUninitialisedVariables(fieldAccessExpression.getBaseExpression(), initialisedVariables, inConstructor, inStaticContext);
           }
           else
           {
-            // otherwise, we do not have a base expression, so we must have a base type, so the field must be static
-            // in this case, since static variables must always be initialised to a default value, the control flow checker does not need to check anything
+            if (fieldAccessExpression.getBaseExpression() != null)
+            {
+              // if we aren't in a constructor, or the base expression isn't 'this', but we do have a base expression, then check the uninitialised variables for the base expression normally
+              checkUninitialisedVariables(fieldAccessExpression.getBaseExpression(), initialisedVariables, inConstructor, inStaticContext);
+            }
+            else
+            {
+              // we do not have a base expression, so we must have a base type, so the field must be static
+              // in this case, since static variables must always be initialised to a default value, the control flow checker does not need to check that it is initialised
+            }
+            if (resolvedMember instanceof Field)
+            {
+              MemberVariable var = ((Field) resolvedMember).getMemberVariable();
+              if (var.isFinal())
+              {
+                throw new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignStatement.getLexicalPhrase());
+              }
+            }
           }
         }
         else if (assignees[i] instanceof BlankAssignee)
@@ -195,10 +249,8 @@ public class ControlFlowChecker
       {
         checkUninitialisedVariables(assignStatement.getExpression(), initialisedVariables, inConstructor, inStaticContext);
       }
-      for (Variable var : nowInitialisedVariables)
-      {
-        initialisedVariables.add(var);
-      }
+      initialisedVariables.addAll(nowInitialisedVariables);
+      possiblyInitialisedVariables.addAll(nowInitialisedVariables);
       return false;
     }
     else if (statement instanceof Block)
@@ -210,7 +262,7 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Unreachable code", s.getLexicalPhrase());
         }
-        returned = checkControlFlow(s, initialisedVariables, enclosingBreakableStack, inConstructor, inStaticContext);
+        returned = checkControlFlow(s, initialisedVariables, possiblyInitialisedVariables, enclosingBreakableStack, inConstructor, inStaticContext);
       }
       return returned;
     }
@@ -287,7 +339,7 @@ public class ControlFlowChecker
       if (init != null)
       {
         // check the loop initialisation variable in the block outside the loop, because it may add new variables which have now been initialised
-        boolean returned = checkControlFlow(init, initialisedVariables, enclosingBreakableStack, inConstructor, inStaticContext);
+        boolean returned = checkControlFlow(init, initialisedVariables, possiblyInitialisedVariables, enclosingBreakableStack, inConstructor, inStaticContext);
         if (returned)
         {
           throw new IllegalStateException("Reached a state where a for loop initialisation statement returned");
@@ -305,7 +357,7 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Unreachable code", s.getLexicalPhrase());
         }
-        returned = checkControlFlow(s, loopVariables, enclosingBreakableStack, inConstructor, inStaticContext);
+        returned = checkControlFlow(s, loopVariables, possiblyInitialisedVariables, enclosingBreakableStack, inConstructor, inStaticContext);
       }
 
       if (update != null)
@@ -314,7 +366,7 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Unreachable code", update.getLexicalPhrase());
         }
-        boolean updateReturned = checkControlFlow(update, loopVariables, enclosingBreakableStack, inConstructor, inStaticContext);
+        boolean updateReturned = checkControlFlow(update, loopVariables, possiblyInitialisedVariables, enclosingBreakableStack, inConstructor, inStaticContext);
         if (updateReturned)
         {
           throw new IllegalStateException("Reached a state where a for loop update statement returned");
@@ -335,13 +387,20 @@ public class ControlFlowChecker
       if (elseClause == null)
       {
         Set<Variable> thenClauseVariables = new HashSet<Variable>(initialisedVariables);
-        checkControlFlow(thenClause, thenClauseVariables, enclosingBreakableStack, inConstructor, inStaticContext);
+        Set<Variable> thenPossibleVariables = new HashSet<Variable>(possiblyInitialisedVariables);
+        boolean thenReturned = checkControlFlow(thenClause, thenClauseVariables, thenPossibleVariables, enclosingBreakableStack, inConstructor, inStaticContext);
+        if (!thenReturned)
+        {
+          possiblyInitialisedVariables.addAll(thenPossibleVariables);
+        }
         return false;
       }
       Set<Variable> thenClauseVariables = new HashSet<Variable>(initialisedVariables);
       Set<Variable> elseClauseVariables = new HashSet<Variable>(initialisedVariables);
-      boolean thenReturned = checkControlFlow(thenClause, thenClauseVariables, enclosingBreakableStack, inConstructor, inStaticContext);
-      boolean elseReturned = checkControlFlow(elseClause, elseClauseVariables, enclosingBreakableStack, inConstructor, inStaticContext);
+      Set<Variable> thenPossibleVariables = new HashSet<Variable>(possiblyInitialisedVariables);
+      Set<Variable> elsePossibleVariables = new HashSet<Variable>(possiblyInitialisedVariables);
+      boolean thenReturned = checkControlFlow(thenClause, thenClauseVariables, thenPossibleVariables, enclosingBreakableStack, inConstructor, inStaticContext);
+      boolean elseReturned = checkControlFlow(elseClause, elseClauseVariables, elsePossibleVariables, enclosingBreakableStack, inConstructor, inStaticContext);
       if (!thenReturned && !elseReturned)
       {
         for (Variable var : thenClauseVariables)
@@ -351,14 +410,18 @@ public class ControlFlowChecker
             initialisedVariables.add(var);
           }
         }
+        possiblyInitialisedVariables.addAll(thenPossibleVariables);
+        possiblyInitialisedVariables.addAll(elsePossibleVariables);
       }
       else if (!thenReturned && elseReturned)
       {
         initialisedVariables.addAll(thenClauseVariables);
+        possiblyInitialisedVariables.addAll(thenPossibleVariables);
       }
       else if (thenReturned && !elseReturned)
       {
         initialisedVariables.addAll(elseClauseVariables);
+        possiblyInitialisedVariables.addAll(elsePossibleVariables);
       }
       return thenReturned && elseReturned;
     }
@@ -373,12 +436,33 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Variable '" + ((VariableAssignee) assignee).getVariableName() + "' may not have been initialised", assignee.getLexicalPhrase());
         }
+        if (resolvedVariable.isFinal())
+        {
+          throw new ConceptualException("Final variable '" + ((VariableAssignee) assignee).getVariableName() + "' cannot be modified", assignee.getLexicalPhrase());
+        }
       }
       else if (assignee instanceof ArrayElementAssignee)
       {
         ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
         checkUninitialisedVariables(arrayElementAssignee.getArrayExpression(), initialisedVariables, inConstructor, inStaticContext);
         checkUninitialisedVariables(arrayElementAssignee.getDimensionExpression(), initialisedVariables, inConstructor, inStaticContext);
+      }
+      else if (assignee instanceof FieldAssignee)
+      {
+        FieldAssignee fieldAssignee = (FieldAssignee) assignee;
+        FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
+        // treat this as a field access, and check for uninitialised variables as normal
+        checkUninitialisedVariables(fieldAccessExpression, initialisedVariables, inConstructor, inStaticContext);
+        // make sure we don't modify any final variables
+        Member resolvedMember = fieldAccessExpression.getResolvedMember();
+        if (resolvedMember instanceof Field)
+        {
+          MemberVariable var = ((Field) resolvedMember).getMemberVariable();
+          if (var.isFinal())
+          {
+            throw new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignee.getLexicalPhrase());
+          }
+        }
       }
       else
       {
@@ -404,9 +488,14 @@ public class ControlFlowChecker
         if (assignee instanceof VariableAssignee)
         {
           VariableAssignee variableAssignee = (VariableAssignee) assignee;
-          if (!initialisedVariables.contains(variableAssignee.getResolvedVariable()))
+          Variable resolvedVariable = variableAssignee.getResolvedVariable();
+          if (!initialisedVariables.contains(resolvedVariable))
           {
             throw new ConceptualException("Variable '" + variableAssignee.getVariableName() + "' may not have been initialised", assignee.getLexicalPhrase());
+          }
+          if (resolvedVariable.isFinal())
+          {
+            throw new ConceptualException("Final variable '" + ((VariableAssignee) assignee).getVariableName() + "' cannot be modified", assignee.getLexicalPhrase());
           }
         }
         else if (assignee instanceof ArrayElementAssignee)
@@ -418,8 +507,19 @@ public class ControlFlowChecker
         else if (assignee instanceof FieldAssignee)
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignee;
+          FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
           // treat this as a field access, and check for uninitialised variables as normal
-          checkUninitialisedVariables(fieldAssignee.getFieldAccessExpression(), initialisedVariables, inConstructor, inStaticContext);
+          checkUninitialisedVariables(fieldAccessExpression, initialisedVariables, inConstructor, inStaticContext);
+          // make sure we don't modify any final variables
+          Member resolvedMember = fieldAccessExpression.getResolvedMember();
+          if (resolvedMember instanceof Field)
+          {
+            MemberVariable var = ((Field) resolvedMember).getMemberVariable();
+            if (var.isFinal())
+            {
+              throw new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignee.getLexicalPhrase());
+            }
+          }
         }
         else if (assignee instanceof BlankAssignee)
         {
@@ -439,9 +539,14 @@ public class ControlFlowChecker
       checkUninitialisedVariables(whileStatement.getExpression(), initialisedVariables, inConstructor, inStaticContext);
 
       Set<Variable> loopVariables = new HashSet<Variable>(initialisedVariables);
+      Set<Variable> whilePossibleVariables = new HashSet<Variable>(possiblyInitialisedVariables);
       // we don't care about the result of this, as the loop could execute zero times
       enclosingBreakableStack.push(whileStatement);
-      checkControlFlow(whileStatement.getStatement(), loopVariables, enclosingBreakableStack, inConstructor, inStaticContext);
+      boolean whileReturns = checkControlFlow(whileStatement.getStatement(), loopVariables, whilePossibleVariables, enclosingBreakableStack, inConstructor, inStaticContext);
+      if (!whileReturns)
+      {
+        possiblyInitialisedVariables.addAll(whilePossibleVariables);
+      }
       enclosingBreakableStack.pop();
       return false;
     }
@@ -663,7 +768,7 @@ public class ControlFlowChecker
       }
       if (inStaticContext && var instanceof MemberVariable)
       {
-        throw new ConceptualException("Non-static member variables do not exist in static methods.", expression.getLexicalPhrase());
+        throw new ConceptualException("The non-static member variable '" + variableExpression.getName() + "' does not exist in static methods", expression.getLexicalPhrase());
       }
     }
     else

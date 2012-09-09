@@ -10,6 +10,7 @@ package eu.bryants.anthony.toylanguage.parser.parseAST;
 public enum ModifierType
 {
   STATIC,
+  FINAL,
   NATIVE,
   ;
 }

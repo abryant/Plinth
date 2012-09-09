@@ -32,6 +32,7 @@ public enum ParseType
   FOR_INIT,                      // ParseContainer<Statement> (possibly containing null)
   FOR_UPDATE,                    // Statement or null
   MODIFIERS,                     // ParseList<Modifier>
+  OPTIONAL_MODIFIERS,            // ParseList<Modifier>
   QNAME,                         // QName
 
   // Statements
@@ -137,6 +138,7 @@ public enum ParseType
   DOUBLE_KEYWORD,
   ELSE_KEYWORD,
   FALSE_KEYWORD,
+  FINAL_KEYWORD,
   FLOAT_KEYWORD,
   FOR_KEYWORD,
   IF_KEYWORD,

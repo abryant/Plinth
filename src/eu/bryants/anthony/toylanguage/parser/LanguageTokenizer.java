@@ -39,6 +39,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("double",   ParseType.DOUBLE_KEYWORD);
     KEYWORDS.put("else",     ParseType.ELSE_KEYWORD);
     KEYWORDS.put("false",    ParseType.FALSE_KEYWORD);
+    KEYWORDS.put("final",    ParseType.FINAL_KEYWORD);
     KEYWORDS.put("float",    ParseType.FLOAT_KEYWORD);
     KEYWORDS.put("for",      ParseType.FOR_KEYWORD);
     KEYWORDS.put("if",       ParseType.IF_KEYWORD);

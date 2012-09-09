@@ -28,10 +28,10 @@ public class MethodRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PARAMS_PRODUCTION      = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> PRODUCTION             = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> VOID_PARAMS_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> VOID_PRODUCTION        = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> PARAMS_PRODUCTION      = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> PRODUCTION             = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> VOID_PARAMS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> VOID_PRODUCTION        = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
 
   @SuppressWarnings("unchecked")
   public MethodRule()
@@ -96,13 +96,9 @@ public class MethodRule extends Rule<ParseType>
     String nativeName = null;
     for (Modifier modifier : modifiers)
     {
-      if (modifier.getModifierType() == ModifierType.STATIC)
+      if (modifier.getModifierType() == ModifierType.FINAL)
       {
-        if (isStatic)
-        {
-          throw new LanguageParseException("Duplicate 'static' modifier", modifier.getLexicalPhrase());
-        }
-        isStatic = true;
+        throw new LanguageParseException("Unexpected modifier: Methods cannot be final", modifier.getLexicalPhrase());
       }
       else if (modifier.getModifierType() == ModifierType.NATIVE)
       {
@@ -116,6 +112,14 @@ public class MethodRule extends Rule<ParseType>
         {
           nativeName = name;
         }
+      }
+      else if (modifier.getModifierType() == ModifierType.STATIC)
+      {
+        if (isStatic)
+        {
+          throw new LanguageParseException("Duplicate 'static' modifier", modifier.getLexicalPhrase());
+        }
+        isStatic = true;
       }
       else
       {

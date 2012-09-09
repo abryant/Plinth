@@ -57,7 +57,7 @@ public class ForUpdateRule extends Rule<ParseType>
       @SuppressWarnings("unchecked")
       ParseList<Assignee> assignees = (ParseList<Assignee>) args[0];
       Expression expression = (Expression) args[2];
-      return new AssignStatement(null, assignees.toArray(new Assignee[assignees.size()]), expression, LexicalPhrase.combine(assignees.getLexicalPhrase(), (LexicalPhrase) args[1], expression.getLexicalPhrase()));
+      return new AssignStatement(false, null, assignees.toArray(new Assignee[assignees.size()]), expression, LexicalPhrase.combine(assignees.getLexicalPhrase(), (LexicalPhrase) args[1], expression.getLexicalPhrase()));
     }
     if (production == SHORTHAND_ASSIGN_PRODUCTION)
     {

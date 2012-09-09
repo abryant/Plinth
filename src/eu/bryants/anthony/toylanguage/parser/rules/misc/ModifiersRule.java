@@ -22,15 +22,19 @@ public class ModifiersRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> EMPTY_PRODUCTION = new Production<ParseType>();
-  private static final Production<ParseType> STATIC_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.STATIC_KEYWORD);
-  private static final Production<ParseType> NATIVE_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NATIVE_KEYWORD);
+  private static final Production<ParseType> START_FINAL_PRODUCTION       = new Production<ParseType>(ParseType.FINAL_KEYWORD);
+  private static final Production<ParseType> START_STATIC_PRODUCTION      = new Production<ParseType>(ParseType.STATIC_KEYWORD);
+  private static final Production<ParseType> START_NATIVE_PRODUCTION      = new Production<ParseType>(ParseType.NATIVE_KEYWORD);
+  private static final Production<ParseType> START_NATIVE_NAME_PRODUCTION = new Production<ParseType>(ParseType.NATIVE_KEYWORD, ParseType.STRING_LITERAL);
+  private static final Production<ParseType> FINAL_PRODUCTION       = new Production<ParseType>(ParseType.MODIFIERS, ParseType.FINAL_KEYWORD);
+  private static final Production<ParseType> STATIC_PRODUCTION      = new Production<ParseType>(ParseType.MODIFIERS, ParseType.STATIC_KEYWORD);
+  private static final Production<ParseType> NATIVE_PRODUCTION      = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NATIVE_KEYWORD);
   private static final Production<ParseType> NATIVE_NAME_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NATIVE_KEYWORD, ParseType.STRING_LITERAL);
 
   @SuppressWarnings("unchecked")
   public ModifiersRule()
   {
-    super(ParseType.MODIFIERS, EMPTY_PRODUCTION, STATIC_PRODUCTION, NATIVE_PRODUCTION, NATIVE_NAME_PRODUCTION);
+    super(ParseType.MODIFIERS, START_FINAL_PRODUCTION, START_STATIC_PRODUCTION, START_NATIVE_PRODUCTION, START_NATIVE_NAME_PRODUCTION, FINAL_PRODUCTION, STATIC_PRODUCTION, NATIVE_PRODUCTION, NATIVE_NAME_PRODUCTION);
   }
 
   /**
@@ -39,9 +43,31 @@ public class ModifiersRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == EMPTY_PRODUCTION)
+    if (production == START_FINAL_PRODUCTION)
     {
-      return new ParseList<Modifier>(null);
+      return new ParseList<Modifier>(new Modifier(ModifierType.FINAL, (LexicalPhrase) args[0]), (LexicalPhrase) args[0]);
+    }
+    if (production == START_STATIC_PRODUCTION)
+    {
+      return new ParseList<Modifier>(new Modifier(ModifierType.STATIC, (LexicalPhrase) args[0]), (LexicalPhrase) args[0]);
+    }
+    if (production == START_NATIVE_PRODUCTION)
+    {
+      return new ParseList<Modifier>(new NativeSpecifier(null, (LexicalPhrase) args[0]), (LexicalPhrase) args[0]);
+    }
+    if (production == START_NATIVE_NAME_PRODUCTION)
+    {
+      StringLiteral literal = (StringLiteral) args[1];
+      LexicalPhrase lexicalPhrase = LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1]);
+      return new ParseList<Modifier>(new NativeSpecifier(literal.getLiteralValue(), lexicalPhrase), lexicalPhrase);
+    }
+    if (production == FINAL_PRODUCTION)
+    {
+      @SuppressWarnings("unchecked")
+      ParseList<Modifier> list = (ParseList<Modifier>) args[0];
+      Modifier modifier = new Modifier(ModifierType.FINAL, (LexicalPhrase) args[1]);
+      list.addLast(modifier, LexicalPhrase.combine(list.getLexicalPhrase(), modifier.getLexicalPhrase()));
+      return list;
     }
     if (production == STATIC_PRODUCTION)
     {

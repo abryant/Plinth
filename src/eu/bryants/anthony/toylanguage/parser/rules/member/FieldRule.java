@@ -24,7 +24,7 @@ public class FieldRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE, ParseType.NAME, ParseType.SEMICOLON);
+  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.TYPE, ParseType.NAME, ParseType.SEMICOLON);
 
   @SuppressWarnings("unchecked")
   public FieldRule()
@@ -43,19 +43,28 @@ public class FieldRule extends Rule<ParseType>
       @SuppressWarnings("unchecked")
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
       boolean isStatic = false;
+      boolean isFinal = false;
       for (Modifier modifier : modifiers)
       {
-        if (modifier.getModifierType() == ModifierType.STATIC)
+        if (modifier.getModifierType() == ModifierType.FINAL)
+        {
+          if (isFinal)
+          {
+            throw new LanguageParseException("Duplicate 'final' modifier", modifier.getLexicalPhrase());
+          }
+          isFinal = true;
+        }
+        else if (modifier.getModifierType() == ModifierType.NATIVE)
+        {
+          throw new LanguageParseException("Unexpected modifier: Fields cannot be native", modifier.getLexicalPhrase());
+        }
+        else if (modifier.getModifierType() == ModifierType.STATIC)
         {
           if (isStatic)
           {
             throw new LanguageParseException("Duplicate 'static' modifier", modifier.getLexicalPhrase());
           }
           isStatic = true;
-        }
-        else if (modifier.getModifierType() == ModifierType.NATIVE)
-        {
-          throw new LanguageParseException("Unexpected modifier: Fields cannot be native", modifier.getLexicalPhrase());
         }
         else
         {
@@ -64,7 +73,7 @@ public class FieldRule extends Rule<ParseType>
       }
       Type type = (Type) args[1];
       Name name = (Name) args[2];
-      return new Field(type, name.getName(), isStatic, LexicalPhrase.combine(modifiers.getLexicalPhrase(), type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[3]));
+      return new Field(type, name.getName(), isStatic, isFinal, LexicalPhrase.combine(modifiers.getLexicalPhrase(), type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[3]));
     }
     throw badTypeList();
   }

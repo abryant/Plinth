@@ -11,13 +11,23 @@ import eu.bryants.anthony.toylanguage.ast.type.Type;
  */
 public class Variable
 {
+  private boolean isFinal;
   private Type type;
   private String name;
 
-  public Variable(Type type, String name)
+  public Variable(boolean isFinal, Type type, String name)
   {
+    this.isFinal = isFinal;
     this.type = type;
     this.name = name;
+  }
+
+  /**
+   * @return the isFinal
+   */
+  public boolean isFinal()
+  {
+    return isFinal;
   }
 
   /**

@@ -6,8 +6,8 @@ compound complex
 {
   static ? :complex asdf;
   static ?(:complex, uint, ?[]float) test;
-  double real;
-  double imag;
+  final double real;
+  final double imag;
   complex()
   {
     real, imag = 0, 0;
@@ -51,12 +51,21 @@ compound complex
     return complex(initial.imag, initial.real);
   }
 
-  static native uint main(uint argc)
+  static native uint main(final uint argc)
   {
+    final int x;
+    if argc < 2
+    {
+      x = 1;
+    }
+    else
+    {
+      x = 2;
+    }
     ?uint a = true ? null : 5;
     ?[](?uint, int) arr = new [](?uint, int) {(argc, 2), (8, -4), (null, 2)};
 
-    uint f = (cast<?ubyte> a) ?: 5;
+    final uint f = (cast<?ubyte> a) ?: 5;
 
     return (cast<[](?uint, int)> arr)[2]!1 ?: (cast<[](?uint, int)> arr)[0]!1 ?: 34;
   }

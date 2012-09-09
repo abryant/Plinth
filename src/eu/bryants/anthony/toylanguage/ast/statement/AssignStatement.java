@@ -14,19 +14,29 @@ import eu.bryants.anthony.toylanguage.ast.type.Type;
  */
 public class AssignStatement extends Statement
 {
+  private boolean isFinal;
   private Type type;
   private Assignee[] assignees;
   private Expression expression;
 
   private Type resolvedType;
 
-  public AssignStatement(Type type, Assignee[] assignees, Expression expression, LexicalPhrase lexicalPhrase)
+  public AssignStatement(boolean isFinal, Type type, Assignee[] assignees, Expression expression, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
+    this.isFinal = isFinal;
     this.type = type;
     this.assignees = assignees;
     this.expression = expression;
     resolvedType = type;
+  }
+
+  /**
+   * @return the isFinal
+   */
+  public boolean isFinal()
+  {
+    return isFinal;
   }
 
   /**
@@ -87,6 +97,10 @@ public class AssignStatement extends Statement
     StringBuffer buffer = new StringBuffer();
     if (type != null)
     {
+      if (isFinal)
+      {
+        buffer.append("final ");
+      }
       buffer.append(type);
       buffer.append(" ");
     }
