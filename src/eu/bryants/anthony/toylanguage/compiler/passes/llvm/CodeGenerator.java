@@ -764,6 +764,30 @@ public class CodeGenerator
                                                      convertedDimension};
         pointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
       }
+      else if (assignee instanceof FieldAssignee)
+      {
+        FieldAssignee fieldAssignee = (FieldAssignee) assignee;
+        FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
+        if (fieldAccessExpression.getResolvedMember() instanceof Field)
+        {
+          Field field = (Field) fieldAccessExpression.getResolvedMember();
+          if (field.isStatic())
+          {
+            pointer = getGlobal(field.getGlobalVariable());
+          }
+          else
+          {
+            LLVMValueRef expressionValue = buildExpression(fieldAccessExpression.getBaseExpression(), llvmFunction, thisValue, variables);
+            LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                         LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getMemberIndex(), false)};
+            pointer = LLVM.LLVMBuildGEP(builder, expressionValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+          }
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown member assigned to in a FieldAssignee: " + fieldAccessExpression.getResolvedMember());
+        }
+      }
       else
       {
         // ignore blank assignees, they shouldn't be able to get through variable resolution
