@@ -228,10 +228,21 @@ public class ControlFlowChecker
             }
             if (resolvedMember instanceof Field)
             {
-              MemberVariable var = ((Field) resolvedMember).getMemberVariable();
-              if (var.isFinal())
+              if (((Field) resolvedMember).isStatic())
               {
-                throw new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignStatement.getLexicalPhrase());
+                GlobalVariable globalVar = ((Field) resolvedMember).getGlobalVariable();
+                if (globalVar != null && globalVar.isFinal())
+                {
+                  throw new ConceptualException("Static final field '" + globalVar.getName() + "' cannot be modified", assignStatement.getLexicalPhrase());
+                }
+              }
+              else
+              {
+                MemberVariable var = ((Field) resolvedMember).getMemberVariable();
+                if (var != null && var.isFinal())
+                {
+                  throw new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignStatement.getLexicalPhrase());
+                }
               }
             }
           }
@@ -457,10 +468,21 @@ public class ControlFlowChecker
         Member resolvedMember = fieldAccessExpression.getResolvedMember();
         if (resolvedMember instanceof Field)
         {
-          MemberVariable var = ((Field) resolvedMember).getMemberVariable();
-          if (var.isFinal())
+          if (((Field) resolvedMember).isStatic())
           {
-            throw new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignee.getLexicalPhrase());
+            GlobalVariable globalVar = ((Field) resolvedMember).getGlobalVariable();
+            if (globalVar != null && globalVar.isFinal())
+            {
+              throw new ConceptualException("Static final field '" + globalVar.getName() + "' cannot be modified", assignee.getLexicalPhrase());
+            }
+          }
+          else
+          {
+            MemberVariable var = ((Field) resolvedMember).getMemberVariable();
+            if (var != null && var.isFinal())
+            {
+              throw new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignee.getLexicalPhrase());
+            }
           }
         }
       }
@@ -514,10 +536,21 @@ public class ControlFlowChecker
           Member resolvedMember = fieldAccessExpression.getResolvedMember();
           if (resolvedMember instanceof Field)
           {
-            MemberVariable var = ((Field) resolvedMember).getMemberVariable();
-            if (var.isFinal())
+            if (((Field) resolvedMember).isStatic())
             {
-              throw new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignee.getLexicalPhrase());
+              GlobalVariable globalVar = ((Field) resolvedMember).getGlobalVariable();
+              if (globalVar != null && globalVar.isFinal())
+              {
+                throw new ConceptualException("Static final field '" + globalVar.getName() + "' cannot be modified", assignee.getLexicalPhrase());
+              }
+            }
+            else
+            {
+              MemberVariable var = ((Field) resolvedMember).getMemberVariable();
+              if (var != null && var.isFinal())
+              {
+                throw new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignee.getLexicalPhrase());
+              }
             }
           }
         }
