@@ -58,4 +58,12 @@ public class NullType extends Type
     throw new UnsupportedOperationException("The null type does not have a mangled name");
   }
 
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean hasDefaultValue()
+  {
+    return true;
+  }
 }

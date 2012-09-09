@@ -4,6 +4,7 @@ import test.asdf;
 
 compound complex
 {
+  static float testfloat;
   static ? :complex asdf;
   static ?(:complex, uint, ?[]float) test;
   final double real;
@@ -53,6 +54,7 @@ compound complex
 
   static native uint main(final uint argc)
   {
+    ++:complex::testfloat;
     final int x;
     if argc < 2
     {

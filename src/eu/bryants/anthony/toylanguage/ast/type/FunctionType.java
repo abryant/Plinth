@@ -121,6 +121,15 @@ public class FunctionType extends Type
    * {@inheritDoc}
    */
   @Override
+  public boolean hasDefaultValue()
+  {
+    return isNullable();
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public String toString()
   {
     StringBuffer buffer = new StringBuffer();

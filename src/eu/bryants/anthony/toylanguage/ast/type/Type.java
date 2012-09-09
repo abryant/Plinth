@@ -70,4 +70,9 @@ public abstract class Type
    * @return the mangled name of this type
    */
   public abstract String getMangledName();
+
+  /**
+   * @return true if this type has a default null value (i.e. 0 for uint, null for ?[]Foo, etc.)
+   */
+  public abstract boolean hasDefaultValue();
 }

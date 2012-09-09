@@ -63,6 +63,15 @@ public class VoidType extends Type
    * {@inheritDoc}
    */
   @Override
+  public boolean hasDefaultValue()
+  {
+    return false;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public String toString()
   {
     return "void";

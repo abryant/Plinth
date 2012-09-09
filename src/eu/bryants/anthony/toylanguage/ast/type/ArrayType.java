@@ -110,6 +110,15 @@ public class ArrayType extends Type
    * {@inheritDoc}
    */
   @Override
+  public boolean hasDefaultValue()
+  {
+    return isNullable();
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public String toString()
   {
     return (isNullable() ? "?" : "") + "[]" + baseType;

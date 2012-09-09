@@ -135,6 +135,28 @@ public class TupleType extends Type
    * {@inheritDoc}
    */
   @Override
+  public boolean hasDefaultValue()
+  {
+    if (isNullable())
+    {
+      return true;
+    }
+    boolean hasDefault = true;
+    for (Type subType : subTypes)
+    {
+      hasDefault &= subType.hasDefaultValue();
+      if (!hasDefault)
+      {
+        break;
+      }
+    }
+    return hasDefault;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public String toString()
   {
     StringBuffer buffer = new StringBuffer();

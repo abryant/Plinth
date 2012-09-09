@@ -105,7 +105,7 @@ public class TypeChecker
       return;
     }
     Type type = field.getType();
-    if (!type.isNullable())
+    if (!type.hasDefaultValue())
     {
       throw new ConceptualException("Static fields must always have a type which has a language-defined default value (e.g. 0 for uint). Consider making this field nullable.", type.getLexicalPhrase());
     }

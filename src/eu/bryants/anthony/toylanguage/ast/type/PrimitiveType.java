@@ -224,6 +224,15 @@ public class PrimitiveType extends Type
     return (isNullable() ? "?" : "") + primitiveTypeType.mangledName;
   }
 
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean hasDefaultValue()
+  {
+    return true;
+  }
+
   @Override
   public String toString()
   {

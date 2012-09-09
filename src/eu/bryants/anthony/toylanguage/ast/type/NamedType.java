@@ -128,6 +128,15 @@ public class NamedType extends Type
    * {@inheritDoc}
    */
   @Override
+  public boolean hasDefaultValue()
+  {
+    return isNullable();
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public String toString()
   {
     return (isNullable() ? "?" : "") + qname;
