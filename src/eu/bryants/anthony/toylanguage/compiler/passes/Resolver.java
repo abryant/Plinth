@@ -867,13 +867,27 @@ public class Resolver
             }
           }
         }
-        TypeDefinition typeDefinition = compilationUnit.getTypeDefinition(name);
-        if (typeDefinition != null && typeDefinition instanceof CompoundDefinition)
+        // try resolving it as a constructor call for a CompoundDefinition, by calling resolve() on it as a NamedType
+        try
         {
-          for (Constructor c : typeDefinition.getConstructors())
+          NamedType type = new NamedType(false, new QName(name, null), null);
+          resolve(type, compilationUnit);
+          TypeDefinition typeDefinition = type.getResolvedTypeDefinition();
+          if (typeDefinition != null && typeDefinition instanceof CompoundDefinition)
           {
-            paramLists.put(c.getParameters(), c);
+            for (Constructor c : typeDefinition.getConstructors())
+            {
+              paramLists.put(c.getParameters(), c);
+            }
           }
+        }
+        catch (NameNotResolvedException e)
+        {
+          // ignore this error, just assume it wasn't meant to resolve to a constructor call
+        }
+        catch (ConceptualException e)
+        {
+          // ignore this error, just assume it wasn't meant to resolve to a constructor call
         }
       }
       else if (functionExpression instanceof FieldAccessExpression)
