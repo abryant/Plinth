@@ -1,7 +1,7 @@
 package eu.bryants.anthony.toylanguage.ast.member;
 
-import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.misc.Parameter;
 import eu.bryants.anthony.toylanguage.ast.statement.Block;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
@@ -23,7 +23,7 @@ public class Method extends Member
   private Parameter[] parameters;
   private Block block;
 
-  private CompoundDefinition containingDefinition;
+  private TypeDefinition containingTypeDefinition;
 
   /**
    * Creates a new Method with the specified parameters
@@ -99,19 +99,19 @@ public class Method extends Member
   }
 
   /**
-   * @return the containingDefinition
+   * @return the containing TypeDefinition
    */
-  public CompoundDefinition getContainingDefinition()
+  public TypeDefinition getContainingTypeDefinition()
   {
-    return containingDefinition;
+    return containingTypeDefinition;
   }
 
   /**
-   * @param containingDefinition - the containingDefinition to set
+   * @param containingTypeDefinition - the containing TypeDefinition to set
    */
-  public void setContainingDefinition(CompoundDefinition containingDefinition)
+  public void setContainingTypeDefinition(TypeDefinition containingTypeDefinition)
   {
-    this.containingDefinition = containingDefinition;
+    this.containingTypeDefinition = containingTypeDefinition;
   }
 
   /**
@@ -120,7 +120,7 @@ public class Method extends Member
   public String getMangledName()
   {
     StringBuffer buffer = new StringBuffer();
-    buffer.append(containingDefinition.getQualifiedName());
+    buffer.append(containingTypeDefinition.getQualifiedName());
     buffer.append('$');
     buffer.append(name);
     if (isStatic)

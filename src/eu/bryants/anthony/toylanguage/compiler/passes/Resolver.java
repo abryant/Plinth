@@ -10,6 +10,7 @@ import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
+import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
@@ -104,9 +105,9 @@ public class Resolver
     }
 
     // add all of the type definitions in this compilation unit to the file's package
-    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
-      compilationUnitPackage.addCompoundDefinition(compoundDefinition);
+      compilationUnitPackage.addTypeDefinition(typeDefinition);
     }
   }
 
@@ -125,7 +126,7 @@ public class Resolver
       QName qname = currentImport.getImported();
       String[] names = qname.getNames();
       PackageNode currentPackage = rootPackage;
-      CompoundDefinition currentDefinition = null;
+      TypeDefinition currentTypeDefinition = null;
 
       // now resolve the rest of the names (or as many as possible until the current items are all null)
       for (int i = 0; i < names.length; ++i)
@@ -133,22 +134,15 @@ public class Resolver
         if (currentPackage != null)
         {
           // at most one of these lookups can succeed
-          currentDefinition = currentPackage.getCompoundDefinition(names[i]);
+          currentTypeDefinition = currentPackage.getTypeDefinition(names[i]);
           // update currentPackage last (and only if we don't have a type definition)
-          if (currentDefinition == null)
-          {
-            currentPackage = currentPackage.getSubPackage(names[i]);
-          }
-          else
-          {
-            currentPackage = null;
-          }
+          currentPackage = currentTypeDefinition == null ? currentPackage.getSubPackage(names[i]) : null;
         }
-        else if (currentDefinition != null)
+        else if (currentTypeDefinition != null)
         {
           // TODO: if/when we add inner types, resolve the sub-type here
           // for now, we cannot resolve the name on this definition, so fail by setting everything to null
-          currentDefinition = null;
+          currentTypeDefinition = null;
         }
         else
         {
@@ -156,7 +150,7 @@ public class Resolver
         }
       }
 
-      if (currentDefinition == null && currentPackage == null)
+      if (currentTypeDefinition == null && currentPackage == null)
       {
         throw new NameNotResolvedException("Unable to resolve the import: " + qname, qname.getLexicalPhrase());
       }
@@ -166,31 +160,31 @@ public class Resolver
       }
       // only one of these calls will set the resolved object to a non-null value
       currentImport.setResolvedPackage(currentPackage);
-      currentImport.setResolvedCompoundDefinition(currentDefinition);
+      currentImport.setResolvedTypeDefinition(currentTypeDefinition);
     }
 
-    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
-      resolveTypes(compoundDefinition, compilationUnit);
+      resolveTypes(typeDefinition, compilationUnit);
     }
   }
 
   public void resolve(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     // resolve the bodies of methods, field assignments, etc.
-    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
-      resolve(compoundDefinition, compilationUnit);
+      resolve(typeDefinition, compilationUnit);
     }
   }
 
-  private void resolveTypes(CompoundDefinition compound, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private void resolveTypes(TypeDefinition typeDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
-    for (Field field : compound.getFields())
+    for (Field field : typeDefinition.getFields())
     {
       resolve(field.getType(), compilationUnit);
     }
-    for (Constructor constructor : compound.getConstructors())
+    for (Constructor constructor : typeDefinition.getConstructors())
     {
       Block mainBlock = constructor.getBlock();
       for (Parameter p : constructor.getParameters())
@@ -243,7 +237,7 @@ public class Resolver
       }
     }
     Map<MethodDisambiguator, Method> allMethods = new HashMap<MethodDisambiguator, Method>();
-    for (Method method : compound.getAllMethods())
+    for (Method method : typeDefinition.getAllMethods())
     {
       resolve(method.getReturnType(), compilationUnit);
       Block mainBlock = method.getBlock();
@@ -267,23 +261,23 @@ public class Resolver
     }
   }
 
-  private void resolve(CompoundDefinition compound, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private void resolve(TypeDefinition typeDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     // TODO: resolve field expressions, when they exist
-    for (Constructor constructor : compound.getConstructors())
+    for (Constructor constructor : typeDefinition.getConstructors())
     {
       Block mainBlock = constructor.getBlock();
       for (Statement s : mainBlock.getStatements())
       {
-        resolve(s, mainBlock, compound, compilationUnit);
+        resolve(s, mainBlock, typeDefinition, compilationUnit);
       }
     }
-    for (Method method : compound.getAllMethods())
+    for (Method method : typeDefinition.getAllMethods())
     {
       Block mainBlock = method.getBlock();
       for (Statement s : mainBlock.getStatements())
       {
-        resolve(s, mainBlock, compound, compilationUnit);
+        resolve(s, mainBlock, typeDefinition, compilationUnit);
       }
     }
   }
@@ -297,14 +291,14 @@ public class Resolver
     else if (type instanceof NamedType)
     {
       NamedType namedType = (NamedType) type;
-      if (namedType.getResolvedDefinition() != null)
+      if (namedType.getResolvedTypeDefinition() != null)
       {
         return;
       }
 
       String[] names = namedType.getQualifiedName().getNames();
       // start by looking up the first name in the compilation unit
-      CompoundDefinition currentDefinition = compilationUnit.getCompoundDefinition(names[0]);
+      TypeDefinition currentDefinition = compilationUnit.getTypeDefinition(names[0]);
       PackageNode currentPackage = null;
       if (currentDefinition == null)
       {
@@ -312,18 +306,15 @@ public class Resolver
         for (Import currentImport : compilationUnit.getImports())
         {
           PackageNode importPackage = currentImport.getResolvedPackage();
-          CompoundDefinition importDefinition = currentImport.getResolvedCompoundDefinition();
+          TypeDefinition importDefinition = currentImport.getResolvedTypeDefinition();
           if (currentImport.isWildcard())
           {
             if (importPackage != null)
             {
               // at most one of these lookups can succeed
-              currentDefinition = importPackage.getCompoundDefinition(names[0]);
+              currentDefinition = importPackage.getTypeDefinition(names[0]);
               // update currentPackage last (and only if we don't have a type definition)
-              if (currentDefinition == null)
-              {
-                currentPackage = importPackage.getSubPackage(names[0]);
-              }
+              currentPackage = currentDefinition == null ? importPackage.getSubPackage(names[0]) : null;
             }
             else // if (importDefinition != null)
             {
@@ -345,22 +336,16 @@ public class Resolver
         {
           // the lookup from the imports failed, so try to look up the first name on the compilation unit's package instead
           // (at most one of the following lookups can succeed)
-          currentDefinition = compilationUnit.getResolvedPackage().getCompoundDefinition(names[0]);
+          currentDefinition = compilationUnit.getResolvedPackage().getTypeDefinition(names[0]);
           // update currentPackage last (and only if we don't have a type definition)
-          if (currentDefinition == null)
-          {
-            currentPackage = compilationUnit.getResolvedPackage().getSubPackage(names[0]);
-          }
+          currentPackage = currentDefinition == null ? compilationUnit.getResolvedPackage().getSubPackage(names[0]) : null;
           if (currentPackage == null && currentDefinition == null)
           {
             // all other lookups failed, so try to look up the first name on the root package
             // (at most one of the following lookups can succeed)
-            currentDefinition = rootPackage.getCompoundDefinition(names[0]);
+            currentDefinition = rootPackage.getTypeDefinition(names[0]);
             // update currentPackage last (and only if we don't have a type definition)
-            if (currentDefinition == null)
-            {
-              currentPackage = rootPackage.getSubPackage(names[0]);
-            }
+            currentPackage = currentDefinition == null ? rootPackage.getSubPackage(names[0]) : null;
           }
         }
       }
@@ -370,16 +355,9 @@ public class Resolver
         if (currentPackage != null)
         {
           // at most one of these lookups can succeed
-          currentDefinition = currentPackage.getCompoundDefinition(names[i]);
+          currentDefinition = currentPackage.getTypeDefinition(names[i]);
           // update currentPackage last (and only if we don't have a type definition)
-          if (currentDefinition == null)
-          {
-            currentPackage = currentPackage.getSubPackage(names[i]);
-          }
-          else
-          {
-            currentPackage = null;
-          }
+          currentPackage = currentDefinition == null ? currentPackage.getSubPackage(names[i]) : null;
         }
         else if (currentDefinition != null)
         {
@@ -401,7 +379,7 @@ public class Resolver
         }
         throw new NameNotResolvedException("Unable to resolve: " + namedType.getQualifiedName(), namedType.getLexicalPhrase());
       }
-      namedType.setResolvedDefinition(currentDefinition);
+      namedType.setResolvedTypeDefinition(currentDefinition);
     }
     else if (type instanceof PrimitiveType)
     {
@@ -425,7 +403,7 @@ public class Resolver
     }
   }
 
-  private void resolve(Statement statement, Block enclosingBlock, CompoundDefinition enclosingDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private void resolve(Statement statement, Block enclosingBlock, TypeDefinition enclosingDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     if (statement instanceof AssignStatement)
     {
@@ -690,7 +668,7 @@ public class Resolver
     }
   }
 
-  private void resolve(Expression expression, Block block, CompoundDefinition enclosingDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private void resolve(Expression expression, Block block, TypeDefinition enclosingDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     if (expression instanceof ArithmeticExpression)
     {
@@ -871,7 +849,7 @@ public class Resolver
         functionExpression = ((BracketedExpression) functionExpression).getExpression();
       }
 
-      Map<Parameter[], Object> paramLists = new HashMap<Parameter[], Object>();
+      Map<Parameter[], Member> paramLists = new HashMap<Parameter[], Member>();
       Map<Method, Expression> methodBaseExpressions = new HashMap<Method, Expression>();
       if (functionExpression instanceof VariableExpression)
       {
@@ -889,10 +867,10 @@ public class Resolver
             }
           }
         }
-        CompoundDefinition compoundDefinition = compilationUnit.getCompoundDefinition(name);
-        if (compoundDefinition != null)
+        TypeDefinition typeDefinition = compilationUnit.getTypeDefinition(name);
+        if (typeDefinition != null && typeDefinition instanceof CompoundDefinition)
         {
-          for (Constructor c : compoundDefinition.getConstructors())
+          for (Constructor c : typeDefinition.getConstructors())
           {
             paramLists.put(c.getParameters(), c);
           }
@@ -909,6 +887,7 @@ public class Resolver
         if (baseExpression != null)
         {
           resolve(baseExpression, block, enclosingDefinition, compilationUnit);
+          // TODO: allow constructor calls for CompoundDefinitions here somehow (or find a better syntax for them)
 
           // find the type of the sub-expression, by calling the type checker
           // this is fine as long as we resolve all of the sub-expression first
@@ -928,8 +907,8 @@ public class Resolver
 
         if (baseType instanceof NamedType)
         {
-          CompoundDefinition compoundDefinition = ((NamedType) baseType).getResolvedDefinition();
-          Set<Method> methodSet = compoundDefinition.getMethodsByName(name);
+          TypeDefinition typeDefinition = ((NamedType) baseType).getResolvedTypeDefinition();
+          Set<Method> methodSet = typeDefinition.getMethodsByName(name);
           if (methodSet != null)
           {
             for (Method m : methodSet)
@@ -947,7 +926,7 @@ public class Resolver
 
       // resolve the called function
       boolean resolved = false;
-      for (Entry<Parameter[], Object> entry : paramLists.entrySet())
+      for (Entry<Parameter[], Member> entry : paramLists.entrySet())
       {
         Parameter[] parameters = entry.getKey();
         // make sure the types match, otherwise we need to find another candidate

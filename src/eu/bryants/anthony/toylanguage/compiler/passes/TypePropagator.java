@@ -1,7 +1,7 @@
 package eu.bryants.anthony.toylanguage.compiler.passes;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
-import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
+import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
@@ -73,14 +73,14 @@ public class TypePropagator
 {
   public static void propagateTypes(CompilationUnit compilationUnit)
   {
-    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
-      for (Constructor constructor : compoundDefinition.getConstructors())
+      for (Constructor constructor : typeDefinition.getConstructors())
       {
         propagateTypes(constructor.getBlock(), new VoidType(null));
       }
       // TODO: propagate types on Field expressions, when fields can have expressions
-      for (Method method : compoundDefinition.getAllMethods())
+      for (Method method : typeDefinition.getAllMethods())
       {
         propagateTypes(method.getBlock(), method.getReturnType());
       }

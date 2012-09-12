@@ -10,8 +10,8 @@ import parser.BadTokenException;
 import parser.ParseException;
 import parser.Token;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
-import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.metadata.PackageNode;
 import eu.bryants.anthony.toylanguage.ast.metadata.PackageNode.PackageSearcher;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
@@ -184,38 +184,38 @@ public class Compiler
       System.exit(6);
     }
 
-    Map<CompoundDefinition, File> resultFiles = new HashMap<CompoundDefinition, File>();
+    Map<TypeDefinition, File> resultFiles = new HashMap<TypeDefinition, File>();
     for (CompilationUnit compilationUnit : compilationUnits)
     {
       PackageNode declaredPackage = compilationUnit.getResolvedPackage();
       File packageDir = findPackageDir(outputDirFile, declaredPackage);
-      for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+      for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
       {
-        File outputFile = new File(packageDir, compoundDefinition.getName() + BITCODE_EXTENSION);
+        File outputFile = new File(packageDir, typeDefinition.getName() + BITCODE_EXTENSION);
         if (outputFile.exists() && !outputFile.isFile())
         {
-          System.err.println("Cannot create output file for " + compoundDefinition.getQualifiedName() + ", a non-file with that name already exists");
+          System.err.println("Cannot create output file for " + typeDefinition.getQualifiedName() + ", a non-file with that name already exists");
           System.exit(9);
         }
         if (outputFile.exists())
         {
           if (!outputFile.delete())
           {
-            System.err.println("Cannot create output file for " + compoundDefinition.getQualifiedName() + ", failed to delete existing file");
+            System.err.println("Cannot create output file for " + typeDefinition.getQualifiedName() + ", failed to delete existing file");
             System.exit(10);
           }
         }
-        resultFiles.put(compoundDefinition, outputFile);
+        resultFiles.put(typeDefinition, outputFile);
       }
       // print each compilation unit before writing their bitcode files
       System.out.println(compilationUnit);
     }
 
-    for (Entry<CompoundDefinition, File> entry : resultFiles.entrySet())
+    for (Entry<TypeDefinition, File> entry : resultFiles.entrySet())
     {
-      CompoundDefinition compoundDefinition = entry.getKey();
+      TypeDefinition typeDefinition = entry.getKey();
       File file = entry.getValue();
-      CodeGenerator generator = new CodeGenerator(compoundDefinition);
+      CodeGenerator generator = new CodeGenerator(typeDefinition);
       generator.generateModule();
 
       generator.writeModule(file.getAbsolutePath());

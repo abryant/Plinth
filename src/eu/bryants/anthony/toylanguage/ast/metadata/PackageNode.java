@@ -3,7 +3,7 @@ package eu.bryants.anthony.toylanguage.ast.metadata;
 import java.util.HashMap;
 import java.util.Map;
 
-import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
+import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.misc.QName;
 import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
 
@@ -20,7 +20,7 @@ public class PackageNode
 
   private Map<String, PackageNode> subPackages = new HashMap<String, PackageNode>();
 
-  private Map<String, CompoundDefinition> compoundDefinitions = new HashMap<String, CompoundDefinition>();
+  private Map<String, TypeDefinition> typeDefinitions = new HashMap<String, TypeDefinition>();
 
   private PackageSearcher searcher;
 
@@ -92,18 +92,18 @@ public class PackageNode
   }
 
   /**
-   * Finds the compound definition with the specified name.
-   * This method may try to search for new compound definitions to load, using a PackageSearcher.
-   * @param name - the name of the compound definition to get
-   * @return the compound definition with the specified name, or null if none exists
+   * Finds the type definition with the specified name.
+   * This method may try to search for new type definitions to load, using a PackageSearcher.
+   * @param name - the name of the type definition to get
+   * @return the type definition with the specified name, or null if none exists
    */
-  public CompoundDefinition getCompoundDefinition(String name)
+  public TypeDefinition getTypeDefinition(String name)
   {
-    CompoundDefinition result = compoundDefinitions.get(name);
+    TypeDefinition result = typeDefinitions.get(name);
     if (result == null)
     {
       searcher.searchForTypeDefinition(name, this);
-      result = compoundDefinitions.get(name);
+      result = typeDefinitions.get(name);
       // if we still haven't found anything after the search, then we aren't going to find anything
     }
     return result;
@@ -119,32 +119,32 @@ public class PackageNode
     String packageName = packageNode.getQualifiedName().getLastName();
     if (subPackages.containsKey(packageName))
     {
-      throw new ConceptualException("Cannot add sub-package to " + (qname == null ? "the root package" : qname) + " - a sub-package called \"" + packageName + "\" already exists.", null);
+      throw new ConceptualException("Cannot add sub-package to " + (qname == null ? "the root package" : qname) + " - it already contains a sub-package called \"" + packageName + "\"", null);
     }
-    if (compoundDefinitions.containsKey(packageName))
+    if (typeDefinitions.containsKey(packageName))
     {
-      throw new ConceptualException("Cannot add sub-package to " + (qname == null ? "the root package" : qname) + " - a compound type called \"" + packageName + "\" already exists.", null);
+      throw new ConceptualException("Cannot add sub-package to " + (qname == null ? "the root package" : qname) + " - it already contains a type called \"" + packageName + "\"", null);
     }
     subPackages.put(packageName, packageNode);
   }
 
   /**
-   * Adds the specified CompoundDefinition to this PackageNode.
-   * @param compoundDefinition - the CompoundDefinition to add
+   * Adds the specified TypeDefinition to this PackageNode.
+   * @param typeDefinition - the TypeDefinition to add
    * @throws ConceptualException - if there is a name conflict
    */
-  public void addCompoundDefinition(CompoundDefinition compoundDefinition) throws ConceptualException
+  public void addTypeDefinition(TypeDefinition typeDefinition) throws ConceptualException
   {
-    String compoundName = compoundDefinition.getName();
-    if (subPackages.containsKey(compoundName))
+    String typeName = typeDefinition.getName();
+    if (subPackages.containsKey(typeName))
     {
-      throw new ConceptualException("Cannot add compound type to " + (qname == null ? "the root package" : qname) + " - a sub-package called \"" + compoundName + "\" already exists.", null);
+      throw new ConceptualException("Cannot add type to " + (qname == null ? "the root package" : qname) + " - it already contains a sub-package called \"" + typeName + "\"", null);
     }
-    if (compoundDefinitions.containsKey(compoundName))
+    if (typeDefinitions.containsKey(typeName))
     {
-      throw new ConceptualException("Cannot add compound type to " + (qname == null ? "the root package" : qname) + " - a compound type called \"" + compoundName + "\" already exists.", null);
+      throw new ConceptualException("Cannot add type to " + (qname == null ? "the root package" : qname) + " - it already contains a type called \"" + typeName + "\"", null);
     }
-    compoundDefinitions.put(compoundName, compoundDefinition);
+    typeDefinitions.put(typeName, typeDefinition);
   }
 
   /**

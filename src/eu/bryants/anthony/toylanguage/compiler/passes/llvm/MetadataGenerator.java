@@ -6,7 +6,9 @@ import nativelib.c.C;
 import nativelib.llvm.LLVM;
 import nativelib.llvm.LLVM.LLVMModuleRef;
 import nativelib.llvm.LLVM.LLVMValueRef;
+import eu.bryants.anthony.toylanguage.ast.ClassDefinition;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
+import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
@@ -30,16 +32,16 @@ import eu.bryants.anthony.toylanguage.ast.type.VoidType;
 public class MetadataGenerator
 {
   /**
-   * Generates the metadata for the specified CompoundDefinition, and writes it into the specified module.
-   * @param compoundDefinition - the CompoundDefinition to generate metadata for
+   * Generates the metadata for the specified TypeDefinition, and writes it into the specified module.
+   * @param typeDefinition - the TypeDefinition to generate metadata for
    * @param module - the module to write the metadata to
    */
-  public static void generateMetadata(CompoundDefinition compoundDefinition, LLVMModuleRef module)
+  public static void generateMetadata(TypeDefinition typeDefinition, LLVMModuleRef module)
   {
-    String qualifiedName = compoundDefinition.getQualifiedName().toString();
+    String qualifiedName = typeDefinition.getQualifiedName().toString();
     LLVMValueRef nameNode = createMDString(qualifiedName);
 
-    Field[] nonStaticFields = compoundDefinition.getNonStaticFields();
+    Field[] nonStaticFields = typeDefinition.getNonStaticFields();
     LLVMValueRef[] nonStaticFieldNodes = new LLVMValueRef[nonStaticFields.length];
     for (int i = 0; i < nonStaticFields.length; ++i)
     {
@@ -47,7 +49,7 @@ public class MetadataGenerator
     }
     LLVMValueRef nonStaticFieldsNode = LLVM.LLVMMDNode(C.toNativePointerArray(nonStaticFieldNodes, false, true), nonStaticFieldNodes.length);
 
-    Field[] allFields = compoundDefinition.getFields();
+    Field[] allFields = typeDefinition.getFields();
     LLVMValueRef[] staticFieldNodes = new LLVMValueRef[allFields.length - nonStaticFields.length];
     int staticIndex = 0;
     for (int i = 0; i < allFields.length; ++i)
@@ -64,7 +66,7 @@ public class MetadataGenerator
     }
     LLVMValueRef staticFieldsNode = LLVM.LLVMMDNode(C.toNativePointerArray(staticFieldNodes, false, true), staticFieldNodes.length);
 
-    Collection<Constructor> constructors = compoundDefinition.getConstructors();
+    Collection<Constructor> constructors = typeDefinition.getConstructors();
     LLVMValueRef[] constructorNodes = new LLVMValueRef[constructors.size()];
     int constructorIndex = 0;
     for (Constructor constructor : constructors)
@@ -75,7 +77,7 @@ public class MetadataGenerator
     LLVMValueRef constructorsNode = LLVM.LLVMMDNode(C.toNativePointerArray(constructorNodes, false, true), constructorNodes.length);
 
 
-    Method[] methods = compoundDefinition.getAllMethods();
+    Method[] methods = typeDefinition.getAllMethods();
     LLVMValueRef[] methodNodes = new LLVMValueRef[methods.length];
     for (int i = 0; i < methods.length; ++i)
     {
@@ -85,7 +87,14 @@ public class MetadataGenerator
 
     LLVMValueRef[] values = new LLVMValueRef[] {nameNode, nonStaticFieldsNode, staticFieldsNode, constructorsNode, methodsNode};
     LLVMValueRef resultNode = LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
-    LLVM.LLVMAddNamedMetadataOperand(module, "CompoundDefinitions", resultNode);
+    if (typeDefinition instanceof ClassDefinition)
+    {
+      LLVM.LLVMAddNamedMetadataOperand(module, "ClassDefinitions", resultNode);
+    }
+    else if (typeDefinition instanceof CompoundDefinition)
+    {
+      LLVM.LLVMAddNamedMetadataOperand(module, "CompoundDefinitions", resultNode);
+    }
   }
 
   private static LLVMValueRef generateField(Field field)
@@ -157,7 +166,7 @@ public class MetadataGenerator
     {
       NamedType namedType = (NamedType) type;
       LLVMValueRef sortNode = createMDString("named");
-      String qualifiedName = namedType.getResolvedDefinition().getQualifiedName().toString();
+      String qualifiedName = namedType.getResolvedTypeDefinition().getQualifiedName().toString();
       LLVMValueRef qualifiedNameNode = createMDString(qualifiedName);
       LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, qualifiedNameNode};
       return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);

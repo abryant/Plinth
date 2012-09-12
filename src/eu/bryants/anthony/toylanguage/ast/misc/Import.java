@@ -1,7 +1,7 @@
 package eu.bryants.anthony.toylanguage.ast.misc;
 
-import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.metadata.PackageNode;
 
 /*
@@ -19,7 +19,7 @@ public class Import
   private LexicalPhrase lexicalPhrase;
 
   private PackageNode resolvedPackage;
-  private CompoundDefinition resolvedCompoundDefinition;
+  private TypeDefinition resolvedTypeDefinition;
 
   /**
    * Creates a new Import which imports the specified QName as the specified name.
@@ -83,19 +83,19 @@ public class Import
   }
 
   /**
-   * @return the resolvedCompoundDefinition
+   * @return the resolvedTypeDefinition
    */
-  public CompoundDefinition getResolvedCompoundDefinition()
+  public TypeDefinition getResolvedTypeDefinition()
   {
-    return resolvedCompoundDefinition;
+    return resolvedTypeDefinition;
   }
 
   /**
-   * @param resolvedCompoundDefinition - the resolvedCompoundDefinition to set
+   * @param resolvedTypeDefinition - the resolvedTypeDefinition to set
    */
-  public void setResolvedCompoundDefinition(CompoundDefinition resolvedCompoundDefinition)
+  public void setResolvedTypeDefinition(TypeDefinition resolvedTypeDefinition)
   {
-    this.resolvedCompoundDefinition = resolvedCompoundDefinition;
+    this.resolvedTypeDefinition = resolvedTypeDefinition;
   }
 
   /**

@@ -54,27 +54,11 @@ public class FieldAccessExpression extends Expression
   }
 
   /**
-   * @param baseExpression - the baseExpression to set
-   */
-  public void setBaseExpression(Expression baseExpression)
-  {
-    this.baseExpression = baseExpression;
-  }
-
-  /**
    * @return the baseType
    */
   public Type getBaseType()
   {
     return baseType;
-  }
-
-  /**
-   * @param baseType - the baseType to set
-   */
-  public void setBaseType(Type baseType)
-  {
-    this.baseType = baseType;
   }
 
   /**

@@ -1,6 +1,6 @@
 package eu.bryants.anthony.toylanguage.ast.metadata;
 
-import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
+import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 
 /*
@@ -13,22 +13,22 @@ import eu.bryants.anthony.toylanguage.ast.member.Field;
 public class MemberVariable extends Variable
 {
 
-  private CompoundDefinition enclosingDefinition;
+  private TypeDefinition enclosingTypeDefinition;
   private Field field;
 
-  public MemberVariable(Field field, CompoundDefinition enclosingDefinition)
+  public MemberVariable(Field field, TypeDefinition enclosingTypeDefinition)
   {
     super(field.isFinal(), field.getType(), field.getName());
-    this.enclosingDefinition = enclosingDefinition;
+    this.enclosingTypeDefinition = enclosingTypeDefinition;
     this.field = field;
   }
 
   /**
-   * @return the enclosingDefinition
+   * @return the enclosing TypeDefinition
    */
-  public CompoundDefinition getEnclosingDefinition()
+  public TypeDefinition getEnclosingTypeDefinition()
   {
-    return enclosingDefinition;
+    return enclosingTypeDefinition;
   }
 
   /**

@@ -7,6 +7,7 @@ import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
+import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.type.NamedType;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
@@ -31,8 +32,13 @@ public class CycleChecker
    */
   public static void checkCycles(CompilationUnit compilationUnit) throws ConceptualException
   {
-    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
+      if (!(typeDefinition instanceof CompoundDefinition))
+      {
+        continue;
+      }
+      CompoundDefinition compoundDefinition = (CompoundDefinition) typeDefinition;
       Set<CompoundDefinition> visited = new HashSet<CompoundDefinition>();
       visited.add(compoundDefinition);
       checkCycles(compoundDefinition, new LinkedList<Field>(), visited);
@@ -44,15 +50,22 @@ public class CycleChecker
     CompoundDefinition current = startDefinition;
     if (!fieldStack.isEmpty())
     {
-      current = ((NamedType) fieldStack.get(fieldStack.size() - 1).getType()).getResolvedDefinition();
+      NamedType type = (NamedType) fieldStack.get(fieldStack.size() - 1).getType();
+      current = (CompoundDefinition) type.getResolvedTypeDefinition();
     }
     for (Field field : current.getNonStaticFields())
     {
       Type type = field.getType();
       if (type instanceof NamedType)
       {
-        CompoundDefinition resolvedDefinition = ((NamedType) type).getResolvedDefinition();
-        if (visited.contains(resolvedDefinition))
+        TypeDefinition resolvedDefinition = ((NamedType) type).getResolvedTypeDefinition();
+        if (!(resolvedDefinition instanceof CompoundDefinition))
+        {
+          // skip any NamedType which isn't for a CompoundDefinition
+          continue;
+        }
+        CompoundDefinition compoundDefinition = (CompoundDefinition) resolvedDefinition;
+        if (visited.contains(compoundDefinition))
         {
           StringBuffer buffer = new StringBuffer();
           for (Field f : fieldStack)
@@ -64,9 +77,9 @@ public class CycleChecker
           throw new ConceptualException("Cycle detected in compound type '" + startDefinition.getQualifiedName() + "' at: " + buffer, field.getLexicalPhrase());
         }
         fieldStack.add(field);
-        visited.add(resolvedDefinition);
+        visited.add(compoundDefinition);
         checkCycles(startDefinition, fieldStack, visited);
-        visited.remove(resolvedDefinition);
+        visited.remove(compoundDefinition);
         fieldStack.remove(fieldStack.size() - 1);
       }
     }

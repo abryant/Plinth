@@ -6,7 +6,7 @@ import java.util.LinkedList;
 import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
-import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
+import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
@@ -78,40 +78,61 @@ public class ControlFlowChecker
    */
   public static void checkControlFlow(CompilationUnit compilationUnit) throws ConceptualException
   {
-    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
-      for (Constructor constructor : compoundDefinition.getConstructors())
+      Field[] nonStaticFields = typeDefinition.getNonStaticFields();
+      for (Constructor constructor : typeDefinition.getConstructors())
       {
-        Set<Variable> initialisedVariables = new HashSet<Variable>();
-        for (Parameter p : constructor.getParameters())
-        {
-          initialisedVariables.add(p.getVariable());
-        }
-        Set<Variable> possiblyInitialisedVariables = new HashSet<Variable>(initialisedVariables);
-        checkControlFlow(constructor.getBlock(), initialisedVariables, possiblyInitialisedVariables, new LinkedList<BreakableStatement>(), true, false);
-        for (Field field : compoundDefinition.getNonStaticFields())
-        {
-          if (!initialisedVariables.contains(field.getMemberVariable()))
-          {
-            throw new ConceptualException("Constructor does not always initialise the non-static field: " + field.getName(), constructor.getLexicalPhrase());
-          }
-        }
+        checkControlFlow(constructor, nonStaticFields);
       }
+      for (Method method : typeDefinition.getAllMethods())
+      {
+        checkControlFlow(method);
+      }
+    }
+  }
 
-      for (Method method : compoundDefinition.getAllMethods())
+  /**
+   * Checks that the control flow of the specified constructor is well defined.
+   * @param constructor - the constructor to check
+   * @param nonStaticFields - the non static fields that need to be initialised by the constructor
+   * @throws ConceptualException - if any control flow related errors are detected
+   */
+  private static void checkControlFlow(Constructor constructor, Field[] nonStaticFields) throws ConceptualException
+  {
+    Set<Variable> initialisedVariables = new HashSet<Variable>();
+    for (Parameter p : constructor.getParameters())
+    {
+      initialisedVariables.add(p.getVariable());
+    }
+    Set<Variable> possiblyInitialisedVariables = new HashSet<Variable>(initialisedVariables);
+    checkControlFlow(constructor.getBlock(), initialisedVariables, possiblyInitialisedVariables, new LinkedList<BreakableStatement>(), true, false);
+    for (Field field : nonStaticFields)
+    {
+      if (!initialisedVariables.contains(field.getMemberVariable()))
       {
-        Set<Variable> initialisedVariables = new HashSet<Variable>();
-        for (Parameter p : method.getParameters())
-        {
-          initialisedVariables.add(p.getVariable());
-        }
-        Set<Variable> possiblyInitialisedVariables = new HashSet<Variable>(initialisedVariables);
-        boolean returned = checkControlFlow(method.getBlock(), initialisedVariables, possiblyInitialisedVariables, new LinkedList<BreakableStatement>(), false, method.isStatic());
-        if (!returned && !(method.getReturnType() instanceof VoidType))
-        {
-          throw new ConceptualException("Method does not always return a value", method.getLexicalPhrase());
-        }
+        throw new ConceptualException("Constructor does not always initialise the non-static field: " + field.getName(), constructor.getLexicalPhrase());
       }
+    }
+  }
+
+  /**
+   * Checks that the control flow of the specified method is well defined.
+   * @param method - the method to check
+   * @throws ConceptualException - if any control flow related errors are detected
+   */
+  private static void checkControlFlow(Method method) throws ConceptualException
+  {
+    Set<Variable> initialisedVariables = new HashSet<Variable>();
+    for (Parameter p : method.getParameters())
+    {
+      initialisedVariables.add(p.getVariable());
+    }
+    Set<Variable> possiblyInitialisedVariables = new HashSet<Variable>(initialisedVariables);
+    boolean returned = checkControlFlow(method.getBlock(), initialisedVariables, possiblyInitialisedVariables, new LinkedList<BreakableStatement>(), false, method.isStatic());
+    if (!returned && !(method.getReturnType() instanceof VoidType))
+    {
+      throw new ConceptualException("Method does not always return a value", method.getLexicalPhrase());
     }
   }
 
@@ -689,12 +710,12 @@ public class ControlFlowChecker
         {
           // we are in a constructor, and we are calling a non-static method without a base expression (i.e. on 'this')
           // this should only be allowed if 'this' is fully initialised
-          CompoundDefinition compoundDefinition = functionCallExpression.getResolvedMethod().getContainingDefinition();
-          for (Field field : compoundDefinition.getNonStaticFields())
+          Method resolvedMethod = functionCallExpression.getResolvedMethod();
+          for (Field field : resolvedMethod.getContainingTypeDefinition().getNonStaticFields())
           {
             if (!initialisedVariables.contains(field.getMemberVariable()))
             {
-              throw new ConceptualException("Cannot call methods on 'this' here. Not all of the non-static fields of this '" + new NamedType(false, compoundDefinition) + "' have been initialised (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to initialise them before they're used", expression.getLexicalPhrase());
+              throw new ConceptualException("Cannot call methods on 'this' here. Not all of the non-static fields of this '" + new NamedType(false, resolvedMethod.getContainingTypeDefinition()) + "' have been initialised (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to initialise them before they're used", expression.getLexicalPhrase());
             }
           }
         }
@@ -767,8 +788,7 @@ public class ControlFlowChecker
       {
         // the type has already been resolved by the resolver, so we can access it here
         NamedType type = (NamedType) expression.getType();
-        CompoundDefinition compoundDefinition = type.getResolvedDefinition();
-        for (Field field : compoundDefinition.getNonStaticFields())
+        for (Field field : type.getResolvedTypeDefinition().getNonStaticFields())
         {
           if (!initialisedVariables.contains(field.getMemberVariable()))
           {

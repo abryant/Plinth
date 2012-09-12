@@ -1,10 +1,12 @@
-CompilationUnit = Imports | PackageKeyword QName Semicolon Imports | CompilationUnit CompoundTypeDef
+CompilationUnit = Imports | PackageKeyword QName Semicolon Imports | CompilationUnit CompoundTypeDef | CompilationUnit ClassTypeDef
 
 Imports = epsilon | Imports ImportKeyword QName Semicolon | Imports ImportKeyword QName Dot Star Semicolon
 
 QName = Name | QName Dot Name
 
+ClassTypeDef = ClassKeyword Name LBrace MemberList RBrace
 CompoundTypeDef = CompoundKeyword Name LBrace MemberList RBrace
+
 MemberList = epsilon |
              MemberList Field |
              MemberList Constructor |

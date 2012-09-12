@@ -2,6 +2,7 @@ package eu.bryants.anthony.toylanguage.parser;
 
 import parser.Rule;
 import parser.lalr.LALRRuleSet;
+import eu.bryants.anthony.toylanguage.parser.rules.ClassDefinitionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.CompilationUnitRule;
 import eu.bryants.anthony.toylanguage.parser.rules.CompoundDefinitionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.AdditiveExpressionRule;
@@ -113,6 +114,7 @@ public class ToyLanguageRules
 
     // top level
     // startRule does not need to be included here: new CompilationUnitRule(),
+    new ClassDefinitionRule(),
     new CompoundDefinitionRule(),
   };
 

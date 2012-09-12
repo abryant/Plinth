@@ -1,6 +1,6 @@
 package foo.bar;
 
-import test.asdf;
+import test.Asdf;
 
 compound complex
 {

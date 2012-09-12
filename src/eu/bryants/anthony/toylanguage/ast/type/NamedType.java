@@ -3,8 +3,10 @@ package eu.bryants.anthony.toylanguage.ast.type;
 import java.util.HashSet;
 import java.util.Set;
 
+import eu.bryants.anthony.toylanguage.ast.ClassDefinition;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
@@ -22,7 +24,7 @@ public class NamedType extends Type
 
   private QName qname;
 
-  private CompoundDefinition resolvedDefinition;
+  private TypeDefinition resolvedTypeDefinition;
 
   public NamedType(boolean nullable, QName qname, LexicalPhrase lexicalPhrase)
   {
@@ -30,11 +32,11 @@ public class NamedType extends Type
     this.qname = qname;
   }
 
-  public NamedType(boolean nullable, CompoundDefinition compoundDefinition)
+  public NamedType(boolean nullable, TypeDefinition typeDefinition)
   {
     super(nullable, null);
-    this.qname = compoundDefinition.getQualifiedName();
-    this.resolvedDefinition = compoundDefinition;
+    this.qname = typeDefinition.getQualifiedName();
+    this.resolvedTypeDefinition = typeDefinition;
   }
 
   /**
@@ -46,19 +48,19 @@ public class NamedType extends Type
   }
 
   /**
-   * @return the resolvedDefinition
+   * @return the resolved TypeDefinition
    */
-  public CompoundDefinition getResolvedDefinition()
+  public TypeDefinition getResolvedTypeDefinition()
   {
-    return resolvedDefinition;
+    return resolvedTypeDefinition;
   }
 
   /**
-   * @param resolvedDefinition - the resolvedDefinition to set
+   * @param resolvedTypeDefinition - the resolved TypeDefinition to set
    */
-  public void setResolvedDefinition(CompoundDefinition resolvedDefinition)
+  public void setResolvedTypeDefinition(TypeDefinition resolvedTypeDefinition)
   {
-    this.resolvedDefinition = resolvedDefinition;
+    this.resolvedTypeDefinition = resolvedTypeDefinition;
   }
 
   /**
@@ -81,8 +83,12 @@ public class NamedType extends Type
     {
       return false;
     }
-    // TODO: when we add classes, make this more general
-    return resolvedDefinition.equals(((NamedType) type).getResolvedDefinition());
+    // TODO: when we add inheritance, make this more general
+    if (resolvedTypeDefinition != null)
+    {
+      return resolvedTypeDefinition.equals(((NamedType) type).getResolvedTypeDefinition());
+    }
+    throw new IllegalStateException("Cannot check whether two types are assign-compatible before they are resolved");
   }
 
   /**
@@ -91,7 +97,11 @@ public class NamedType extends Type
   @Override
   public boolean isEquivalent(Type type)
   {
-    return type instanceof NamedType && isNullable() == type.isNullable() && resolvedDefinition.equals(((NamedType) type).getResolvedDefinition());
+    if (resolvedTypeDefinition != null)
+    {
+      return type instanceof NamedType && isNullable() == type.isNullable() && resolvedTypeDefinition.equals(((NamedType) type).getResolvedTypeDefinition());
+    }
+    throw new IllegalStateException("Cannot check for type equivalence before the named type is resolved");
   }
 
   /**
@@ -100,18 +110,22 @@ public class NamedType extends Type
   @Override
   public Set<Member> getMembers(String name)
   {
-    HashSet<Member> set = new HashSet<Member>();
-    Field field = resolvedDefinition.getField(name);
-    if (field != null)
+    if (resolvedTypeDefinition != null)
     {
-      set.add(field);
+      HashSet<Member> set = new HashSet<Member>();
+      Field field = resolvedTypeDefinition.getField(name);
+      if (field != null)
+      {
+        set.add(field);
+      }
+      Set<Method> methodSet = resolvedTypeDefinition.getMethodsByName(name);
+      if (methodSet != null)
+      {
+        set.addAll(methodSet);
+      }
+      return set;
     }
-    Set<Method> methodSet = resolvedDefinition.getMethodsByName(name);
-    if (methodSet != null)
-    {
-      set.addAll(methodSet);
-    }
-    return set;
+    throw new IllegalStateException("Cannot get the members of a NamedType before it is resolved");
   }
 
   /**
@@ -120,8 +134,15 @@ public class NamedType extends Type
   @Override
   public String getMangledName()
   {
-    // TODO: this should eventually use the fully-qualified name, and may need to differ between compound and class types
-    return (isNullable() ? "?" : "") + "{" + resolvedDefinition.getQualifiedName() + "}";
+    if (resolvedTypeDefinition != null && resolvedTypeDefinition instanceof ClassDefinition)
+    {
+      return (isNullable() ? "?" : "") + "{" + resolvedTypeDefinition.getQualifiedName() + "}";
+    }
+    else if (resolvedTypeDefinition != null && resolvedTypeDefinition instanceof CompoundDefinition)
+    {
+      return (isNullable() ? "?" : "") + "{$" + resolvedTypeDefinition.getQualifiedName() + "}";
+    }
+    throw new IllegalStateException("Cannot get a mangled name before the NamedType is resolved");
   }
 
   /**

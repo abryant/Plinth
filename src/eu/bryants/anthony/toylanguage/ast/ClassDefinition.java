@@ -19,13 +19,13 @@ import eu.bryants.anthony.toylanguage.ast.metadata.MemberVariable;
 import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 
 /*
- * Created on 9 May 2012
+ * Created on 9 Sep 2012
  */
 
 /**
  * @author Anthony Bryant
  */
-public class CompoundDefinition extends TypeDefinition
+public class ClassDefinition extends TypeDefinition
 {
 
   // fields needs a guaranteed order, so use a LinkedHashMap to store them
@@ -35,7 +35,7 @@ public class CompoundDefinition extends TypeDefinition
 
   private Field[] nonStaticFields;
 
-  public CompoundDefinition(String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  public ClassDefinition(String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     super(name, lexicalPhrase);
     // add all of the members by name
@@ -72,7 +72,7 @@ public class CompoundDefinition extends TypeDefinition
         Constructor constructor = (Constructor) member;
         if (!constructor.getName().equals(name))
         {
-          throw new LanguageParseException("The constructor '" + constructor.getName() + "' should be called '" + name + "' after the compound type it is defined in", constructor.getLexicalPhrase());
+          throw new LanguageParseException("The constructor '" + constructor.getName() + "' should be called '" + name + "' after the class type it is defined in", constructor.getLexicalPhrase());
         }
         constructor.setContainingTypeDefinition(this);
         constructors.add(constructor);
@@ -134,7 +134,7 @@ public class CompoundDefinition extends TypeDefinition
   }
 
   /**
-   * @return the constructors of this CompoundDefinition
+   * @return the constructors of this ClassDefinition
    */
   @Override
   public Collection<Constructor> getConstructors()
@@ -143,7 +143,7 @@ public class CompoundDefinition extends TypeDefinition
   }
 
   /**
-   * @return an array containing all of the methods in this CompoundDefinition
+   * @return an array containing all of the methods in this ClassDefinition
    */
   @Override
   public Method[] getAllMethods()
@@ -182,6 +182,6 @@ public class CompoundDefinition extends TypeDefinition
   @Override
   public String toString()
   {
-    return "compound " + getName() + "\n" + getBodyString() + "\n";
+    return "class " + getName() + "\n" + getBodyString() + "\n";
   }
 }

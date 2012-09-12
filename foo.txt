@@ -2,14 +2,14 @@ package test;
 
 import foo.bar.*;
 
-compound asdf
+class Asdf
 {
   uint a;
-  asdf(:asdf other)
+  Asdf(:Asdf other)
   {
     a = other.a;
   }
-  asdf(uint b)
+  Asdf(uint b)
   {
     a = b;
   }

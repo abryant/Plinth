@@ -3,6 +3,7 @@ package eu.bryants.anthony.toylanguage.parser.rules;
 import parser.ParseException;
 import parser.Production;
 import parser.Rule;
+import eu.bryants.anthony.toylanguage.ast.ClassDefinition;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
@@ -24,12 +25,13 @@ public class CompilationUnitRule extends Rule<ParseType>
 
   private static Production<ParseType> IMPORTS_PRODUCTION = new Production<ParseType>(ParseType.IMPORTS);
   private static Production<ParseType> PACKAGE_IMPORTS_PRODUCTION = new Production<ParseType>(ParseType.PACKAGE_KEYWORD, ParseType.QNAME, ParseType.SEMICOLON, ParseType.IMPORTS);
+  private static Production<ParseType> CLASS_PRODUCTION = new Production<ParseType>(ParseType.COMPILATION_UNIT, ParseType.CLASS_DEFINITION);
   private static Production<ParseType> COMPOUND_PRODUCTION = new Production<ParseType>(ParseType.COMPILATION_UNIT, ParseType.COMPOUND_DEFINITION);
 
   @SuppressWarnings("unchecked")
   public CompilationUnitRule()
   {
-    super(ParseType.COMPILATION_UNIT, IMPORTS_PRODUCTION, PACKAGE_IMPORTS_PRODUCTION, COMPOUND_PRODUCTION);
+    super(ParseType.COMPILATION_UNIT, IMPORTS_PRODUCTION, PACKAGE_IMPORTS_PRODUCTION, CLASS_PRODUCTION, COMPOUND_PRODUCTION);
   }
 
   /**
@@ -51,11 +53,18 @@ public class CompilationUnitRule extends Rule<ParseType>
       ParseList<Import> list = (ParseList<Import>) args[3];
       return new CompilationUnit(qname, list.toArray(new Import[list.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], qname.getLexicalPhrase(), (LexicalPhrase) args[2], list.getLexicalPhrase()));
     }
+    if (production == CLASS_PRODUCTION)
+    {
+      CompilationUnit compilationUnit = (CompilationUnit) args[0];
+      ClassDefinition classDefinition = (ClassDefinition) args[1];
+      compilationUnit.addType(classDefinition, LexicalPhrase.combine(compilationUnit.getLexicalPhrase(), classDefinition.getLexicalPhrase()));
+      return compilationUnit;
+    }
     if (production == COMPOUND_PRODUCTION)
     {
       CompilationUnit compilationUnit = (CompilationUnit) args[0];
-      CompoundDefinition compound = (CompoundDefinition) args[1];
-      compilationUnit.addCompound(compound, LexicalPhrase.combine(compilationUnit.getLexicalPhrase(), compound.getLexicalPhrase()));
+      CompoundDefinition compoundDefinition = (CompoundDefinition) args[1];
+      compilationUnit.addType(compoundDefinition, LexicalPhrase.combine(compilationUnit.getLexicalPhrase(), compoundDefinition.getLexicalPhrase()));
       return compilationUnit;
     }
     throw badTypeList();

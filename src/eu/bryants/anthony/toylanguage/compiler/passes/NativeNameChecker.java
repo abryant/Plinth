@@ -4,8 +4,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
-import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
@@ -39,53 +39,102 @@ public class NativeNameChecker
   {
     Set<String> usedNativeNames = new HashSet<String>();
 
-    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
-      for (Constructor constructor : compoundDefinition.getConstructors())
+      for (Constructor constructor : typeDefinition.getConstructors())
       {
-        checkForbidden(constructor.getMangledName(), constructor.getLexicalPhrase());
-        boolean newName = usedNativeNames.add(constructor.getMangledName());
-        if (!newName)
-        {
-          throw new ConceptualException("Duplicate native name: " + constructor.getMangledName(), constructor.getLexicalPhrase());
-        }
+        checkNativeName(constructor, usedNativeNames);
       }
-      for (Field field : compoundDefinition.getFields())
+      for (Field field : typeDefinition.getFields())
       {
-        if (field.isStatic())
-        {
-          GlobalVariable global = field.getGlobalVariable();
-          checkForbidden(global.getMangledName(), field.getLexicalPhrase());
-          boolean newName = usedNativeNames.add(global.getMangledName());
-          if (!newName)
-          {
-            throw new ConceptualException("Duplicate native name: " + global.getMangledName(), field.getLexicalPhrase());
-          }
-        }
+        checkNativeName(field, usedNativeNames);
       }
-      for (Method method : compoundDefinition.getAllMethods())
+      for (Method method : typeDefinition.getAllMethods())
       {
-        checkForbidden(method.getMangledName(), method.getLexicalPhrase());
-        boolean newName = usedNativeNames.add(method.getMangledName());
-        if (!newName)
-        {
-          throw new ConceptualException("Duplicate native name: " + method.getMangledName(), method.getLexicalPhrase());
-        }
+        checkMangledNativeName(method, usedNativeNames);
       }
-      // iterate over the methods a second time, so that we know all of the mangled names before we check the user specified names
-      // this should ensure that when we have a duplicate, the name that the user specifies is flagged as an error, not the mangled name of the function
-      for (Method method : compoundDefinition.getAllMethods())
+    }
+
+    // iterate over the methods a second time, so that we know all of the mangled names before we check the user specified names
+    // this should ensure that when we have a duplicate, the name that the user specifies is flagged as an error, not the mangled name of the function
+    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
+    {
+      for (Method method : typeDefinition.getAllMethods())
       {
-        String nativeName = method.getNativeName();
-        if (nativeName != null)
-        {
-          checkForbidden(nativeName, method.getLexicalPhrase());
-          boolean newName = usedNativeNames.add(nativeName);
-          if (!newName)
-          {
-            throw new ConceptualException("Duplicate native name: " + nativeName, method.getLexicalPhrase());
-          }
-        }
+        checkSpecifiedNativeName(method, usedNativeNames);
+      }
+    }
+  }
+
+  /**
+   * Checks whether the specified Constructor has a forbidden or duplicated native name.
+   * @param constructor - the Constructor to check
+   * @param usedNativeNames - the set of used native names to check against
+   * @throws ConceptualException - if a bad native name is found
+   */
+  private static void checkNativeName(Constructor constructor, Set<String> usedNativeNames) throws ConceptualException
+  {
+    checkForbidden(constructor.getMangledName(), constructor.getLexicalPhrase());
+    boolean newName = usedNativeNames.add(constructor.getMangledName());
+    if (!newName)
+    {
+      throw new ConceptualException("Duplicate native name: " + constructor.getMangledName(), constructor.getLexicalPhrase());
+    }
+  }
+
+  /**
+   * Checks whether the specified Field has a forbidden or duplicated native name.
+   * @param field - the Field to check
+   * @param usedNativeNames - the set of used native names to check against
+   * @throws ConceptualException - if a bad native name is found
+   */
+  private static void checkNativeName(Field field, Set<String> usedNativeNames) throws ConceptualException
+  {
+    if (!field.isStatic())
+    {
+      return;
+    }
+    GlobalVariable global = field.getGlobalVariable();
+    checkForbidden(global.getMangledName(), field.getLexicalPhrase());
+    boolean newName = usedNativeNames.add(global.getMangledName());
+    if (!newName)
+    {
+      throw new ConceptualException("Duplicate native name: " + global.getMangledName(), field.getLexicalPhrase());
+    }
+  }
+
+  /**
+   * Checks whether the specified Method has a forbidden or duplicated mangled native name.
+   * @param method - the Method to check
+   * @param usedNativeNames - the set of used native names to check against
+   * @throws ConceptualException - if a bad native name is found
+   */
+  private static void checkMangledNativeName(Method method, Set<String> usedNativeNames) throws ConceptualException
+  {
+    checkForbidden(method.getMangledName(), method.getLexicalPhrase());
+    boolean newName = usedNativeNames.add(method.getMangledName());
+    if (!newName)
+    {
+      throw new ConceptualException("Duplicate native name: " + method.getMangledName(), method.getLexicalPhrase());
+    }
+  }
+
+  /**
+   * Checks whether the specified Method has a forbidden or duplicated user-specified native name.
+   * @param method - the Method to check
+   * @param usedNativeNames - the set of used native names to check against
+   * @throws ConceptualException - if a bad native name is found
+   */
+  private static void checkSpecifiedNativeName(Method method, Set<String> usedNativeNames) throws ConceptualException
+  {
+    String nativeName = method.getNativeName();
+    if (nativeName != null)
+    {
+      checkForbidden(nativeName, method.getLexicalPhrase());
+      boolean newName = usedNativeNames.add(nativeName);
+      if (!newName)
+      {
+        throw new ConceptualException("Duplicate native name: " + nativeName, method.getLexicalPhrase());
       }
     }
   }

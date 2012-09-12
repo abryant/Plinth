@@ -21,7 +21,7 @@ public class CompilationUnit
   private QName declaredPackage;
   private Import[] imports;
 
-  private Map<String, CompoundDefinition> compoundDefinitions = new HashMap<String, CompoundDefinition>();
+  private Map<String, TypeDefinition> typeDefinitions = new HashMap<String, TypeDefinition>();
 
   private LexicalPhrase lexicalPhrase;
 
@@ -35,25 +35,25 @@ public class CompilationUnit
   }
 
   /**
-   * Adds the specified compound type definition to this compilation unit.
-   * @param compound - the compound to add
+   * Adds the specified type definition to this compilation unit.
+   * @param typeDefinition - the TypeDefinition to add
    * @param newLexicalPhrase - the new LexicalPhrase for this compilation unit
-   * @throws LanguageParseException - if a compound with the same name already exists in this compilation unit
+   * @throws LanguageParseException - if a type with the same name already exists in this compilation unit
    */
-  public void addCompound(CompoundDefinition compound, LexicalPhrase newLexicalPhrase) throws LanguageParseException
+  public void addType(TypeDefinition typeDefinition, LexicalPhrase newLexicalPhrase) throws LanguageParseException
   {
-    CompoundDefinition oldValue = compoundDefinitions.put(compound.getName(), compound);
-    if (oldValue != null)
+    if (typeDefinitions.containsKey(typeDefinition.getName()))
     {
-      throw new LanguageParseException("Duplicated compound type: " + compound.getName(), compound.getLexicalPhrase());
+      throw new LanguageParseException("Duplicate type name: a type named '" + typeDefinition.getName() + "' already exists in this compilation unit", typeDefinition.getLexicalPhrase());
     }
+    typeDefinitions.put(typeDefinition.getName(), typeDefinition);
     if (declaredPackage == null)
     {
-      compound.setQName(new QName(compound.getName(), null));
+      typeDefinition.setQualifiedName(new QName(typeDefinition.getName(), null));
     }
     else
     {
-      compound.setQName(new QName(declaredPackage, compound.getName(), null));
+      typeDefinition.setQualifiedName(new QName(declaredPackage, typeDefinition.getName(), null));
     }
     lexicalPhrase = newLexicalPhrase;
   }
@@ -91,20 +91,20 @@ public class CompilationUnit
   }
 
   /**
-   * @return the compoundDefinitions
+   * @return the typeDefinitions
    */
-  public Collection<CompoundDefinition> getCompoundDefinitions()
+  public Collection<TypeDefinition> getTypeDefinitions()
   {
-    return compoundDefinitions.values();
+    return typeDefinitions.values();
   }
 
   /**
-   * @param name - the name of the compound definition to get
-   * @return the compound definition with the specified name, or null if none exists
+   * @param name - the name of the TypeDefinition to get
+   * @return the TypeDefinition with the specified name, or null if none exists
    */
-  public CompoundDefinition getCompoundDefinition(String name)
+  public TypeDefinition getTypeDefinition(String name)
   {
-    return compoundDefinitions.get(name);
+    return typeDefinitions.get(name);
   }
 
   /**
@@ -134,9 +134,9 @@ public class CompilationUnit
       }
       buffer.append('\n');
     }
-    for (CompoundDefinition compoundDefinition : compoundDefinitions.values())
+    for (TypeDefinition typeDefinition : typeDefinitions.values())
     {
-      buffer.append(compoundDefinition);
+      buffer.append(typeDefinition);
       buffer.append('\n');
     }
     return buffer.toString();

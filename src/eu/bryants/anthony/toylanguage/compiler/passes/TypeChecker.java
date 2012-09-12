@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
-import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
+import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayCreationExpression;
@@ -80,17 +80,17 @@ public class TypeChecker
 {
   public static void checkTypes(CompilationUnit compilationUnit) throws ConceptualException
   {
-    for (CompoundDefinition compoundDefinition : compilationUnit.getCompoundDefinitions())
+    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
-      for (Constructor constructor : compoundDefinition.getConstructors())
+      for (Constructor constructor : typeDefinition.getConstructors())
       {
         checkTypes(constructor.getBlock(), VoidType.VOID_TYPE, compilationUnit);
       }
-      for (Field field : compoundDefinition.getFields())
+      for (Field field : typeDefinition.getFields())
       {
         checkTypes(field);
       }
-      for (Method method : compoundDefinition.getAllMethods())
+      for (Method method : typeDefinition.getAllMethods())
       {
         checkTypes(method.getBlock(), method.getReturnType(), compilationUnit);
       }
@@ -854,7 +854,7 @@ public class TypeChecker
       else if (functionCallExpression.getResolvedConstructor() != null)
       {
         parameters = functionCallExpression.getResolvedConstructor().getParameters();
-        returnType = new NamedType(false, functionCallExpression.getResolvedConstructor().getContainingDefinition());
+        returnType = new NamedType(false, functionCallExpression.getResolvedConstructor().getContainingTypeDefinition());
         name = functionCallExpression.getResolvedConstructor().getName();
       }
       else if (functionCallExpression.getResolvedBaseExpression() != null)
@@ -1354,7 +1354,7 @@ public class TypeChecker
     }
     if (type instanceof NamedType)
     {
-      return new NamedType(nullable, ((NamedType) type).getResolvedDefinition());
+      return new NamedType(nullable, ((NamedType) type).getResolvedTypeDefinition());
     }
     if (type instanceof PrimitiveType)
     {

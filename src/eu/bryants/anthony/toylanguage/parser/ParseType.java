@@ -17,6 +17,7 @@ public enum ParseType
 
   COMPILATION_UNIT,              // CompilationUnit
   IMPORTS,                       // ParseList<Import>
+  CLASS_DEFINITION,              // ClassDefinition
   COMPOUND_DEFINITION,           // CompoundDefinition
 
   // Members
@@ -133,6 +134,7 @@ public enum ParseType
   BREAK_KEYWORD,
   BYTE_KEYWORD,
   CAST_KEYWORD,
+  CLASS_KEYWORD,
   COMPOUND_KEYWORD,
   CONTINUE_KEYWORD,
   DOUBLE_KEYWORD,
