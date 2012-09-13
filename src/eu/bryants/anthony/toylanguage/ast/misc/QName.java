@@ -43,6 +43,19 @@ public class QName
   }
 
   /**
+   * Creates a new QName with the specified list of names.
+   * @param names - the list of names for this new QName
+   */
+  public QName(String[] names)
+  {
+    if (names == null || names.length < 1)
+    {
+      throw new IllegalArgumentException("Cannot create a QName with no sub-names");
+    }
+    this.names = names;
+  }
+
+  /**
    * @return the names
    */
   public String[] getNames()

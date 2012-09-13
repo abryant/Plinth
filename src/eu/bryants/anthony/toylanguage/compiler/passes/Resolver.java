@@ -7,6 +7,7 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.Stack;
 
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
@@ -893,48 +894,87 @@ public class Resolver
       else if (functionExpression instanceof FieldAccessExpression)
       {
         FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) functionExpression;
-        String name = fieldAccessExpression.getFieldName();
 
-        Expression baseExpression = fieldAccessExpression.getBaseExpression();
-        Type baseType;
-        boolean baseIsStatic;
-        if (baseExpression != null)
+        // first, check whether this is a call to a constructor of a CompoundDefinition
+        QName qname = extractFieldAccessQName(fieldAccessExpression);
+        if (qname != null)
         {
-          resolve(baseExpression, block, enclosingDefinition, compilationUnit);
-          // TODO: allow constructor calls for CompoundDefinitions here somehow (or find a better syntax for them)
-
-          // find the type of the sub-expression, by calling the type checker
-          // this is fine as long as we resolve all of the sub-expression first
-          baseType = TypeChecker.checkTypes(baseExpression, compilationUnit);
-          baseIsStatic = false;
-        }
-        else if (fieldAccessExpression.getBaseType() != null)
-        {
-          baseType = fieldAccessExpression.getBaseType();
-          resolve(baseType, compilationUnit);
-          baseIsStatic = true;
-        }
-        else
-        {
-          throw new IllegalStateException("Unknown base type for a field access: " + fieldAccessExpression);
-        }
-
-        if (baseType instanceof NamedType)
-        {
-          TypeDefinition typeDefinition = ((NamedType) baseType).getResolvedTypeDefinition();
-          Set<Method> methodSet = typeDefinition.getMethodsByName(name);
-          if (methodSet != null)
+          try
           {
-            for (Method m : methodSet)
+            NamedType type = new NamedType(false, qname, null);
+            resolve(type, compilationUnit);
+            TypeDefinition typeDefinition = type.getResolvedTypeDefinition();
+            if (typeDefinition != null && typeDefinition instanceof CompoundDefinition)
             {
-              // only allow access to this method if it is called in the right way, depending on whether or not it is static
-              if (m.isStatic() == baseIsStatic)
+              for (Constructor c : typeDefinition.getConstructors())
               {
-                paramLists.put(m.getParameters(), m);
-                methodBaseExpressions.put(m, baseExpression);
+                paramLists.put(c.getParameters(), c);
               }
             }
           }
+          catch (NameNotResolvedException e)
+          {
+            // ignore this error, just assume it wasn't meant to resolve to a constructor call
+          }
+          catch (ConceptualException e)
+          {
+            // ignore this error, just assume it wasn't meant to resolve to a constructor call
+          }
+        }
+
+        // now look for normal method accesses
+        try
+        {
+          String name = fieldAccessExpression.getFieldName();
+
+          Expression baseExpression = fieldAccessExpression.getBaseExpression();
+          Type baseType;
+          boolean baseIsStatic;
+          if (baseExpression != null)
+          {
+            resolve(baseExpression, block, enclosingDefinition, compilationUnit);
+
+            // find the type of the sub-expression, by calling the type checker
+            // this is fine as long as we resolve all of the sub-expression first
+            baseType = TypeChecker.checkTypes(baseExpression, compilationUnit);
+            baseIsStatic = false;
+          }
+          else if (fieldAccessExpression.getBaseType() != null)
+          {
+            baseType = fieldAccessExpression.getBaseType();
+            resolve(baseType, compilationUnit);
+            baseIsStatic = true;
+          }
+          else
+          {
+            throw new IllegalStateException("Unknown base type for a field access: " + fieldAccessExpression);
+          }
+
+          if (baseType instanceof NamedType)
+          {
+            TypeDefinition typeDefinition = ((NamedType) baseType).getResolvedTypeDefinition();
+            Set<Method> methodSet = typeDefinition.getMethodsByName(name);
+            if (methodSet != null)
+            {
+              for (Method m : methodSet)
+              {
+                // only allow access to this method if it is called in the right way, depending on whether or not it is static
+                if (m.isStatic() == baseIsStatic)
+                {
+                  paramLists.put(m.getParameters(), m);
+                  methodBaseExpressions.put(m, baseExpression);
+                }
+              }
+            }
+          }
+        }
+        catch (NameNotResolvedException e)
+        {
+          // ignore this error, just assume it wasn't meant to resolve to a method call
+        }
+        catch (ConceptualException e)
+        {
+          // ignore this error, just assume it wasn't meant to resolve to a method call
         }
       }
 
@@ -1076,6 +1116,46 @@ public class Resolver
     {
       throw new ConceptualException("Internal name resolution error: Unknown expression type", expression.getLexicalPhrase());
     }
+  }
+
+  /**
+   * Tries to extract a qualified name from the specified FieldAccessExpression, but fails if it doesn't look EXACTLY like one.
+   * @param fieldAccessExpression - the FieldAccessExpression to extract the QName from
+   * @return the QName from the specified FieldAccessExpression, or null if it isn't just a QName
+   */
+  private static QName extractFieldAccessQName(FieldAccessExpression fieldAccessExpression)
+  {
+    Stack<String> nameStack = new Stack<String>();
+    FieldAccessExpression current = fieldAccessExpression;
+    while (current != null)
+    {
+      nameStack.push(current.getFieldName());
+      // TODO: when we add '?.', make sure this FieldAccessExpression doesn't use it
+      if (current.getBaseExpression() == null || current.getBaseType() != null)
+      {
+        return null;
+      }
+      Expression baseExpression = current.getBaseExpression();
+      if (baseExpression instanceof FieldAccessExpression)
+      {
+        current = (FieldAccessExpression) baseExpression;
+      }
+      else if (baseExpression instanceof VariableExpression)
+      {
+        nameStack.push(((VariableExpression) baseExpression).getName());
+        String[] names = new String[nameStack.size()];
+        for (int i = 0; i < names.length; ++i)
+        {
+          names[i] = nameStack.pop();
+        }
+        return new QName(names);
+      }
+      else
+      {
+        return null;
+      }
+    }
+    throw new IllegalStateException("Unknown error extracting a QName from a FieldAccessExpression");
   }
 
   /**

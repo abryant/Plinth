@@ -1,6 +1,6 @@
 package test;
 
-import foo.bar.*;
+import foo.*;
 
 class Asdf
 {
@@ -14,9 +14,10 @@ class Asdf
     a = b;
   }
   
-  static :complex process(:complex c)
+  static :bar.complex process(:bar.complex c)
   {
-    return :complex::rotateLeft(c);
+    :bar.complex argh = bar.complex(12, 5);
+    return :bar.complex::rotateLeft(c);
   }
 }
 
