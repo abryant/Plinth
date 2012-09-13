@@ -200,6 +200,7 @@ public class CodeGenerator
     {
       return existingFunc;
     }
+    TypeDefinition typeDefinition = constructor.getContainingTypeDefinition();
 
     Parameter[] parameters = constructor.getParameters();
     LLVMTypeRef[] types = null;
@@ -251,6 +252,7 @@ public class CodeGenerator
     {
       return existingFunc;
     }
+    TypeDefinition typeDefinition = method.getContainingTypeDefinition();
 
     Parameter[] parameters = method.getParameters();
     LLVMTypeRef[] types;
