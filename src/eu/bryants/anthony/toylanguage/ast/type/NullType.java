@@ -66,4 +66,13 @@ public class NullType extends Type
   {
     return true;
   }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String toString()
+  {
+    return "null";
+  }
 }
