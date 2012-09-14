@@ -6,6 +6,7 @@ import eu.bryants.anthony.toylanguage.parser.rules.ClassDefinitionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.CompilationUnitRule;
 import eu.bryants.anthony.toylanguage.parser.rules.CompoundDefinitionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.AdditiveExpressionRule;
+import eu.bryants.anthony.toylanguage.parser.rules.expression.ClassCreationExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.ComparisonExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.DimensionsRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.ExpressionListRule;
@@ -63,6 +64,7 @@ public class ToyLanguageRules
   {
     // expression
     new AdditiveExpressionRule(),
+    new ClassCreationExpressionRule(),
     new ComparisonExpressionRule(),
     new DimensionsRule(),
     new ExpressionListRule(),

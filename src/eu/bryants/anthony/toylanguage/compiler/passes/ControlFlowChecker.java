@@ -15,6 +15,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ClassCreationExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
@@ -658,6 +659,13 @@ public class ControlFlowChecker
     else if (expression instanceof CastExpression)
     {
       checkUninitialisedVariables(((CastExpression) expression).getExpression(), initialisedVariables, inConstructor, inStaticContext);
+    }
+    else if (expression instanceof ClassCreationExpression)
+    {
+      for (Expression argument : ((ClassCreationExpression) expression).getArguments())
+      {
+        checkUninitialisedVariables(argument, initialisedVariables, inConstructor, inStaticContext);
+      }
     }
     else if (expression instanceof ComparisonExpression)
     {

@@ -10,6 +10,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ClassCreationExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
@@ -145,8 +146,8 @@ public class TypePropagator
     {
       Expression expression = ((ExpressionStatement) statement).getExpression();
       // use the type of the expression
-      // since the only possible ExpressionStatements are FunctionCallExpressions,
-      // and functions always have user-specified return types, this should always be correct
+      // since the only possible ExpressionStatements are FunctionCallExpressions and ClassCreationExpressions,
+      // and these both always have user-specified return types, this should always be correct
       propagateTypes(expression, expression.getType());
     }
     else if (statement instanceof ForStatement)
@@ -305,6 +306,21 @@ public class TypePropagator
     {
       CastExpression castExpression = (CastExpression) expression;
       propagateTypes(castExpression.getExpression(), castExpression.getType());
+    }
+    else if (expression instanceof ClassCreationExpression)
+    {
+      ClassCreationExpression classCreationExpression = (ClassCreationExpression) expression;
+      Constructor resolvedConstructor = classCreationExpression.getResolvedConstructor();
+      Parameter[] parameters = resolvedConstructor.getParameters();
+      Expression[] arguments = classCreationExpression.getArguments();
+      if (parameters.length != arguments.length)
+      {
+        throw new IllegalStateException("A constructor call must have the same number of arguments as the Constructor has parameters (" + parameters.length + " parameters vs " + arguments.length + " arguments)");
+      }
+      for (int i = 0; i < parameters.length; ++i)
+      {
+        propagateTypes(arguments[i], parameters[i].getType());
+      }
     }
     else if (expression instanceof ComparisonExpression)
     {

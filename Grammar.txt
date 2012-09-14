@@ -30,7 +30,8 @@ Block = LBrace Statements RBrace
 Statements = epsilon | Statements Statement
 Statement = Assignment | Block | BreakStatement | ContinueStatement | ForStatement | IfStatement | PrefixIncDecStatement | ReturnStatement | WhileStatement |
             ShorthandAssignment Semicolon |
-            FunctionCallExpression Semicolon
+            FunctionCallExpression Semicolon |
+            ClassCreationExpression Semicolon
 
 Assignee = Name |
            Primary LSquare TupleExpression RSquare |
@@ -117,7 +118,9 @@ PrimaryNoTrailingType = IntegerLiteral | DoubleLiteral |
                         PrimaryNoTrailingType Dot Name |
                         Type DoubleColon Name |
                         FunctionCallExpression |
-                        LParen TupleExpression RParen
+                        LParen TupleExpression RParen |
+                        ClassCreationExpression
+ClassCreationExpression = NewKeyword QName LParen ExpressionList RParen | NewKeyword QName LParen RParen
 FunctionCallExpression = Primary LParen ExpressionList RParen | Primary LParen RParen
 ExpressionList = Expression | ExpressionList Comma Expression
 

@@ -5,6 +5,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
+import eu.bryants.anthony.toylanguage.ast.ClassDefinition;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
@@ -15,6 +16,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ClassCreationExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression.ComparisonOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
@@ -726,6 +728,46 @@ public class TypeChecker
         }
       }
       throw new ConceptualException("Cannot cast from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
+    }
+    else if (expression instanceof ClassCreationExpression)
+    {
+      ClassCreationExpression classCreationExpression = (ClassCreationExpression) expression;
+      Type type = expression.getType();
+      if (!(type instanceof NamedType))
+      {
+        throw new ConceptualException("Cannot use the 'new' operator on '" + type + "', it must be on a class definition", expression.getLexicalPhrase());
+      }
+      NamedType namedType = (NamedType) type;
+      TypeDefinition resolvedTypeDefinition = namedType.getResolvedTypeDefinition();
+      if (resolvedTypeDefinition == null || !(resolvedTypeDefinition instanceof ClassDefinition))
+      {
+        throw new ConceptualException("Cannot use the 'new' operator on '" + type + "', it must be on a class definition", expression.getLexicalPhrase());
+      }
+      Expression[] arguments = classCreationExpression.getArguments();
+      Constructor constructor = classCreationExpression.getResolvedConstructor();
+      Parameter[] parameters = constructor.getParameters();
+      if (arguments.length != parameters.length)
+      {
+        StringBuffer buffer = new StringBuffer();
+        for (int i = 0; i < parameters.length; i++)
+        {
+          buffer.append(parameters[i].getType());
+          if (i != parameters.length - 1)
+          {
+            buffer.append(", ");
+          }
+        }
+        throw new ConceptualException("The constructor '" + constructor.getName() + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", classCreationExpression.getLexicalPhrase());
+      }
+      for (int i = 0; i < arguments.length; ++i)
+      {
+        Type argumentType = checkTypes(arguments[i], compilationUnit);
+        if (!parameters[i].getType().canAssign(argumentType))
+        {
+          throw new ConceptualException("Cannot pass an argument of type '" + argumentType + "' as a parameter of type '" + parameters[i].getType() + "'", arguments[i].getLexicalPhrase());
+        }
+      }
+      return type;
     }
     else if (expression instanceof ComparisonExpression)
     {

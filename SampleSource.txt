@@ -54,21 +54,8 @@ compound complex
 
   static native uint main(final uint argc)
   {
-    ++:complex::testfloat;
-    final int x;
-    if argc < 2
-    {
-      x = 1;
-    }
-    else
-    {
-      x = 2;
-    }
-    ?uint a = true ? null : 5;
-    ?[](?uint, int) arr = new [](?uint, int) {(argc, 2), (8, -4), (null, 2)};
-
-    final uint f = (cast<?ubyte> a) ?: 5;
-
-    return (cast<[](?uint, int)> arr)[2]!1 ?: (cast<[](?uint, int)> arr)[0]!1 ?: 34;
+    :Asdf argh = new Asdf(argc);
+    :Asdf other = new Asdf(argh);
+    return (other.next ?: other).a;
   }
 }

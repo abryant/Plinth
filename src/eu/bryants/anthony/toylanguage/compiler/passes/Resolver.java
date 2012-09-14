@@ -1,5 +1,6 @@
 package eu.bryants.anthony.toylanguage.compiler.passes;
 
+import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,6 +21,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ClassCreationExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
@@ -721,6 +723,74 @@ public class Resolver
     {
       resolve(expression.getType(), compilationUnit);
       resolve(((CastExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit);
+    }
+    else if (expression instanceof ClassCreationExpression)
+    {
+      ClassCreationExpression classCreationExpression = (ClassCreationExpression) expression;
+      NamedType type = new NamedType(false, classCreationExpression.getQualifiedName(), null);
+      resolve(type, compilationUnit);
+      classCreationExpression.setType(type);
+      Expression[] arguments = classCreationExpression.getArguments();
+      Type[] argumentTypes = new Type[arguments.length];
+      for (int i = 0; i < arguments.length; ++i)
+      {
+        resolve(arguments[i], block, enclosingDefinition, compilationUnit);
+
+        // find the type of the sub-expression, by calling the type checker
+        // this is fine as long as we resolve the sub-expression first
+        argumentTypes[i] = TypeChecker.checkTypes(arguments[i], compilationUnit);
+      }
+      // resolve the constructor being called
+      Collection<Constructor> constructors = type.getResolvedTypeDefinition().getConstructors();
+      Constructor resolvedConstructor = null;
+      Constructor mostRelevantConstructor = null;
+      int mostRelevantArgCount = -1;
+      for (Constructor constructor : constructors)
+      {
+        Parameter[] parameters = constructor.getParameters();
+        boolean typesMatch = parameters.length == arguments.length;
+        if (typesMatch)
+        {
+          for (int i = 0; i < parameters.length; ++i)
+          {
+            typesMatch &= parameters[i].getType().canAssign(argumentTypes[i]);
+            if (!typesMatch)
+            {
+              if (i + 1 > mostRelevantArgCount)
+              {
+                mostRelevantConstructor = constructor;
+                mostRelevantArgCount = i + 1;
+              }
+              break;
+            }
+          }
+        }
+        if (typesMatch)
+        {
+          if (resolvedConstructor != null)
+          {
+            throw new ConceptualException("Ambiguous constructor call, there are at least two applicable functions which take these arguments", classCreationExpression.getLexicalPhrase());
+          }
+          resolvedConstructor = constructor;
+        }
+      }
+      if (resolvedConstructor == null)
+      {
+        // since we failed to resolve the constructor, pick the most relevant one so that the type checker can point out exactly why it failed to match
+        if (mostRelevantConstructor != null)
+        {
+          resolvedConstructor = mostRelevantConstructor;
+        }
+        else if (constructors.size() >= 1)
+        {
+          resolvedConstructor = constructors.iterator().next();
+        }
+        else
+        {
+          throw new ConceptualException("Cannot create a '" + type + "' because it has no constructors", classCreationExpression.getLexicalPhrase());
+        }
+      }
+      classCreationExpression.setResolvedConstructor(resolvedConstructor);
     }
     else if (expression instanceof ComparisonExpression)
     {

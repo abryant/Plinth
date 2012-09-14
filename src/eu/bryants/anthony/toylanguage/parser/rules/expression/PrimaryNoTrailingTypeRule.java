@@ -48,6 +48,7 @@ public class PrimaryNoTrailingTypeRule extends Rule<ParseType>
   private static Production<ParseType> BRACKETS_PRODUCTION =  new Production<ParseType>(ParseType.LPAREN, ParseType.TUPLE_EXPRESSION, ParseType.RPAREN);
   private static Production<ParseType> ARRAY_CREATION_EMPTY_LIST_PRODUCTION = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE, ParseType.LBRACE, ParseType.RBRACE);
   private static Production<ParseType> ARRAY_CREATION_LIST_PRODUCTION = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE, ParseType.LBRACE, ParseType.EXPRESSION_LIST, ParseType.RBRACE);
+  private static Production<ParseType> CLASS_CREATION_PRODUCTION = new Production<ParseType>(ParseType.CLASS_CREATION_EXPRESSION);
 
   @SuppressWarnings("unchecked")
   public PrimaryNoTrailingTypeRule()
@@ -60,7 +61,8 @@ public class PrimaryNoTrailingTypeRule extends Rule<ParseType>
                                               ARRAY_ACCESS_PRODUCTION,
                                               FUNCTION_CALL_PRODUCTION,
                                               BRACKETS_PRODUCTION,
-                                              ARRAY_CREATION_EMPTY_LIST_PRODUCTION, ARRAY_CREATION_LIST_PRODUCTION);
+                                              ARRAY_CREATION_EMPTY_LIST_PRODUCTION, ARRAY_CREATION_LIST_PRODUCTION,
+                                              CLASS_CREATION_PRODUCTION);
   }
 
   /**
@@ -141,6 +143,10 @@ public class PrimaryNoTrailingTypeRule extends Rule<ParseType>
       ArrayType arrayType = new ArrayType(false, type, null);
       return new ArrayCreationExpression(arrayType, null, valueExpressions.toArray(new Expression[valueExpressions.size()]),
                                          LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], type.getLexicalPhrase(), (LexicalPhrase) args[4], valueExpressions.getLexicalPhrase(), (LexicalPhrase) args[6]));
+    }
+    if (production == CLASS_CREATION_PRODUCTION)
+    {
+      return args[0];
     }
     throw badTypeList();
   }

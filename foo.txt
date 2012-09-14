@@ -5,15 +5,23 @@ import foo.*;
 class Asdf
 {
   uint a;
+  ? :Asdf next;
   Asdf(:Asdf other)
   {
-    a = other.a;
+    a = 15;
+    next = other;
   }
   Asdf(uint b)
   {
     a = b;
+    next = null;
   }
-  
+
+  uint getA()
+  {
+    return a;
+  }
+
   static :bar.complex process(:bar.complex c)
   {
     :bar.complex argh = bar.complex(12, 5);

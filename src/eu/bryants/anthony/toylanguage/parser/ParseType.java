@@ -66,6 +66,7 @@ public enum ParseType
   UNARY_EXPRESSION,              // Expression
   PRIMARY,                       // Expression
   PRIMARY_NO_TRAILING_TYPE,      // Expression
+  CLASS_CREATION_EXPRESSION,     // ClassCreationExpression
   FUNCTION_CALL_EXPRESSION,      // FunctionCallExpression
   EXPRESSION_LIST,               // ParseList<Expression>
   DIMENSIONS,                    // ParseList<Expression>

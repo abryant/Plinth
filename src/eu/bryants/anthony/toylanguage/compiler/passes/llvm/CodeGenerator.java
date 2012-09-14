@@ -22,6 +22,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.ClassCreationExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression.ComparisonOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
@@ -1670,6 +1671,32 @@ public class CodeGenerator
       CastExpression castExpression = (CastExpression) expression;
       LLVMValueRef value = buildExpression(castExpression.getExpression(), llvmFunction, thisValue, variables);
       return convertType(value, castExpression.getExpression().getType(), castExpression.getType(), llvmFunction);
+    }
+    if (expression instanceof ClassCreationExpression)
+    {
+      ClassCreationExpression classCreationExpression = (ClassCreationExpression) expression;
+      Expression[] arguments = classCreationExpression.getArguments();
+      Constructor constructor = classCreationExpression.getResolvedConstructor();
+      Parameter[] parameters = constructor.getParameters();
+      LLVMValueRef[] llvmArguments = new LLVMValueRef[1 + arguments.length];
+      for (int i = 0; i < arguments.length; ++i)
+      {
+        LLVMValueRef argument = buildExpression(arguments[i], llvmFunction, thisValue, variables);
+        llvmArguments[i + 1] = convertType(argument, arguments[i].getType(), parameters[i].getType(), llvmFunction);
+      }
+      Type type = classCreationExpression.getType();
+      LLVMTypeRef nativeType = findNativeType(type);
+      LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
+      LLVMValueRef llvmStructSize = LLVM.LLVMBuildGEP(builder, LLVM.LLVMConstNull(nativeType), C.toNativePointerArray(indices, false, true), indices.length, "");
+      LLVMValueRef llvmSize = LLVM.LLVMBuildPtrToInt(builder, llvmStructSize, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
+      LLVMValueRef[] callocArguments = new LLVMValueRef[] {llvmSize, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
+      LLVMValueRef memory = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(callocArguments, false, true), callocArguments.length, "");
+      LLVMValueRef pointer = LLVM.LLVMBuildBitCast(builder, memory, nativeType, "");
+      llvmArguments[0] = pointer;
+      // get the constructor and call it
+      LLVMValueRef llvmFunc = getConstructorFunction(constructor);
+      LLVMValueRef result = LLVM.LLVMBuildCall(builder, llvmFunc, C.toNativePointerArray(llvmArguments, false, true), llvmArguments.length, "");
+      return result;
     }
     if (expression instanceof ComparisonExpression)
     {
