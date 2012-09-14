@@ -102,6 +102,7 @@ public class LLVM
   public static native LLVMValueRef LLVMBuildGEP(LLVMBuilderRef builder, LLVMValueRef pointer, Pointer indices, int numIndices, String name);
   public static native LLVMValueRef LLVMBuildICmp(LLVMBuilderRef builder, int intPredicate, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildInsertValue(LLVMBuilderRef builder, LLVMValueRef aggregateVal, LLVMValueRef elementVal, int index, String name);
+  public static native LLVMValueRef LLVMBuildIsNotNull(LLVMBuilderRef builder, LLVMValueRef pointer, String name);
   public static native LLVMValueRef LLVMBuildLoad(LLVMBuilderRef builder, LLVMValueRef pointer, String name);
   public static native LLVMValueRef LLVMBuildLShr(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildMul(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);

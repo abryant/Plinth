@@ -1517,7 +1517,15 @@ public class CodeGenerator
     }
     if (type instanceof NamedType)
     {
-      return LLVM.LLVMBuildExtractValue(builder, value, 0, "");
+      TypeDefinition typeDefinition = ((NamedType) type).getResolvedTypeDefinition();
+      if (typeDefinition instanceof ClassDefinition)
+      {
+        return LLVM.LLVMBuildIsNotNull(builder, value, "");
+      }
+      else if (typeDefinition instanceof CompoundDefinition)
+      {
+        return LLVM.LLVMBuildExtractValue(builder, value, 0, "");
+      }
     }
     if (type instanceof NullType)
     {
