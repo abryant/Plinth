@@ -97,6 +97,8 @@ public class CodeGenerator
 
   private Map<GlobalVariable, LLVMValueRef> globalVariables = new HashMap<GlobalVariable, LLVMValueRef>();
 
+  private Map<TypeDefinition, LLVMTypeRef> nativeNamedTypes = new HashMap<TypeDefinition, LLVMTypeRef>();
+
   public CodeGenerator(TypeDefinition typeDefinition)
   {
     this.typeDefinition = typeDefinition;
@@ -398,33 +400,60 @@ public class CodeGenerator
     {
       NamedType namedType = (NamedType) type;
       TypeDefinition typeDefinition = namedType.getResolvedTypeDefinition();
+      // check whether the type has been cached
+      LLVMTypeRef existingType = nativeNamedTypes.get(typeDefinition);
+      if (existingType != null)
+      {
+        if (namedType.isNullable() && typeDefinition instanceof CompoundDefinition)
+        {
+          // tuple the non-nullable type with a boolean, so that we can tell whether or not the value is null
+          // this is not necessary for ClassDefinitions, since they are pointers which can actually be null
+          LLVMTypeRef[] types = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), existingType};
+          return LLVM.LLVMStructType(C.toNativePointerArray(types, false, true), types.length, false);
+        }
+        return existingType;
+      }
+      // the type isn't cached, so create it
       if (typeDefinition instanceof ClassDefinition)
       {
+        // cache the LLVM type before we recurse, so that once we recurse, everything will be able to use this type instead of recreating it and possibly recursing infinitely
+        // later on, we add the fields using LLVMStructSetBody
+        LLVMTypeRef structType = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), typeDefinition.getQualifiedName().toString());
+        LLVMTypeRef pointerToStruct = LLVM.LLVMPointerType(structType, 0);
+        nativeNamedTypes.put(typeDefinition, pointerToStruct);
+
+        // add the fields to the struct type recursively
         Field[] fields = typeDefinition.getNonStaticFields();
         LLVMTypeRef[] llvmSubTypes = new LLVMTypeRef[fields.length];
         for (int i = 0; i < fields.length; ++i)
         {
           llvmSubTypes[i] = findNativeType(fields[i].getType());
         }
-        LLVMTypeRef llvmStructure = LLVM.LLVMStructType(C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
-        return LLVM.LLVMPointerType(llvmStructure, 0);
+        LLVM.LLVMStructSetBody(structType, C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
+        return pointerToStruct;
       }
       else if (typeDefinition instanceof CompoundDefinition)
       {
+        // cache the LLVM type before we recurse, so that once we recurse, everything will be able to use this type instead of recreating it
+        // later on, we add the fields using LLVMStructSetBody
+        LLVMTypeRef nonNullableStructType = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), typeDefinition.getQualifiedName().toString());
+        nativeNamedTypes.put(typeDefinition, nonNullableStructType);
+
+        // add the fields to the struct recursively
         Field[] fields = typeDefinition.getNonStaticFields();
         LLVMTypeRef[] llvmSubTypes = new LLVMTypeRef[fields.length];
         for (int i = 0; i < fields.length; i++)
         {
           llvmSubTypes[i] = findNativeType(fields[i].getType());
         }
-        LLVMTypeRef nonNullableType = LLVM.LLVMStructType(C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
+        LLVM.LLVMStructSetBody(nonNullableStructType, C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
         if (namedType.isNullable())
         {
           // tuple the non-nullable type with a boolean, so that we can tell whether or not the value is null
-          LLVMTypeRef[] types = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), nonNullableType};
+          LLVMTypeRef[] types = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), nonNullableStructType};
           return LLVM.LLVMStructType(C.toNativePointerArray(types, false, true), types.length, false);
         }
-        return nonNullableType;
+        return nonNullableStructType;
       }
     }
     if (type instanceof NullType)

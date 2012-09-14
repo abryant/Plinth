@@ -19,6 +19,7 @@ public class LLVM
   }
   public static class LLVMBasicBlockRef extends PointerType { /* custom type name */ }
   public static class LLVMBuilderRef extends PointerType { /* custom type name */ }
+  public static class LLVMContextRef extends PointerType { /* custom type name */ }
   public static class LLVMModuleRef extends PointerType { /* custom type name */ }
   public static class LLVMPassManagerRef extends PointerType { /* custom type name */ }
   public static class LLVMTypeRef extends PointerType { /* custom type name */ }
@@ -164,7 +165,11 @@ public class LLVM
   public static native LLVMTypeRef LLVMIntType(int bits);
   public static native LLVMTypeRef LLVMPointerType(LLVMTypeRef elementType, int addressSpace);
   public static native LLVMTypeRef LLVMStructType(Pointer elementTypes, int elementCount, boolean packed);
+  public static native LLVMTypeRef LLVMStructCreateNamed(LLVMContextRef context, String name);
   public static native LLVMTypeRef LLVMVoidType();
+  public static native void LLVMStructSetBody(LLVMTypeRef struct, Pointer elementTypes, int elementCount, boolean packed);
+
+  public static native LLVMContextRef LLVMGetGlobalContext();
 
   public static native int LLVMWriteBitcodeToFile(LLVMModuleRef module, String path);
 
