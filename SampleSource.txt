@@ -55,6 +55,8 @@ compound complex
   static native uint main(final uint argc)
   {
     :Asdf argh = new Asdf(argc);
+    uint a, b = argc, 2;
+    (uint, uint, uint, :Asdf) a, b, c, argh = 3, 4, 5, new Asdf(a);
     :Asdf other = new Asdf(argh);
     return (other.next ?: other).a;
   }

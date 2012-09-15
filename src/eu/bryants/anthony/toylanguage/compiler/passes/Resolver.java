@@ -4,7 +4,9 @@ import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -418,14 +420,36 @@ public class Resolver
       }
       Assignee[] assignees = assignStatement.getAssignees();
       boolean distributedTupleType = type != null && type instanceof TupleType && !type.isNullable() && ((TupleType) type).getSubTypes().length == assignees.length;
+      boolean madeVariableDeclaration = false;
+      List<VariableAssignee> alreadyDeclaredVariables = new LinkedList<VariableAssignee>();
       for (int i = 0; i < assignees.length; i++)
       {
         if (assignees[i] instanceof VariableAssignee)
         {
           VariableAssignee variableAssignee = (VariableAssignee) assignees[i];
           Variable variable = enclosingBlock.getVariable(variableAssignee.getVariableName());
+          if (variable != null)
+          {
+            alreadyDeclaredVariables.add(variableAssignee);
+          }
+          if (variable == null && type != null)
+          {
+            // we have a type, and the variable is not yet declared in this block, so declare the variable now
+            if (distributedTupleType)
+            {
+              Type subType = ((TupleType) type).getSubTypes()[i];
+              variable = new Variable(assignStatement.isFinal(), subType, variableAssignee.getVariableName());
+            }
+            else
+            {
+              variable = new Variable(assignStatement.isFinal(), type, variableAssignee.getVariableName());
+            }
+            enclosingBlock.addVariable(variable);
+            madeVariableDeclaration = true;
+          }
           if (variable == null && enclosingDefinition != null)
           {
+            // we haven't got a declared variable, so try to resolve it outside the block
             Field field = enclosingDefinition.getField(variableAssignee.getVariableName());
             if (field != null)
             {
@@ -441,21 +465,7 @@ public class Resolver
           }
           if (variable == null)
           {
-            if (type == null)
-            {
-              throw new NameNotResolvedException("Unable to resolve: " + variableAssignee.getVariableName(), variableAssignee.getLexicalPhrase());
-            }
-            // we have a type, so define the variable now
-            if (distributedTupleType)
-            {
-              Type subType = ((TupleType) type).getSubTypes()[i];
-              variable = new Variable(assignStatement.isFinal(), subType, variableAssignee.getVariableName());
-            }
-            else
-            {
-              variable = new Variable(assignStatement.isFinal(), type, variableAssignee.getVariableName());
-            }
-            enclosingBlock.addVariable(variable);
+            throw new NameNotResolvedException("Unable to resolve: " + variableAssignee.getVariableName(), variableAssignee.getLexicalPhrase());
           }
           variableAssignee.setResolvedVariable(variable);
         }
@@ -479,6 +489,29 @@ public class Resolver
         {
           throw new IllegalStateException("Unknown Assignee type: " + assignees[i]);
         }
+      }
+      if (type != null && !madeVariableDeclaration)
+      {
+        // giving a type indicates a variable declaration, which is not allowed if all of the variables have already been declared
+        // if at least one of them is being declared, however, we allow the type to be present
+        if (alreadyDeclaredVariables.size() == 1)
+        {
+          VariableAssignee variableAssignee = alreadyDeclaredVariables.get(0);
+          throw new ConceptualException("'" + variableAssignee.getVariableName() + "' has already been declared, and cannot be redeclared", variableAssignee.getLexicalPhrase());
+        }
+        StringBuffer buffer = new StringBuffer();
+        Iterator<VariableAssignee> it = alreadyDeclaredVariables.iterator();
+        while (it.hasNext())
+        {
+          buffer.append('\'');
+          buffer.append(it.next().getVariableName());
+          buffer.append('\'');
+          if (it.hasNext())
+          {
+            buffer.append(", ");
+          }
+        }
+        throw new ConceptualException("The variables " + buffer + " have all already been declared, and cannot be redeclared", assignStatement.getLexicalPhrase());
       }
       if (assignStatement.getExpression() != null)
       {
