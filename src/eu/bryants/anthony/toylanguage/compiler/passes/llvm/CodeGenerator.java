@@ -98,6 +98,7 @@ public class CodeGenerator
 
   private Map<GlobalVariable, LLVMValueRef> globalVariables = new HashMap<GlobalVariable, LLVMValueRef>();
 
+  private LLVMTypeRef opaqueType;
   private Map<TypeDefinition, LLVMTypeRef> nativeNamedTypes = new HashMap<TypeDefinition, LLVMTypeRef>();
 
   public CodeGenerator(TypeDefinition typeDefinition)
@@ -114,6 +115,9 @@ public class CodeGenerator
 
     module = LLVM.LLVMModuleCreateWithName(typeDefinition.getQualifiedName().toString());
     builder = LLVM.LLVMCreateBuilder();
+
+    opaqueType = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), "opaque");
+
     // add all of the global (static) variables
     addGlobalVariables();
     // add all of the LLVM functions, including constructors, methods, and normal functions
@@ -379,6 +383,15 @@ public class CodeGenerator
       LLVMTypeRef llvmStructure = LLVM.LLVMStructType(C.toNativePointerArray(structureTypes, false, true), 2, false);
       return LLVM.LLVMPointerType(llvmStructure, 0);
     }
+    if (type instanceof FunctionType)
+    {
+      // create a tuple of an opaque pointer and a function pointer which has an opaque pointer as its first argument
+      FunctionType functionType = (FunctionType) type;
+      LLVMTypeRef llvmOpaquePointerType = LLVM.LLVMPointerType(opaqueType, 0);
+      LLVMTypeRef llvmFunctionPointer = findRawFunctionPointerType(functionType);
+      LLVMTypeRef[] subTypes = new LLVMTypeRef[] {llvmOpaquePointerType, llvmFunctionPointer};
+      return LLVM.LLVMStructType(C.toNativePointerArray(subTypes, false, true), subTypes.length, false);
+    }
     if (type instanceof TupleType)
     {
       TupleType tupleType = (TupleType) type;
@@ -466,6 +479,25 @@ public class CodeGenerator
       return LLVM.LLVMVoidType();
     }
     throw new IllegalStateException("Unexpected Type: " + type);
+  }
+
+  /**
+   * Finds a function pointer type in its raw form, before being tupled with its first argument (always an opaque pointer).
+   * This <b>IS NOT</b> a full function type, and should not be used as such.
+   * @param functionType - the function type to find the raw LLVM form of
+   * @return the LLVMTypeRef corresponding to the raw form of the specified function type
+   */
+  private LLVMTypeRef findRawFunctionPointerType(FunctionType functionType)
+  {
+    LLVMTypeRef llvmFunctionReturnType = findNativeType(functionType.getReturnType());
+    Type[] parameterTypes = functionType.getParameterTypes();
+    LLVMTypeRef[] llvmParameterTypes = new LLVMTypeRef[parameterTypes.length];
+    for (int i = 0; i < parameterTypes.length; ++i)
+    {
+      llvmParameterTypes[i] = findNativeType(parameterTypes[i]);
+    }
+    LLVMTypeRef llvmFunctionType = LLVM.LLVMFunctionType(llvmFunctionReturnType, C.toNativePointerArray(llvmParameterTypes, false, true), llvmParameterTypes.length, false);
+    return LLVM.LLVMPointerType(llvmFunctionType, 0);
   }
 
   private void addConstructorBodies()
@@ -1514,7 +1546,9 @@ public class CodeGenerator
     }
     if (type instanceof FunctionType)
     {
-      return LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntNE, value, LLVM.LLVMConstNull(findNativeType(type)), "");
+      LLVMValueRef functionPointer = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
+      LLVMTypeRef llvmFunctionPointerType = findRawFunctionPointerType((FunctionType) type);
+      return LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntNE, functionPointer, LLVM.LLVMConstNull(llvmFunctionPointerType), "");
     }
     if (type instanceof NamedType)
     {
