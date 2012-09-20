@@ -1525,12 +1525,15 @@ public class CodeGenerator
       }
       else if (typeDefinition instanceof CompoundDefinition)
       {
-        return LLVM.LLVMBuildExtractValue(builder, value, 0, "");
+        LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                     LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
+        LLVMValueRef nullabilityPointer = LLVM.LLVMBuildGEP(builder, value, C.toNativePointerArray(indices, false, true), indices.length, "");
+        return LLVM.LLVMBuildLoad(builder, nullabilityPointer, "");
       }
     }
     if (type instanceof NullType)
     {
-      return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false);
+      return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false);
     }
     if (type instanceof PrimitiveType)
     {
