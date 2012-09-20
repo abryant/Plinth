@@ -2077,7 +2077,8 @@ public class CodeGenerator
       TupleExpression tupleExpression = (TupleExpression) expression;
       Type[] tupleTypes = ((TupleType) tupleExpression.getType()).getSubTypes();
       Expression[] subExpressions = tupleExpression.getSubExpressions();
-      LLVMValueRef currentValue = LLVM.LLVMGetUndef(findNativeType(tupleExpression.getType()));
+      Type nonNullableTupleType = TypeChecker.findTypeWithNullability(tupleExpression.getType(), false);
+      LLVMValueRef currentValue = LLVM.LLVMGetUndef(findNativeType(nonNullableTupleType));
       for (int i = 0; i < subExpressions.length; i++)
       {
         LLVMValueRef value = buildExpression(subExpressions[i], llvmFunction, thisValue, variables);
@@ -2090,7 +2091,7 @@ public class CodeGenerator
         }
         currentValue = LLVM.LLVMBuildInsertValue(builder, currentValue, value, i, "");
       }
-      return currentValue;
+      return convertType(currentValue, nonNullableTupleType, tupleExpression.getType(), llvmFunction);
     }
     if (expression instanceof TupleIndexExpression)
     {
