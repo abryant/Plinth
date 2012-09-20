@@ -6,6 +6,7 @@ import java.util.Map;
 import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.misc.QName;
 import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
+import eu.bryants.anthony.toylanguage.compiler.NameNotResolvedException;
 
 /*
  * Created on 10 Jul 2012
@@ -31,18 +32,13 @@ public class PackageNode
   public interface PackageSearcher
   {
     /**
-     * Searches for a type definition in the specified PackageNode with the specified name, and loads it into the PackageNode if it is found.
-     * @param name - the name of the type definition to search for
+     * Searches for a type definition or sub-package in the specified PackageNode with the specified name, and loads it into the PackageNode if it is found.
+     * @param name - the name to search for
      * @param packageNode - the PackageNode to search in
+     * @throws NameNotResolvedException - if a name could not be resolved in a newly-loaded bitcode file
+     * @throws ConceptualException - if a conceptual problem is found in a newly-loaded bitcode file
      */
-    public void searchForTypeDefinition(String name, PackageNode packageNode);
-
-    /**
-     * Searches for a sub-package in the specified PackageNode with the specified name, and loads it into the PackageNode if it is found.
-     * @param name - the name of the sub-package to search for
-     * @param packageNode - the PackageNode to search in
-     */
-    public void searchForSubPackage(String name, PackageNode packageNode);
+    public void search(String name, PackageNode packageNode) throws NameNotResolvedException, ConceptualException;
   }
 
   /**
@@ -78,13 +74,15 @@ public class PackageNode
    * This method may try to search for new packages to load, using a PackageSearcher.
    * @param name - the name of the sub-package to get
    * @return the sub-package with the specified name, or null if none exists
+   * @throws NameNotResolvedException - if a name could not be resolved in a newly-loaded bitcode file
+   * @throws ConceptualException - if a conceptual problem is found in a newly-loaded bitcode file
    */
-  public PackageNode getSubPackage(String name)
+  public PackageNode getSubPackage(String name) throws NameNotResolvedException, ConceptualException
   {
     PackageNode result = subPackages.get(name);
     if (result == null)
     {
-      searcher.searchForSubPackage(name, this);
+      searcher.search(name, this);
       result = subPackages.get(name);
       // if we still haven't found anything after the search, then we aren't going to find anything
     }
@@ -96,13 +94,15 @@ public class PackageNode
    * This method may try to search for new type definitions to load, using a PackageSearcher.
    * @param name - the name of the type definition to get
    * @return the type definition with the specified name, or null if none exists
+   * @throws NameNotResolvedException - if a name could not be resolved in a newly-loaded bitcode file
+   * @throws ConceptualException - if a conceptual problem is found in a newly-loaded bitcode file
    */
-  public TypeDefinition getTypeDefinition(String name)
+  public TypeDefinition getTypeDefinition(String name) throws NameNotResolvedException, ConceptualException
   {
     TypeDefinition result = typeDefinitions.get(name);
     if (result == null)
     {
-      searcher.searchForTypeDefinition(name, this);
+      searcher.search(name, this);
       result = typeDefinitions.get(name);
       // if we still haven't found anything after the search, then we aren't going to find anything
     }

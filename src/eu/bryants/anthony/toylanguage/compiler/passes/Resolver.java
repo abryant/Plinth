@@ -184,7 +184,14 @@ public class Resolver
     }
   }
 
-  private void resolveTypes(TypeDefinition typeDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  /**
+   * Resolves all of the types in the specified type definition, optionally trying to resolve them in the context of the specified CompilationUnit.
+   * @param typeDefinition - the TypeDefinition to resolve the types of
+   * @param compilationUnit - the optional CompilationUnit to resolve the types in the context of
+   * @throws NameNotResolvedException - if a name could not be resolved
+   * @throws ConceptualException - if a conceptual problem is encountered during resolution
+   */
+  public void resolveTypes(TypeDefinition typeDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     for (Field field : typeDefinition.getFields())
     {
@@ -193,6 +200,11 @@ public class Resolver
     for (Constructor constructor : typeDefinition.getConstructors())
     {
       Block mainBlock = constructor.getBlock();
+      if (mainBlock == null)
+      {
+        // we are resolving a bitcode file with no blocks inside it, so create a temporary one so that we can check for duplicate parameters easily
+        mainBlock = new Block(null, null);
+      }
       for (Parameter p : constructor.getParameters())
       {
         Variable oldVar = mainBlock.addVariable(p.getVariable());
@@ -247,6 +259,11 @@ public class Resolver
     {
       resolve(method.getReturnType(), compilationUnit);
       Block mainBlock = method.getBlock();
+      if (mainBlock == null)
+      {
+        // we are resolving a bitcode file with no blocks inside it, so create a temporary one so that we can check for duplicate parameters easily
+        mainBlock = new Block(null, null);
+      }
       Parameter[] parameters = method.getParameters();
       Type[] parameterTypes = new Type[parameters.length];
       for (int i = 0; i < parameters.length; ++i)
@@ -304,9 +321,9 @@ public class Resolver
 
       String[] names = namedType.getQualifiedName().getNames();
       // start by looking up the first name in the compilation unit
-      TypeDefinition currentDefinition = compilationUnit.getTypeDefinition(names[0]);
+      TypeDefinition currentDefinition = compilationUnit == null ? null : compilationUnit.getTypeDefinition(names[0]);
       PackageNode currentPackage = null;
-      if (currentDefinition == null)
+      if (currentDefinition == null && compilationUnit != null)
       {
         // the lookup in the compilation unit failed, so try each of the imports in turn
         for (Import currentImport : compilationUnit.getImports())
@@ -337,22 +354,27 @@ public class Resolver
             break;
           }
         }
-
-        if (currentPackage == null && currentDefinition == null)
+      }
+      if (currentPackage == null && currentDefinition == null && compilationUnit != null)
+      {
+        // the lookup from the imports failed, so try to look up the first name on the compilation unit's package instead
+        // (at most one of the following lookups can succeed)
+        currentDefinition = compilationUnit.getResolvedPackage().getTypeDefinition(names[0]);
+        // update currentPackage last (and only if we don't have a type definition)
+        if (currentDefinition == null)
         {
-          // the lookup from the imports failed, so try to look up the first name on the compilation unit's package instead
-          // (at most one of the following lookups can succeed)
-          currentDefinition = compilationUnit.getResolvedPackage().getTypeDefinition(names[0]);
-          // update currentPackage last (and only if we don't have a type definition)
-          currentPackage = currentDefinition == null ? compilationUnit.getResolvedPackage().getSubPackage(names[0]) : null;
-          if (currentPackage == null && currentDefinition == null)
-          {
-            // all other lookups failed, so try to look up the first name on the root package
-            // (at most one of the following lookups can succeed)
-            currentDefinition = rootPackage.getTypeDefinition(names[0]);
-            // update currentPackage last (and only if we don't have a type definition)
-            currentPackage = currentDefinition == null ? rootPackage.getSubPackage(names[0]) : null;
-          }
+          currentPackage = compilationUnit.getResolvedPackage().getSubPackage(names[0]);
+        }
+      }
+      if (currentPackage == null && currentDefinition == null)
+      {
+        // all other lookups failed, so try to look up the first name on the root package
+        // (at most one of the following lookups can succeed)
+        currentDefinition = rootPackage.getTypeDefinition(names[0]);
+        // update currentPackage last (and only if we don't have a type definition)
+        if (currentDefinition == null)
+        {
+          currentPackage = rootPackage.getSubPackage(names[0]);
         }
       }
       // now resolve the rest of the names (or as many as possible until the current items are all null)

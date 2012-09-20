@@ -4,28 +4,38 @@ import test.*;
 
 compound complex
 {
-  int field;
-  (boolean, boolean) someOtherValue;
-  float more1;
-  double more2;
+  final double real;
+  final double imag;
+
   complex()
   {
-    field = 2;
-    someOtherValue = true, false;
-    more1 = 0;
-    more2 = 0;
+    real, imag = 0, 0;
+  }
+  
+  complex(double real, double imag)
+  {
+    this.real, this.imag = real, imag;
+  }
+
+  :complex mult(:complex c)
+  {
+    return complex(real * c.real - imag * c.imag, real * c.imag + imag * c.real);
   }
 
   static native uint main(final uint argc)
   {
-  //TODO: test with all of the different types
-  //TODO: then commit, and fix the low level representation of nullable compound types
-    ?float yes = 1;
-    ?double no = 2;
-    if no != yes
+    // TODO: fix the low level representation of nullable compound types
+    // in particular type conversions should not be able to copy the compound type,
+    // so converting a 'complex' to a '?complex' should not cause functions called on it to not have side effects
+    // this should be done as a revamp of the code generator's native type system
+    :Asdf yes = new Asdf(1);
+    ? :Asdf no = null;
+    if yes == no
     {
       return 249;
     }
-    return 12;
+    :complex c = complex(argc, 0);
+    :complex result = :Asdf::rotateComplexLeft(c);
+    return cast<uint> result.imag;
   }
 }

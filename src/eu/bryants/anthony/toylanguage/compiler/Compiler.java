@@ -3,6 +3,8 @@ package eu.bryants.anthony.toylanguage.compiler;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -13,7 +15,6 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.metadata.PackageNode;
-import eu.bryants.anthony.toylanguage.ast.metadata.PackageNode.PackageSearcher;
 import eu.bryants.anthony.toylanguage.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.toylanguage.ast.terminal.Name;
 import eu.bryants.anthony.toylanguage.compiler.passes.ControlFlowChecker;
@@ -120,21 +121,13 @@ public class Compiler
       }
     }
 
-    PackageNode rootPackage = new PackageNode(new PackageSearcher()
-    {
-      @Override
-      public void searchForTypeDefinition(String name, PackageNode packageNode)
-      {
-        // do nothing (for now)
-      }
-      @Override
-      public void searchForSubPackage(String name, PackageNode packageNode)
-      {
-        // do nothing (for now)
-      }
-    });
+    List<File> searchDirectories = new LinkedList<File>();
+    searchDirectories.add(outputDirFile);
+    BitcodePackageSearcher bitcodePackageSearcher = new BitcodePackageSearcher(searchDirectories);
 
+    PackageNode rootPackage = new PackageNode(bitcodePackageSearcher);
     Resolver resolver = new Resolver(rootPackage);
+    bitcodePackageSearcher.initialise(rootPackage, resolver);
 
     try
     {

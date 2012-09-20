@@ -52,4 +52,33 @@ public class C
     }
     return result;
   }
+
+  /**
+   * A very simple class which contains an abstract method to convert a Pointer to some other type T.
+   * @author Anthony Bryant
+   * @param <T> - the type that this will convert Pointers to
+   */
+  public static abstract class PointerConverter<T>
+  {
+    public abstract T convert(Pointer pointer);
+  }
+
+  /**
+   * Reads from a native array of pointers (such as one created by <code>toNativePointerArray()</code>) into the specified java array.
+   * The native array is assumed to have the same length as the java array.
+   *
+   * Since we usually want to convert to a PointerType here, a PointerConverter is required to convert each JNA Pointer into the base type of the array.
+   * @param nativePointer - the native pointer to read the array contents from
+   * @param javaArray - the java array to put the array contents into
+   * @param converter - the converter that can convert from a Pointer to the base type of the array
+   */
+  public static <T> void readNativePointerArray(Pointer nativePointer, T[] javaArray, PointerConverter<T> converter)
+  {
+    Pointer[] pointerArray = new Pointer[javaArray.length];
+    nativePointer.read(0, pointerArray, 0, javaArray.length);
+    for (int i = 0; i < javaArray.length; ++i)
+    {
+      javaArray[i] = converter.convert(pointerArray[i]);
+    }
+  }
 }

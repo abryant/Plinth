@@ -16,6 +16,7 @@ import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
 import eu.bryants.anthony.toylanguage.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.toylanguage.ast.metadata.MemberVariable;
+import eu.bryants.anthony.toylanguage.ast.misc.QName;
 import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 
 /*
@@ -95,6 +96,73 @@ public class ClassDefinition extends TypeDefinition
       }
     }
     nonStaticFields = nonStaticFieldList.toArray(new Field[nonStaticFieldList.size()]);
+  }
+
+  /**
+   * Creates a new ClassDefinition with the specified members.
+   * @param qname - the qualified name of the class definition
+   * @param nonStaticFields - the non static fields, with their indexes already filled in
+   * @param staticFields - the static fields
+   * @param newConstructors - the constructors
+   * @param newMethods - the methods
+   * @throws LanguageParseException - if there is a name collision between any of the methods, or a Constructor's name is wrong
+   */
+  public ClassDefinition(QName qname, Field[] nonStaticFields, Field[] staticFields, Constructor[] newConstructors, Method[] newMethods) throws LanguageParseException
+  {
+    super(qname.getLastName(), null);
+    setQualifiedName(qname);
+    for (Field f : nonStaticFields)
+    {
+      if (fields.containsKey(f.getName()))
+      {
+        throw new LanguageParseException("A field with the name '" + f.getName() + "' already exists in '" + getName() + "', so another field cannot be defined with the same name", f.getLexicalPhrase());
+      }
+      if (methods.containsKey(f.getName()))
+      {
+        throw new LanguageParseException("A method with the name '" + f.getName() + "' already exists in '" + getName() + "', so a field cannot be defined with the same name", f.getLexicalPhrase());
+      }
+      f.setMemberVariable(new MemberVariable(f, this));
+      // we assume that the fields' indices have already been filled in
+      fields.put(f.getName(), f);
+    }
+    this.nonStaticFields = nonStaticFields;
+    for (Field f : staticFields)
+    {
+      if (fields.containsKey(f.getName()))
+      {
+        throw new LanguageParseException("A field with the name '" + f.getName() + "' already exists in '" + getName() + "', so another field cannot be defined with the same name", f.getLexicalPhrase());
+      }
+      if (methods.containsKey(f.getName()))
+      {
+        throw new LanguageParseException("A method with the name '" + f.getName() + "' already exists in '" + getName() + "', so a field cannot be defined with the same name", f.getLexicalPhrase());
+      }
+      f.setGlobalVariable(new GlobalVariable(f, this));
+      fields.put(f.getName(), f);
+    }
+    for (Constructor constructor : newConstructors)
+    {
+      if (!constructor.getName().equals(getName()))
+      {
+        throw new LanguageParseException("The constructor '" + constructor.getName() + "' should be called '" + getName() + "' after the class it is defined in", constructor.getLexicalPhrase());
+      }
+      constructor.setContainingTypeDefinition(this);
+      constructors.add(constructor);
+    }
+    for (Method method : newMethods)
+    {
+      if (fields.containsKey(method.getName()))
+      {
+        throw new LanguageParseException("A field with the name '" + method.getName() + "' already exists in '" + getName() + "', so a method cannot be defined with the same name", method.getLexicalPhrase());
+      }
+      Set<Method> methodSet = methods.get(method.getName());
+      if (methodSet == null)
+      {
+        methodSet = new HashSet<Method>();
+        methods.put(method.getName(), methodSet);
+      }
+      method.setContainingTypeDefinition(this);
+      methodSet.add(method);
+    }
   }
 
   /**

@@ -1,6 +1,7 @@
 package eu.bryants.anthony.toylanguage.ast.misc;
 
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.compiler.ConceptualException;
 
 /*
  * Created on 8 Jul 2012
@@ -56,11 +57,41 @@ public class QName
   }
 
   /**
+   * Creates a new QName from a dot-separated String. The string is split on '.' to create the list of names.
+   * @param dotSeparatedNames - the dot separated names
+   * @throws ConceptualException - if the list of names is malformed in some way
+   */
+  public QName(String dotSeparatedNames) throws ConceptualException
+  {
+    if (dotSeparatedNames == null)
+    {
+      throw new ConceptualException("A QName must be created with at least one name", null);
+    }
+    String[] names = dotSeparatedNames.split("\\.");
+    if (names.length < 1)
+    {
+      throw new ConceptualException("A QName must be created with at least one name", null);
+    }
+    this.names = names;
+  }
+
+  /**
    * @return the names
    */
   public String[] getNames()
   {
     return names;
+  }
+
+  /**
+   * @return an array of all of the names in this QName except the last one.
+   *         Note: this array can have a zero length.
+   */
+  public String[] getAllNamesButLast()
+  {
+    String[] firstNames = new String[names.length - 1];
+    System.arraycopy(names, 0, firstNames, 0, firstNames.length);
+    return firstNames;
   }
 
   /**

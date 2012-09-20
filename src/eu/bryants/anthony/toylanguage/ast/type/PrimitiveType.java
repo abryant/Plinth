@@ -72,6 +72,23 @@ public class PrimitiveType extends Type
     {
       return signed;
     }
+
+    /**
+     * Finds the PrimitiveTypeType with the specified name.
+     * @param name - the name of the PrimitiveTypeType to find
+     * @return the PrimitiveTypeType with the specified name, or null if none exists with that name.
+     */
+    public static PrimitiveTypeType getByName(String name)
+    {
+      for (PrimitiveTypeType type : values())
+      {
+        if (type.name.equals(name))
+        {
+          return type;
+        }
+      }
+      return null;
+    }
   }
 
   private PrimitiveTypeType primitiveTypeType;

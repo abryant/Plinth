@@ -104,7 +104,14 @@ public class Constructor extends Member
       }
     }
     buffer.append(")\n");
-    buffer.append(block);
+    if (block == null)
+    {
+      buffer.append("{...}");
+    }
+    else
+    {
+      buffer.append(block);
+    }
     return buffer.toString();
   }
 }

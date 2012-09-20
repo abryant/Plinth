@@ -21,5 +21,10 @@ class Asdf
   {
     return a;
   }
+
+  static :bar.complex rotateComplexLeft(:bar.complex foo)
+  {
+    return foo.mult(bar.complex(0, 1));
+  }
 }
 

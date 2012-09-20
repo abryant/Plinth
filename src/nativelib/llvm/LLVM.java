@@ -3,6 +3,8 @@ package nativelib.llvm;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.PointerType;
+import com.sun.jna.ptr.IntByReference;
+import com.sun.jna.ptr.PointerByReference;
 
 /*
  * Created on 4 Apr 2012
@@ -15,15 +17,17 @@ public class LLVM
 {
   static
   {
-    Native.register("LLVM-3.1");
+    Native.register("LLVM-3.2svn");
   }
-  public static class LLVMBasicBlockRef extends PointerType { /* custom type name */ }
-  public static class LLVMBuilderRef extends PointerType { /* custom type name */ }
-  public static class LLVMContextRef extends PointerType { /* custom type name */ }
-  public static class LLVMModuleRef extends PointerType { /* custom type name */ }
-  public static class LLVMPassManagerRef extends PointerType { /* custom type name */ }
-  public static class LLVMTypeRef extends PointerType { /* custom type name */ }
-  public static class LLVMValueRef extends PointerType { /* custom type name */ }
+
+  public static class LLVMBasicBlockRef   extends PointerType { /* custom type name */ }
+  public static class LLVMBuilderRef      extends PointerType { /* custom type name */ }
+  public static class LLVMContextRef      extends PointerType { /* custom type name */ }
+  public static class LLVMMemoryBufferRef extends PointerType { /* custom type name */ }
+  public static class LLVMModuleRef       extends PointerType { /* custom type name */ }
+  public static class LLVMPassManagerRef  extends PointerType { /* custom type name */ }
+  public static class LLVMTypeRef         extends PointerType { /* custom type name */ }
+  public static class LLVMValueRef        extends PointerType { /* custom type name */ }
 
   public static class LLVMCallConv
   {
@@ -138,6 +142,14 @@ public class LLVM
   public static native LLVMValueRef LLVMMDString(String str, int length);
   public static native LLVMValueRef LLVMMDNode(Pointer values, int count);
   public static native void LLVMAddNamedMetadataOperand(LLVMModuleRef module, String name, LLVMValueRef value);
+  public static native int LLVMGetNamedMetadataNumOperands(LLVMModuleRef module, String name);
+  public static native void LLVMGetNamedMetadataOperands(LLVMModuleRef module, String name, Pointer dest);
+  public static native int LLVMGetMDNodeNumOperands(LLVMValueRef node);
+  public static native void LLVMGetMDNodeOperands(LLVMValueRef node, Pointer dest);
+  public static native Pointer LLVMGetMDString(LLVMValueRef value, IntByReference length);
+
+  public static native LLVMValueRef LLVMIsAMDNode(LLVMValueRef value);
+  public static native LLVMValueRef LLVMIsAMDString(LLVMValueRef value);
 
   public static native LLVMModuleRef LLVMModuleCreateWithName(String name);
   public static native LLVMValueRef LLVMAddFunction(LLVMModuleRef module, String name, LLVMTypeRef type);
@@ -173,6 +185,11 @@ public class LLVM
   public static native LLVMContextRef LLVMGetGlobalContext();
 
   public static native int LLVMWriteBitcodeToFile(LLVMModuleRef module, String path);
+
+  public static native boolean LLVMCreateMemoryBufferWithContentsOfFile(String path, PointerByReference outMemoryBuffer, PointerByReference outMessage);
+  public static native void LLVMDisposeMemoryBuffer(LLVMMemoryBufferRef memoryBuffer);
+  public static native boolean LLVMParseBitcode(LLVMMemoryBufferRef memoryBuffer, PointerByReference outModule, PointerByReference outMessage);
+  public static native void LLVMDisposeModule(LLVMModuleRef module);
 
   public static native LLVMPassManagerRef LLVMCreatePassManager();
 }
