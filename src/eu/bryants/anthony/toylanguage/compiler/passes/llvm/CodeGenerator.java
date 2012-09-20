@@ -1998,7 +1998,7 @@ public class CodeGenerator
 
       LLVMValueRef nullableValue = buildExpression(nullCoalescingExpression.getNullableExpression(), llvmFunction, thisValue, variables);
       nullableValue = convertType(nullableValue, nullCoalescingExpression.getNullableExpression().getType(), TypeChecker.findTypeWithNullability(nullCoalescingExpression.getType(), true), llvmFunction);
-      LLVMValueRef checkResult = buildNullCheck(nullableValue, nullCoalescingExpression.getNullableExpression().getType());
+      LLVMValueRef checkResult = buildNullCheck(nullableValue, TypeChecker.findTypeWithNullability(nullCoalescingExpression.getType(), true));
 
       LLVMBasicBlockRef conversionBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "nullCoalescingConversion");
       LLVMBasicBlockRef alternativeBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "nullCoalescingAlternative");
@@ -2019,7 +2019,13 @@ public class CodeGenerator
 
       LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
       // create a phi node for the result, and return it
-      LLVMValueRef result = LLVM.LLVMBuildPhi(builder, findNativeType(nullCoalescingExpression.getType()), "");
+      LLVMTypeRef resultType = findNativeType(nullCoalescingExpression.getType());
+      if (nullCoalescingExpression.getType() instanceof NamedType && ((NamedType) nullCoalescingExpression.getType()).getResolvedTypeDefinition() instanceof CompoundDefinition)
+      {
+        // for compound types, we actually return a pointer to the result type
+        resultType = LLVM.LLVMPointerType(resultType, 0);
+      }
+      LLVMValueRef result = LLVM.LLVMBuildPhi(builder, resultType, "");
       LLVMValueRef[] incomingValues = new LLVMValueRef[] {convertedNullableValue, alternativeValue};
       LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {endConversionBlock, endAlternativeBlock};
       LLVM.LLVMAddIncoming(result, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
