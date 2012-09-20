@@ -11,7 +11,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ClassCreationExpression;
-import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.EqualityExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
@@ -22,6 +22,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.NullLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.RelationalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
@@ -322,11 +323,22 @@ public class TypePropagator
         propagateTypes(arguments[i], parameters[i].getType());
       }
     }
-    else if (expression instanceof ComparisonExpression)
+    else if (expression instanceof EqualityExpression)
     {
-      ComparisonExpression comparisonExpression = (ComparisonExpression) expression;
-      propagateTypes(comparisonExpression.getLeftSubExpression(), comparisonExpression.getComparisonType());
-      propagateTypes(comparisonExpression.getRightSubExpression(), comparisonExpression.getComparisonType());
+      EqualityExpression equalityExpression = (EqualityExpression) expression;
+      if (equalityExpression.getComparisonType() == null)
+      {
+        // we do not have a comparison type. this can only happen if both sub-types are integer PrimitiveTypes and
+        // the TypeChecker has left the CodeGenerator to extend both types to a signed type which is 1 bit larger than the maximum of the sub-types' bit widths
+        // in this case, we just propagate the sub-expressions' types down to them here
+        propagateTypes(equalityExpression.getLeftSubExpression(), equalityExpression.getLeftSubExpression().getType());
+        propagateTypes(equalityExpression.getRightSubExpression(), equalityExpression.getRightSubExpression().getType());
+      }
+      else
+      {
+        propagateTypes(equalityExpression.getLeftSubExpression(), equalityExpression.getComparisonType());
+        propagateTypes(equalityExpression.getRightSubExpression(), equalityExpression.getComparisonType());
+      }
     }
     else if (expression instanceof FieldAccessExpression)
     {
@@ -424,6 +436,23 @@ public class TypePropagator
     {
       // we don't care if we get a NullType here, that just means that the value of this null is never used, so we just let the CodeGenerator generate it as such
       expression.setType(type);
+    }
+    else if (expression instanceof RelationalExpression)
+    {
+      RelationalExpression relationalExpression = (RelationalExpression) expression;
+      if (relationalExpression.getComparisonType() == null)
+      {
+        // we do not have a comparison type. this can only happen if both sub-types are integer PrimitiveTypes and
+        // the TypeChecker has left the CodeGenerator to extend both types to a signed type which is 1 bit larger than the maximum of the sub-types' bit widths
+        // in this case, we just propagate the sub-expressions' types down to them here
+        propagateTypes(relationalExpression.getLeftSubExpression(), relationalExpression.getLeftSubExpression().getType());
+        propagateTypes(relationalExpression.getRightSubExpression(), relationalExpression.getRightSubExpression().getType());
+      }
+      else
+      {
+        propagateTypes(relationalExpression.getLeftSubExpression(), relationalExpression.getComparisonType());
+        propagateTypes(relationalExpression.getRightSubExpression(), relationalExpression.getComparisonType());
+      }
     }
     else if (expression instanceof ShiftExpression)
     {

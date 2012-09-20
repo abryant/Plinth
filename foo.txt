@@ -21,11 +21,5 @@ class Asdf
   {
     return a;
   }
-
-  static :bar.complex process(:bar.complex c)
-  {
-    :bar.complex argh = bar.complex(12, 5);
-    return :bar.complex::rotateLeft(c);
-  }
 }
 

@@ -23,8 +23,8 @@ import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ClassCreationExpression;
-import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
-import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression.ComparisonOperator;
+import eu.bryants.anthony.toylanguage.ast.expression.EqualityExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.EqualityExpression.EqualityOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
@@ -36,6 +36,8 @@ import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOp
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.NullLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.RelationalExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.RelationalExpression.RelationalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
@@ -1424,7 +1426,7 @@ public class CodeGenerator
     return primitiveValue;
   }
 
-  private int getPredicate(ComparisonOperator operator, boolean floating, boolean signed)
+  private int getPredicate(EqualityOperator operator, boolean floating)
   {
     if (floating)
     {
@@ -1432,14 +1434,6 @@ public class CodeGenerator
       {
       case EQUAL:
         return LLVM.LLVMRealPredicate.LLVMRealOEQ;
-      case LESS_THAN:
-        return LLVM.LLVMRealPredicate.LLVMRealOLT;
-      case LESS_THAN_EQUAL:
-        return LLVM.LLVMRealPredicate.LLVMRealOLE;
-      case MORE_THAN:
-        return LLVM.LLVMRealPredicate.LLVMRealOGT;
-      case MORE_THAN_EQUAL:
-        return LLVM.LLVMRealPredicate.LLVMRealOGE;
       case NOT_EQUAL:
         return LLVM.LLVMRealPredicate.LLVMRealONE;
       }
@@ -1450,6 +1444,33 @@ public class CodeGenerator
       {
       case EQUAL:
         return LLVM.LLVMIntPredicate.LLVMIntEQ;
+      case NOT_EQUAL:
+        return LLVM.LLVMIntPredicate.LLVMIntNE;
+      }
+    }
+    throw new IllegalArgumentException("Unknown predicate '" + operator + "'");
+  }
+
+  private int getPredicate(RelationalOperator operator, boolean floating, boolean signed)
+  {
+    if (floating)
+    {
+      switch (operator)
+      {
+      case LESS_THAN:
+        return LLVM.LLVMRealPredicate.LLVMRealOLT;
+      case LESS_THAN_EQUAL:
+        return LLVM.LLVMRealPredicate.LLVMRealOLE;
+      case MORE_THAN:
+        return LLVM.LLVMRealPredicate.LLVMRealOGT;
+      case MORE_THAN_EQUAL:
+        return LLVM.LLVMRealPredicate.LLVMRealOGE;
+      }
+    }
+    else
+    {
+      switch (operator)
+      {
       case LESS_THAN:
         return signed ? LLVM.LLVMIntPredicate.LLVMIntSLT : LLVM.LLVMIntPredicate.LLVMIntULT;
       case LESS_THAN_EQUAL:
@@ -1458,8 +1479,6 @@ public class CodeGenerator
         return signed ? LLVM.LLVMIntPredicate.LLVMIntSGT : LLVM.LLVMIntPredicate.LLVMIntUGT;
       case MORE_THAN_EQUAL:
         return signed ? LLVM.LLVMIntPredicate.LLVMIntSGE : LLVM.LLVMIntPredicate.LLVMIntUGE;
-      case NOT_EQUAL:
-        return LLVM.LLVMIntPredicate.LLVMIntNE;
       }
     }
     throw new IllegalArgumentException("Unknown predicate '" + operator + "'");
@@ -1578,6 +1597,279 @@ public class CodeGenerator
       return LLVM.LLVMBuildExtractValue(builder, value, 0, "");
     }
     throw new IllegalArgumentException("Cannot build a null check for the unrecognised type: " + type);
+  }
+
+  /**
+   * Builds the LLVM statements for an equality check between the specified two values, which are both of the specified type.
+   * The equality check either checks whether the values are equal, or not equal, depending on the EqualityOperator provided.
+   * @param left - the left LLVMValueRef in the comparison
+   * @param right - the right LLVMValueRef in the comparison
+   * @param type - the Type of both of the values - both of the values should be converted to this type before this function is called
+   * @param operator - the EqualityOperator which determines which way to compare the values (e.g. EQUAL results in a 1 iff the values are equal)
+   * @param llvmFunction - the LLVM Function that we are building this check in, this must be provided so that we can append basic blocks
+   * @return an LLVMValueRef for an i1, which will be 1 if the check returns true, or 0 if the check returns false
+   */
+  private LLVMValueRef buildEqualityCheck(LLVMValueRef left, LLVMValueRef right, Type type, EqualityOperator operator, LLVMValueRef llvmFunction)
+  {
+    if (type instanceof ArrayType)
+    {
+      return LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), left, right, "");
+    }
+    if (type instanceof FunctionType)
+    {
+      LLVMValueRef leftOpaque = LLVM.LLVMBuildExtractValue(builder, left, 0, "");
+      LLVMValueRef rightOpaque = LLVM.LLVMBuildExtractValue(builder, right, 0, "");
+      LLVMValueRef opaqueComparison = LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), leftOpaque, rightOpaque, "");
+      LLVMValueRef leftFunction = LLVM.LLVMBuildExtractValue(builder, left, 1, "");
+      LLVMValueRef rightFunction = LLVM.LLVMBuildExtractValue(builder, right, 1, "");
+      LLVMValueRef functionComparison = LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), leftFunction, rightFunction, "");
+      if (operator == EqualityOperator.EQUAL)
+      {
+        return LLVM.LLVMBuildAnd(builder, opaqueComparison, functionComparison, "");
+      }
+      if (operator == EqualityOperator.NOT_EQUAL)
+      {
+        return LLVM.LLVMBuildOr(builder, opaqueComparison, functionComparison, "");
+      }
+      throw new IllegalArgumentException("Cannot build an equality check without a valid EqualityOperator");
+    }
+    if (type instanceof NamedType)
+    {
+      TypeDefinition typeDefinition = ((NamedType) type).getResolvedTypeDefinition();
+      if (typeDefinition instanceof ClassDefinition)
+      {
+        return LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), left, right, "");
+      }
+      if (typeDefinition instanceof CompoundDefinition)
+      {
+        // we don't want to compare anything if one of the compound definitions is null, so we need to branch and only compare them if they are both not-null
+        LLVMValueRef nullityComparison = null;
+        LLVMBasicBlockRef startBlock = null;
+        LLVMBasicBlockRef finalBlock = null;
+        LLVMValueRef leftNotNull = left;
+        LLVMValueRef rightNotNull = right;
+        if (type.isNullable())
+        {
+          LLVMValueRef[] nullityIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
+          LLVMValueRef leftNullityPointer = LLVM.LLVMBuildGEP(builder, left, C.toNativePointerArray(nullityIndices, false, true), nullityIndices.length, "");
+          LLVMValueRef leftNullity = LLVM.LLVMBuildLoad(builder, leftNullityPointer, "");
+          LLVMValueRef rightNullityPointer = LLVM.LLVMBuildGEP(builder, right, C.toNativePointerArray(nullityIndices, false, true), nullityIndices.length, "");
+          LLVMValueRef rightNullity = LLVM.LLVMBuildLoad(builder, rightNullityPointer, "");
+          nullityComparison = LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), leftNullity, rightNullity, "");
+          LLVMValueRef bothNotNull = LLVM.LLVMBuildAnd(builder, leftNullity, rightNullity, "");
+
+          startBlock = LLVM.LLVMGetInsertBlock(builder);
+          LLVMBasicBlockRef comparisonBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "equality_comparevalues");
+          finalBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "equality_final");
+
+          LLVM.LLVMBuildCondBr(builder, bothNotNull, comparisonBlock, finalBlock);
+          LLVM.LLVMPositionBuilderAtEnd(builder, comparisonBlock);
+
+          LLVMValueRef[] notNullIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                              LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
+          leftNotNull = LLVM.LLVMBuildGEP(builder, left, C.toNativePointerArray(notNullIndices, false, true), notNullIndices.length, "");
+          rightNotNull = LLVM.LLVMBuildGEP(builder, right, C.toNativePointerArray(notNullIndices, false, true), notNullIndices.length, "");
+        }
+
+        // compare each of the fields from the left and right values
+        Field[] nonStaticFields = typeDefinition.getNonStaticFields();
+        LLVMValueRef[] compareResults = new LLVMValueRef[nonStaticFields.length];
+        for (int i = 0; i < nonStaticFields.length; ++i)
+        {
+          Type fieldType = nonStaticFields[i].getType();
+          LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), i, false)};
+          LLVMValueRef leftField = LLVM.LLVMBuildGEP(builder, leftNotNull, C.toNativePointerArray(indices, false, true), indices.length, "");
+          LLVMValueRef rightField = LLVM.LLVMBuildGEP(builder, rightNotNull, C.toNativePointerArray(indices, false, true), indices.length, "");
+          LLVMValueRef leftValue;
+          LLVMValueRef rightValue;
+          if (fieldType instanceof NamedType && ((NamedType) fieldType).getResolvedTypeDefinition() instanceof CompoundDefinition)
+          {
+            leftValue = leftField;
+            rightValue = rightField;
+          }
+          else
+          {
+            leftValue = LLVM.LLVMBuildLoad(builder, leftField, "");
+            rightValue = LLVM.LLVMBuildLoad(builder, rightField, "");
+          }
+          compareResults[i] = buildEqualityCheck(leftValue, rightValue, fieldType, operator, llvmFunction);
+        }
+
+        // AND or OR the list together, using a binary tree
+        int multiple = 1;
+        while (multiple < nonStaticFields.length)
+        {
+          for (int i = 0; i < nonStaticFields.length; i += 2 * multiple)
+          {
+            LLVMValueRef first = compareResults[i];
+            if (i + multiple >= nonStaticFields.length)
+            {
+              continue;
+            }
+            LLVMValueRef second = compareResults[i + multiple];
+            LLVMValueRef result = null;
+            if (operator == EqualityOperator.EQUAL)
+            {
+              result = LLVM.LLVMBuildAnd(builder, first, second, "");
+            }
+            else if (operator == EqualityOperator.NOT_EQUAL)
+            {
+              result = LLVM.LLVMBuildOr(builder, first, second, "");
+            }
+            compareResults[i] = result;
+          }
+          multiple *= 2;
+        }
+        LLVMValueRef normalComparison = compareResults[0];
+
+        if (type.isNullable())
+        {
+          LLVMBasicBlockRef endComparisonBlock = LLVM.LLVMGetInsertBlock(builder);
+          LLVM.LLVMBuildBr(builder, finalBlock);
+          LLVM.LLVMPositionBuilderAtEnd(builder, finalBlock);
+          LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt1Type(), "");
+          LLVMValueRef[] incomingValues = new LLVMValueRef[] {nullityComparison, normalComparison};
+          LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, endComparisonBlock};
+          LLVM.LLVMAddIncoming(phiNode, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+          return phiNode;
+        }
+        return normalComparison;
+      }
+    }
+    if (type instanceof PrimitiveType)
+    {
+      PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
+      LLVMValueRef leftValue = left;
+      LLVMValueRef rightValue = right;
+      if (type.isNullable())
+      {
+        leftValue = LLVM.LLVMBuildExtractValue(builder, left, 1, "");
+        rightValue = LLVM.LLVMBuildExtractValue(builder, right, 1, "");
+      }
+      LLVMValueRef valueEqualityResult;
+      if (primitiveTypeType.isFloating())
+      {
+        valueEqualityResult = LLVM.LLVMBuildFCmp(builder, getPredicate(operator, true), leftValue, rightValue, "");
+      }
+      else
+      {
+        valueEqualityResult = LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), leftValue, rightValue, "");
+      }
+      if (type.isNullable())
+      {
+        LLVMValueRef leftNullity = LLVM.LLVMBuildExtractValue(builder, left, 0, "");
+        LLVMValueRef rightNullity = LLVM.LLVMBuildExtractValue(builder, right, 0, "");
+        LLVMValueRef bothNotNull = LLVM.LLVMBuildAnd(builder, leftNullity, rightNullity, "");
+        LLVMValueRef notNullAndValueResult = LLVM.LLVMBuildAnd(builder, bothNotNull, valueEqualityResult, "");
+        LLVMValueRef nullityComparison;
+        if (operator == EqualityOperator.EQUAL)
+        {
+          nullityComparison = LLVM.LLVMBuildNot(builder, LLVM.LLVMBuildOr(builder, leftNullity, rightNullity, ""), "");
+        }
+        else
+        {
+          nullityComparison = LLVM.LLVMBuildXor(builder, leftNullity, rightNullity, "");
+        }
+        return LLVM.LLVMBuildOr(builder, notNullAndValueResult, nullityComparison, "");
+      }
+      return valueEqualityResult;
+    }
+    if (type instanceof TupleType)
+    {
+      // we don't want to compare anything if one of the tuples is null, so we need to branch and only compare them if they are both not-null
+      LLVMValueRef nullityComparison = null;
+      LLVMBasicBlockRef startBlock = null;
+      LLVMBasicBlockRef finalBlock = null;
+      LLVMValueRef leftNotNull = left;
+      LLVMValueRef rightNotNull = right;
+      if (type.isNullable())
+      {
+        LLVMValueRef leftNullity = LLVM.LLVMBuildExtractValue(builder, left, 0, "");
+        LLVMValueRef rightNullity = LLVM.LLVMBuildExtractValue(builder, right, 0, "");
+        nullityComparison = LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), leftNullity, rightNullity, "");
+        LLVMValueRef bothNotNull = LLVM.LLVMBuildAnd(builder, leftNullity, rightNullity, "");
+
+        startBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVMBasicBlockRef comparisonBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "equality_comparevalues");
+        finalBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "equality_final");
+
+        LLVM.LLVMBuildCondBr(builder, bothNotNull, comparisonBlock, finalBlock);
+        LLVM.LLVMPositionBuilderAtEnd(builder, comparisonBlock);
+
+        leftNotNull = LLVM.LLVMBuildExtractValue(builder, left, 1, "");
+        rightNotNull = LLVM.LLVMBuildExtractValue(builder, right, 1, "");
+      }
+
+      // compare each of the fields from the left and right values
+      Type[] subTypes = ((TupleType) type).getSubTypes();
+      LLVMValueRef[] compareResults = new LLVMValueRef[subTypes.length];
+      for (int i = 0; i < subTypes.length; ++i)
+      {
+        Type subType = subTypes[i];
+        LLVMValueRef leftField = LLVM.LLVMBuildExtractValue(builder, leftNotNull, i, "");
+        LLVMValueRef rightField = LLVM.LLVMBuildExtractValue(builder, rightNotNull, i, "");
+        LLVMValueRef leftValue = leftField;
+        LLVMValueRef rightValue = rightField;
+        if (subType instanceof NamedType && ((NamedType) subType).getResolvedTypeDefinition() instanceof CompoundDefinition)
+        {
+          // for compound types, we need to get pointers from these values
+          // so build some allocas in the entry block
+          LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+          LLVM.LLVMPositionBuilderBefore(builder, LLVM.LLVMGetFirstInstruction(LLVM.LLVMGetEntryBasicBlock(llvmFunction)));
+          LLVMValueRef leftAlloca = LLVM.LLVMBuildAlloca(builder, findNativeType(subType), "");
+          LLVMValueRef rightAlloca = LLVM.LLVMBuildAlloca(builder, findNativeType(subType), "");
+          LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+          LLVM.LLVMBuildStore(builder, leftField, leftAlloca);
+          LLVM.LLVMBuildStore(builder, rightField, rightAlloca);
+          leftValue = leftAlloca;
+          rightValue = rightAlloca;
+        }
+        compareResults[i] = buildEqualityCheck(leftValue, rightValue, subType, operator, llvmFunction);
+      }
+
+      // AND or OR the list together, using a binary tree
+      int multiple = 1;
+      while (multiple < subTypes.length)
+      {
+        for (int i = 0; i < subTypes.length; i += 2 * multiple)
+        {
+          LLVMValueRef first = compareResults[i];
+          if (i + multiple >= subTypes.length)
+          {
+            continue;
+          }
+          LLVMValueRef second = compareResults[i + multiple];
+          LLVMValueRef result = null;
+          if (operator == EqualityOperator.EQUAL)
+          {
+            result = LLVM.LLVMBuildAnd(builder, first, second, "");
+          }
+          else if (operator == EqualityOperator.NOT_EQUAL)
+          {
+            result = LLVM.LLVMBuildOr(builder, first, second, "");
+          }
+          compareResults[i] = result;
+        }
+        multiple *= 2;
+      }
+      LLVMValueRef normalComparison = compareResults[0];
+
+      if (type.isNullable())
+      {
+        LLVMBasicBlockRef endComparisonBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildBr(builder, finalBlock);
+        LLVM.LLVMPositionBuilderAtEnd(builder, finalBlock);
+        LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt1Type(), "");
+        LLVMValueRef[] incomingValues = new LLVMValueRef[] {nullityComparison, normalComparison};
+        LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, endComparisonBlock};
+        LLVM.LLVMAddIncoming(phiNode, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+        return phiNode;
+      }
+      return normalComparison;
+    }
+    throw new IllegalArgumentException("Cannot compare two values of type '" + type + "' for equality");
   }
 
   private LLVMValueRef buildExpression(Expression expression, LLVMValueRef llvmFunction, LLVMValueRef thisValue, Map<Variable, LLVMValueRef> variables)
@@ -1735,46 +2027,67 @@ public class CodeGenerator
       LLVMValueRef result = LLVM.LLVMBuildCall(builder, llvmFunc, C.toNativePointerArray(llvmArguments, false, true), llvmArguments.length, "");
       return result;
     }
-    if (expression instanceof ComparisonExpression)
+    if (expression instanceof EqualityExpression)
     {
-      ComparisonExpression comparisonExpression = (ComparisonExpression) expression;
-      LLVMValueRef left = buildExpression(comparisonExpression.getLeftSubExpression(), llvmFunction, thisValue, variables);
-      LLVMValueRef right = buildExpression(comparisonExpression.getRightSubExpression(), llvmFunction, thisValue, variables);
-      PrimitiveType leftType = (PrimitiveType) comparisonExpression.getLeftSubExpression().getType();
-      PrimitiveType rightType = (PrimitiveType) comparisonExpression.getRightSubExpression().getType();
-      // cast if necessary
-      PrimitiveType resultType = comparisonExpression.getComparisonType();
-      if (resultType == null)
+      EqualityExpression equalityExpression = (EqualityExpression) expression;
+      EqualityOperator operator = equalityExpression.getOperator();
+      // if the type checker has annotated this as a null check, just perform it without building both sub-expressions
+      Expression nullCheckExpression = equalityExpression.getNullCheckExpression();
+      if (nullCheckExpression != null)
       {
-        PrimitiveTypeType leftTypeType = leftType.getPrimitiveTypeType();
-        PrimitiveTypeType rightTypeType = rightType.getPrimitiveTypeType();
+        LLVMValueRef value = buildExpression(nullCheckExpression, llvmFunction, thisValue, variables);
+        LLVMValueRef convertedValue = convertType(value, nullCheckExpression.getType(), equalityExpression.getComparisonType(), llvmFunction);
+        LLVMValueRef nullity = buildNullCheck(convertedValue, equalityExpression.getComparisonType());
+        switch (operator)
+        {
+        case EQUAL:
+          return LLVM.LLVMBuildNot(builder, nullity, "");
+        case NOT_EQUAL:
+          return nullity;
+        default:
+          throw new IllegalArgumentException("Cannot build an EqualityExpression with no EqualityOperator");
+        }
+      }
+
+      LLVMValueRef left = buildExpression(equalityExpression.getLeftSubExpression(), llvmFunction, thisValue, variables);
+      LLVMValueRef right = buildExpression(equalityExpression.getRightSubExpression(), llvmFunction, thisValue, variables);
+      Type leftType = equalityExpression.getLeftSubExpression().getType();
+      Type rightType = equalityExpression.getRightSubExpression().getType();
+      Type comparisonType = equalityExpression.getComparisonType();
+      // if comparisonType is null, then the types are integers which cannot be assigned to each other either way around, because one is signed and the other is unsigned
+      // so we must extend each of them to a larger bitCount which they can both fit into, and compare them there
+      if (comparisonType == null)
+      {
+        if (!(leftType instanceof PrimitiveType) || !(rightType instanceof PrimitiveType))
+        {
+          throw new IllegalStateException("A comparison type must be provided if either the left or right type is not a PrimitiveType: " + equalityExpression);
+        }
+        PrimitiveTypeType leftTypeType = ((PrimitiveType) leftType).getPrimitiveTypeType();
+        PrimitiveTypeType rightTypeType = ((PrimitiveType) rightType).getPrimitiveTypeType();
         if (!leftTypeType.isFloating() && !rightTypeType.isFloating() &&
-            leftTypeType.getBitCount() == rightTypeType.getBitCount() &&
             leftTypeType.isSigned() != rightTypeType.isSigned())
         {
           // compare the signed and non-signed integers as (bitCount + 1) bit numbers, since they will not fit in bitCount bits
-          LLVMTypeRef comparisonType = LLVM.LLVMIntType(leftType.getPrimitiveTypeType().getBitCount() + 1);
+          int bitCount = Math.max(leftTypeType.getBitCount(), rightTypeType.getBitCount()) + 1;
+          LLVMTypeRef llvmComparisonType = LLVM.LLVMIntType(bitCount);
           if (leftTypeType.isSigned())
           {
-            left = LLVM.LLVMBuildSExt(builder, left, comparisonType, "");
-            right = LLVM.LLVMBuildZExt(builder, right, comparisonType, "");
+            left = LLVM.LLVMBuildSExt(builder, left, llvmComparisonType, "");
+            right = LLVM.LLVMBuildZExt(builder, right, llvmComparisonType, "");
           }
           else
           {
-            left = LLVM.LLVMBuildZExt(builder, left, comparisonType, "");
-            right = LLVM.LLVMBuildSExt(builder, right, comparisonType, "");
+            left = LLVM.LLVMBuildZExt(builder, left, llvmComparisonType, "");
+            right = LLVM.LLVMBuildSExt(builder, right, llvmComparisonType, "");
           }
-          return LLVM.LLVMBuildICmp(builder, getPredicate(comparisonExpression.getOperator(), false, true), left, right, "");
+          return LLVM.LLVMBuildICmp(builder, getPredicate(equalityExpression.getOperator(), false), left, right, "");
         }
-        throw new IllegalArgumentException("Unknown result type, unable to generate comparison expression: " + expression);
+        throw new IllegalArgumentException("Unknown result type, unable to generate comparison expression: " + equalityExpression);
       }
-      left = convertPrimitiveType(left, leftType, resultType);
-      right = convertPrimitiveType(right, rightType, resultType);
-      if (resultType.getPrimitiveTypeType().isFloating())
-      {
-        return LLVM.LLVMBuildFCmp(builder, getPredicate(comparisonExpression.getOperator(), true, true), left, right, "");
-      }
-      return LLVM.LLVMBuildICmp(builder, getPredicate(comparisonExpression.getOperator(), false, resultType.getPrimitiveTypeType().isSigned()), left, right, "");
+      // perform a standard equality check, using buildEqualityCheck()
+      left = convertType(left, leftType, comparisonType, llvmFunction);
+      right = convertType(right, rightType, comparisonType, llvmFunction);
+      return buildEqualityCheck(left, right, comparisonType, operator, llvmFunction);
     }
     if (expression instanceof FieldAccessExpression)
     {
@@ -2084,6 +2397,47 @@ public class CodeGenerator
         return alloca;
       }
       return value;
+    }
+    if (expression instanceof RelationalExpression)
+    {
+      RelationalExpression relationalExpression = (RelationalExpression) expression;
+      LLVMValueRef left = buildExpression(relationalExpression.getLeftSubExpression(), llvmFunction, thisValue, variables);
+      LLVMValueRef right = buildExpression(relationalExpression.getRightSubExpression(), llvmFunction, thisValue, variables);
+      PrimitiveType leftType = (PrimitiveType) relationalExpression.getLeftSubExpression().getType();
+      PrimitiveType rightType = (PrimitiveType) relationalExpression.getRightSubExpression().getType();
+      // cast if necessary
+      PrimitiveType resultType = relationalExpression.getComparisonType();
+      if (resultType == null)
+      {
+        PrimitiveTypeType leftTypeType = leftType.getPrimitiveTypeType();
+        PrimitiveTypeType rightTypeType = rightType.getPrimitiveTypeType();
+        if (!leftTypeType.isFloating() && !rightTypeType.isFloating() &&
+            leftTypeType.isSigned() != rightTypeType.isSigned())
+        {
+          // compare the signed and non-signed integers as (bitCount + 1) bit numbers, since they will not fit in bitCount bits
+          int bitCount = Math.max(leftTypeType.getBitCount(), rightTypeType.getBitCount()) + 1;
+          LLVMTypeRef comparisonType = LLVM.LLVMIntType(bitCount);
+          if (leftTypeType.isSigned())
+          {
+            left = LLVM.LLVMBuildSExt(builder, left, comparisonType, "");
+            right = LLVM.LLVMBuildZExt(builder, right, comparisonType, "");
+          }
+          else
+          {
+            left = LLVM.LLVMBuildZExt(builder, left, comparisonType, "");
+            right = LLVM.LLVMBuildSExt(builder, right, comparisonType, "");
+          }
+          return LLVM.LLVMBuildICmp(builder, getPredicate(relationalExpression.getOperator(), false, true), left, right, "");
+        }
+        throw new IllegalArgumentException("Unknown result type, unable to generate comparison expression: " + expression);
+      }
+      left = convertPrimitiveType(left, leftType, resultType);
+      right = convertPrimitiveType(right, rightType, resultType);
+      if (resultType.getPrimitiveTypeType().isFloating())
+      {
+        return LLVM.LLVMBuildFCmp(builder, getPredicate(relationalExpression.getOperator(), true, true), left, right, "");
+      }
+      return LLVM.LLVMBuildICmp(builder, getPredicate(relationalExpression.getOperator(), false, resultType.getPrimitiveTypeType().isSigned()), left, right, "");
     }
     if (expression instanceof ShiftExpression)
     {

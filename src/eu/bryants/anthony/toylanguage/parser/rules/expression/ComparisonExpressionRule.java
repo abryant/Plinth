@@ -4,9 +4,11 @@ import parser.ParseException;
 import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
-import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
-import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression.ComparisonOperator;
+import eu.bryants.anthony.toylanguage.ast.expression.EqualityExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.EqualityExpression.EqualityOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
+import eu.bryants.anthony.toylanguage.ast.expression.RelationalExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.RelationalExpression.RelationalOperator;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
 
 /*
@@ -47,18 +49,30 @@ public class ComparisonExpressionRule extends Rule<ParseType>
     {
       return args[0];
     }
-    ComparisonOperator operator;
-    if (production == EQUAL_PRODUCTION) { operator = ComparisonOperator.EQUAL; }
-    else if (production == NOT_EQUAL_PRODUCTION) { operator = ComparisonOperator.NOT_EQUAL; }
-    else if (production == LESS_THAN_PRODUCTION) { operator = ComparisonOperator.LESS_THAN; }
-    else if (production == LESS_THAN_EQUAL_PRODUCTION) { operator = ComparisonOperator.LESS_THAN_EQUAL; }
-    else if (production == MORE_THAN_PRODUCTION) { operator = ComparisonOperator.MORE_THAN; }
-    else if (production == MORE_THAN_EQUAL_PRODUCTION) { operator = ComparisonOperator.MORE_THAN_EQUAL; }
+    if (production == EQUAL_PRODUCTION)
+    {
+      Expression left = (Expression) args[0];
+      Expression right = (Expression) args[2];
+      LexicalPhrase lexicalPhrase = LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase());
+      return new EqualityExpression(left, right, EqualityOperator.EQUAL, lexicalPhrase);
+    }
+    if (production == NOT_EQUAL_PRODUCTION)
+    {
+      Expression left = (Expression) args[0];
+      Expression right = (Expression) args[2];
+      LexicalPhrase lexicalPhrase = LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase());
+      return new EqualityExpression(left, right, EqualityOperator.NOT_EQUAL, lexicalPhrase);
+    }
+    RelationalOperator operator;
+    if (production == LESS_THAN_PRODUCTION)            { operator = RelationalOperator.LESS_THAN; }
+    else if (production == LESS_THAN_EQUAL_PRODUCTION) { operator = RelationalOperator.LESS_THAN_EQUAL; }
+    else if (production == MORE_THAN_PRODUCTION)       { operator = RelationalOperator.MORE_THAN; }
+    else if (production == MORE_THAN_EQUAL_PRODUCTION) { operator = RelationalOperator.MORE_THAN_EQUAL; }
     else { throw badTypeList(); }
     Expression left = (Expression) args[0];
     Expression right = (Expression) args[2];
     LexicalPhrase lexicalPhrase = LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase());
-    return new ComparisonExpression(left, right, operator, lexicalPhrase);
+    return new RelationalExpression(left, right, operator, lexicalPhrase);
   }
 
 }

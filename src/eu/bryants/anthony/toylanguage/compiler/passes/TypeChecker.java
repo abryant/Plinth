@@ -17,8 +17,8 @@ import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ClassCreationExpression;
-import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
-import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression.ComparisonOperator;
+import eu.bryants.anthony.toylanguage.ast.expression.EqualityExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.EqualityExpression.EqualityOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
@@ -30,6 +30,8 @@ import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression.LogicalOp
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.NullLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.RelationalExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.RelationalExpression.RelationalOperator;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
@@ -769,51 +771,84 @@ public class TypeChecker
       }
       return type;
     }
-    else if (expression instanceof ComparisonExpression)
+    else if (expression instanceof EqualityExpression)
     {
-      ComparisonExpression comparisonExpression = (ComparisonExpression) expression;
-      ComparisonOperator operator = comparisonExpression.getOperator();
-      Type leftType = checkTypes(comparisonExpression.getLeftSubExpression(), compilationUnit);
-      Type rightType = checkTypes(comparisonExpression.getRightSubExpression(), compilationUnit);
-      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.isNullable() && !rightType.isNullable())
+      EqualityExpression equalityExpression = (EqualityExpression) expression;
+      EqualityOperator operator = equalityExpression.getOperator();
+      Type leftType = checkTypes(equalityExpression.getLeftSubExpression(), compilationUnit);
+      Type rightType = checkTypes(equalityExpression.getRightSubExpression(), compilationUnit);
+      if ((leftType instanceof NullType && !rightType.isNullable()) ||
+          (!leftType.isNullable() && rightType instanceof NullType))
+      {
+        throw new ConceptualException("Cannot perform a null check on a non-nullable type (the '" + operator + "' operator is not defined for types '" + leftType + "' and '" + rightType + "')", equalityExpression.getLexicalPhrase());
+      }
+      // if we return from checking this EqualityExpression, the result will always be a non-nullable boolean type
+      Type resultType = new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null);
+      equalityExpression.setType(resultType);
+
+      // if one of the operands is always null (i.e. a NullType), annotate this EqualityExpression as a null check for the other operand
+      if (leftType instanceof NullType)
+      {
+        equalityExpression.setNullCheckExpression(equalityExpression.getRightSubExpression());
+        equalityExpression.setComparisonType(rightType);
+        return resultType;
+      }
+      if (rightType instanceof NullType)
+      {
+        equalityExpression.setNullCheckExpression(equalityExpression.getLeftSubExpression());
+        equalityExpression.setComparisonType(leftType);
+        return resultType;
+      }
+
+      if (leftType instanceof NullType && rightType instanceof NullType)
+      {
+        // this is a silly edge case where we are just doing something like "null == null" or "null != (b ? null : null)",
+        // but allow it anyway - the code generator can turn it into a constant true or false
+        equalityExpression.setComparisonType(leftType);
+        return resultType;
+      }
+      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType))
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
         PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
-        if (leftPrimitiveType == PrimitiveTypeType.BOOLEAN && rightPrimitiveType == PrimitiveTypeType.BOOLEAN &&
-            (comparisonExpression.getOperator() == ComparisonOperator.EQUAL || comparisonExpression.getOperator() == ComparisonOperator.NOT_EQUAL))
+        if (leftPrimitiveType != PrimitiveTypeType.BOOLEAN && rightPrimitiveType != PrimitiveTypeType.BOOLEAN &&
+            !leftPrimitiveType.isFloating() && !rightPrimitiveType.isFloating())
         {
-          // comparing booleans is only valid when using '==' or '!='
-          comparisonExpression.setComparisonType((PrimitiveType) leftType);
-          PrimitiveType type = new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null);
-          comparisonExpression.setType(type);
-          return type;
-        }
-        if (leftPrimitiveType != PrimitiveTypeType.BOOLEAN && rightPrimitiveType != PrimitiveTypeType.BOOLEAN)
-        {
-          // we do not use findCommonSuperType() here, because that would make a comparison between a long and a ulong use a float comparison, which is not what we want
-          if (leftType.canAssign(rightType))
+          // we avoid findCommonSuperType() in this case, because that would make a comparison between a long and a ulong use a float comparison, which is not what we want
+          Type leftTestType = leftType;
+          Type rightTestType = rightType;
+          if (leftTestType.isNullable() || rightTestType.isNullable())
           {
-            comparisonExpression.setComparisonType((PrimitiveType) leftType);
+            leftTestType = findTypeWithNullability(leftTestType, true);
+            rightTestType = findTypeWithNullability(rightTestType, true);
+          }
+          if (leftTestType.canAssign(rightTestType))
+          {
+            equalityExpression.setComparisonType(leftType);
           }
           else if (rightType.canAssign(leftType))
           {
-            comparisonExpression.setComparisonType((PrimitiveType) rightType);
+            equalityExpression.setComparisonType(rightType);
           }
           else
           {
             // comparisonType will be null if no conversion can be done, e.g. if leftType is UINT and rightType is INT
             // but since comparing numeric types should always be valid, we just set the comparisonType to null anyway
             // and let the code generator handle it by converting to larger signed types first
-            comparisonExpression.setComparisonType(null);
+            equalityExpression.setComparisonType(null);
           }
 
-          // comparing any numeric types is always valid
-          Type resultType = new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null);
-          comparisonExpression.setType(resultType);
+          // comparing any integer types is always valid
           return resultType;
         }
       }
-      throw new ConceptualException("The '" + operator + "' operator is not defined for types '" + leftType + "' and '" + rightType + "'", comparisonExpression.getLexicalPhrase());
+      Type commonSuperType = findCommonSuperType(leftType, rightType);
+      if (commonSuperType != null)
+      {
+        equalityExpression.setComparisonType(commonSuperType);
+        return resultType;
+      }
+      throw new ConceptualException("The '" + operator + "' operator is not defined for types '" + leftType + "' and '" + rightType + "'", equalityExpression.getLexicalPhrase());
     }
     else if (expression instanceof FieldAccessExpression)
     {
@@ -1156,6 +1191,42 @@ public class TypeChecker
       Type type = new NullType(null);
       expression.setType(type);
       return type;
+    }
+    else if (expression instanceof RelationalExpression)
+    {
+      RelationalExpression relationalExpression = (RelationalExpression) expression;
+      RelationalOperator operator = relationalExpression.getOperator();
+      Type leftType = checkTypes(relationalExpression.getLeftSubExpression(), compilationUnit);
+      Type rightType = checkTypes(relationalExpression.getRightSubExpression(), compilationUnit);
+      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.isNullable() && !rightType.isNullable())
+      {
+        PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
+        PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
+        if (leftPrimitiveType != PrimitiveTypeType.BOOLEAN && rightPrimitiveType != PrimitiveTypeType.BOOLEAN)
+        {
+          // we do not use findCommonSuperType() here, because that would make a comparison between a long and a ulong use a float comparison, which is not what we want
+          if (leftType.canAssign(rightType))
+          {
+            relationalExpression.setComparisonType((PrimitiveType) leftType);
+          }
+          else if (rightType.canAssign(leftType))
+          {
+            relationalExpression.setComparisonType((PrimitiveType) rightType);
+          }
+          else
+          {
+            // comparisonType will be null if no conversion can be done, e.g. if leftType is UINT and rightType is INT
+            // but since comparing numeric types should always be valid, we just set the comparisonType to null anyway
+            // and let the code generator handle it by converting to larger signed types first
+            relationalExpression.setComparisonType(null);
+          }
+          // comparing any numeric types is always valid
+          Type resultType = new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null);
+          relationalExpression.setType(resultType);
+          return resultType;
+        }
+      }
+      throw new ConceptualException("The '" + operator + "' operator is not defined for types '" + leftType + "' and '" + rightType + "'", relationalExpression.getLexicalPhrase());
     }
     else if (expression instanceof ShiftExpression)
     {

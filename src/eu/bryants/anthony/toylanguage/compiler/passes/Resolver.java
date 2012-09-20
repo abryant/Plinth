@@ -24,7 +24,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ClassCreationExpression;
-import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.EqualityExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
@@ -35,6 +35,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.NullLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.RelationalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
@@ -825,10 +826,10 @@ public class Resolver
       }
       classCreationExpression.setResolvedConstructor(resolvedConstructor);
     }
-    else if (expression instanceof ComparisonExpression)
+    else if (expression instanceof EqualityExpression)
     {
-      resolve(((ComparisonExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit);
-      resolve(((ComparisonExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((EqualityExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((EqualityExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit);
     }
     else if (expression instanceof FieldAccessExpression)
     {
@@ -1161,6 +1162,11 @@ public class Resolver
     else if (expression instanceof NullLiteralExpression)
     {
       // do nothing
+    }
+    else if (expression instanceof RelationalExpression)
+    {
+      resolve(((RelationalExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((RelationalExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit);
     }
     else if (expression instanceof ShiftExpression)
     {

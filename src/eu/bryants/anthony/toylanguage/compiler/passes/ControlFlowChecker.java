@@ -16,7 +16,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.BracketedExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.CastExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ClassCreationExpression;
-import eu.bryants.anthony.toylanguage.ast.expression.ComparisonExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.EqualityExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.FloatingLiteralExpression;
@@ -27,6 +27,7 @@ import eu.bryants.anthony.toylanguage.ast.expression.LogicalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.MinusExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.NullLiteralExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.RelationalExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ShiftExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ThisExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
@@ -667,11 +668,11 @@ public class ControlFlowChecker
         checkUninitialisedVariables(argument, initialisedVariables, inConstructor, inStaticContext);
       }
     }
-    else if (expression instanceof ComparisonExpression)
+    else if (expression instanceof EqualityExpression)
     {
-      ComparisonExpression comparisonExpression = (ComparisonExpression) expression;
-      checkUninitialisedVariables(comparisonExpression.getLeftSubExpression(), initialisedVariables, inConstructor, inStaticContext);
-      checkUninitialisedVariables(comparisonExpression.getRightSubExpression(), initialisedVariables, inConstructor, inStaticContext);
+      EqualityExpression equalityExpression = (EqualityExpression) expression;
+      checkUninitialisedVariables(equalityExpression.getLeftSubExpression(), initialisedVariables, inConstructor, inStaticContext);
+      checkUninitialisedVariables(equalityExpression.getRightSubExpression(), initialisedVariables, inConstructor, inStaticContext);
     }
     else if (expression instanceof FieldAccessExpression)
     {
@@ -779,6 +780,12 @@ public class ControlFlowChecker
     else if (expression instanceof NullLiteralExpression)
     {
       // do nothing
+    }
+    else if (expression instanceof RelationalExpression)
+    {
+      RelationalExpression relationalExpression = (RelationalExpression) expression;
+      checkUninitialisedVariables(relationalExpression.getLeftSubExpression(), initialisedVariables, inConstructor, inStaticContext);
+      checkUninitialisedVariables(relationalExpression.getRightSubExpression(), initialisedVariables, inConstructor, inStaticContext);
     }
     else if (expression instanceof ShiftExpression)
     {

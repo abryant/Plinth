@@ -1,63 +1,31 @@
 package foo.bar;
 
-import test.Asdf;
+import test.*;
 
 compound complex
 {
-  static float testfloat;
-  static ? :complex asdf;
-  static ?(:complex, uint, ?[]float) test;
-  final double real;
-  final double imag;
+  int field;
+  (boolean, boolean) someOtherValue;
+  float more1;
+  double more2;
   complex()
   {
-    real, imag = 0, 0;
-  }
-  complex(double real, double imag)
-  {
-    this.real, this.imag = real, imag;
-  }
-  complex(double real)
-  {
-    this.real, this.imag = real, 0;
-  }
-  double getReal()
-  {
-    return real;
-  }
-  double getImag()
-  {
-    return imag;
-  }
-  :complex mult(:complex other)
-  {
-    return complex(real * other.real - imag * other.imag, real * other.imag + other.real * imag);
-  }
-  :complex add(:complex other)
-  {
-    return complex(real + other.real, imag + other.imag);
-  }
-  :complex subtract(:complex other)
-  {
-    asdf = complex(1, 2);
-    return complex(real - other.real, imag - other.imag);
-  }
-  static :complex rotateLeft(:complex value)
-  {
-    asdf = value.mult(complex(0, 1));
-    return cast<:complex> asdf;
-  }
-  static :complex swap(:complex initial)
-  {
-    return complex(initial.imag, initial.real);
+    field = 2;
+    someOtherValue = true, false;
+    more1 = 0;
+    more2 = 0;
   }
 
   static native uint main(final uint argc)
   {
-    :Asdf argh = new Asdf(argc);
-    uint a, b = argc, 2;
-    (uint, uint, uint, :Asdf) a, b, c, argh = 3, 4, 5, new Asdf(a);
-    :Asdf other = new Asdf(argh);
-    return (other.next ?: other).a;
+  //TODO: test with all of the different types
+  //TODO: then commit, and fix the low level representation of nullable compound types
+    ?float yes = 1;
+    ?double no = 2;
+    if no != yes
+    {
+      return 249;
+    }
+    return 12;
   }
 }
