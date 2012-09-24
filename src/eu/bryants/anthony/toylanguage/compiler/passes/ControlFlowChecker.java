@@ -465,12 +465,16 @@ public class ControlFlowChecker
       Assignee assignee = prefixIncDecStatement.getAssignee();
       if (assignee instanceof VariableAssignee)
       {
-        Variable resolvedVariable = ((VariableAssignee) assignee).getResolvedVariable();
-        if (!initialisedVariables.contains(resolvedVariable))
+        Variable var = ((VariableAssignee) assignee).getResolvedVariable();
+        if (!(var instanceof GlobalVariable) && !initialisedVariables.contains(var) && (inConstructor || !(var instanceof MemberVariable)))
         {
           throw new ConceptualException("Variable '" + ((VariableAssignee) assignee).getVariableName() + "' may not have been initialised", assignee.getLexicalPhrase());
         }
-        if (resolvedVariable.isFinal())
+        if (inStaticContext && var instanceof MemberVariable)
+        {
+          throw new ConceptualException("The non-static member variable '" + ((VariableAssignee) assignee).getVariableName() + "' does not exist in static methods", assignee.getLexicalPhrase());
+        }
+        if (var.isFinal())
         {
           throw new ConceptualException("Final variable '" + ((VariableAssignee) assignee).getVariableName() + "' cannot be modified", assignee.getLexicalPhrase());
         }
@@ -533,14 +537,18 @@ public class ControlFlowChecker
         if (assignee instanceof VariableAssignee)
         {
           VariableAssignee variableAssignee = (VariableAssignee) assignee;
-          Variable resolvedVariable = variableAssignee.getResolvedVariable();
-          if (!initialisedVariables.contains(resolvedVariable))
+          Variable var = variableAssignee.getResolvedVariable();
+          if (!(var instanceof GlobalVariable) && !initialisedVariables.contains(var) && (inConstructor || !(var instanceof MemberVariable)))
           {
-            throw new ConceptualException("Variable '" + variableAssignee.getVariableName() + "' may not have been initialised", assignee.getLexicalPhrase());
+            throw new ConceptualException("Variable '" + variableAssignee.getVariableName() + "' may not have been initialised", variableAssignee.getLexicalPhrase());
           }
-          if (resolvedVariable.isFinal())
+          if (inStaticContext && var instanceof MemberVariable)
           {
-            throw new ConceptualException("Final variable '" + ((VariableAssignee) assignee).getVariableName() + "' cannot be modified", assignee.getLexicalPhrase());
+            throw new ConceptualException("The non-static member variable '" + variableAssignee.getVariableName() + "' does not exist in static methods", variableAssignee.getLexicalPhrase());
+          }
+          if (var.isFinal())
+          {
+            throw new ConceptualException("Final variable '" + variableAssignee.getVariableName() + "' cannot be modified", assignee.getLexicalPhrase());
           }
         }
         else if (assignee instanceof ArrayElementAssignee)
