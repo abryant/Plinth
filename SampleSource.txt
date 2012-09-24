@@ -6,15 +6,18 @@ compound complex
 {
   final double real;
   final double imag;
+  ? :other o;
 
   complex()
   {
     real, imag = 0, 0;
+    o = null;
   }
   
   complex(double real, double imag)
   {
     this.real, this.imag = real, imag;
+    o = other(cast<uint> imag);
   }
 
   :complex mult(:complex c)
@@ -24,18 +27,38 @@ compound complex
 
   static native uint main(final uint argc)
   {
-    // TODO: fix the low level representation of nullable compound types
-    // in particular type conversions should not be able to copy the compound type,
-    // so converting a 'complex' to a '?complex' should not cause functions called on it to not have side effects
-    // this should be done as a revamp of the code generator's native type system
+    ?(uint, ? :complex) t = 18, complex(argc, 2);
     :Asdf yes = new Asdf(1);
     ? :Asdf no = null;
     if yes == no
     {
       return 249;
     }
-    :complex c = complex(argc, 0);
+    :complex c = (t ?: (5, complex()))!2 ?: complex();
     :complex result = :Asdf::rotateComplexLeft(c);
-    return cast<uint> result.imag;
+    (result.o ?: other(123)).modify();
+    return (result.o ?: other(123)).getX();
+  }
+}
+
+compound other
+{
+  uint x;
+  double y;
+
+  other(uint x)
+  {
+    this.x, y = x, x;
+  }
+
+  uint getX()
+  {
+    return x;
+  }
+
+  void modify()
+  {
+    ++x;
+    ++y;
   }
 }

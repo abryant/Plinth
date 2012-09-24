@@ -118,6 +118,7 @@ public class LLVM
   public static native LLVMValueRef LLVMBuildRet(LLVMBuilderRef builder, LLVMValueRef value);
   public static native LLVMValueRef LLVMBuildRetVoid(LLVMBuilderRef builder);
   public static native LLVMValueRef LLVMBuildSDiv(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
+  public static native LLVMValueRef LLVMBuildSelect(LLVMBuilderRef builder, LLVMValueRef condition, LLVMValueRef thenValue, LLVMValueRef elseValue, String name);
   public static native LLVMValueRef LLVMBuildSExt(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
   public static native LLVMValueRef LLVMBuildShl(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildSIToFP(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
@@ -154,7 +155,9 @@ public class LLVM
   public static native LLVMModuleRef LLVMModuleCreateWithName(String name);
   public static native LLVMValueRef LLVMAddFunction(LLVMModuleRef module, String name, LLVMTypeRef type);
   public static native LLVMValueRef LLVMGetNamedFunction(LLVMModuleRef module, String name);
+
   public static native void LLVMDumpModule(LLVMModuleRef module);
+  public static native void LLVMDumpValue(LLVMValueRef value);
 
   public static native void LLVMSetValueName(LLVMValueRef value, String name);
 
