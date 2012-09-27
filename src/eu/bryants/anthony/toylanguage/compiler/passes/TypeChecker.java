@@ -88,7 +88,7 @@ public class TypeChecker
     {
       for (Constructor constructor : typeDefinition.getConstructors())
       {
-        checkTypes(constructor.getBlock(), VoidType.VOID_TYPE, compilationUnit);
+        checkTypes(constructor.getBlock(), VoidType.VOID_TYPE);
       }
       for (Field field : typeDefinition.getFields())
       {
@@ -96,7 +96,7 @@ public class TypeChecker
       }
       for (Method method : typeDefinition.getAllMethods())
       {
-        checkTypes(method.getBlock(), method.getReturnType(), compilationUnit);
+        checkTypes(method.getBlock(), method.getReturnType());
       }
     }
   }
@@ -115,7 +115,7 @@ public class TypeChecker
     }
   }
 
-  private static void checkTypes(Statement statement, Type returnType, CompilationUnit compilationUnit) throws ConceptualException
+  private static void checkTypes(Statement statement, Type returnType) throws ConceptualException
   {
     if (statement instanceof AssignStatement)
     {
@@ -159,12 +159,12 @@ public class TypeChecker
         else if (assignees[i] instanceof ArrayElementAssignee)
         {
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
-          Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression(), compilationUnit);
+          Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression());
           if (!(arrayType instanceof ArrayType))
           {
             throw new ConceptualException("Array assignments are not defined for the type " + arrayType, arrayElementAssignee.getLexicalPhrase());
           }
-          Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression(), compilationUnit);
+          Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression());
           if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
           {
             throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, arrayElementAssignee.getDimensionExpression().getLexicalPhrase());
@@ -245,7 +245,7 @@ public class TypeChecker
       }
       else
       {
-        Type exprType = checkTypes(assignStatement.getExpression(), compilationUnit);
+        Type exprType = checkTypes(assignStatement.getExpression());
         if (tupledSubTypes.length == 1)
         {
           if (tupledSubTypes[0] == null)
@@ -302,7 +302,7 @@ public class TypeChecker
     {
       for (Statement s : ((Block) statement).getStatements())
       {
-        checkTypes(s, returnType, compilationUnit);
+        checkTypes(s, returnType);
       }
     }
     else if (statement instanceof BreakStatement)
@@ -315,7 +315,7 @@ public class TypeChecker
     }
     else if (statement instanceof ExpressionStatement)
     {
-      checkTypes(((ExpressionStatement) statement).getExpression(), compilationUnit);
+      checkTypes(((ExpressionStatement) statement).getExpression());
     }
     else if (statement instanceof ForStatement)
     {
@@ -323,12 +323,12 @@ public class TypeChecker
       Statement init = forStatement.getInitStatement();
       if (init != null)
       {
-        checkTypes(init, returnType, compilationUnit);
+        checkTypes(init, returnType);
       }
       Expression condition = forStatement.getConditional();
       if (condition != null)
       {
-        Type conditionType = checkTypes(condition, compilationUnit);
+        Type conditionType = checkTypes(condition);
         if (conditionType.isNullable() || !(conditionType instanceof PrimitiveType) || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
         {
           throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + conditionType + "'", condition.getLexicalPhrase());
@@ -337,22 +337,22 @@ public class TypeChecker
       Statement update = forStatement.getUpdateStatement();
       if (update != null)
       {
-        checkTypes(update, returnType, compilationUnit);
+        checkTypes(update, returnType);
       }
-      checkTypes(forStatement.getBlock(), returnType, compilationUnit);
+      checkTypes(forStatement.getBlock(), returnType);
     }
     else if (statement instanceof IfStatement)
     {
       IfStatement ifStatement = (IfStatement) statement;
-      Type exprType = checkTypes(ifStatement.getExpression(), compilationUnit);
+      Type exprType = checkTypes(ifStatement.getExpression());
       if (exprType.isNullable() || !(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
       {
         throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", ifStatement.getExpression().getLexicalPhrase());
       }
-      checkTypes(ifStatement.getThenClause(), returnType, compilationUnit);
+      checkTypes(ifStatement.getThenClause(), returnType);
       if (ifStatement.getElseClause() != null)
       {
-        checkTypes(ifStatement.getElseClause(), returnType, compilationUnit);
+        checkTypes(ifStatement.getElseClause(), returnType);
       }
     }
     else if (statement instanceof PrefixIncDecStatement)
@@ -368,12 +368,12 @@ public class TypeChecker
       else if (assignee instanceof ArrayElementAssignee)
       {
         ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
-        Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression(), compilationUnit);
+        Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression());
         if (!(arrayType instanceof ArrayType))
         {
           throw new ConceptualException("Array accesses are not defined for the type " + arrayType, arrayElementAssignee.getLexicalPhrase());
         }
-        Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression(), compilationUnit);
+        Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression());
         if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
         {
           throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, arrayElementAssignee.getDimensionExpression().getLexicalPhrase());
@@ -432,7 +432,7 @@ public class TypeChecker
         {
           throw new ConceptualException("A void function cannot return a value", statement.getLexicalPhrase());
         }
-        Type exprType = checkTypes(returnExpression, compilationUnit);
+        Type exprType = checkTypes(returnExpression);
         if (!returnType.canAssign(exprType))
         {
           throw new ConceptualException("Cannot return an expression of type '" + exprType + "' from a function with return type '" + returnType + "'", statement.getLexicalPhrase());
@@ -455,12 +455,12 @@ public class TypeChecker
         else if (assignees[i] instanceof ArrayElementAssignee)
         {
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
-          Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression(), compilationUnit);
+          Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression());
           if (!(arrayType instanceof ArrayType))
           {
             throw new ConceptualException("Array assignments are not defined for the type " + arrayType, arrayElementAssignee.getLexicalPhrase());
           }
-          Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression(), compilationUnit);
+          Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression());
           if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
           {
             throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, arrayElementAssignee.getDimensionExpression().getLexicalPhrase());
@@ -504,7 +504,7 @@ public class TypeChecker
           throw new IllegalStateException("Unknown Assignee type: " + assignees[i]);
         }
       }
-      Type expressionType = checkTypes(shorthandAssignStatement.getExpression(), compilationUnit);
+      Type expressionType = checkTypes(shorthandAssignStatement.getExpression());
       Type[] rightTypes;
       if (expressionType instanceof TupleType && !expressionType.isNullable() && ((TupleType) expressionType).getSubTypes().length == assignees.length)
       {
@@ -572,12 +572,12 @@ public class TypeChecker
     else if (statement instanceof WhileStatement)
     {
       WhileStatement whileStatement = (WhileStatement) statement;
-      Type exprType = checkTypes(whileStatement.getExpression(), compilationUnit);
+      Type exprType = checkTypes(whileStatement.getExpression());
       if (exprType.isNullable() || !(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
       {
         throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", whileStatement.getExpression().getLexicalPhrase());
       }
-      checkTypes(whileStatement.getStatement(), returnType, compilationUnit);
+      checkTypes(whileStatement.getStatement(), returnType);
     }
     else
     {
@@ -589,17 +589,16 @@ public class TypeChecker
    * Checks the types on an Expression recursively.
    * This method should only be called on an Expression after the resolver has been run over that Expression
    * @param expression - the Expression to check the types on
-   * @param compilationUnit - the compilation unit containing the expression
    * @return the Type of the Expression
    * @throws ConceptualException - if a conceptual problem is encountered while checking the types
    */
-  public static Type checkTypes(Expression expression, CompilationUnit compilationUnit) throws ConceptualException
+  public static Type checkTypes(Expression expression) throws ConceptualException
   {
     if (expression instanceof ArithmeticExpression)
     {
       ArithmeticExpression arithmeticExpression = (ArithmeticExpression) expression;
-      Type leftType = checkTypes(arithmeticExpression.getLeftSubExpression(), compilationUnit);
-      Type rightType = checkTypes(arithmeticExpression.getRightSubExpression(), compilationUnit);
+      Type leftType = checkTypes(arithmeticExpression.getLeftSubExpression());
+      Type rightType = checkTypes(arithmeticExpression.getRightSubExpression());
       if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.isNullable() && !rightType.isNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
@@ -620,12 +619,12 @@ public class TypeChecker
     else if (expression instanceof ArrayAccessExpression)
     {
       ArrayAccessExpression arrayAccessExpression = (ArrayAccessExpression) expression;
-      Type type = checkTypes(arrayAccessExpression.getArrayExpression(), compilationUnit);
+      Type type = checkTypes(arrayAccessExpression.getArrayExpression());
       if (!(type instanceof ArrayType) || type.isNullable())
       {
         throw new ConceptualException("Array accesses are not defined for type " + type, arrayAccessExpression.getLexicalPhrase());
       }
-      Type dimensionType = checkTypes(arrayAccessExpression.getDimensionExpression(), compilationUnit);
+      Type dimensionType = checkTypes(arrayAccessExpression.getDimensionExpression());
       if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
       {
         throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, dimensionType.getLexicalPhrase());
@@ -641,7 +640,7 @@ public class TypeChecker
       {
         for (Expression e : creationExpression.getDimensionExpressions())
         {
-          Type type = checkTypes(e, compilationUnit);
+          Type type = checkTypes(e);
           if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(type))
           {
             throw new ConceptualException("Cannot use an expression of type " + type + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, e.getLexicalPhrase());
@@ -660,7 +659,7 @@ public class TypeChecker
       {
         for (Expression e : creationExpression.getValueExpressions())
         {
-          Type type = checkTypes(e, compilationUnit);
+          Type type = checkTypes(e);
           if (!baseType.canAssign(type))
           {
             throw new ConceptualException("Cannot add an expression of type " + type + " to an array of type " + baseType, e.getLexicalPhrase());
@@ -671,7 +670,7 @@ public class TypeChecker
     }
     else if (expression instanceof BitwiseNotExpression)
     {
-      Type type = checkTypes(((BitwiseNotExpression) expression).getExpression(), compilationUnit);
+      Type type = checkTypes(((BitwiseNotExpression) expression).getExpression());
       if (type instanceof PrimitiveType && !type.isNullable())
       {
         PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
@@ -691,7 +690,7 @@ public class TypeChecker
     }
     else if (expression instanceof BooleanNotExpression)
     {
-      Type type = checkTypes(((BooleanNotExpression) expression).getExpression(), compilationUnit);
+      Type type = checkTypes(((BooleanNotExpression) expression).getExpression());
       if (type instanceof PrimitiveType && !type.isNullable() && ((PrimitiveType) type).getPrimitiveTypeType() == PrimitiveTypeType.BOOLEAN)
       {
         expression.setType(type);
@@ -701,13 +700,13 @@ public class TypeChecker
     }
     else if (expression instanceof BracketedExpression)
     {
-      Type type = checkTypes(((BracketedExpression) expression).getExpression(), compilationUnit);
+      Type type = checkTypes(((BracketedExpression) expression).getExpression());
       expression.setType(type);
       return type;
     }
     else if (expression instanceof CastExpression)
     {
-      Type exprType = checkTypes(((CastExpression) expression).getExpression(), compilationUnit);
+      Type exprType = checkTypes(((CastExpression) expression).getExpression());
       Type castedType = expression.getType();
       if (exprType.canAssign(castedType) || castedType.canAssign(exprType))
       {
@@ -763,7 +762,7 @@ public class TypeChecker
       }
       for (int i = 0; i < arguments.length; ++i)
       {
-        Type argumentType = checkTypes(arguments[i], compilationUnit);
+        Type argumentType = checkTypes(arguments[i]);
         if (!parameters[i].getType().canAssign(argumentType))
         {
           throw new ConceptualException("Cannot pass an argument of type '" + argumentType + "' as a parameter of type '" + parameters[i].getType() + "'", arguments[i].getLexicalPhrase());
@@ -775,8 +774,8 @@ public class TypeChecker
     {
       EqualityExpression equalityExpression = (EqualityExpression) expression;
       EqualityOperator operator = equalityExpression.getOperator();
-      Type leftType = checkTypes(equalityExpression.getLeftSubExpression(), compilationUnit);
-      Type rightType = checkTypes(equalityExpression.getRightSubExpression(), compilationUnit);
+      Type leftType = checkTypes(equalityExpression.getLeftSubExpression());
+      Type rightType = checkTypes(equalityExpression.getRightSubExpression());
       if ((leftType instanceof NullType && !rightType.isNullable()) ||
           (!leftType.isNullable() && rightType instanceof NullType))
       {
@@ -912,7 +911,7 @@ public class TypeChecker
       {
         if (functionCallExpression.getResolvedBaseExpression() != null)
         {
-          Type type = checkTypes(functionCallExpression.getResolvedBaseExpression(), compilationUnit);
+          Type type = checkTypes(functionCallExpression.getResolvedBaseExpression());
           if (type.isNullable())
           {
             // TODO: add the '?.' operator, which this exception refers to
@@ -937,7 +936,7 @@ public class TypeChecker
       else if (functionCallExpression.getResolvedBaseExpression() != null)
       {
         Expression baseExpression = functionCallExpression.getResolvedBaseExpression();
-        Type baseType = checkTypes(baseExpression, compilationUnit);
+        Type baseType = checkTypes(baseExpression);
         if (baseType.isNullable())
         {
           throw new ConceptualException("Cannot call a nullable function.", functionCallExpression.getLexicalPhrase());
@@ -978,7 +977,7 @@ public class TypeChecker
 
       for (int i = 0; i < arguments.length; i++)
       {
-        Type type = checkTypes(arguments[i], compilationUnit);
+        Type type = checkTypes(arguments[i]);
         if (!parameterTypes[i].canAssign(type))
         {
           throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", arguments[i].getLexicalPhrase());
@@ -990,13 +989,13 @@ public class TypeChecker
     else if (expression instanceof InlineIfExpression)
     {
       InlineIfExpression inlineIf = (InlineIfExpression) expression;
-      Type conditionType = checkTypes(inlineIf.getCondition(), compilationUnit);
+      Type conditionType = checkTypes(inlineIf.getCondition());
       if (!(conditionType instanceof PrimitiveType) || conditionType.isNullable() || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
       {
         throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + conditionType + "'", inlineIf.getCondition().getLexicalPhrase());
       }
-      Type thenType = checkTypes(inlineIf.getThenExpression(), compilationUnit);
-      Type elseType = checkTypes(inlineIf.getElseExpression(), compilationUnit);
+      Type thenType = checkTypes(inlineIf.getThenExpression());
+      Type elseType = checkTypes(inlineIf.getElseExpression());
       Type resultType = findCommonSuperType(thenType, elseType);
       if (resultType != null)
       {
@@ -1067,8 +1066,8 @@ public class TypeChecker
     else if (expression instanceof LogicalExpression)
     {
       LogicalExpression logicalExpression = (LogicalExpression) expression;
-      Type leftType = checkTypes(logicalExpression.getLeftSubExpression(), compilationUnit);
-      Type rightType = checkTypes(logicalExpression.getRightSubExpression(), compilationUnit);
+      Type leftType = checkTypes(logicalExpression.getLeftSubExpression());
+      Type rightType = checkTypes(logicalExpression.getRightSubExpression());
       if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.isNullable() && !rightType.isNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
@@ -1125,7 +1124,7 @@ public class TypeChecker
     }
     else if (expression instanceof MinusExpression)
     {
-      Type type = checkTypes(((MinusExpression) expression).getExpression(), compilationUnit);
+      Type type = checkTypes(((MinusExpression) expression).getExpression());
       if (type instanceof PrimitiveType && !type.isNullable())
       {
         PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
@@ -1166,12 +1165,12 @@ public class TypeChecker
     else if (expression instanceof NullCoalescingExpression)
     {
       NullCoalescingExpression nullCoalescingExpression = (NullCoalescingExpression) expression;
-      Type nullableType = checkTypes(nullCoalescingExpression.getNullableExpression(), compilationUnit);
+      Type nullableType = checkTypes(nullCoalescingExpression.getNullableExpression());
       if (!nullableType.isNullable())
       {
         throw new ConceptualException("The null-coalescing operator '?:' is not defined when the left hand side (here '" + nullableType + "') is not nullable", expression.getLexicalPhrase());
       }
-      Type alternativeType = checkTypes(nullCoalescingExpression.getAlternativeExpression(), compilationUnit);
+      Type alternativeType = checkTypes(nullCoalescingExpression.getAlternativeExpression());
       if (nullableType instanceof NullType)
       {
         // if the left hand side has the null type, just use the right hand side's type as the result of the expression
@@ -1196,8 +1195,8 @@ public class TypeChecker
     {
       RelationalExpression relationalExpression = (RelationalExpression) expression;
       RelationalOperator operator = relationalExpression.getOperator();
-      Type leftType = checkTypes(relationalExpression.getLeftSubExpression(), compilationUnit);
-      Type rightType = checkTypes(relationalExpression.getRightSubExpression(), compilationUnit);
+      Type leftType = checkTypes(relationalExpression.getLeftSubExpression());
+      Type rightType = checkTypes(relationalExpression.getRightSubExpression());
       if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.isNullable() && !rightType.isNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
@@ -1231,8 +1230,8 @@ public class TypeChecker
     else if (expression instanceof ShiftExpression)
     {
       ShiftExpression shiftExpression = (ShiftExpression) expression;
-      Type leftType = checkTypes(shiftExpression.getLeftExpression(), compilationUnit);
-      Type rightType = checkTypes(shiftExpression.getRightExpression(), compilationUnit);
+      Type leftType = checkTypes(shiftExpression.getLeftExpression());
+      Type rightType = checkTypes(shiftExpression.getRightExpression());
       if (leftType instanceof PrimitiveType && rightType instanceof PrimitiveType && !leftType.isNullable() && !rightType.isNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
@@ -1262,7 +1261,7 @@ public class TypeChecker
       Type[] subTypes = new Type[subExpressions.length];
       for (int i = 0; i < subTypes.length; i++)
       {
-        subTypes[i] = checkTypes(subExpressions[i], compilationUnit);
+        subTypes[i] = checkTypes(subExpressions[i]);
       }
       TupleType type = new TupleType(false, subTypes, null);
       tupleExpression.setType(type);
@@ -1271,7 +1270,7 @@ public class TypeChecker
     else if (expression instanceof TupleIndexExpression)
     {
       TupleIndexExpression indexExpression = (TupleIndexExpression) expression;
-      Type type = checkTypes(indexExpression.getExpression(), compilationUnit);
+      Type type = checkTypes(indexExpression.getExpression());
       if (!(type instanceof TupleType))
       {
         throw new ConceptualException("Cannot index into the non-tuple type: " + type, indexExpression.getLexicalPhrase());
