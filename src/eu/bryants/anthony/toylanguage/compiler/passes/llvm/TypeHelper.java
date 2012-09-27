@@ -688,7 +688,7 @@ public class TypeHelper
 
         // build an alloca at the top of the entry block, to store this new value
         LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
-        LLVM.LLVMPositionBuilderBefore(builder, LLVM.LLVMGetFirstInstruction(LLVM.LLVMGetEntryBasicBlock(llvmFunction)));
+        LLVM.LLVMPositionBuilderAtStart(builder, LLVM.LLVMGetEntryBasicBlock(llvmFunction));
         // find the type to alloca, which is the standard representation of a non-nullable version of this type
         // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with any nullability)
         LLVMTypeRef allocaBaseType = findStandardType(TypeChecker.findTypeWithNullability(type, false));

@@ -4,21 +4,19 @@ import test.*;
 
 compound complex
 {
-  double real = 1;
-  double imag = 0;
-  ? :other o;
-
-  {
-    o = null;
-  }
-
-  static ?uint argh = 2;
-
   static
   {
     uint x = 2;
     ++x;
   }
+
+  {
+    o = null;
+  }
+
+  double real = 1;
+  double imag = 0;
+  ? :other o;
 
   complex()
   {

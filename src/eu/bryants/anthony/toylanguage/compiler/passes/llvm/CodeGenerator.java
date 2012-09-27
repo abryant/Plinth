@@ -433,7 +433,7 @@ public class CodeGenerator
         Set<Variable> allVariables = Resolver.getAllNestedVariables(initialiser.getBlock());
         Map<Variable, LLVMValueRef> variables = new HashMap<Variable, LLVM.LLVMValueRef>();
         LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
-        LLVM.LLVMPositionBuilderBefore(builder, LLVM.LLVMGetFirstInstruction(entryBlock));
+        LLVM.LLVMPositionBuilderAtStart(builder, entryBlock);
         for (Variable v : allVariables)
         {
           LLVMValueRef allocaInst = LLVM.LLVMBuildAlloca(builder, typeHelper.findTemporaryType(v.getType()), v.getName());

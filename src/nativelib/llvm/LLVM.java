@@ -104,6 +104,18 @@ public class LLVM
   public static native void LLVMPositionBuilderBefore(LLVMBuilderRef builder, LLVMValueRef instruction);
   public static native void LLVMPositionBuilderAtEnd(LLVMBuilderRef builder, LLVMBasicBlockRef block);
   public static native LLVMBasicBlockRef LLVMGetInsertBlock(LLVMBuilderRef builder);
+  public static void LLVMPositionBuilderAtStart(LLVMBuilderRef builder, LLVMBasicBlockRef block)
+  {
+    LLVMValueRef firstInstruction = LLVMGetFirstInstruction(block);
+    if (firstInstruction == null)
+    {
+      LLVMPositionBuilderAtEnd(builder, block);
+    }
+    else
+    {
+      LLVMPositionBuilderBefore(builder, firstInstruction);
+    }
+  }
 
   public static native LLVMValueRef LLVMBuildAdd(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildAlloca(LLVMBuilderRef builder, LLVMTypeRef type, String name);
