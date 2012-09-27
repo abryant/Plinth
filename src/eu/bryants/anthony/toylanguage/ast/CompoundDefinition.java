@@ -12,8 +12,10 @@ import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
+import eu.bryants.anthony.toylanguage.ast.member.Initialiser;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
+import eu.bryants.anthony.toylanguage.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.toylanguage.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.toylanguage.ast.metadata.MemberVariable;
 import eu.bryants.anthony.toylanguage.ast.misc.QName;
@@ -29,7 +31,8 @@ import eu.bryants.anthony.toylanguage.parser.LanguageParseException;
 public class CompoundDefinition extends TypeDefinition
 {
 
-  // fields needs a guaranteed order, so use a LinkedHashMap to store them
+  private List<Initialiser> initialisers = new LinkedList<Initialiser>();
+  // fields need a guaranteed order, so use a LinkedHashMap to store them
   private Map<String, Field> fields = new LinkedHashMap<String, Field>();
   private Set<Constructor> constructors = new HashSet<Constructor>();
   private Map<String, Set<Method>> methods = new HashMap<String, Set<Method>>();
@@ -51,6 +54,10 @@ public class CompoundDefinition extends TypeDefinition
     List<Field> nonStaticFieldList = new LinkedList<Field>();
     for (Member member : members)
     {
+      if (member instanceof Initialiser)
+      {
+        initialisers.add((Initialiser) member);
+      }
       if (member instanceof Field)
       {
         Field field = (Field) member;
@@ -74,6 +81,10 @@ public class CompoundDefinition extends TypeDefinition
           nonStaticFieldList.add(field);
         }
         fields.put(field.getName(), field);
+        if (field.getInitialiserExpression() != null)
+        {
+          initialisers.add(new FieldInitialiser(field));
+        }
       }
       if (member instanceof Constructor)
       {
@@ -170,6 +181,15 @@ public class CompoundDefinition extends TypeDefinition
       method.setContainingTypeDefinition(this);
       methodSet.add(method);
     }
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public Initialiser[] getInitialisers()
+  {
+    return initialisers.toArray(new Initialiser[initialisers.size()]);
   }
 
   /**

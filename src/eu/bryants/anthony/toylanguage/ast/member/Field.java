@@ -1,6 +1,7 @@
 package eu.bryants.anthony.toylanguage.ast.member;
 
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
+import eu.bryants.anthony.toylanguage.ast.expression.Expression;
 import eu.bryants.anthony.toylanguage.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.toylanguage.ast.metadata.MemberVariable;
 import eu.bryants.anthony.toylanguage.ast.type.Type;
@@ -19,18 +20,20 @@ public class Field extends Member
   private String name;
   private boolean isStatic;
   private boolean isFinal;
+  private Expression initialiserExpression;
 
   private MemberVariable memberVariable;
   private GlobalVariable globalVariable;
   private int memberIndex;
 
-  public Field(Type type, String name, boolean isStatic, boolean isFinal, LexicalPhrase lexicalPhrase)
+  public Field(Type type, String name, boolean isStatic, boolean isFinal, Expression initialiserExpression, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.type = type;
     this.name = name;
     this.isStatic = isStatic;
     this.isFinal = isFinal;
+    this.initialiserExpression = initialiserExpression;
   }
 
   /**
@@ -63,6 +66,14 @@ public class Field extends Member
   public boolean isStatic()
   {
     return isStatic;
+  }
+
+  /**
+   * @return the initialiserExpression
+   */
+  public Expression getInitialiserExpression()
+  {
+    return initialiserExpression;
   }
 
   /**
@@ -119,6 +130,6 @@ public class Field extends Member
   @Override
   public String toString()
   {
-    return (isStatic ? "static " : "") + (isFinal ? "final " : "") + type + " " + name + ";";
+    return (isStatic ? "static " : "") + (isFinal ? "final " : "") + type + " " + name + (initialiserExpression == null ? "" : " = " + initialiserExpression) + ";";
   }
 }

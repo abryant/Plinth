@@ -30,7 +30,10 @@ import eu.bryants.anthony.toylanguage.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
+import eu.bryants.anthony.toylanguage.ast.member.Field;
+import eu.bryants.anthony.toylanguage.ast.member.Initialiser;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
+import eu.bryants.anthony.toylanguage.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
 import eu.bryants.anthony.toylanguage.ast.misc.BlankAssignee;
@@ -77,11 +80,22 @@ public class TypePropagator
   {
     for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
+      for (Initialiser initialiser : typeDefinition.getInitialisers())
+      {
+        if (initialiser instanceof FieldInitialiser)
+        {
+          Field field = ((FieldInitialiser) initialiser).getField();
+          propagateTypes(field.getInitialiserExpression(), field.getType());
+        }
+        else
+        {
+          propagateTypes(initialiser.getBlock(), VoidType.VOID_TYPE);
+        }
+      }
       for (Constructor constructor : typeDefinition.getConstructors())
       {
         propagateTypes(constructor.getBlock(), new VoidType(null));
       }
-      // TODO: propagate types on Field expressions, when fields can have expressions
       for (Method method : typeDefinition.getAllMethods())
       {
         propagateTypes(method.getBlock(), method.getReturnType());

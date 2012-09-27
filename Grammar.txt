@@ -8,6 +8,7 @@ ClassTypeDef = ClassKeyword Name LBrace MemberList RBrace
 CompoundTypeDef = CompoundKeyword Name LBrace MemberList RBrace
 
 MemberList = epsilon |
+             MemberList Initialiser |
              MemberList Field |
              MemberList Constructor |
              MemberList Method
@@ -16,7 +17,9 @@ Modifiers = StaticKeyword               | Modifiers StaticKeyword |
             NativeKeyword               | Modifiers NativeKeyword |
             NativeKeyword StringLiteral | Modifiers NativeKeyword StringLiteral
 OptionalModifiers = epsilon | Modifiers
-Field = OptionalModifiers Type Name Semicolon
+Initialiser = Block | StaticKeyword Block
+Field = OptionalModifiers Type Name Semicolon |
+        OptionalModifiers Type Name Equals TupleExpression Semicolon
 Constructor = OptionalModifiers Name LParen Parameters RParen Block
 Method = OptionalModifiers Type Name LParen Parameters RParen Block |
          OptionalModifiers Type Name LParen            RParen Block |

@@ -46,8 +46,10 @@ import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
+import eu.bryants.anthony.toylanguage.ast.member.Initialiser;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
+import eu.bryants.anthony.toylanguage.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.toylanguage.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.toylanguage.ast.metadata.MemberVariable;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
@@ -121,9 +123,12 @@ public class CodeGenerator
 
     // add all of the global (static) variables
     addGlobalVariables();
-    // add all of the LLVM functions, including constructors, methods, and normal functions
+    // add all of the LLVM functions, including initialisers, constructors, and methods
     addFunctions();
 
+    addInitialiserBody(true);  // add the static initialisers
+    setGlobalConstructor(getInitialiserFunction(true));
+    addInitialiserBody(false); // add the non-static initialisers
     addConstructorBodies();
     addMethodBodies();
 
@@ -184,15 +189,56 @@ public class CodeGenerator
     LLVMTypeRef[] callocParamTypes = new LLVMTypeRef[] {LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount())};
     callocFunction = LLVM.LLVMAddFunction(module, "calloc", LLVM.LLVMFunctionType(callocReturnType, C.toNativePointerArray(callocParamTypes, false, true), callocParamTypes.length, false));
 
+    // create the static and non-static initialiser functions
+    getInitialiserFunction(true);
+    getInitialiserFunction(false);
+
+    // create the constructor and method functions
     for (Constructor constructor : typeDefinition.getConstructors())
     {
       getConstructorFunction(constructor);
     }
-
     for (Method method : typeDefinition.getAllMethods())
     {
       getMethodFunction(method);
     }
+  }
+
+  /**
+   * Gets the (static or non-static) initialiser function for the TypeDefinition we are building.
+   * @param isStatic - true for the static initialiser, false for the non-static initialiser
+   * @return the function declaration for the specified Initialiser
+   */
+  private LLVMValueRef getInitialiserFunction(boolean isStatic)
+  {
+    String mangledName = Initialiser.getMangledName(typeDefinition, isStatic);
+    LLVMValueRef existingFunc = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunc != null)
+    {
+      return existingFunc;
+    }
+
+    LLVMTypeRef[] types = null;
+    if (isStatic)
+    {
+      types = new LLVMTypeRef[0];
+    }
+    else
+    {
+      types = new LLVMTypeRef[1];
+      types[0] = typeHelper.findTemporaryType(new NamedType(false, typeDefinition));
+    }
+    LLVMTypeRef returnType = LLVM.LLVMVoidType();
+
+    LLVMTypeRef functionType = LLVM.LLVMFunctionType(returnType, C.toNativePointerArray(types, false, true), types.length, false);
+    LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, mangledName, functionType);
+    LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
+
+    if (!isStatic)
+    {
+      LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), "this");
+    }
+    return llvmFunc;
   }
 
   /**
@@ -350,6 +396,86 @@ public class CodeGenerator
     }
   }
 
+  private void addInitialiserBody(boolean isStatic)
+  {
+    LLVMValueRef initialiserFunc = getInitialiserFunction(isStatic);
+    LLVMValueRef thisValue = isStatic ? null : LLVM.LLVMGetParam(initialiserFunc, 0);
+    LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(initialiserFunc, "entry");
+    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+    // build all of the static/non-static initialisers in one LLVM function
+    for (Initialiser initialiser : typeDefinition.getInitialisers())
+    {
+      if (initialiser.isStatic() != isStatic)
+      {
+        continue;
+      }
+      if (initialiser instanceof FieldInitialiser)
+      {
+        Field field = ((FieldInitialiser) initialiser).getField();
+        LLVMValueRef result = buildExpression(field.getInitialiserExpression(), initialiserFunc, thisValue, new HashMap<Variable, LLVM.LLVMValueRef>());
+        LLVMValueRef assigneePointer = null;
+        if (field.isStatic())
+        {
+          assigneePointer = getGlobal(field.getGlobalVariable());
+        }
+        else
+        {
+          LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getMemberIndex(), false)};
+          assigneePointer = LLVM.LLVMBuildGEP(builder, thisValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+        }
+        LLVMValueRef convertedValue = typeHelper.convertTemporaryToStandard(result, field.getInitialiserExpression().getType(), field.getType(), initialiserFunc);
+        LLVM.LLVMBuildStore(builder, convertedValue, assigneePointer);
+      }
+      else
+      {
+        // build allocas for all of the variables, at the start of the entry block
+        Set<Variable> allVariables = Resolver.getAllNestedVariables(initialiser.getBlock());
+        Map<Variable, LLVMValueRef> variables = new HashMap<Variable, LLVM.LLVMValueRef>();
+        LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMPositionBuilderBefore(builder, LLVM.LLVMGetFirstInstruction(entryBlock));
+        for (Variable v : allVariables)
+        {
+          LLVMValueRef allocaInst = LLVM.LLVMBuildAlloca(builder, typeHelper.findTemporaryType(v.getType()), v.getName());
+          variables.put(v, allocaInst);
+        }
+        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+
+        buildStatement(initialiser.getBlock(), VoidType.VOID_TYPE, initialiserFunc, thisValue, variables, new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new Runnable()
+        {
+          @Override
+          public void run()
+          {
+            throw new IllegalStateException("Cannot return from an initialiser");
+          }
+        });
+      }
+    }
+    LLVM.LLVMBuildRetVoid(builder);
+  }
+
+  private void setGlobalConstructor(LLVMValueRef initialiserFunc)
+  {
+    // build up the type of the global variable
+    LLVMTypeRef[] paramTypes = new LLVMTypeRef[0];
+    LLVMTypeRef functionType = LLVM.LLVMFunctionType(LLVM.LLVMVoidType(), C.toNativePointerArray(paramTypes, false, true), paramTypes.length, false);
+    LLVMTypeRef functionPointerType = LLVM.LLVMPointerType(functionType, 0);
+    LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), functionPointerType};
+    LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
+    LLVMTypeRef arrayType = LLVM.LLVMArrayType(structType, 1);
+
+    // build the constant expression for global variable's initialiser
+    LLVMValueRef[] constantValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false), initialiserFunc};
+    LLVMValueRef element = LLVM.LLVMConstStruct(C.toNativePointerArray(constantValues, false, true), constantValues.length, false);
+    LLVMValueRef[] arrayElements = new LLVMValueRef[] {element};
+    LLVMValueRef array = LLVM.LLVMConstArray(structType, C.toNativePointerArray(arrayElements, false, true), arrayElements.length);
+
+    // create the 'llvm.global_ctors' global variable, which lists which functions are run before main()
+    LLVMValueRef global = LLVM.LLVMAddGlobal(module, arrayType, "llvm.global_ctors");
+    LLVM.LLVMSetLinkage(global, LLVM.LLVMLinkage.LLVMAppendingLinkage);
+    LLVM.LLVMSetInitializer(global, array);
+  }
+
   private void addConstructorBodies()
   {
     for (Constructor constructor : typeDefinition.getConstructors())
@@ -394,6 +520,11 @@ public class CodeGenerator
         LLVMValueRef convertedParameter = typeHelper.convertStandardToTemporary(llvmParameter, p.getType(), llvmFunction);
         LLVM.LLVMBuildStore(builder, convertedParameter, variables.get(p.getVariable()));
       }
+
+      // call the non-static initialiser function, which runs all non-static initialisers and sets the initial values for all of the fields
+      LLVMValueRef initialiserFunction = getInitialiserFunction(false);
+      LLVMValueRef[] initialiserArgs = new LLVMValueRef[] {thisValue};
+      LLVM.LLVMBuildCall(builder, initialiserFunction, C.toNativePointerArray(initialiserArgs, false, true), initialiserArgs.length, "");
 
       buildStatement(constructor.getBlock(), VoidType.VOID_TYPE, llvmFunction, thisValue, variables, new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new Runnable()
       {

@@ -201,7 +201,7 @@ public class MetadataLoader
     {
       throw new MalformedMetadataException("A field must have a valid name in its metadata node");
     }
-    Field field = new Field(type, name, isStatic, isFinal, null);
+    Field field = new Field(type, name, isStatic, isFinal, null, null);
     if (!isStatic)
     {
       field.setMemberIndex(index);

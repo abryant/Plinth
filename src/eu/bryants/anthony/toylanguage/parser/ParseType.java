@@ -22,6 +22,7 @@ public enum ParseType
 
   // Members
   MEMBER_LIST,                   // ParseList<Member>
+  INITIALISER,                   // Initialiser
   FIELD,                         // Field
   CONSTRUCTOR,                   // Constructor
   METHOD,                        // Method

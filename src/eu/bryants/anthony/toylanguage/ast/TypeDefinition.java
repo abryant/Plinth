@@ -5,7 +5,9 @@ import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
+import eu.bryants.anthony.toylanguage.ast.member.Initialiser;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
+import eu.bryants.anthony.toylanguage.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.toylanguage.ast.misc.QName;
 
 /*
@@ -67,6 +69,11 @@ public abstract class TypeDefinition
   }
 
   /**
+   * @return the Initialisers, in declaration order
+   */
+  public abstract Initialiser[] getInitialisers();
+
+  /**
    * @return the fields
    */
   public abstract Field[] getFields();
@@ -105,6 +112,18 @@ public abstract class TypeDefinition
   {
     StringBuffer buffer = new StringBuffer();
     buffer.append("{\n");
+    // we don't try to print the initialisers interspersed with the fields here, it would take too much effort
+    // regardless, the generated code will run them in the correct order
+    // (with field initialisers run between two standard initialisers if that is the order they are defined in)
+    for (Initialiser initialiser : getInitialisers())
+    {
+      if (initialiser instanceof FieldInitialiser)
+      {
+        continue;
+      }
+      buffer.append(initialiser.toString().replaceAll("(?m)^", "  "));
+      buffer.append('\n');
+    }
     for (Field field : getFields())
     {
       buffer.append(field.toString().replaceAll("(?m)^", "  "));

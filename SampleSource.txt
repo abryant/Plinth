@@ -4,16 +4,26 @@ import test.*;
 
 compound complex
 {
-  final double real;
-  final double imag;
+  double real = 1;
+  double imag = 0;
   ? :other o;
+
+  {
+    o = null;
+  }
+
+  static ?uint argh = 2;
+
+  static
+  {
+    uint x = 2;
+    ++x;
+  }
 
   complex()
   {
-    real, imag = 0, 0;
-    o = null;
   }
-  
+
   complex(double real, double imag)
   {
     this.real, this.imag = real, imag;

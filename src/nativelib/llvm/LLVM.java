@@ -38,6 +38,27 @@ public class LLVM
     public static final int LLVMX86FastcallCallConv = 65;
   }
 
+  public static class LLVMLinkage
+  {
+    public static final int LLVMExternalLinkage            =  0;
+    public static final int LLVMAvailableExternallyLinkage =  1;
+    public static final int LLVMLinkOnceAnyLinkage         =  2;
+    public static final int LLVMLinkOnceODRLinkage         =  3;
+    public static final int LLVMLinkOnceODRAutoHideLinkage =  4;
+    public static final int LLVMWeakAnyLinkage             =  5;
+    public static final int LLVMWeakODRLinkage             =  6;
+    public static final int LLVMAppendingLinkage           =  7;
+    public static final int LLVMInternalLinkage            =  8;
+    public static final int LLVMPrivateLinkage             =  9;
+    public static final int LLVMDLLImportLinkage           = 10;
+    public static final int LLVMDLLExportLinkage           = 11;
+    public static final int LLVMExternalWeakLinkage        = 12;
+    public static final int LLVMGhostLinkage               = 13;
+    public static final int LLVMCommonLinkage              = 14;
+    public static final int LLVMLinkerPrivateLinkage       = 15;
+    public static final int LLVMLinkerPrivateWeakLinkage   = 16;
+  }
+
   public static class LLVMIntPredicate
   {
     public static final int LLVMIntEQ  = 32;
@@ -137,6 +158,7 @@ public class LLVM
   public static native LLVMValueRef LLVMConstInt(LLVMTypeRef type, long n, boolean signExtend);
   public static native LLVMValueRef LLVMConstReal(LLVMTypeRef type, double n);
   public static native LLVMValueRef LLVMConstNull(LLVMTypeRef type);
+  public static native LLVMValueRef LLVMConstArray(LLVMTypeRef elementType, Pointer constantValues, int constantValueCount);
   public static native LLVMValueRef LLVMConstStruct(Pointer constantValues, int constantValueCount, boolean packed);
   public static native LLVMValueRef LLVMGetUndef(LLVMTypeRef type);
 
@@ -156,9 +178,6 @@ public class LLVM
   public static native LLVMValueRef LLVMAddFunction(LLVMModuleRef module, String name, LLVMTypeRef type);
   public static native LLVMValueRef LLVMGetNamedFunction(LLVMModuleRef module, String name);
 
-  public static native void LLVMDumpModule(LLVMModuleRef module);
-  public static native void LLVMDumpValue(LLVMValueRef value);
-
   public static native void LLVMSetValueName(LLVMValueRef value, String name);
 
   public static native void LLVMSetFunctionCallConv(LLVMValueRef function, int callConv);
@@ -168,6 +187,7 @@ public class LLVM
 
   public static native LLVMValueRef LLVMAddGlobal(LLVMModuleRef module, LLVMTypeRef type, String name);
   public static native void LLVMSetInitializer(LLVMValueRef globalVariable, LLVMValueRef constantValue);
+  public static native void LLVMSetLinkage(LLVMValueRef global, int linkage);
 
   public static native LLVMTypeRef LLVMArrayType(LLVMTypeRef elementType, int elementCount);
   public static native LLVMTypeRef LLVMFunctionType(LLVMTypeRef returnType, Pointer paramTypes, int paramCount, boolean isVarArg);
@@ -195,4 +215,7 @@ public class LLVM
   public static native void LLVMDisposeModule(LLVMModuleRef module);
 
   public static native LLVMPassManagerRef LLVMCreatePassManager();
+
+  public static native void LLVMDumpModule(LLVMModuleRef module);
+  public static native void LLVMDumpValue(LLVMValueRef value);
 }

@@ -22,6 +22,7 @@ import eu.bryants.anthony.toylanguage.parser.rules.expression.TupleIndexExpressi
 import eu.bryants.anthony.toylanguage.parser.rules.expression.UnaryExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.member.ConstructorRule;
 import eu.bryants.anthony.toylanguage.parser.rules.member.FieldRule;
+import eu.bryants.anthony.toylanguage.parser.rules.member.InitialiserRule;
 import eu.bryants.anthony.toylanguage.parser.rules.member.MemberListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.member.MethodRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeListRule;
@@ -82,6 +83,7 @@ public class ToyLanguageRules
     // member
     new ConstructorRule(),
     new FieldRule(),
+    new InitialiserRule(),
     new MemberListRule(),
     new MethodRule(),
 

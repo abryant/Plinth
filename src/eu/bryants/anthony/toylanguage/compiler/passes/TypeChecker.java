@@ -40,8 +40,10 @@ import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
+import eu.bryants.anthony.toylanguage.ast.member.Initialiser;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
+import eu.bryants.anthony.toylanguage.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
 import eu.bryants.anthony.toylanguage.ast.misc.BlankAssignee;
@@ -86,6 +88,10 @@ public class TypeChecker
   {
     for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
+      for (Initialiser initialiser : typeDefinition.getInitialisers())
+      {
+        checkTypes(initialiser);
+      }
       for (Constructor constructor : typeDefinition.getConstructors())
       {
         checkTypes(constructor.getBlock(), VoidType.VOID_TYPE);
@@ -98,6 +104,23 @@ public class TypeChecker
       {
         checkTypes(method.getBlock(), method.getReturnType());
       }
+    }
+  }
+
+  private static void checkTypes(Initialiser initialiser) throws ConceptualException
+  {
+    if (initialiser instanceof FieldInitialiser)
+    {
+      Field field = ((FieldInitialiser) initialiser).getField();
+      Type expressionType = checkTypes(field.getInitialiserExpression());
+      if (!field.getType().canAssign(expressionType))
+      {
+        throw new ConceptualException("Cannot assign an expression of type " + expressionType + " to a field of type " + field.getType(), field.getLexicalPhrase());
+      }
+    }
+    else
+    {
+      checkTypes(initialiser.getBlock(), VoidType.VOID_TYPE);
     }
   }
 

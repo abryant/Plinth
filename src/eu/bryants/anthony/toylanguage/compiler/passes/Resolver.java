@@ -44,8 +44,10 @@ import eu.bryants.anthony.toylanguage.ast.expression.VariableExpression;
 import eu.bryants.anthony.toylanguage.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.toylanguage.ast.member.Constructor;
 import eu.bryants.anthony.toylanguage.ast.member.Field;
+import eu.bryants.anthony.toylanguage.ast.member.Initialiser;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
+import eu.bryants.anthony.toylanguage.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.toylanguage.ast.metadata.PackageNode;
 import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
@@ -286,7 +288,22 @@ public class Resolver
 
   private void resolve(TypeDefinition typeDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
-    // TODO: resolve field expressions, when they exist
+    for (Initialiser initialiser : typeDefinition.getInitialisers())
+    {
+      if (initialiser instanceof FieldInitialiser)
+      {
+        Field field = ((FieldInitialiser) initialiser).getField();
+        resolve(field.getInitialiserExpression(), initialiser.getBlock(), typeDefinition, compilationUnit);
+      }
+      else
+      {
+        Block block = initialiser.getBlock();
+        for (Statement statement : block.getStatements())
+        {
+          resolve(statement, initialiser.getBlock(), typeDefinition, compilationUnit);
+        }
+      }
+    }
     for (Constructor constructor : typeDefinition.getConstructors())
     {
       Block mainBlock = constructor.getBlock();
@@ -794,7 +811,7 @@ public class Resolver
 
         // find the type of the sub-expression, by calling the type checker
         // this is fine as long as we resolve the sub-expression first
-        argumentTypes[i] = TypeChecker.checkTypes(arguments[i], compilationUnit);
+        argumentTypes[i] = TypeChecker.checkTypes(arguments[i]);
       }
       // resolve the constructor being called
       Collection<Constructor> constructors = type.getResolvedTypeDefinition().getConstructors();
@@ -866,7 +883,7 @@ public class Resolver
 
         // find the type of the sub-expression, by calling the type checker
         // this is fine as long as we resolve all of the sub-expression first
-        baseType = TypeChecker.checkTypes(fieldAccessExpression.getBaseExpression(), compilationUnit);
+        baseType = TypeChecker.checkTypes(fieldAccessExpression.getBaseExpression());
         baseIsStatic = false;
       }
       else if (fieldAccessExpression.getBaseType() != null)
@@ -933,7 +950,7 @@ public class Resolver
       for (Expression e : expr.getArguments())
       {
         resolve(e, block, enclosingDefinition, compilationUnit);
-        TypeChecker.checkTypes(e, compilationUnit);
+        TypeChecker.checkTypes(e);
       }
 
       Expression functionExpression = expr.getFunctionExpression();
@@ -944,7 +961,7 @@ public class Resolver
       try
       {
         resolve(functionExpression, block, enclosingDefinition, compilationUnit);
-        expressionType = TypeChecker.checkTypes(functionExpression, compilationUnit);
+        expressionType = TypeChecker.checkTypes(functionExpression);
       }
       catch (NameNotResolvedException e)
       {
@@ -1062,7 +1079,7 @@ public class Resolver
 
             // find the type of the sub-expression, by calling the type checker
             // this is fine as long as we resolve all of the sub-expression first
-            baseType = TypeChecker.checkTypes(baseExpression, compilationUnit);
+            baseType = TypeChecker.checkTypes(baseExpression);
             baseIsStatic = false;
           }
           else if (fieldAccessExpression.getBaseType() != null)
