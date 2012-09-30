@@ -29,6 +29,8 @@ public class MetaRule<T extends Enum<T>> extends Rule<T>
   public MetaRule(Rule<T> first, Rule<T> second)
   {
     super(first.getType(), coalesce(first, second));
+    this.first = first;
+    this.second = second;
   }
 
   /**
