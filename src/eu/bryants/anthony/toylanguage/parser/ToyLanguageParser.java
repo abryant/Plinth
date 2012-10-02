@@ -21,11 +21,6 @@ import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
  */
 public class ToyLanguageParser
 {
-  private static LALRParserGenerator<ParseType> parserGenerator = new LALRParserGenerator<ParseType>(ToyLanguageRules.getAllRules());
-  static
-  {
-    parserGenerator.generate(ParseType.GENERATED_START_RULE);
-  }
 
   public static void main(String... args) throws FileNotFoundException, ParseException, BadTokenException
   {
@@ -34,6 +29,9 @@ public class ToyLanguageParser
       System.err.println("Please specify a file to parse");
       System.exit(1);
     }
+
+    LALRParserGenerator<ParseType> parserGenerator = new LALRParserGenerator<ParseType>(ToyLanguageRules.getAllRules());
+    parserGenerator.generate(ParseType.GENERATED_START_RULE);
 
     Reader reader = new FileReader(new File(args[0]));
 
@@ -47,7 +45,7 @@ public class ToyLanguageParser
   {
     Reader reader = new FileReader(file);
 
-    Parser<ParseType> parser = new Parser<ParseType>(parserGenerator.getStartState(), new LanguageTokenizer(reader));
+    GeneratedParser parser = new GeneratedParser(new LanguageTokenizer(reader));
     Token<ParseType> topLevelToken = parser.parse();
     return (CompilationUnit) topLevelToken.getValue();
   }
