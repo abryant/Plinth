@@ -21,8 +21,8 @@ public class ClassCreationExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION           = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.QNAME, ParseType.LPAREN, ParseType.RPAREN);
-  private static final Production<ParseType> ARGUMENTS_PRODUCTION = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.QNAME, ParseType.LPAREN, ParseType.EXPRESSION_LIST, ParseType.RPAREN);
+  private static final Production<ParseType> PRODUCTION                 = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.QNAME, ParseType.LPAREN,                            ParseType.RPAREN);
+  private static final Production<ParseType> ARGUMENTS_PRODUCTION       = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.QNAME, ParseType.LPAREN, ParseType.EXPRESSION_LIST, ParseType.RPAREN);
 
   @SuppressWarnings("unchecked")
   public ClassCreationExpressionRule()

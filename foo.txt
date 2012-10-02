@@ -5,8 +5,8 @@ import foo.*;
 class Asdf
 {
   uint a;
-  ? :Asdf next;
-  Asdf(:Asdf other)
+  ?Asdf next;
+  Asdf(Asdf other)
   {
     a = 15;
     next = other;
@@ -22,7 +22,7 @@ class Asdf
     return a;
   }
 
-  static :bar.complex rotateComplexLeft(:bar.complex foo)
+  static bar.complex rotateComplexLeft(bar.complex foo)
   {
     return foo.mult(bar.complex(0, 1));
   }

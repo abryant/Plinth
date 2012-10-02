@@ -20,13 +20,16 @@ public class FunctionCallExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static Production<ParseType> FUNCTION_CALL_PRODUCTION              = new Production<ParseType>(ParseType.PRIMARY, ParseType.LPAREN, ParseType.EXPRESSION_LIST, ParseType.RPAREN);
-  private static Production<ParseType> FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.LPAREN,                            ParseType.RPAREN);
+  private static Production<ParseType> FUNCTION_CALL_PRODUCTION                                = new Production<ParseType>(ParseType.PRIMARY,          ParseType.LPAREN, ParseType.EXPRESSION_LIST, ParseType.RPAREN);
+  private static Production<ParseType> FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION                   = new Production<ParseType>(ParseType.PRIMARY,          ParseType.LPAREN,                                     ParseType.RPAREN);
+  private static Production<ParseType> QNAME_FUNCTION_CALL_PRODUCTION                          = new Production<ParseType>(ParseType.QNAME_EXPRESSION, ParseType.LPAREN, ParseType.EXPRESSION_LIST, ParseType.RPAREN);
+  private static Production<ParseType> QNAME_FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION             = new Production<ParseType>(ParseType.QNAME_EXPRESSION, ParseType.LPAREN,                                     ParseType.RPAREN);
 
   @SuppressWarnings("unchecked")
   public FunctionCallExpressionRule()
   {
-    super(ParseType.FUNCTION_CALL_EXPRESSION, FUNCTION_CALL_PRODUCTION, FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION);
+    super(ParseType.FUNCTION_CALL_EXPRESSION, FUNCTION_CALL_PRODUCTION,       FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION,
+                                              QNAME_FUNCTION_CALL_PRODUCTION, QNAME_FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION);
   }
 
   /**
@@ -35,19 +38,19 @@ public class FunctionCallExpressionRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == FUNCTION_CALL_PRODUCTION)
+    if (production == FUNCTION_CALL_PRODUCTION || production == QNAME_FUNCTION_CALL_PRODUCTION)
     {
-      Expression functionExpression = (Expression) args[0];
+      Expression expression = (Expression) args[0];
       @SuppressWarnings("unchecked")
       ParseList<Expression> arguments = (ParseList<Expression>) args[2];
-      return new FunctionCallExpression(functionExpression, arguments.toArray(new Expression[arguments.size()]),
-                                        LexicalPhrase.combine(functionExpression.getLexicalPhrase(), (LexicalPhrase) args[1], arguments.getLexicalPhrase(), (LexicalPhrase) args[3]));
+      return new FunctionCallExpression(expression, arguments.toArray(new Expression[arguments.size()]),
+                                        LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1], arguments.getLexicalPhrase(), (LexicalPhrase) args[3]));
     }
-    if (production == FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION)
+    if (production == FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION || production == QNAME_FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION)
     {
-      Expression functionExpression = (Expression) args[0];
-      return new FunctionCallExpression(functionExpression, new Expression[0],
-                                        LexicalPhrase.combine(functionExpression.getLexicalPhrase(), (LexicalPhrase) args[1], (LexicalPhrase) args[2]));
+      Expression expression = (Expression) args[0];
+      return new FunctionCallExpression(expression, new Expression[0],
+                                        LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1], (LexicalPhrase) args[2]));
     }
     throw badTypeList();
   }

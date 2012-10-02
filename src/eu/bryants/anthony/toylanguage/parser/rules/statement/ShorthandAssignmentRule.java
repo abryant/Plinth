@@ -22,17 +22,17 @@ public class ShorthandAssignmentRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> ADD_PRODUCTION         = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.PLUS_EQUALS,           ParseType.TUPLE_EXPRESSION);
-  private static final Production<ParseType> SUBTRACT_PRODUCTION    = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.MINUS_EQUALS,          ParseType.TUPLE_EXPRESSION);
-  private static final Production<ParseType> MULTIPLY_PRODUCTION    = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.STAR_EQUALS,           ParseType.TUPLE_EXPRESSION);
-  private static final Production<ParseType> DIVIDE_PRODUCTION      = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.FORWARD_SLASH_EQUALS,  ParseType.TUPLE_EXPRESSION);
-  private static final Production<ParseType> REMAINDER_PRODUCTION   = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.PERCENT_EQUALS,        ParseType.TUPLE_EXPRESSION);
-  private static final Production<ParseType> MODULO_PRODUCTION      = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.DOUBLE_PERCENT_EQUALS, ParseType.TUPLE_EXPRESSION);
-  private static final Production<ParseType> LEFT_SHIFT_PRODUCTION  = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.DOUBLE_LANGLE_EQUALS,  ParseType.TUPLE_EXPRESSION);
-  private static final Production<ParseType> RIGHT_SHIFT_PRODUCTION = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.DOUBLE_RANGLE_EQUALS,  ParseType.TUPLE_EXPRESSION);
-  private static final Production<ParseType> AND_PRODUCTION         = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.AMPERSAND_EQUALS,      ParseType.TUPLE_EXPRESSION);
-  private static final Production<ParseType> OR_PRODUCTION          = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.PIPE_EQUALS,           ParseType.TUPLE_EXPRESSION);
-  private static final Production<ParseType> XOR_PRODUCTION         = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.CARET_EQUALS,          ParseType.TUPLE_EXPRESSION);
+  private static final Production<ParseType> ADD_PRODUCTION         = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.PLUS_EQUALS,           ParseType.EXPRESSION);
+  private static final Production<ParseType> SUBTRACT_PRODUCTION    = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.MINUS_EQUALS,          ParseType.EXPRESSION);
+  private static final Production<ParseType> MULTIPLY_PRODUCTION    = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.STAR_EQUALS,           ParseType.EXPRESSION);
+  private static final Production<ParseType> DIVIDE_PRODUCTION      = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.FORWARD_SLASH_EQUALS,  ParseType.EXPRESSION);
+  private static final Production<ParseType> REMAINDER_PRODUCTION   = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.PERCENT_EQUALS,        ParseType.EXPRESSION);
+  private static final Production<ParseType> MODULO_PRODUCTION      = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.DOUBLE_PERCENT_EQUALS, ParseType.EXPRESSION);
+  private static final Production<ParseType> LEFT_SHIFT_PRODUCTION  = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.DOUBLE_LANGLE_EQUALS,  ParseType.EXPRESSION);
+  private static final Production<ParseType> RIGHT_SHIFT_PRODUCTION = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.DOUBLE_RANGLE_EQUALS,  ParseType.EXPRESSION);
+  private static final Production<ParseType> AND_PRODUCTION         = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.AMPERSAND_EQUALS,      ParseType.EXPRESSION);
+  private static final Production<ParseType> OR_PRODUCTION          = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.PIPE_EQUALS,           ParseType.EXPRESSION);
+  private static final Production<ParseType> XOR_PRODUCTION         = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.CARET_EQUALS,          ParseType.EXPRESSION);
 
   @SuppressWarnings("unchecked")
   public ShorthandAssignmentRule()

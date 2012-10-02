@@ -16,7 +16,7 @@ compound complex
 
   double real = 1;
   double imag = 0;
-  ? :other o;
+  ?other o;
 
   complex()
   {
@@ -28,22 +28,22 @@ compound complex
     o = other(cast<uint> imag);
   }
 
-  :complex mult(:complex c)
+  complex mult(complex c)
   {
     return complex(real * c.real - imag * c.imag, real * c.imag + imag * c.real);
   }
 
   static native uint main(final uint argc)
   {
-    ?(uint, ? :complex) t = 18, complex(argc, 2);
-    :Asdf yes = new Asdf(1);
-    ? :Asdf no = null;
+    ?(uint, ?complex) t = 18, complex(argc, 2);
+    Asdf yes = new Asdf(1);
+    ?Asdf no = null;
     if yes == no
     {
       return 249;
     }
-    :complex c = (t ?: (5, complex()))!2 ?: complex();
-    :complex result = :Asdf::rotateComplexLeft(c);
+    complex c = (t ?: (5, complex()))!2 ?: complex();
+    complex result = Asdf::rotateComplexLeft(c);
     (result.o ?: other(123)).modify();
     return (result.o ?: other(123)).getX();
   }

@@ -10,12 +10,14 @@ import eu.bryants.anthony.toylanguage.parser.rules.expression.ClassCreationExpre
 import eu.bryants.anthony.toylanguage.parser.rules.expression.ComparisonExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.DimensionsRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.ExpressionListRule;
+import eu.bryants.anthony.toylanguage.parser.rules.expression.ExpressionNoTupleRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.ExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.FunctionCallExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.LogicalExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.MultiplicativeExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.PrimaryNoTrailingTypeRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.PrimaryRule;
+import eu.bryants.anthony.toylanguage.parser.rules.expression.QNameExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.ShiftExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.TupleExpressionRule;
 import eu.bryants.anthony.toylanguage.parser.rules.expression.TupleIndexExpressionRule;
@@ -26,13 +28,17 @@ import eu.bryants.anthony.toylanguage.parser.rules.member.InitialiserRule;
 import eu.bryants.anthony.toylanguage.parser.rules.member.MemberListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.member.MethodRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeListRule;
+import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeNoQNameRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.AssigneeRule;
+import eu.bryants.anthony.toylanguage.parser.rules.misc.DeclarationAssigneeListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.ForInitRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.ForUpdateRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.ImportsRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.ModifiersRule;
+import eu.bryants.anthony.toylanguage.parser.rules.misc.NestedQNameListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.OptionalModifiersRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.ParametersRule;
+import eu.bryants.anthony.toylanguage.parser.rules.misc.QNameListRule;
 import eu.bryants.anthony.toylanguage.parser.rules.misc.QNameRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.AssignStatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.BlockRule;
@@ -46,7 +52,8 @@ import eu.bryants.anthony.toylanguage.parser.rules.statement.ShorthandAssignment
 import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementsRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.WhileStatementRule;
-import eu.bryants.anthony.toylanguage.parser.rules.type.TypeListRule;
+import eu.bryants.anthony.toylanguage.parser.rules.type.TypeListNoQNameRule;
+import eu.bryants.anthony.toylanguage.parser.rules.type.TypeNoQNameRule;
 import eu.bryants.anthony.toylanguage.parser.rules.type.TypeRule;
 
 /*
@@ -69,12 +76,14 @@ public class ToyLanguageRules
     new ComparisonExpressionRule(),
     new DimensionsRule(),
     new ExpressionListRule(),
-    new FunctionCallExpressionRule(),
+    new ExpressionNoTupleRule(),
     new ExpressionRule(),
+    new FunctionCallExpressionRule(),
     new LogicalExpressionRule(),
     new MultiplicativeExpressionRule(),
     new PrimaryNoTrailingTypeRule(),
     new PrimaryRule(),
+    new QNameExpressionRule(),
     new ShiftExpressionRule(),
     new TupleExpressionRule(),
     new TupleIndexExpressionRule(),
@@ -89,13 +98,17 @@ public class ToyLanguageRules
 
     // misc
     new AssigneeListRule(),
+    new AssigneeNoQNameRule(),
     new AssigneeRule(),
+    new DeclarationAssigneeListRule(),
     new ForInitRule(),
     new ForUpdateRule(),
     new ImportsRule(),
     new ModifiersRule(),
+    new NestedQNameListRule(),
     new OptionalModifiersRule(),
     new ParametersRule(),
+    new QNameListRule(),
     new QNameRule(),
 
     // statement
@@ -113,7 +126,8 @@ public class ToyLanguageRules
     new WhileStatementRule(),
 
     // type
-    new TypeListRule(),
+    new TypeListNoQNameRule(),
+    new TypeNoQNameRule(),
     new TypeRule(),
 
     // top level

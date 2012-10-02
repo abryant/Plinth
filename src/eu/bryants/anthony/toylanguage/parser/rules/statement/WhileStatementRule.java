@@ -20,7 +20,7 @@ public class WhileStatementRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.WHILE_KEYWORD, ParseType.TUPLE_EXPRESSION, ParseType.BLOCK);
+  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.WHILE_KEYWORD, ParseType.EXPRESSION, ParseType.BLOCK);
 
   @SuppressWarnings("unchecked")
   public WhileStatementRule()

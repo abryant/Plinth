@@ -20,9 +20,9 @@ public class IfStatementRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> IF_PRODUCTION         = new Production<ParseType>(ParseType.IF_KEYWORD, ParseType.TUPLE_EXPRESSION, ParseType.BLOCK);
-  private static final Production<ParseType> IF_ELSE_PRODUCTION    = new Production<ParseType>(ParseType.IF_KEYWORD, ParseType.TUPLE_EXPRESSION, ParseType.BLOCK, ParseType.ELSE_KEYWORD, ParseType.BLOCK);
-  private static final Production<ParseType> IF_ELSE_IF_PRODUCTION = new Production<ParseType>(ParseType.IF_KEYWORD, ParseType.TUPLE_EXPRESSION, ParseType.BLOCK, ParseType.ELSE_KEYWORD, ParseType.IF_STATEMENT);
+  private static final Production<ParseType> IF_PRODUCTION         = new Production<ParseType>(ParseType.IF_KEYWORD, ParseType.EXPRESSION, ParseType.BLOCK);
+  private static final Production<ParseType> IF_ELSE_PRODUCTION    = new Production<ParseType>(ParseType.IF_KEYWORD, ParseType.EXPRESSION, ParseType.BLOCK, ParseType.ELSE_KEYWORD, ParseType.BLOCK);
+  private static final Production<ParseType> IF_ELSE_IF_PRODUCTION = new Production<ParseType>(ParseType.IF_KEYWORD, ParseType.EXPRESSION, ParseType.BLOCK, ParseType.ELSE_KEYWORD, ParseType.IF_STATEMENT);
 
   @SuppressWarnings("unchecked")
   public IfStatementRule()

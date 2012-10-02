@@ -5,6 +5,7 @@ import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
+import eu.bryants.anthony.toylanguage.ast.misc.QName;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
 import eu.bryants.anthony.toylanguage.parser.parseAST.ParseList;
 
@@ -19,13 +20,14 @@ public class AssigneeListRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> START_PRODUCTION = new Production<ParseType>(ParseType.ASSIGNEE);
-  private static final Production<ParseType> CONTINUATION_PRODUCTION = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.COMMA, ParseType.ASSIGNEE);
+  private static final Production<ParseType> QNAME_PRODUCTION    = new Production<ParseType>(ParseType.QNAME,             ParseType.COMMA, ParseType.ASSIGNEE_LIST);
+  private static final Production<ParseType> NO_QNAME_PRODUCTION = new Production<ParseType>(ParseType.ASSIGNEE_NO_QNAME, ParseType.COMMA, ParseType.ASSIGNEE_LIST);
+  private static final Production<ParseType> END_PRODUCTION    = new Production<ParseType>(ParseType.ASSIGNEE);
 
   @SuppressWarnings("unchecked")
   public AssigneeListRule()
   {
-    super(ParseType.ASSIGNEE_LIST, START_PRODUCTION, CONTINUATION_PRODUCTION);
+    super(ParseType.ASSIGNEE_LIST, QNAME_PRODUCTION, NO_QNAME_PRODUCTION, END_PRODUCTION);
   }
 
   /**
@@ -34,18 +36,27 @@ public class AssigneeListRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == START_PRODUCTION)
+    if (production == QNAME_PRODUCTION)
+    {
+      QName qname = (QName) args[0];
+      Assignee assignee = AssigneeRule.createQNameAssignee(qname);
+      @SuppressWarnings("unchecked")
+      ParseList<Assignee> list = (ParseList<Assignee>) args[2];
+      list.addFirst(assignee, LexicalPhrase.combine(assignee.getLexicalPhrase(), (LexicalPhrase) args[1], list.getLexicalPhrase()));
+      return list;
+    }
+    if (production == NO_QNAME_PRODUCTION)
+    {
+      Assignee assignee = (Assignee) args[0];
+      @SuppressWarnings("unchecked")
+      ParseList<Assignee> list = (ParseList<Assignee>) args[2];
+      list.addFirst(assignee, LexicalPhrase.combine(assignee.getLexicalPhrase(), (LexicalPhrase) args[1], list.getLexicalPhrase()));
+      return list;
+    }
+    if (production == END_PRODUCTION)
     {
       Assignee assignee = (Assignee) args[0];
       return new ParseList<Assignee>(assignee, assignee.getLexicalPhrase());
-    }
-    if (production == CONTINUATION_PRODUCTION)
-    {
-      @SuppressWarnings("unchecked")
-      ParseList<Assignee> list = (ParseList<Assignee>) args[0];
-      Assignee assignee = (Assignee) args[2];
-      list.addLast(assignee, LexicalPhrase.combine(list.getLexicalPhrase(), (LexicalPhrase) args[1], assignee.getLexicalPhrase()));
-      return list;
     }
     throw badTypeList();
   }

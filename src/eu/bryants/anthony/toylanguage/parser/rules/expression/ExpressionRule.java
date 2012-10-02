@@ -3,14 +3,14 @@ package eu.bryants.anthony.toylanguage.parser.rules.expression;
 import parser.ParseException;
 import parser.Production;
 import parser.Rule;
-import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.expression.Expression;
-import eu.bryants.anthony.toylanguage.ast.expression.InlineIfExpression;
-import eu.bryants.anthony.toylanguage.ast.expression.NullCoalescingExpression;
+import eu.bryants.anthony.toylanguage.ast.expression.TupleExpression;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
+import eu.bryants.anthony.toylanguage.parser.parseAST.ParseList;
+import eu.bryants.anthony.toylanguage.parser.parseAST.QNameElement;
 
 /*
- * Created on 7 May 2012
+ * Created on 30 Sep 2012
  */
 
 /**
@@ -20,14 +20,13 @@ public class ExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION);
-  private static final Production<ParseType> INLINE_IF_PRODUCTION = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.QUESTION_MARK, ParseType.TUPLE_EXPRESSION, ParseType.COLON, ParseType.EXPRESSION);
-  private static final Production<ParseType> NULL_COALESCING_PRODUCTION = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.QUESTION_MARK_COLON, ParseType.EXPRESSION);
+  private static final Production<ParseType> TUPLE_PRODUCTION             = new Production<ParseType>(ParseType.TUPLE_EXPRESSION);
+  private static final Production<ParseType> QNAME_LIST_PRODUCTION        = new Production<ParseType>(ParseType.QNAME_LIST);
 
   @SuppressWarnings("unchecked")
   public ExpressionRule()
   {
-    super(ParseType.EXPRESSION, PRODUCTION, INLINE_IF_PRODUCTION, NULL_COALESCING_PRODUCTION);
+    super(ParseType.EXPRESSION, TUPLE_PRODUCTION, QNAME_LIST_PRODUCTION);
   }
 
   /**
@@ -36,22 +35,25 @@ public class ExpressionRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == PRODUCTION)
+    if (production == TUPLE_PRODUCTION)
     {
       return args[0];
     }
-    if (production == INLINE_IF_PRODUCTION)
+    if (production == QNAME_LIST_PRODUCTION)
     {
-      Expression conditional = (Expression) args[0];
-      Expression thenExpression = (Expression) args[2];
-      Expression elseExpression = (Expression) args[4];
-      return new InlineIfExpression(conditional, thenExpression, elseExpression, LexicalPhrase.combine(conditional.getLexicalPhrase(), (LexicalPhrase) args[1], thenExpression.getLexicalPhrase(), (LexicalPhrase) args[3], elseExpression.getLexicalPhrase()));
-    }
-    if (production == NULL_COALESCING_PRODUCTION)
-    {
-      Expression nullableExpression = (Expression) args[0];
-      Expression alternativeExpression = (Expression) args[2];
-      return new NullCoalescingExpression(nullableExpression, alternativeExpression, LexicalPhrase.combine(nullableExpression.getLexicalPhrase(), (LexicalPhrase) args[1], alternativeExpression.getLexicalPhrase()));
+      @SuppressWarnings("unchecked")
+      ParseList<QNameElement> list = (ParseList<QNameElement>) args[0];
+      QNameElement[] elements = list.toArray(new QNameElement[list.size()]);
+      Expression[] expressions = new Expression[elements.length];
+      for (int i = 0; i < elements.length; ++i)
+      {
+        expressions[i] = elements[i].convertToExpression();
+      }
+      if (expressions.length == 1)
+      {
+        return expressions[0];
+      }
+      return new TupleExpression(expressions, list.getLexicalPhrase());
     }
     throw badTypeList();
   }

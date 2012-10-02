@@ -22,8 +22,8 @@ public class ForStatementRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION              = new Production<ParseType>(ParseType.FOR_KEYWORD, ParseType.LPAREN, ParseType.FOR_INIT, ParseType.TUPLE_EXPRESSION, ParseType.SEMICOLON, ParseType.FOR_UPDATE, ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> NO_CONDITION_PRODUCTION = new Production<ParseType>(ParseType.FOR_KEYWORD, ParseType.LPAREN, ParseType.FOR_INIT,                             ParseType.SEMICOLON, ParseType.FOR_UPDATE, ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> PRODUCTION              = new Production<ParseType>(ParseType.FOR_KEYWORD, ParseType.LPAREN, ParseType.FOR_INIT, ParseType.EXPRESSION, ParseType.SEMICOLON, ParseType.FOR_UPDATE, ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> NO_CONDITION_PRODUCTION = new Production<ParseType>(ParseType.FOR_KEYWORD, ParseType.LPAREN, ParseType.FOR_INIT,                       ParseType.SEMICOLON, ParseType.FOR_UPDATE, ParseType.RPAREN, ParseType.BLOCK);
 
   @SuppressWarnings("unchecked")
   public ForStatementRule()

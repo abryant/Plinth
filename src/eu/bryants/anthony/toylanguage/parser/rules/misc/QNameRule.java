@@ -3,7 +3,6 @@ package eu.bryants.anthony.toylanguage.parser.rules.misc;
 import parser.ParseException;
 import parser.Production;
 import parser.Rule;
-import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.misc.QName;
 import eu.bryants.anthony.toylanguage.ast.terminal.Name;
 import eu.bryants.anthony.toylanguage.parser.ParseType;
@@ -43,7 +42,7 @@ public class QNameRule extends Rule<ParseType>
     {
       QName qname = (QName) args[0];
       Name name = (Name) args[2];
-      return new QName(qname, name.getName(), LexicalPhrase.combine(qname.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
+      return new QName(qname, name.getName(), name.getLexicalPhrase());
     }
     throw badTypeList();
   }

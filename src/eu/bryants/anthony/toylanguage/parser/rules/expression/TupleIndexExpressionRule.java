@@ -20,13 +20,14 @@ public class TupleIndexExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> START_PRODUCTION = new Production<ParseType>(ParseType.UNARY_EXPRESSION);
+  private static final Production<ParseType> START_PRODUCTION        = new Production<ParseType>(ParseType.UNARY_EXPRESSION);
   private static final Production<ParseType> CONTINUATION_PRODUCTION = new Production<ParseType>(ParseType.TUPLE_INDEX_EXPRESSION, ParseType.EXCLAIMATION_MARK, ParseType.INTEGER_LITERAL);
+  private static final Production<ParseType> QNAME_PRODUCTION        = new Production<ParseType>(ParseType.QNAME_EXPRESSION,       ParseType.EXCLAIMATION_MARK, ParseType.INTEGER_LITERAL);
 
   @SuppressWarnings("unchecked")
   public TupleIndexExpressionRule()
   {
-    super(ParseType.TUPLE_INDEX_EXPRESSION, START_PRODUCTION, CONTINUATION_PRODUCTION);
+    super(ParseType.TUPLE_INDEX_EXPRESSION, START_PRODUCTION, CONTINUATION_PRODUCTION, QNAME_PRODUCTION);
   }
 
   /**
@@ -39,7 +40,7 @@ public class TupleIndexExpressionRule extends Rule<ParseType>
     {
       return args[0];
     }
-    if (production == CONTINUATION_PRODUCTION)
+    if (production == CONTINUATION_PRODUCTION || production == QNAME_PRODUCTION)
     {
       Expression expression = (Expression) args[0];
       IntegerLiteral literal = (IntegerLiteral) args[2];

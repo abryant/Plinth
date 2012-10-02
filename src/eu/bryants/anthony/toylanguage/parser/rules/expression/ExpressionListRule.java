@@ -19,13 +19,15 @@ public class ExpressionListRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static Production<ParseType> START_PRODUCTION = new Production<ParseType>(ParseType.EXPRESSION);
-  private static Production<ParseType> CONTINUATION_PRODUCTION = new Production<ParseType>(ParseType.EXPRESSION_LIST, ParseType.COMMA, ParseType.EXPRESSION);
+  private static final Production<ParseType> START_PRODUCTION = new Production<ParseType>(ParseType.EXPRESSION_NO_TUPLE);
+  private static final Production<ParseType> START_QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_EXPRESSION);
+  private static final Production<ParseType> CONTINUATION_PRODUCTION = new Production<ParseType>(ParseType.EXPRESSION_LIST, ParseType.COMMA, ParseType.EXPRESSION_NO_TUPLE);
+  private static final Production<ParseType> CONTINUATION_QNAME_PRODUCTION = new Production<ParseType>(ParseType.EXPRESSION_LIST, ParseType.COMMA, ParseType.QNAME_EXPRESSION);
 
   @SuppressWarnings("unchecked")
   public ExpressionListRule()
   {
-    super(ParseType.EXPRESSION_LIST, START_PRODUCTION, CONTINUATION_PRODUCTION);
+    super(ParseType.EXPRESSION_LIST, START_PRODUCTION, START_QNAME_PRODUCTION, CONTINUATION_PRODUCTION, CONTINUATION_QNAME_PRODUCTION);
   }
 
   /**
@@ -34,18 +36,18 @@ public class ExpressionListRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == START_PRODUCTION)
+    if (production == START_PRODUCTION || production == START_QNAME_PRODUCTION)
     {
       Expression expression = (Expression) args[0];
       return new ParseList<Expression>(expression, expression.getLexicalPhrase());
     }
-    if (production == CONTINUATION_PRODUCTION)
+    if (production == CONTINUATION_PRODUCTION || production == CONTINUATION_QNAME_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
-      ParseList<Expression> expressions = (ParseList<Expression>) args[0];
+      ParseList<Expression> list = (ParseList<Expression>) args[0];
       Expression expression = (Expression) args[2];
-      expressions.addLast(expression, LexicalPhrase.combine(expressions.getLexicalPhrase(), (LexicalPhrase) args[1], expression.getLexicalPhrase()));
-      return expressions;
+      list.addLast(expression, LexicalPhrase.combine(list.getLexicalPhrase(), (LexicalPhrase) args[1], expression.getLexicalPhrase()));
+      return list;
     }
     throw badTypeList();
   }

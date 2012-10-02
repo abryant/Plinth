@@ -15,7 +15,7 @@ public class QName
 {
   private String[] names;
 
-  private LexicalPhrase lexicalPhrase;
+  private LexicalPhrase[] lexicalPhrases;
 
   /**
    * Creates a new QName consisting of only a single name.
@@ -25,22 +25,30 @@ public class QName
   public QName(String name, LexicalPhrase lexicalPhrase)
   {
     this.names = new String[] {name};
-    this.lexicalPhrase = lexicalPhrase;
+    this.lexicalPhrases = new LexicalPhrase[] {lexicalPhrase};
   }
 
   /**
    * Creates a new QName consisting of a specified base QName and a new name to append to the end of it.
    * @param baseQName - the base QName
    * @param name - the name to add to the end of the base QName to get this QName
-   * @param lexicalPhrase - the LexicalPhrase of this QName
+   * @param separatorLexicalPhrase - the LexicalPhrase of the '.' between the old QName and the new name
+   * @param nameLexicalPhrase - the LexicalPhrase of the new name
    */
-  public QName(QName baseQName, String name, LexicalPhrase lexicalPhrase)
+  public QName(QName baseQName, String name, LexicalPhrase nameLexicalPhrase)
   {
     String[] oldNames = baseQName.getNames();
     names = new String[oldNames.length + 1];
     System.arraycopy(oldNames, 0, names, 0, oldNames.length);
     names[oldNames.length] = name;
-    this.lexicalPhrase = lexicalPhrase;
+
+    LexicalPhrase[] oldLexicalPhrases = baseQName.getLexicalPhrases();
+    if (oldLexicalPhrases != null)
+    {
+      lexicalPhrases = new LexicalPhrase[oldLexicalPhrases.length + 1];
+      System.arraycopy(oldLexicalPhrases, 0, lexicalPhrases, 0, oldLexicalPhrases.length);
+      lexicalPhrases[oldLexicalPhrases.length] = nameLexicalPhrase;
+    }
   }
 
   /**
@@ -103,11 +111,19 @@ public class QName
   }
 
   /**
-   * @return the lexicalPhrase
+   * @return the lexicalPhrases of the names in this QName
+   */
+  public LexicalPhrase[] getLexicalPhrases()
+  {
+    return lexicalPhrases;
+  }
+
+  /**
+   * @return the LexicalPhrase of this QName (which is simply a combination of all of the LexicalPhrases for the names it contains)
    */
   public LexicalPhrase getLexicalPhrase()
   {
-    return lexicalPhrase;
+    return LexicalPhrase.combine(lexicalPhrases);
   }
 
   /**

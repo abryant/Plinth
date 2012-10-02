@@ -25,7 +25,7 @@ public class ForUpdateRule extends Rule<ParseType>
 
   private static final Production<ParseType> INCREMENT_PRODUCTION = new Production<ParseType>(ParseType.DOUBLE_PLUS, ParseType.ASSIGNEE);
   private static final Production<ParseType> DECREMENT_PRODUCTION = new Production<ParseType>(ParseType.DOUBLE_MINUS, ParseType.ASSIGNEE);
-  private static final Production<ParseType> ASSIGNMENT_PRODUCTION = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.EQUALS, ParseType.TUPLE_EXPRESSION);
+  private static final Production<ParseType> ASSIGNMENT_PRODUCTION = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.EQUALS, ParseType.EXPRESSION);
   private static final Production<ParseType> SHORTHAND_ASSIGN_PRODUCTION = new Production<ParseType>(ParseType.SHORTHAND_ASSIGNMENT);
   private static final Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION);
   private static final Production<ParseType> EMPTY_PRODUCTION = new Production<ParseType>();

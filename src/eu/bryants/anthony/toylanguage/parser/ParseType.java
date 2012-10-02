@@ -29,13 +29,17 @@ public enum ParseType
 
   // Misc
   ASSIGNEE,                      // Assignee
+  ASSIGNEE_NO_QNAME,             // Assignee
   ASSIGNEE_LIST,                 // ParseList<Assignee>
+  DECLARATION_ASSIGNEE_LIST,     // ParseList<Assignee>
   PARAMETERS,                    // ParseList<Parameter>
   FOR_INIT,                      // ParseContainer<Statement> (possibly containing null)
   FOR_UPDATE,                    // Statement or null
   MODIFIERS,                     // ParseList<Modifier>
   OPTIONAL_MODIFIERS,            // ParseList<Modifier>
   QNAME,                         // QName
+  QNAME_LIST,                    // ParseList<QNameElement>
+  NESTED_QNAME_LIST,             // QNameElement
 
   // Statements
   BLOCK,                         // Block
@@ -53,11 +57,13 @@ public enum ParseType
 
   // Types
   TYPE,                          // Type
-  TYPE_LIST,                     // ParseList<Type>
+  TYPE_NO_QNAME,                 // Type
+  TYPE_LIST_NO_QNAME,            // ParseList<Type>
 
   // Expressions
-  TUPLE_EXPRESSION,              // Expression
   EXPRESSION,                    // Expression
+  TUPLE_EXPRESSION,              // Expression
+  EXPRESSION_NO_TUPLE,           // Expression
   LOGICAL_EXPRESSION,            // Expression
   COMPARISON_EXPRESSION,         // Expression
   SHIFT_EXPRESSION,              // Expression
@@ -71,6 +77,7 @@ public enum ParseType
   FUNCTION_CALL_EXPRESSION,      // FunctionCallExpression
   EXPRESSION_LIST,               // ParseList<Expression>
   DIMENSIONS,                    // ParseList<Expression>
+  QNAME_EXPRESSION,              // Expression
 
   // TERMINALS
 

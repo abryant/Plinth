@@ -19,7 +19,7 @@ Modifiers = StaticKeyword               | Modifiers StaticKeyword |
 OptionalModifiers = epsilon | Modifiers
 Initialiser = Block | StaticKeyword Block
 Field = OptionalModifiers Type Name Semicolon |
-        OptionalModifiers Type Name Equals TupleExpression Semicolon
+        OptionalModifiers Type Name Equals Expression Semicolon
 Constructor = OptionalModifiers Name LParen Parameters RParen Block
 Method = OptionalModifiers Type Name LParen Parameters RParen Block |
          OptionalModifiers Type Name LParen            RParen Block |
@@ -36,86 +36,113 @@ Statement = Assignment | Block | BreakStatement | ContinueStatement | ForStateme
             FunctionCallExpression Semicolon |
             ClassCreationExpression Semicolon
 
-Assignee = Name |
-           Primary LSquare TupleExpression RSquare |
-           PrimaryNoTrailingType Dot Name |
-           Type DoubleColon Name |
-           Underscore
-AssigneeList = Assignee | AssigneeList Comma Assignee
+Assignee = AssigneeNoQName | QName
+AssigneeNoQName = Primary         LSquare Expression RSquare |
+                  QName           LSquare Expression RSquare |
+                  NestedQNameList LSquare Expression RSquare |
+                  PrimaryNoTrailingType Dot Name |
+                  Type DoubleColon Name |
+                  Underscore
+AssigneeList = QName           Comma AssigneeList |
+               AssigneeNoQName Comma AssigneeList |
+               Assignee
 
-Assignment = Modifiers Type AssigneeList Semicolon | Modifiers Type AssigneeList Equals TupleExpression Semicolon | AssigneeList Equals TupleExpression Semicolon
+DeclarationAssigneeList = Name | Underscore | DeclarationAssigneeList Comma Name | DeclarationAssigneeList Comma Underscore
+
+
+Assignment = Modifiers TypeNoQName     DeclarationAssigneeList Semicolon | Modifiers TypeNoQName     DeclarationAssigneeList Equals Expression Semicolon |
+                       TypeNoQName     DeclarationAssigneeList Semicolon |           TypeNoQName     DeclarationAssigneeList Equals Expression Semicolon |
+             Modifiers QName           DeclarationAssigneeList Semicolon | Modifiers QName           DeclarationAssigneeList Equals Expression Semicolon |
+                       QName           DeclarationAssigneeList Semicolon |           QName           DeclarationAssigneeList Equals Expression Semicolon |
+             Modifiers NestedQNameList DeclarationAssigneeList Semicolon | Modifiers NestedQNameList DeclarationAssigneeList Equals Expression Semicolon |
+                       NestedQNameList DeclarationAssigneeList Semicolon |           NestedQNameList DeclarationAssigneeList Equals Expression Semicolon |
+             AssigneeList Equals Expression Semicolon
 BreakStatement = BreakKeyword Semicolon | BreakKeyword IntegerLiteral Semicolon
 ContinueStatement = ContinueKeyword Semicolon | ContinueKeyword IntegerLiteral Semicolon
-IfStatement = IfKeyword TupleExpression Block | IfKeyword TupleExpression Block ElseKeyword Block | IfKeyword TupleExpression Block ElseKeyword IfStatement
+IfStatement = IfKeyword Expression Block | IfKeyword Expression Block ElseKeyword Block | IfKeyword Expression Block ElseKeyword IfStatement
 PrefixIncDecStatement = DoublePlus Assignee Semicolon | DoubleMinus Assignee Semicolon
-ReturnStatement = ReturnKeyword TupleExpression Semicolon | ReturnKeyword Semicolon
-ShorthandAssignment = AssigneeList PlusEquals          TupleExpression |
-                      AssigneeList MinusEquals         TupleExpression |
-                      AssigneeList StarEquals          TupleExpression |
-                      AssigneeList ForwardSlashEquals  TupleExpression |
-                      AssigneeList PercentEquals       TupleExpression |
-                      AssigneeList DoublePercentEquals TupleExpression |
-                      AssigneeList DoubleLAngleEquals  TupleExpression |
-                      AssigneeList DoubleRAngleEquals  TupleExpression |
-                      AssigneeList AmpersandEquals     TupleExpression |
-                      AssigneeList PipeEquals          TupleExpression |
-                      AssigneeList CaretEquals         TupleExpression
-WhileStatement = WhileKeyword TupleExpression Block
+ReturnStatement = ReturnKeyword Expression Semicolon | ReturnKeyword Semicolon
+ShorthandAssignment = AssigneeList PlusEquals          Expression |
+                      AssigneeList MinusEquals         Expression |
+                      AssigneeList StarEquals          Expression |
+                      AssigneeList ForwardSlashEquals  Expression |
+                      AssigneeList PercentEquals       Expression |
+                      AssigneeList DoublePercentEquals Expression |
+                      AssigneeList DoubleLAngleEquals  Expression |
+                      AssigneeList DoubleRAngleEquals  Expression |
+                      AssigneeList AmpersandEquals     Expression |
+                      AssigneeList PipeEquals          Expression |
+                      AssigneeList CaretEquals         Expression
+WhileStatement = WhileKeyword Expression Block
 
 ForInit = Assignment | ShorthandAssignment Semicolon | Semicolon
-ForUpdate = DoublePlus Assignee | DoubleMinus Assignee | AssigneeList Equals TupleExpression | ShorthandAssignment | FunctionCallExpression | epsilon
-ForStatement = ForKeyword LParen ForInit TupleExpression Semicolon ForUpdate RParen Block
-             | ForKeyword LParen ForInit Semicolon ForUpdate RParen Block
+ForUpdate = DoublePlus Assignee | DoubleMinus Assignee | AssigneeList Equals Expression | ShorthandAssignment | FunctionCallExpression | epsilon
+ForStatement = ForKeyword LParen ForInit Expression Semicolon ForUpdate RParen Block
+             | ForKeyword LParen ForInit            Semicolon ForUpdate RParen Block
 
-Type = BooleanKeyword |                 QuestionMark BooleanKeyword |
-       DoubleKeyword  | FloatKeyword  | QuestionMark DoubleKeyword  | QuestionMark FloatKeyword  |
-       ULongKeyword   | LongKeyword   | QuestionMark ULongKeyword   | QuestionMark LongKeyword   |
-       UIntKeyword    | IntKeyword    | QuestionMark UIntKeyword    | QuestionMark IntKeyword    |
-       UShortKeyword  | ShortKeyword  | QuestionMark UShortKeyword  | QuestionMark ShortKeyword  |
-       UByteKeyword   | ByteKeyword   | QuestionMark UByteKeyword   | QuestionMark ByteKeyword   |
-       QName                          | QuestionMark QName |
-       LSquare RSquare Type           | QuestionMark LSquare RSquare Type |
-       LParen TypeList RParen         | QuestionMark LParen TypeList RParen
-TypeList = Type | TypeList Comma Type
+TypeNoQName = BooleanKeyword |                 QuestionMark BooleanKeyword |
+              DoubleKeyword  | FloatKeyword  | QuestionMark DoubleKeyword  | QuestionMark FloatKeyword  |
+              ULongKeyword   | LongKeyword   | QuestionMark ULongKeyword   | QuestionMark LongKeyword   |
+              UIntKeyword    | IntKeyword    | QuestionMark UIntKeyword    | QuestionMark IntKeyword    |
+              UShortKeyword  | ShortKeyword  | QuestionMark UShortKeyword  | QuestionMark ShortKeyword  |
+              UByteKeyword   | ByteKeyword   | QuestionMark UByteKeyword   | QuestionMark ByteKeyword   |
+              QuestionMark QName |
+              LSquare RSquare Type   | QuestionMark LSquare RSquare Type |
+              LParen TypeListNoQName RParen | QuestionMark LParen TypeListNoQName RParen | QuestionMark NestedQNameList
+Type = TypeNoQName | QName | NestedQNameList
+TypeListNoQName = QName           Comma TypeListNoQName |
+                  NestedQNameList Comma TypeListNoQName |
+                  TypeNoQName     Comma TypeListNoQName |
+                  TypeNoQName     Comma QNameList       |
+                  TypeNoQName
 
 
-TupleExpression = Expression | TupleExpression Comma Expression
-Expression = LogicalExpression | LogicalExpression QuestionMark TupleExpression Colon Expression | LogicalExpression QuestionMarkColon Expression
+Expression = TupleExpression | QNameList
+TupleExpression = QName             Comma TupleExpression |
+                  NestedQNameList   Comma TupleExpression |
+                  ExpressionNoTuple Comma TupleExpression |
+                  ExpressionNoTuple Comma QNameList       |
+                  ExpressionNoTuple
+ExpressionNoTuple = LogicalExpression |
+                    LogicalExpression QuestionMark Expression Colon ExpressionNoTuple | QNameExpression QuestionMark Expression Colon ExpressionNoTuple |
+                    LogicalExpression QuestionMark Expression Colon QNameExpression   | QNameExpression QuestionMark Expression Colon QNameExpression   |
+                    LogicalExpression QuestionMarkColon ExpressionNoTuple | QNameExpression QuestionMarkColon ExpressionNoTuple | LogicalExpression QuestionMarkColon QNameExpression | QNameExpression QuestionMarkColon QNameExpression
 LogicalExpression = ComparisonExpression |
-                    LogicalExpression Ampersand       ComparisonExpression |
-                    LogicalExpression Pipe            ComparisonExpression |
-                    LogicalExpression Caret           ComparisonExpression |
-                    LogicalExpression DoubleAmpersand ComparisonExpression |
-                    LogicalExpression DoublePipe      ComparisonExpression
+                    LogicalExpression Ampersand       ComparisonExpression | QNameExpression Ampersand       ComparisonExpression | LogicalExpression Ampersand       QNameExpression | QNameExpression Ampersand       QNameExpression |
+                    LogicalExpression Pipe            ComparisonExpression | QNameExpression Pipe            ComparisonExpression | LogicalExpression Pipe            QNameExpression | QNameExpression Pipe            QNameExpression |
+                    LogicalExpression Caret           ComparisonExpression | QNameExpression Caret           ComparisonExpression | LogicalExpression Caret           QNameExpression | QNameExpression Caret           QNameExpression |
+                    LogicalExpression DoubleAmpersand ComparisonExpression | QNameExpression DoubleAmpersand ComparisonExpression | LogicalExpression DoubleAmpersand QNameExpression | QNameExpression DoubleAmpersand QNameExpression |
+                    LogicalExpression DoublePipe      ComparisonExpression | QNameExpression DoublePipe      ComparisonExpression | LogicalExpression DoublePipe      QNameExpression | QNameExpression DoublePipe      QNameExpression
 ComparisonExpression = AdditiveExpression |
-                       AdditiveExpression DoubleEquals          AdditiveExpression |
-                       AdditiveExpression ExclamationMarkEquals AdditiveExpression |
-                       AdditiveExpression LAngle                AdditiveExpression |
-                       AdditiveExpression LAngleEquals          AdditiveExpression |
-                       AdditiveExpression RAngle                AdditiveExpression |
-                       AdditiveExpression RAngleEquals          AdditiveExpression
+                       AdditiveExpression DoubleEquals          AdditiveExpression | QNameExpression DoubleEquals          AdditiveExpression | AdditiveExpression DoubleEquals          QNameExpression | QNameExpression DoubleEquals          QNameExpression |
+                       AdditiveExpression ExclamationMarkEquals AdditiveExpression | QNameExpression ExclamationMarkEquals AdditiveExpression | AdditiveExpression ExclamationMarkEquals QNameExpression | QNameExpression ExclamationMarkEquals QNameExpression |
+                       AdditiveExpression LAngle                AdditiveExpression | QNameExpression LAngle                AdditiveExpression | AdditiveExpression LAngle                QNameExpression | QNameExpression LAngle                QNameExpression |
+                       AdditiveExpression LAngleEquals          AdditiveExpression | QNameExpression LAngleEquals          AdditiveExpression | AdditiveExpression LAngleEquals          QNameExpression | QNameExpression LAngleEquals          QNameExpression |
+                       AdditiveExpression RAngle                AdditiveExpression | QNameExpression RAngle                AdditiveExpression | AdditiveExpression RAngle                QNameExpression | QNameExpression RAngle                QNameExpression |
+                       AdditiveExpression RAngleEquals          AdditiveExpression | QNameExpression RAngleEquals          AdditiveExpression | AdditiveExpression RAngleEquals          QNameExpression | QNameExpression RAngleEquals          QNameExpression
 AdditiveExpression = MultiplicativeExpression |
-                     AdditiveExpression Plus MultiplicativeExpression |
-                     AdditiveExpression Minus MultiplicativeExpression
+                     AdditiveExpression Plus  MultiplicativeExpression | QNameExpression Plus  MultiplicativeExpression | AdditiveExpression Plus  QNameExpression | QNameExpression Plus  QNameExpression |
+                     AdditiveExpression Minus MultiplicativeExpression | QNameExpression Minus MultiplicativeExpression | AdditiveExpression Minus QNameExpression | QNameExpression Minus QNameExpression
 MultiplicativeExpression = ShiftExpression |
-                           MultiplicativeExpression Star          ShiftExpression |
-                           MultiplicativeExpression ForwardSlash  ShiftExpression |
-                           MultiplicativeExpression Percent       ShiftExpression |
-                           MultiplicativeExpression DoublePercent ShiftExpression
+                           MultiplicativeExpression Star          ShiftExpression | QNameExpression Star          ShiftExpression | MultiplicativeExpression Star          QNameExpression | QNameExpression Star          QNameExpression |
+                           MultiplicativeExpression ForwardSlash  ShiftExpression | QNameExpression ForwardSlash  ShiftExpression | MultiplicativeExpression ForwardSlash  QNameExpression | QNameExpression ForwardSlash  QNameExpression |
+                           MultiplicativeExpression Percent       ShiftExpression | QNameExpression Percent       ShiftExpression | MultiplicativeExpression Percent       QNameExpression | QNameExpression Percent       QNameExpression |
+                           MultiplicativeExpression DoublePercent ShiftExpression | QNameExpression DoublePercent ShiftExpression | MultiplicativeExpression DoublePercent QNameExpression | QNameExpression DoublePercent QNameExpression
 ShiftExpression = TupleIndexExpression |
-                  ShiftExpression DoubleLAngle TupleIndexExpression |
-                  ShiftExpression DoubleRAngle TupleIndexExpression
-TupleIndexExpression = UnaryExpression | TupleIndexExpression ExclaimationMark IntegerLiteral
+                  ShiftExpression DoubleLAngle TupleIndexExpression | ShiftExpression DoubleLAngle QNameExpression | QNameExpression DoubleLAngle ShiftExpression | QNameExpression DoubleLAngle QNameExpression |
+                  ShiftExpression DoubleRAngle TupleIndexExpression | ShiftExpression DoubleRAngle QNameExpression | QNameExpression DoubleRAngle ShiftExpression | QNameExpression DoubleRAngle QNameExpression
+TupleIndexExpression = UnaryExpression | TupleIndexExpression ExclaimationMark IntegerLiteral | QNameExpression ExclaimationMark IntegerLiteral
 UnaryExpression = Primary |
-                  CastKeyword LAngle Type RAngle UnaryExpression |
-                  Minus UnaryExpression |
-                  Tilde UnaryExpression |
-                  ExclaimationMark UnaryExpression
+                  CastKeyword LAngle Type RAngle UnaryExpression | CastKeyword LAngle Type RAngle QNameExpression |
+                  Minus UnaryExpression | Minus QNameExpression |
+                  Tilde UnaryExpression | Tilde QNameExpression |
+                  ExclaimationMark UnaryExpression | ExclaimationMark QNameExpression
 Primary = PrimaryNoTrailingType | NewKeyword Dimensions Type
-PrimaryNoTrailingType = IntegerLiteral | DoubleLiteral |
+PrimaryNoTrailingType = IntegerLiteral | FloatingLiteral |
                         TrueKeyword | FalseKeyword | ThisKeyword | NullKeyword |
-                        Name |
-                        Primary LSquare TupleExpression RSquare |
+                        Primary         LSquare Expression RSquare |
+                        QName           LSquare Expression RSquare |
+                        NestedQNameList LSquare Expression RSquare |
                         NewKeyword LSquare RSquare Type LBrace RBrace |
                         NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace |
                         PrimaryNoTrailingType Dot Name |
@@ -124,7 +151,20 @@ PrimaryNoTrailingType = IntegerLiteral | DoubleLiteral |
                         LParen TupleExpression RParen |
                         ClassCreationExpression
 ClassCreationExpression = NewKeyword QName LParen ExpressionList RParen | NewKeyword QName LParen RParen
-FunctionCallExpression = Primary LParen ExpressionList RParen | Primary LParen RParen
-ExpressionList = Expression | ExpressionList Comma Expression
+FunctionCallExpression = Primary         LParen ExpressionList RParen | Primary         LParen RParen |
+                         QNameExpression LParen ExpressionList RParen | QNameExpression LParen RParen
 
-Dimensions = LSquare TupleExpression RSquare | Dimensions LSquare TupleExpression RSquare
+ExpressionList = QNameExpression | ExpressionNoTuple | ExpressionList Comma QNameExpression | ExpressionList Comma ExpressionNoTuple
+
+Dimensions = LSquare Expression RSquare | Dimensions LSquare Expression RSquare
+
+
+QNameExpression = QName | NestedQNameList
+NestedQNameList = LParen QNameList RParen
+QNameList = QName |
+            NestedQNameList |
+            QName Comma QNameList |
+            NestedQNameList Comma QNameList
+
+
+

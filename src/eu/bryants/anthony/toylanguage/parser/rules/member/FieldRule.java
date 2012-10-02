@@ -26,7 +26,7 @@ public class FieldRule extends Rule<ParseType>
   private static final long serialVersionUID = 1L;
 
   private static final Production<ParseType> PRODUCTION             = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.TYPE, ParseType.NAME, ParseType.SEMICOLON);
-  private static final Production<ParseType> INITIALISER_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.TYPE, ParseType.NAME, ParseType.EQUALS, ParseType.TUPLE_EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> INITIALISER_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.TYPE, ParseType.NAME, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
 
   @SuppressWarnings("unchecked")
   public FieldRule()
