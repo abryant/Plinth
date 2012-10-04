@@ -6,6 +6,7 @@ import parser.Rule;
 import eu.bryants.anthony.toylanguage.ast.LexicalPhrase;
 import eu.bryants.anthony.toylanguage.ast.misc.QName;
 import eu.bryants.anthony.toylanguage.ast.type.ArrayType;
+import eu.bryants.anthony.toylanguage.ast.type.FunctionType;
 import eu.bryants.anthony.toylanguage.ast.type.NamedType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType;
 import eu.bryants.anthony.toylanguage.ast.type.PrimitiveType.PrimitiveTypeType;
@@ -58,6 +59,14 @@ public class TypeNoQNameRule extends Rule<ParseType>
   private static final Production<ParseType> NULLABLE_TUPLE_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LPAREN, ParseType.TYPE_LIST_NO_QNAME, ParseType.RPAREN);
   private static final Production<ParseType> NULLABLE_QNAME_TUPLE_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.NESTED_QNAME_LIST);
 
+  private static final Production<ParseType> FUNCTION_PRODUCTION         = new Production<ParseType>(ParseType.LBRACE, ParseType.TYPE_LIST_NO_QNAME, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
+  private static final Production<ParseType> QNAME_FUNCTION_PRODUCTION   = new Production<ParseType>(ParseType.LBRACE, ParseType.QNAME_LIST,         ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
+  private static final Production<ParseType> NO_ARGS_FUNCTION_PRODUCTION = new Production<ParseType>(ParseType.LBRACE,                               ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
+
+  private static final Production<ParseType> NULLABLE_FUNCTION_PRODUCTION         = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE, ParseType.TYPE_LIST_NO_QNAME, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
+  private static final Production<ParseType> NULLABLE_QNAME_FUNCTION_PRODUCTION   = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE, ParseType.QNAME_LIST,         ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
+  private static final Production<ParseType> NULLABLE_NO_ARGS_FUNCTION_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE,                               ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
+
   @SuppressWarnings("unchecked")
   public TypeNoQNameRule()
   {
@@ -69,7 +78,9 @@ public class TypeNoQNameRule extends Rule<ParseType>
                                      BYTE_PRODUCTION,  UBYTE_PRODUCTION,    NULLABLE_BYTE_PRODUCTION,  NULLABLE_UBYTE_PRODUCTION,
                                    NULLABLE_NAMED_PRODUCTION,
                                    ARRAY_PRODUCTION, NULLABLE_ARRAY_PRODUCTION,
-                                   TUPLE_PRODUCTION, NULLABLE_TUPLE_PRODUCTION, NULLABLE_QNAME_TUPLE_PRODUCTION);
+                                   TUPLE_PRODUCTION, NULLABLE_TUPLE_PRODUCTION, NULLABLE_QNAME_TUPLE_PRODUCTION,
+                                   FUNCTION_PRODUCTION, QNAME_FUNCTION_PRODUCTION, NO_ARGS_FUNCTION_PRODUCTION,
+                                   NULLABLE_FUNCTION_PRODUCTION, NULLABLE_QNAME_FUNCTION_PRODUCTION, NULLABLE_NO_ARGS_FUNCTION_PRODUCTION);
   }
 
   /**
@@ -114,6 +125,61 @@ public class TypeNoQNameRule extends Rule<ParseType>
       QNameElement element = (QNameElement) args[1];
       TupleType notNullableType = (TupleType) element.convertToType();
       return new TupleType(true, notNullableType.getSubTypes(), LexicalPhrase.combine((LexicalPhrase) args[0], notNullableType.getLexicalPhrase()));
+    }
+
+    if (production == FUNCTION_PRODUCTION)
+    {
+      @SuppressWarnings("unchecked")
+      ParseList<Type> list = (ParseList<Type>) args[1];
+      Type returnType = (Type) args[3];
+      Type[] paramTypes = list.toArray(new Type[list.size()]);
+      return new FunctionType(false, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], list.getLexicalPhrase(), (LexicalPhrase) args[2], returnType.getLexicalPhrase(), (LexicalPhrase) args[4]));
+    }
+    if (production == QNAME_FUNCTION_PRODUCTION)
+    {
+      @SuppressWarnings("unchecked")
+      ParseList<QNameElement> list = (ParseList<QNameElement>) args[1];
+      QNameElement[] elements = list.toArray(new QNameElement[list.size()]);
+      Type[] paramTypes = new Type[elements.length];
+      for (int i = 0; i < elements.length; ++i)
+      {
+        paramTypes[i] = elements[i].convertToType();
+      }
+      Type returnType = (Type) args[3];
+      return new FunctionType(false, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], list.getLexicalPhrase(), (LexicalPhrase) args[2], returnType.getLexicalPhrase(), (LexicalPhrase) args[4]));
+    }
+    if (production == NO_ARGS_FUNCTION_PRODUCTION)
+    {
+      Type returnType = (Type) args[2];
+      Type[] paramTypes = new Type[0];
+      return new FunctionType(false, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], returnType.getLexicalPhrase(), (LexicalPhrase) args[3]));
+    }
+    if (production == NULLABLE_FUNCTION_PRODUCTION)
+    {
+      @SuppressWarnings("unchecked")
+      ParseList<Type> list = (ParseList<Type>) args[2];
+      Type returnType = (Type) args[4];
+      Type[] paramTypes = list.toArray(new Type[list.size()]);
+      return new FunctionType(true, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], list.getLexicalPhrase(), (LexicalPhrase) args[3], returnType.getLexicalPhrase(), (LexicalPhrase) args[5]));
+    }
+    if (production == NULLABLE_QNAME_FUNCTION_PRODUCTION)
+    {
+      @SuppressWarnings("unchecked")
+      ParseList<QNameElement> list = (ParseList<QNameElement>) args[2];
+      QNameElement[] elements = list.toArray(new QNameElement[list.size()]);
+      Type[] paramTypes = new Type[elements.length];
+      for (int i = 0; i < elements.length; ++i)
+      {
+        paramTypes[i] = elements[i].convertToType();
+      }
+      Type returnType = (Type) args[4];
+      return new FunctionType(true, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], list.getLexicalPhrase(), (LexicalPhrase) args[3], returnType.getLexicalPhrase(), (LexicalPhrase) args[5]));
+    }
+    if (production == NULLABLE_NO_ARGS_FUNCTION_PRODUCTION)
+    {
+      Type returnType = (Type) args[3];
+      Type[] paramTypes = new Type[0];
+      return new FunctionType(true, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], returnType.getLexicalPhrase(), (LexicalPhrase) args[4]));
     }
 
     PrimitiveTypeType type;

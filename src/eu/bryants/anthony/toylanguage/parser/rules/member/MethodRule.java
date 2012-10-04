@@ -28,15 +28,22 @@ public class MethodRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PARAMS_PRODUCTION      = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> PRODUCTION             = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> VOID_PARAMS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> VOID_PRODUCTION        = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
+  // do not use RETURN_TYPE here, as it causes shift-reduce conflicts with field declarations
+  // basically, given "A b" we couldn't tell if A was a TYPE or a RETURN_TYPE without further information
+  private static final Production<ParseType> PARAMS_PRODUCTION                = new Production<ParseType>(                     ParseType.TYPE,         ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> PRODUCTION                       = new Production<ParseType>(                     ParseType.TYPE,         ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> VOID_PARAMS_PRODUCTION           = new Production<ParseType>(                     ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> VOID_PRODUCTION                  = new Production<ParseType>(                     ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_PARAMS_PRODUCTION      = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_PRODUCTION             = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_VOID_PARAMS_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_VOID_PRODUCTION        = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
 
   @SuppressWarnings("unchecked")
   public MethodRule()
   {
-    super(ParseType.METHOD, PARAMS_PRODUCTION, PRODUCTION, VOID_PARAMS_PRODUCTION, VOID_PRODUCTION);
+    super(ParseType.METHOD, PARAMS_PRODUCTION, PRODUCTION, VOID_PARAMS_PRODUCTION, VOID_PRODUCTION,
+                            MODIFIERS_PARAMS_PRODUCTION, MODIFIERS_PRODUCTION, MODIFIERS_VOID_PARAMS_PRODUCTION, MODIFIERS_VOID_PRODUCTION);
   }
 
   /**
@@ -46,6 +53,40 @@ public class MethodRule extends Rule<ParseType>
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
     if (production == PARAMS_PRODUCTION)
+    {
+      Type returnType = (Type) args[0];
+      Name name = (Name) args[1];
+      @SuppressWarnings("unchecked")
+      ParseList<Parameter> parameters = (ParseList<Parameter>) args[3];
+      Block block = (Block) args[5];
+      return processModifiers(null, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
+                              LexicalPhrase.combine(returnType.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], parameters.getLexicalPhrase(), (LexicalPhrase) args[4], block.getLexicalPhrase()));
+    }
+    if (production == PRODUCTION)
+    {
+      Type returnType = (Type) args[0];
+      Name name = (Name) args[1];
+      Block block = (Block) args[4];
+      return processModifiers(null, returnType, name.getName(), new Parameter[0], block,
+                              LexicalPhrase.combine(returnType.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3], block.getLexicalPhrase()));
+    }
+    if (production == VOID_PARAMS_PRODUCTION)
+    {
+      Name name = (Name) args[1];
+      @SuppressWarnings("unchecked")
+      ParseList<Parameter> parameters = (ParseList<Parameter>) args[3];
+      Block block = (Block) args[5];
+      return processModifiers(null, new VoidType((LexicalPhrase) args[0]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
+                              LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase(), (LexicalPhrase) args[2], parameters.getLexicalPhrase(), (LexicalPhrase) args[4], block.getLexicalPhrase()));
+    }
+    if (production == VOID_PRODUCTION)
+    {
+      Name name = (Name) args[1];
+      Block block = (Block) args[4];
+      return processModifiers(null, new VoidType((LexicalPhrase) args[0]), name.getName(), new Parameter[0], block,
+                              LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3], block.getLexicalPhrase()));
+    }
+    if (production == MODIFIERS_PARAMS_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
@@ -57,7 +98,7 @@ public class MethodRule extends Rule<ParseType>
       return processModifiers(modifiers, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
                               LexicalPhrase.combine(modifiers.getLexicalPhrase(), returnType.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[3], parameters.getLexicalPhrase(), (LexicalPhrase) args[5], block.getLexicalPhrase()));
     }
-    if (production == PRODUCTION)
+    if (production == MODIFIERS_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
@@ -67,7 +108,7 @@ public class MethodRule extends Rule<ParseType>
       return processModifiers(modifiers, returnType, name.getName(), new Parameter[0], block,
                               LexicalPhrase.combine(modifiers.getLexicalPhrase(), returnType.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[3], (LexicalPhrase) args[4], block.getLexicalPhrase()));
     }
-    if (production == VOID_PARAMS_PRODUCTION)
+    if (production == MODIFIERS_VOID_PARAMS_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
@@ -78,7 +119,7 @@ public class MethodRule extends Rule<ParseType>
       return processModifiers(modifiers, new VoidType((LexicalPhrase) args[1]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
                               LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), (LexicalPhrase) args[3], parameters.getLexicalPhrase(), (LexicalPhrase) args[5], block.getLexicalPhrase()));
     }
-    if (production == VOID_PRODUCTION)
+    if (production == MODIFIERS_VOID_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
@@ -94,36 +135,39 @@ public class MethodRule extends Rule<ParseType>
   {
     boolean isStatic = false;
     String nativeName = null;
-    for (Modifier modifier : modifiers)
+    if (modifiers != null)
     {
-      if (modifier.getModifierType() == ModifierType.FINAL)
+      for (Modifier modifier : modifiers)
       {
-        throw new LanguageParseException("Unexpected modifier: Methods cannot be final", modifier.getLexicalPhrase());
-      }
-      else if (modifier.getModifierType() == ModifierType.NATIVE)
-      {
-        if (nativeName != null)
+        if (modifier.getModifierType() == ModifierType.FINAL)
         {
-          throw new LanguageParseException("Duplicate 'native' specifier", modifier.getLexicalPhrase());
+          throw new LanguageParseException("Unexpected modifier: Methods cannot be final", modifier.getLexicalPhrase());
         }
-        NativeSpecifier nativeSpecifier = (NativeSpecifier) modifier;
-        nativeName = nativeSpecifier.getNativeName();
-        if (nativeName == null)
+        else if (modifier.getModifierType() == ModifierType.NATIVE)
         {
-          nativeName = name;
+          if (nativeName != null)
+          {
+            throw new LanguageParseException("Duplicate 'native' specifier", modifier.getLexicalPhrase());
+          }
+          NativeSpecifier nativeSpecifier = (NativeSpecifier) modifier;
+          nativeName = nativeSpecifier.getNativeName();
+          if (nativeName == null)
+          {
+            nativeName = name;
+          }
         }
-      }
-      else if (modifier.getModifierType() == ModifierType.STATIC)
-      {
-        if (isStatic)
+        else if (modifier.getModifierType() == ModifierType.STATIC)
         {
-          throw new LanguageParseException("Duplicate 'static' modifier", modifier.getLexicalPhrase());
+          if (isStatic)
+          {
+            throw new LanguageParseException("Duplicate 'static' modifier", modifier.getLexicalPhrase());
+          }
+          isStatic = true;
         }
-        isStatic = true;
-      }
-      else
-      {
-        throw new IllegalStateException("Unknown modifier: " + modifier);
+        else
+        {
+          throw new IllegalStateException("Unknown modifier: " + modifier);
+        }
       }
     }
     return new Method(returnType, name, isStatic, nativeName, parameters, block, lexicalPhrase);

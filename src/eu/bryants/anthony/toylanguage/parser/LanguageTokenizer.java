@@ -781,6 +781,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     if (nextChar == '-')
     {
       int secondChar = reader.read(1);
+      if (secondChar == '>')
+      {
+        return makeSymbolToken(ParseType.ARROW, 2);
+      }
       if (secondChar == '-')
       {
         return makeSymbolToken(ParseType.DOUBLE_MINUS, 2);

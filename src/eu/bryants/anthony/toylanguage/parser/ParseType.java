@@ -56,6 +56,7 @@ public enum ParseType
   WHILE_STATEMENT,               // WhileStatement
 
   // Types
+  RETURN_TYPE,                   // Type
   TYPE,                          // Type
   TYPE_NO_QNAME,                 // Type
   TYPE_LIST_NO_QNAME,            // ParseList<Type>
@@ -90,6 +91,7 @@ public enum ParseType
   // symbols (values for these should all be LexicalPhrase)
   AMPERSAND,
   AMPERSAND_EQUALS,
+  ARROW,
   CARET,
   CARET_EQUALS,
   COLON,

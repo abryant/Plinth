@@ -25,13 +25,15 @@ public class ConstructorRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.NAME, ParseType.LPAREN, ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> PARAMETERS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_PRODUCTION            = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NAME, ParseType.LPAREN, ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_PARAMETERS_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> PRODUCTION                      = new Production<ParseType>(                     ParseType.NAME, ParseType.LPAREN, ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> PARAMETERS_PRODUCTION           = new Production<ParseType>(                     ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
 
   @SuppressWarnings("unchecked")
   public ConstructorRule()
   {
-    super(ParseType.CONSTRUCTOR, PRODUCTION, PARAMETERS_PRODUCTION);
+    super(ParseType.CONSTRUCTOR, MODIFIERS_PRODUCTION, MODIFIERS_PARAMETERS_PRODUCTION, PRODUCTION, PARAMETERS_PRODUCTION);
   }
 
   /**
@@ -40,7 +42,7 @@ public class ConstructorRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == PRODUCTION)
+    if (production == MODIFIERS_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
@@ -48,7 +50,7 @@ public class ConstructorRule extends Rule<ParseType>
       Block block = (Block) args[4];
       return processModifiers(modifiers, name.getName(), new Parameter[0], block, LexicalPhrase.combine(modifiers.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3], block.getLexicalPhrase()));
     }
-    if (production == PARAMETERS_PRODUCTION)
+    if (production == MODIFIERS_PARAMETERS_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
@@ -58,6 +60,21 @@ public class ConstructorRule extends Rule<ParseType>
       Block block = (Block) args[5];
       return processModifiers(modifiers, name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
                               LexicalPhrase.combine(modifiers.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], parameters.getLexicalPhrase(), (LexicalPhrase) args[4], block.getLexicalPhrase()));
+    }
+    if (production == PRODUCTION)
+    {
+      Name name = (Name) args[0];
+      Block block = (Block) args[3];
+      return new Constructor(name.getName(), new Parameter[0], block, LexicalPhrase.combine(name.getLexicalPhrase(), (LexicalPhrase) args[1], (LexicalPhrase) args[2], block.getLexicalPhrase()));
+    }
+    if (production == PARAMETERS_PRODUCTION)
+    {
+      Name name = (Name) args[0];
+      @SuppressWarnings("unchecked")
+      ParseList<Parameter> parameters = (ParseList<Parameter>) args[2];
+      Block block = (Block) args[4];
+      return new Constructor(name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
+                             LexicalPhrase.combine(name.getLexicalPhrase(), (LexicalPhrase) args[1], parameters.getLexicalPhrase(), (LexicalPhrase) args[3], block.getLexicalPhrase()));
     }
     throw badTypeList();
   }

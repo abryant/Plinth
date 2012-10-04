@@ -21,11 +21,12 @@ public class BlockRule extends Rule<ParseType>
   private static final long serialVersionUID = 1L;
 
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.LBRACE, ParseType.STATEMENTS, ParseType.RBRACE);
+  private static final Production<ParseType> EMPTY_PRODUCTION = new Production<ParseType>(ParseType.LBRACE, ParseType.RBRACE);
 
   @SuppressWarnings("unchecked")
   public BlockRule()
   {
-    super(ParseType.BLOCK, PRODUCTION);
+    super(ParseType.BLOCK, PRODUCTION, EMPTY_PRODUCTION);
   }
 
   /**
@@ -39,6 +40,10 @@ public class BlockRule extends Rule<ParseType>
       @SuppressWarnings("unchecked")
       ParseList<Statement> list = (ParseList<Statement>) args[1];
       return new Block(list.toArray(new Statement[list.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], list.getLexicalPhrase(), (LexicalPhrase) args[2]));
+    }
+    if (production == EMPTY_PRODUCTION)
+    {
+      return new Block(new Statement[0], LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1]));
     }
     throw badTypeList();
   }

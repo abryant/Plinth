@@ -19,13 +19,13 @@ public class StatementsRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> EMPTY_PRODUCTION = new Production<ParseType>();
+  private static final Production<ParseType> START_PRODUCTION = new Production<ParseType>(ParseType.STATEMENT);
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.STATEMENTS, ParseType.STATEMENT);
 
   @SuppressWarnings("unchecked")
   public StatementsRule()
   {
-    super(ParseType.STATEMENTS, EMPTY_PRODUCTION, PRODUCTION);
+    super(ParseType.STATEMENTS, START_PRODUCTION, PRODUCTION);
   }
 
   /**
@@ -34,9 +34,10 @@ public class StatementsRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == EMPTY_PRODUCTION)
+    if (production == START_PRODUCTION)
     {
-      return new ParseList<Statement>(null);
+      Statement statement = (Statement) args[0];
+      return new ParseList<Statement>(statement, statement.getLexicalPhrase());
     }
     if (production == PRODUCTION)
     {

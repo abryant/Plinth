@@ -25,13 +25,15 @@ public class FieldRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION             = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.TYPE, ParseType.NAME, ParseType.SEMICOLON);
-  private static final Production<ParseType> INITIALISER_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.TYPE, ParseType.NAME, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> PRODUCTION             = new Production<ParseType>(ParseType.TYPE, ParseType.NAME, ParseType.SEMICOLON);
+  private static final Production<ParseType> INITIALISER_PRODUCTION = new Production<ParseType>(ParseType.TYPE, ParseType.NAME, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> MODIFIERS_PRODUCTION             = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE, ParseType.NAME, ParseType.SEMICOLON);
+  private static final Production<ParseType> MODIFIERS_INITIALISER_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE, ParseType.NAME, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
 
   @SuppressWarnings("unchecked")
   public FieldRule()
   {
-    super(ParseType.FIELD, PRODUCTION, INITIALISER_PRODUCTION);
+    super(ParseType.FIELD, PRODUCTION, INITIALISER_PRODUCTION, MODIFIERS_PRODUCTION, MODIFIERS_INITIALISER_PRODUCTION);
   }
 
   /**
@@ -42,6 +44,19 @@ public class FieldRule extends Rule<ParseType>
   {
     if (production == PRODUCTION)
     {
+      Type type = (Type) args[0];
+      Name name = (Name) args[1];
+      return new Field(type, name.getName(), false, false, null, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2]));
+    }
+    if (production == INITIALISER_PRODUCTION)
+    {
+      Type type = (Type) args[0];
+      Name name = (Name) args[1];
+      Expression initialiserExpression = (Expression) args[3];
+      return new Field(type, name.getName(), false, false, initialiserExpression, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], initialiserExpression.getLexicalPhrase(), (LexicalPhrase) args[4]));
+    }
+    if (production == MODIFIERS_PRODUCTION)
+    {
       @SuppressWarnings("unchecked")
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
       Type type = (Type) args[1];
@@ -49,7 +64,7 @@ public class FieldRule extends Rule<ParseType>
       return processModifiers(modifiers, type, name.getName(), null,
                               LexicalPhrase.combine(modifiers.getLexicalPhrase(), type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[3]));
     }
-    if (production == INITIALISER_PRODUCTION)
+    if (production == MODIFIERS_INITIALISER_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];

@@ -52,6 +52,7 @@ import eu.bryants.anthony.toylanguage.parser.rules.statement.ShorthandAssignment
 import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.StatementsRule;
 import eu.bryants.anthony.toylanguage.parser.rules.statement.WhileStatementRule;
+import eu.bryants.anthony.toylanguage.parser.rules.type.ReturnTypeRule;
 import eu.bryants.anthony.toylanguage.parser.rules.type.TypeListNoQNameRule;
 import eu.bryants.anthony.toylanguage.parser.rules.type.TypeNoQNameRule;
 import eu.bryants.anthony.toylanguage.parser.rules.type.TypeRule;
@@ -126,6 +127,7 @@ public class ToyLanguageRules
     new WhileStatementRule(),
 
     // type
+    new ReturnTypeRule(),
     new TypeListNoQNameRule(),
     new TypeNoQNameRule(),
     new TypeRule(),
