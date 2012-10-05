@@ -84,7 +84,7 @@ public class ClassDefinition extends TypeDefinition
         Constructor constructor = (Constructor) member;
         if (!constructor.getName().equals(name))
         {
-          throw new LanguageParseException("The constructor '" + constructor.getName() + "' should be called '" + name + "' after the class type it is defined in", constructor.getLexicalPhrase());
+          throw new LanguageParseException("The constructor '" + constructor.getName() + "' should be named '" + name + "' after the class type it is defined in", constructor.getLexicalPhrase());
         }
         constructor.setContainingTypeDefinition(this);
         constructors.add(constructor);
