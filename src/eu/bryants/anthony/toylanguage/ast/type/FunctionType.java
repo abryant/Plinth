@@ -48,7 +48,39 @@ public class FunctionType extends Type
   @Override
   public boolean canAssign(Type type)
   {
-    return isEquivalent(type);
+    if (type instanceof NullType && isNullable())
+    {
+      // all nullable types can have null assigned to them
+      return true;
+    }
+    if (!(type instanceof FunctionType))
+    {
+      return false;
+    }
+    if (!isNullable() && type.isNullable())
+    {
+      // a nullable type cannot be assigned to a non-nullable type
+      return false;
+    }
+    // to be assign-compatible, both of the FunctionTypes must have equivalent parameter and return types
+    FunctionType otherFunction = (FunctionType) type;
+    if (!returnType.isEquivalent(otherFunction.getReturnType()))
+    {
+      return false;
+    }
+    Type[] otherParameters = otherFunction.getParameterTypes();
+    if (parameterTypes.length != otherParameters.length)
+    {
+      return false;
+    }
+    for (int i = 0; i < parameterTypes.length; ++i)
+    {
+      if (!parameterTypes[i].isEquivalent(otherParameters[i]))
+      {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -57,11 +89,6 @@ public class FunctionType extends Type
   @Override
   public boolean isEquivalent(Type type)
   {
-    if (type instanceof NullType && isNullable())
-    {
-      // all nullable types can have null assigned to them
-      return true;
-    }
     if (!(type instanceof FunctionType))
     {
       return false;

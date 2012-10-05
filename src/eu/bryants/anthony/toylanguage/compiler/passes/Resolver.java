@@ -328,6 +328,15 @@ public class Resolver
     {
       resolve(((ArrayType) type).getBaseType(), compilationUnit);
     }
+    else if (type instanceof FunctionType)
+    {
+      FunctionType functionType = (FunctionType) type;
+      resolve(functionType.getReturnType(), compilationUnit);
+      for (Type parameterType : functionType.getParameterTypes())
+      {
+        resolve(parameterType, compilationUnit);
+      }
+    }
     else if (type instanceof NamedType)
     {
       NamedType namedType = (NamedType) type;

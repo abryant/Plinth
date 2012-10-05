@@ -47,6 +47,11 @@ compound complex
     (result.o ?: other(123)).modify();
     return (result.o ?: other(123)).getX();
   }
+
+  static void argh({{ -> void} -> void} func, {->void} arg)
+  {
+    func(arg);
+  }
 }
 
 compound other

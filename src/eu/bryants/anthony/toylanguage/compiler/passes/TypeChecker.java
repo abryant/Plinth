@@ -966,7 +966,7 @@ public class TypeChecker
         }
         if (!(baseType instanceof FunctionType))
         {
-          throw new ConceptualException("Cannot call something which is not a method or a constructor", functionCallExpression.getLexicalPhrase());
+          throw new ConceptualException("Cannot call something which is not a function type, a method or a constructor", functionCallExpression.getLexicalPhrase());
         }
         parameterTypes = ((FunctionType) baseType).getParameterTypes();
         returnType = ((FunctionType) baseType).getReturnType();
