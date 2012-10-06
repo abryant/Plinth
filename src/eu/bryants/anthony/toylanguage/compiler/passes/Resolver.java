@@ -1163,6 +1163,7 @@ public class Resolver
           else if (entry.getValue() instanceof Method)
           {
             expr.setResolvedMethod((Method) entry.getValue());
+            // if the method call had no base expression, e.g. it was a VariableExpression being called, this will just set it to null
             expr.setResolvedBaseExpression(methodBaseExpressions.get(entry.getValue()));
           }
           else

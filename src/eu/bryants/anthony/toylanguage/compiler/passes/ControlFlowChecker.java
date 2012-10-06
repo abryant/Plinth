@@ -764,20 +764,27 @@ public class ControlFlowChecker
       if (functionCallExpression.getResolvedMethod() != null)
       {
         Expression resolvedBaseExpression = functionCallExpression.getResolvedBaseExpression();
-        if (inConstructor && resolvedBaseExpression == null && !functionCallExpression.getResolvedMethod().isStatic())
+        if (resolvedBaseExpression == null)
         {
-          // we are in a constructor, and we are calling a non-static method without a base expression (i.e. on 'this')
-          // this should only be allowed if 'this' is fully initialised
           Method resolvedMethod = functionCallExpression.getResolvedMethod();
-          for (Field field : resolvedMethod.getContainingTypeDefinition().getNonStaticFields())
+          if (inConstructor && !resolvedMethod.isStatic())
           {
-            if (!initialisedVariables.contains(field.getMemberVariable()))
+            // we are in a constructor, and we are calling a non-static method without a base expression (i.e. on 'this')
+            // this should only be allowed if 'this' is fully initialised
+            for (Field field : resolvedMethod.getContainingTypeDefinition().getNonStaticFields())
             {
-              throw new ConceptualException("Cannot call methods on 'this' here. Not all of the non-static fields of this '" + new NamedType(false, resolvedMethod.getContainingTypeDefinition()) + "' have been initialised (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to initialise them before they're used", expression.getLexicalPhrase());
+              if (!initialisedVariables.contains(field.getMemberVariable()))
+              {
+                throw new ConceptualException("Cannot call methods on 'this' here. Not all of the non-static fields of this '" + new NamedType(false, resolvedMethod.getContainingTypeDefinition()) + "' have been initialised (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to initialise them before they're used", expression.getLexicalPhrase());
+              }
             }
           }
+          if (inStaticContext && !resolvedMethod.isStatic())
+          {
+            throw new ConceptualException("Cannot call the non-static method '" + resolvedMethod.getName() + "' from a static context", functionCallExpression.getLexicalPhrase());
+          }
         }
-        else if (resolvedBaseExpression != null)
+        else // resolvedBaseExpression != null
         {
           checkUninitialisedVariables(resolvedBaseExpression, initialisedVariables, inConstructor, inStaticContext);
         }
