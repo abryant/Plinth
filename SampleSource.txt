@@ -16,7 +16,7 @@ compound complex
 
   double real = 1;
   double imag = 0;
-  ?other o;
+  ?Other o;
 
   complex()
   {
@@ -25,7 +25,7 @@ compound complex
   complex(double real, double imag)
   {
     this.real, this.imag = real, imag;
-    o = other(cast<uint> imag);
+    o = new Other(cast<uint> imag);
   }
 
   complex mult(complex c)
@@ -35,31 +35,40 @@ compound complex
 
   static native uint main(final uint argc)
   {
-    ?(uint, ?complex) t = 18, complex(argc, 2);
-    Asdf yes = new Asdf(1);
-    ?Asdf no = null;
-    if yes == no
-    {
-      return 249;
-    }
-    complex c = (t ?: (5, complex()))!2 ?: complex();
-    complex result = Asdf::rotateComplexLeft(c);
-    (result.o ?: other(123)).modify();
-    return (result.o ?: other(123)).getX();
+    Other other = new Other(2);
+    []uint values = new []uint {1, 2, 3, 4, 5, argc};
+    []?uint mapped = map(other.add, values);
+    multiply(2);
+    return complex().apply(multiply, (mapped[5] ?: 0) - 1);
   }
 
-  static void argh({{ -> void} -> void} func, {->void} arg)
+  static []?uint map({uint -> uint} f, []uint arg)
   {
-    func(arg);
+    []?uint result = new [arg.length]?uint;
+    for (uint i = 0; i < arg.length; ++i)
+    {
+      result[i] = f(arg[i]);
+    }
+    return result;
+  }
+
+  uint apply({uint -> uint} f, uint arg)
+  {
+    return f(arg);
+  }
+
+  static uint multiply(uint x)
+  {
+    return x * 2;
   }
 }
 
-compound other
+class Other
 {
   uint x;
   double y;
 
-  other(uint x)
+  Other(uint x)
   {
     this.x, y = x, x;
   }
@@ -73,5 +82,10 @@ compound other
   {
     ++x;
     ++y;
+  }
+
+  uint add(uint x)
+  {
+    return x + this.x;
   }
 }

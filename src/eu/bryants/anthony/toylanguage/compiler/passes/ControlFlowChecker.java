@@ -742,6 +742,18 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Field '" + ((Field) resolvedMember).getName() + "' may not have been initialised", fieldAccessExpression.getLexicalPhrase());
         }
+        if (resolvedMember instanceof Method && !((Method) resolvedMember).isStatic())
+        {
+          // non-static methods cannot be accessed as fields before 'this' has been initialised
+          Method resolvedMethod = (Method) resolvedMember;
+          for (Field field : resolvedMethod.getContainingTypeDefinition().getNonStaticFields())
+          {
+            if (!initialisedVariables.contains(field.getMemberVariable()))
+            {
+              throw new ConceptualException("Cannot access methods on 'this' here. Not all of the non-static fields of this '" + new NamedType(false, resolvedMethod.getContainingTypeDefinition()) + "' have been initialised (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to initialise them before they're used", expression.getLexicalPhrase());
+            }
+          }
+        }
       }
       else if (subExpression != null)
       {
@@ -886,13 +898,28 @@ public class ControlFlowChecker
     {
       VariableExpression variableExpression = (VariableExpression) expression;
       Variable var = variableExpression.getResolvedVariable();
-      if (!(var instanceof GlobalVariable) && !initialisedVariables.contains(var) && (inConstructor || !(var instanceof MemberVariable)))
+      Method method = variableExpression.getResolvedMethod();
+      if (var != null)
       {
-        throw new ConceptualException("Variable '" + variableExpression.getName() + "' may not have been initialised", variableExpression.getLexicalPhrase());
+        if (!(var instanceof GlobalVariable) && !initialisedVariables.contains(var) && (inConstructor || !(var instanceof MemberVariable)))
+        {
+          throw new ConceptualException("Variable '" + variableExpression.getName() + "' may not have been initialised", variableExpression.getLexicalPhrase());
+        }
+        if (inStaticContext && var instanceof MemberVariable)
+        {
+          throw new ConceptualException("The non-static member variable '" + variableExpression.getName() + "' does not exist in static methods", expression.getLexicalPhrase());
+        }
       }
-      if (inStaticContext && var instanceof MemberVariable)
+      else if (method != null)
       {
-        throw new ConceptualException("The non-static member variable '" + variableExpression.getName() + "' does not exist in static methods", expression.getLexicalPhrase());
+        if (inStaticContext && !method.isStatic())
+        {
+          throw new ConceptualException("Cannot access the non-static method '" + method.getName() + "' from a static context", expression.getLexicalPhrase());
+        }
+      }
+      else
+      {
+        throw new IllegalArgumentException("A VariableExpression must have been resolved to either a variable or a method");
       }
     }
     else

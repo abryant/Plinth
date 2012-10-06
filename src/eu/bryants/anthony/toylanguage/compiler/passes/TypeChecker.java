@@ -7,6 +7,7 @@ import java.util.Set;
 
 import eu.bryants.anthony.toylanguage.ast.ClassDefinition;
 import eu.bryants.anthony.toylanguage.ast.CompilationUnit;
+import eu.bryants.anthony.toylanguage.ast.CompoundDefinition;
 import eu.bryants.anthony.toylanguage.ast.TypeDefinition;
 import eu.bryants.anthony.toylanguage.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.toylanguage.ast.expression.ArrayAccessExpression;
@@ -44,6 +45,7 @@ import eu.bryants.anthony.toylanguage.ast.member.Initialiser;
 import eu.bryants.anthony.toylanguage.ast.member.Member;
 import eu.bryants.anthony.toylanguage.ast.member.Method;
 import eu.bryants.anthony.toylanguage.ast.metadata.FieldInitialiser;
+import eu.bryants.anthony.toylanguage.ast.metadata.Variable;
 import eu.bryants.anthony.toylanguage.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.toylanguage.ast.misc.Assignee;
 import eu.bryants.anthony.toylanguage.ast.misc.BlankAssignee;
@@ -898,8 +900,19 @@ public class TypeChecker
       }
       else if (member instanceof Method)
       {
-        // TODO: add function types properly and remove this restriction
-        throw new ConceptualException("Cannot yet access a method as a field", fieldAccessExpression.getLexicalPhrase());
+        // create a function type for this method
+        Method method = (Method) member;
+        if (!method.isStatic() && method.getContainingTypeDefinition() instanceof CompoundDefinition)
+        {
+          throw new ConceptualException("Cannot convert a non-static method on a compound type to a function type, as there is nowhere to store the compound value of 'this' to call the method on", fieldAccessExpression.getLexicalPhrase());
+        }
+        Parameter[] parameters = method.getParameters();
+        Type[] parameterTypes = new Type[parameters.length];
+        for (int i = 0; i < parameters.length; ++i)
+        {
+          parameterTypes[i] = parameters[i].getType();
+        }
+        type = new FunctionType(false, method.getReturnType(), parameterTypes, null);
       }
       else
       {
@@ -1317,9 +1330,32 @@ public class TypeChecker
     }
     else if (expression instanceof VariableExpression)
     {
-      Type type = ((VariableExpression) expression).getResolvedVariable().getType();
-      expression.setType(type);
-      return type;
+      VariableExpression variableExpression = (VariableExpression) expression;
+      Variable resolvedVariable = variableExpression.getResolvedVariable();
+      if (resolvedVariable != null)
+      {
+        Type type = resolvedVariable.getType();
+        expression.setType(type);
+        return type;
+      }
+      Method resolvedMethod = variableExpression.getResolvedMethod();
+      if (resolvedMethod != null)
+      {
+        // create a function type for this method
+        if (!resolvedMethod.isStatic() && resolvedMethod.getContainingTypeDefinition() instanceof CompoundDefinition)
+        {
+          throw new ConceptualException("Cannot convert a non-static method on a compound type to a function type, as there is nowhere to store the compound value of 'this' to call the method on", expression.getLexicalPhrase());
+        }
+        Parameter[] parameters = resolvedMethod.getParameters();
+        Type[] parameterTypes = new Type[parameters.length];
+        for (int i = 0; i < parameters.length; ++i)
+        {
+          parameterTypes[i] = parameters[i].getType();
+        }
+        FunctionType type = new FunctionType(false, resolvedMethod.getReturnType(), parameterTypes, null);
+        expression.setType(type);
+        return type;
+      }
     }
     throw new ConceptualException("Internal type checking error: Unknown expression type", expression.getLexicalPhrase());
   }

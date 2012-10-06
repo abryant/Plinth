@@ -52,6 +52,14 @@ public class TypeHelper
   }
 
   /**
+   * @return an opaque pointer type
+   */
+  public LLVMTypeRef getOpaquePointer()
+  {
+    return LLVM.LLVMPointerType(opaqueType, 0);
+  }
+
+  /**
    * Finds the standard representation for the specified type, to be used when passing parameters, or storing fields, etc.
    * @param type - the type to find the native type of
    * @return the standard native representation of the specified Type

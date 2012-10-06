@@ -1249,7 +1249,12 @@ public class Resolver
     {
       VariableExpression expr = (VariableExpression) expression;
       Variable var = block.getVariable(expr.getName());
-      if (var == null && enclosingDefinition != null)
+      if (var != null)
+      {
+        expr.setResolvedVariable(var);
+        return;
+      }
+      if (enclosingDefinition != null)
       {
         Field field = enclosingDefinition.getField(expr.getName());
         if (field != null)
@@ -1262,13 +1267,21 @@ public class Resolver
           {
             var = field.getMemberVariable();
           }
+          expr.setResolvedVariable(var);
+          return;
+        }
+        Set<Method> methods = enclosingDefinition.getMethodsByName(expr.getName());
+        if (methods != null && methods.size() == 1)
+        {
+          expr.setResolvedMethod(methods.iterator().next());
+          return;
+        }
+        if (methods != null && methods.size() > 1)
+        {
+          throw new NameNotResolvedException("Unable to resolve \"" + expr.getName() + "\" - multiple methods exist with that name", expr.getLexicalPhrase());
         }
       }
-      if (var == null)
-      {
-        throw new NameNotResolvedException("Unable to resolve \"" + expr.getName() + "\"", expr.getLexicalPhrase());
-      }
-      expr.setResolvedVariable(var);
+      throw new NameNotResolvedException("Unable to resolve \"" + expr.getName() + "\"", expr.getLexicalPhrase());
     }
     else
     {
