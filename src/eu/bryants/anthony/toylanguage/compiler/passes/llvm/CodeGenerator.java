@@ -689,7 +689,6 @@ public class CodeGenerator
       if (assignStatement.getExpression() != null)
       {
         LLVMValueRef value = buildExpression(assignStatement.getExpression(), llvmFunction, thisValue, variables);
-        value = typeHelper.convertTemporary(value, assignStatement.getExpression().getType(), assignStatement.getResolvedType());
         if (llvmAssigneePointers.length == 1)
         {
           if (llvmAssigneePointers[0] != null)
