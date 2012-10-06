@@ -4,10 +4,13 @@ import test.*;
 
 compound complex
 {
+  static final uint test;
   static
   {
     uint x = 2;
     ++x;
+    x += test;
+    complex::test = 6;
   }
 
   {
@@ -35,7 +38,7 @@ compound complex
 
   static native uint main(final uint argc)
   {
-    Other other = new Other(2);
+    Other other = new Other(test);
     []uint values = new []uint {1, 2, 3, 4, 5, argc};
     []?uint mapped = map(other.add, values);
     multiply(2);
