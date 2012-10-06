@@ -21,7 +21,7 @@ public class PrimitiveType extends Type
    */
   public enum PrimitiveTypeType
   {
-    BOOLEAN("boolean", "o", false, 1,  false),
+    BOOLEAN("boolean", "z", false, 1,  false),
     UBYTE  ("ubyte",   "B", false, 8,  false),
     USHORT ("ushort",  "S", false, 16, false),
     UINT   ("uint",    "I", false, 32, false),
@@ -238,7 +238,7 @@ public class PrimitiveType extends Type
   @Override
   public String getMangledName()
   {
-    return (isNullable() ? "?" : "") + primitiveTypeType.mangledName;
+    return (isNullable() ? "x" : "") + primitiveTypeType.mangledName;
   }
 
   /**

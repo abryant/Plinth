@@ -120,14 +120,14 @@ public class TupleType extends Type
     StringBuffer buffer = new StringBuffer();
     if (isNullable())
     {
-      buffer.append('?');
+      buffer.append('x');
     }
-    buffer.append("(");
+    buffer.append("T");
     for (int i = 0; i < subTypes.length; i++)
     {
       buffer.append(subTypes[i].getMangledName());
     }
-    buffer.append(")");
+    buffer.append("t");
     return buffer.toString();
   }
 

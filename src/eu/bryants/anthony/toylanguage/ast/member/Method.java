@@ -120,17 +120,18 @@ public class Method extends Member
   public String getMangledName()
   {
     StringBuffer buffer = new StringBuffer();
-    buffer.append(containingTypeDefinition.getQualifiedName());
-    buffer.append('$');
-    buffer.append(name);
     if (isStatic)
     {
-      buffer.append(":");
+      buffer.append("_SM");
     }
     else
     {
-      buffer.append('$');
+      buffer.append("_M");
     }
+    buffer.append(containingTypeDefinition.getQualifiedName().getMangledName());
+    buffer.append('_');
+    buffer.append(name);
+    buffer.append('_');
     buffer.append(returnType.getMangledName());
     buffer.append('_');
     for (Parameter p : parameters)

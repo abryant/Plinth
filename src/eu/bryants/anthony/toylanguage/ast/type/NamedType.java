@@ -136,11 +136,11 @@ public class NamedType extends Type
   {
     if (resolvedTypeDefinition != null && resolvedTypeDefinition instanceof ClassDefinition)
     {
-      return (isNullable() ? "?" : "") + "{" + resolvedTypeDefinition.getQualifiedName() + "}";
+      return (isNullable() ? "x" : "") + "C" + resolvedTypeDefinition.getQualifiedName().getMangledName() + "E";
     }
     else if (resolvedTypeDefinition != null && resolvedTypeDefinition instanceof CompoundDefinition)
     {
-      return (isNullable() ? "?" : "") + "{$" + resolvedTypeDefinition.getQualifiedName() + "}";
+      return (isNullable() ? "x" : "") + "V" + resolvedTypeDefinition.getQualifiedName().getMangledName() + "E";
     }
     throw new IllegalStateException("Cannot get a mangled name before the NamedType is resolved");
   }

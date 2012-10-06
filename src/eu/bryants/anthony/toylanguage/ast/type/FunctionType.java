@@ -133,14 +133,18 @@ public class FunctionType extends Type
   public String getMangledName()
   {
     StringBuffer buffer = new StringBuffer();
-    buffer.append('&');
+    if (isNullable())
+    {
+      buffer.append('x');
+    }
+    buffer.append('F');
     buffer.append(returnType.getMangledName());
-    buffer.append('=');
+    buffer.append('_');
     for (Type type : parameterTypes)
     {
       buffer.append(type.getMangledName());
     }
-    buffer.append('@');
+    buffer.append('E');
     return buffer.toString();
   }
 

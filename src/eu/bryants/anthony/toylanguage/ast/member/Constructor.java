@@ -78,8 +78,9 @@ public class Constructor extends Member
   public String getMangledName()
   {
     StringBuffer buffer = new StringBuffer();
-    buffer.append(containingTypeDefinition.getQualifiedName());
-    buffer.append("$construct_");
+    buffer.append("_C");
+    buffer.append(containingTypeDefinition.getQualifiedName().getMangledName());
+    buffer.append('_');
     for (Parameter parameter : parameters)
     {
       buffer.append(parameter.getType().getMangledName());

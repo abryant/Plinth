@@ -134,11 +134,8 @@ public class QName
     StringBuffer buffer = new StringBuffer();
     for (int i = 0; i < names.length; ++i)
     {
+      buffer.append(names[i].getBytes().length);
       buffer.append(names[i]);
-      if (i != names.length - 1)
-      {
-        buffer.append('$');
-      }
     }
     return buffer.toString();
   }

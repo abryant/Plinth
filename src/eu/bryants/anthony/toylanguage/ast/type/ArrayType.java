@@ -103,7 +103,7 @@ public class ArrayType extends Type
   @Override
   public String getMangledName()
   {
-    return (isNullable() ? "?" : "") + "[" + baseType.getMangledName() + "]";
+    return (isNullable() ? "x" : "") + "A" + baseType.getMangledName();
   }
 
   /**

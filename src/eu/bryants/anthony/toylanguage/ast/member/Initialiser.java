@@ -65,8 +65,8 @@ public class Initialiser extends Member
   {
     if (isStatic)
     {
-      return "_S$" + typeDefinition.getQualifiedName().getMangledName();
+      return "_SI" + typeDefinition.getQualifiedName().getMangledName();
     }
-    return "_I$" + typeDefinition.getQualifiedName().getMangledName();
+    return "_I" + typeDefinition.getQualifiedName().getMangledName();
   }
 }
