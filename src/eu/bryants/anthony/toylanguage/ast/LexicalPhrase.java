@@ -10,8 +10,7 @@ package eu.bryants.anthony.toylanguage.ast;
  */
 public class LexicalPhrase
 {
-  // TODO: add the path to the file that this line came from
-
+  private String path;
   private int line;
   private String lineText;
   private int startColumn;
@@ -19,24 +18,27 @@ public class LexicalPhrase
 
   /**
    * Creates a new LexicalPhrase object to represent the specified location.
+   * @param path - the path to the file that this LexicalPhrase is inside
    * @param line - the line number
    * @param lineText - the text of the line
    * @param column - the column on the line to represent
    */
-  public LexicalPhrase(int line, String lineText, int column)
+  public LexicalPhrase(String path, int line, String lineText, int column)
   {
-    this(line, lineText, column, column + 1);
+    this(path, line, lineText, column, column + 1);
   }
 
   /**
    * Creates a new LexicalPhrase object to represent the specified range of characters on a single line
+   * @param path - the path to the file that this LexicalPhrase is inside
    * @param line - the line number
    * @param lineText - the text of the line
    * @param startColumn - the start column on the line
    * @param endColumn - the end column on the line + 1 (so that end - start == length)
    */
-  public LexicalPhrase(int line, String lineText, int startColumn, int endColumn)
+  public LexicalPhrase(String path, int line, String lineText, int startColumn, int endColumn)
   {
+    this.path = path;
     this.line = line;
     this.lineText = lineText;
     this.startColumn = startColumn;
@@ -59,8 +61,8 @@ public class LexicalPhrase
       }
       if (combined == null)
       {
-        combined = new LexicalPhrase(phrase.getLine(), phrase.getLineText(),
-                                 phrase.getStartColumn(), phrase.getEndColumn());
+        combined = new LexicalPhrase(phrase.getPath(), phrase.getLine(), phrase.getLineText(),
+                                     phrase.getStartColumn(), phrase.getEndColumn());
       }
       else
       {
@@ -69,6 +71,14 @@ public class LexicalPhrase
       }
     }
     return combined;
+  }
+
+  /**
+   * @return the path
+   */
+  public String getPath()
+  {
+    return path;
   }
 
   /**
@@ -109,7 +119,8 @@ public class LexicalPhrase
   public String getLocationText()
   {
     StringBuffer buffer = new StringBuffer();
-    // TODO: add the filename here
+    buffer.append(path);
+    buffer.append(": ");
     buffer.append(line);
     buffer.append(':');
     buffer.append(startColumn);

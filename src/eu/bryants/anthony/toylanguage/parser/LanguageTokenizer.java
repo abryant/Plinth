@@ -65,16 +65,20 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
   }
 
   private RandomAccessReader reader;
+
+  private String filePath;
   private int currentLine;
   private int currentColumn;
 
   /**
    * Creates a new LanguageTokenizer with the specified reader.
    * @param reader - the reader to read the input from
+   * @param filePath - the file path to store in LexicalPhrase objects created
    */
-  public LanguageTokenizer(Reader reader)
+  public LanguageTokenizer(Reader reader, String filePath)
   {
     this.reader = new RandomAccessReader(reader);
+    this.filePath = filePath;
     currentLine = 1;
     currentColumn = 1;
   }
@@ -117,7 +121,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       else if (nextChar == '\t')
       {
         reader.discard(index); // discard so that getting the current line works
-        throw new LanguageParseException("Tabs are not permitted in this language.", new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn));
+        throw new LanguageParseException("Tabs are not permitted in this language.", new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn));
       }
       else if (Character.isWhitespace(nextChar))
       {
@@ -169,7 +173,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
             else if (commentChar == '\t')
             {
               reader.discard(index); // discard so that getting the current line works correctly
-              throw new LanguageParseException("Tabs are not permitted in this language.", new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn));
+              throw new LanguageParseException("Tabs are not permitted in this language.", new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn));
             }
             else
             {
@@ -210,7 +214,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
             else if (commentChar == '\t')
             {
               reader.discard(index); // discard so that getting the current line works correctly
-              throw new LanguageParseException("Tabs are not permitted in this language.", new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn));
+              throw new LanguageParseException("Tabs are not permitted in this language.", new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn));
             }
             else
             {
@@ -275,17 +279,17 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     ParseType keyword = KEYWORDS.get(name);
     if (keyword != null)
     {
-      return new Token<ParseType>(keyword, new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
+      return new Token<ParseType>(keyword, new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
     }
 
     // check if the name is an underscore, and if it is then return it
     if (name.equals("_"))
     {
-      return new Token<ParseType>(ParseType.UNDERSCORE, new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
+      return new Token<ParseType>(ParseType.UNDERSCORE, new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
     }
 
     // we have a name, so return it
-    return new Token<ParseType>(ParseType.NAME, new Name(name, new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn)));
+    return new Token<ParseType>(ParseType.NAME, new Name(name, new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn)));
   }
 
   /**
@@ -334,9 +338,9 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
           if      (base == 2)  { baseString = "binary"; }
           else if (base == 8)  { baseString = "octal"; }
           else if (base == 16) { baseString = "hex"; }
-          throw new LanguageParseException("Unexpected end of " + baseString + " literal.", new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn));
+          throw new LanguageParseException("Unexpected end of " + baseString + " literal.", new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn));
         }
-        IntegerLiteral literal = new IntegerLiteral(value, buffer.toString(), new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - buffer.length(), currentColumn));
+        IntegerLiteral literal = new IntegerLiteral(value, buffer.toString(), new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn - buffer.length(), currentColumn));
         return new Token<ParseType>(ParseType.INTEGER_LITERAL, literal);
       }
       // backtrack an index, as we do not have b, o, or x as the second character in the literal
@@ -350,7 +354,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       }
       reader.discard(buffer.length());
       currentColumn += buffer.length();
-      IntegerLiteral literal = new IntegerLiteral(value, buffer.toString(), new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - buffer.length(), currentColumn));
+      IntegerLiteral literal = new IntegerLiteral(value, buffer.toString(), new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn - buffer.length(), currentColumn));
       return new Token<ParseType>(ParseType.INTEGER_LITERAL, literal);
     }
 
@@ -366,7 +370,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     }
     reader.discard(buffer.length());
     currentColumn += buffer.length();
-    IntegerLiteral literal = new IntegerLiteral(value, buffer.toString(), new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - buffer.length(), currentColumn));
+    IntegerLiteral literal = new IntegerLiteral(value, buffer.toString(), new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn - buffer.length(), currentColumn));
     return new Token<ParseType>(ParseType.INTEGER_LITERAL, literal);
   }
 
@@ -502,7 +506,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       String floatingPointText = buffer.toString();
       reader.discard(index);
       currentColumn += index;
-      FloatingLiteral literal = new FloatingLiteral(floatingPointText, new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
+      FloatingLiteral literal = new FloatingLiteral(floatingPointText, new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
       return new Token<ParseType>(ParseType.FLOATING_LITERAL, literal);
     }
 
@@ -537,12 +541,12 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       if (nextChar < 0)
       {
         reader.discard(index - 1); // discard so that getting the current line works correctly
-        throw new LanguageParseException("Unexpected end of input inside string literal.", new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn + index));
+        throw new LanguageParseException("Unexpected end of input inside string literal.", new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn + index));
       }
       if (nextChar == '\n')
       {
         reader.discard(index); // discard so that getting the current line works correctly
-        throw new LanguageParseException("Unexpected end of line inside string literal.", new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn + index));
+        throw new LanguageParseException("Unexpected end of line inside string literal.", new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn + index));
       }
 
       if (nextChar == '"')
@@ -572,7 +576,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     // (index is now the length of the entire literal, including quotes)
     reader.discard(index);
     currentColumn += index;
-    StringLiteral literal = new StringLiteral(buffer.toString(), stringRepresentation.toString(), new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
+    StringLiteral literal = new StringLiteral(buffer.toString(), stringRepresentation.toString(), new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
     return new Token<ParseType>(ParseType.STRING_LITERAL, literal);
   }
 
@@ -591,7 +595,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     if (secondChar < 0)
     {
       reader.discard(index); // discard so that getting the current line works correctly
-      throw new LanguageParseException("Unexpected end of input inside escape sequence.", new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn + index + 1));
+      throw new LanguageParseException("Unexpected end of input inside escape sequence.", new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn + index + 1));
     }
     Character escaped = null;
     // check all of the single character escape sequences (i.e. the ones that only have one character after the \)
@@ -649,7 +653,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
         {
           reader.discard(index + 2 + i - 1); // discard so that getting the current line works correctly
           throw new LanguageParseException("Invalid character in unicode escape sequence" + (ithChar >= 0 ? ": " + (char) ithChar : ""),
-                                           new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn + index + 2 + i));
+                                           new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn + index + 2 + i));
         }
         hex = hex * 8 + hexDigit;
         buffer.append((char) ithChar);
@@ -661,7 +665,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     {
       reader.discard(index + 1); // discard so that getting the current line works correctly
       throw new LanguageParseException("Invalid escape sequence" + (secondChar >= 0 ? ": \\" + (char) secondChar : ""),
-                                       new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn + index + 1));
+                                       new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn + index + 1));
     }
     return escaped.charValue();
   }
@@ -911,7 +915,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
   {
     reader.discard(length);
     currentColumn += length;
-    return new Token<ParseType>(parseType, new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn - length, currentColumn));
+    return new Token<ParseType>(parseType, new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn - length, currentColumn));
   }
 
   /**
@@ -954,13 +958,13 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       if (nextChar < 0)
       {
         // a value of less than 0 means the end of input, so return a token with type null
-        return new Token<ParseType>(null, new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn));
+        return new Token<ParseType>(null, new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn));
       }
-      throw new LanguageParseException("Unexpected character while parsing: '" + (char) nextChar + "'", new LexicalPhrase(currentLine, reader.getCurrentLine(), currentColumn));
+      throw new LanguageParseException("Unexpected character while parsing: '" + (char) nextChar + "'", new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn));
     }
     catch (IOException e)
     {
-      throw new LanguageParseException("An IO Exception occurred while reading the source code.", e, new LexicalPhrase(currentLine, "", currentColumn));
+      throw new LanguageParseException("An IO Exception occurred while reading the source code.", e, new LexicalPhrase(filePath, currentLine, "", currentColumn));
     }
   }
 

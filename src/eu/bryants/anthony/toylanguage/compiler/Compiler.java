@@ -69,7 +69,7 @@ public class Compiler
 
       try
       {
-        compilationUnits[i] = ToyLanguageParser.parse(sourceFiles[i]);
+        compilationUnits[i] = ToyLanguageParser.parse(sourceFiles[i], sources[i]);
       }
       catch (LanguageParseException e)
       {

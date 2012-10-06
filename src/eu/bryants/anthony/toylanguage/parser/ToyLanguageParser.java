@@ -33,19 +33,29 @@ public class ToyLanguageParser
     LALRParserGenerator<ParseType> parserGenerator = new LALRParserGenerator<ParseType>(ToyLanguageRules.getAllRules());
     parserGenerator.generate(ParseType.GENERATED_START_RULE);
 
-    Reader reader = new FileReader(new File(args[0]));
+    File file = new File(args[0]);
+    Reader reader = new FileReader(file);
 
-    Parser<ParseType> parser = new Parser<ParseType>(parserGenerator.getStartState(), new LanguageTokenizer(reader));
+    Parser<ParseType> parser = new Parser<ParseType>(parserGenerator.getStartState(), new LanguageTokenizer(reader, file.getAbsolutePath()));
     Token<ParseType> topLevelToken = parser.parse();
     CompilationUnit compilationUnit = (CompilationUnit) topLevelToken.getValue();
     System.out.println(compilationUnit);
   }
 
-  public static CompilationUnit parse(File file) throws FileNotFoundException, ParseException, BadTokenException
+  /**
+   * Parses the specified file into a CompilationUnit.
+   * @param file - the file to open and parse
+   * @param specifiedPath - the path that the user specified to the path, to be stored in LexicalPhrase objects in the AST (or shown in error messages)
+   * @return the CompilationUnit parsed
+   * @throws FileNotFoundException - if the file could not be opened
+   * @throws ParseException - if there was a problem parsing the file
+   * @throws BadTokenException - if the file did not conform to the language grammar
+   */
+  public static CompilationUnit parse(File file, String specifiedPath) throws FileNotFoundException, ParseException, BadTokenException
   {
     Reader reader = new FileReader(file);
 
-    GeneratedParser parser = new GeneratedParser(new LanguageTokenizer(reader));
+    GeneratedParser parser = new GeneratedParser(new LanguageTokenizer(reader, specifiedPath));
     Token<ParseType> topLevelToken = parser.parse();
     return (CompilationUnit) topLevelToken.getValue();
   }
