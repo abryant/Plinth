@@ -310,30 +310,24 @@ public class CodeGenerator
     TypeDefinition typeDefinition = method.getContainingTypeDefinition();
 
     Parameter[] parameters = method.getParameters();
-    LLVMTypeRef[] types;
-    int startIndex = 0;
+    LLVMTypeRef[] types = new LLVMTypeRef[1 + parameters.length];
+    // add the 'this' type to the function - 'this' always has a temporary type representation
     if (method.isStatic())
     {
-      types = new LLVMTypeRef[parameters.length];
-      startIndex = 0;
+      // for static methods, we add an unused opaque*, so that the static method can be easily converted to a function type
+      types[0] = typeHelper.getOpaquePointer();
     }
-    else
+    else if (typeDefinition instanceof ClassDefinition)
     {
-      types = new LLVMTypeRef[1 + parameters.length];
-      // add the 'this' type to the function - 'this' always has a temporary type representation
-      if (typeDefinition instanceof ClassDefinition)
-      {
-        types[0] = typeHelper.findTemporaryType(new NamedType(false, typeDefinition));
-      }
-      else if (typeDefinition instanceof CompoundDefinition)
-      {
-        types[0] = typeHelper.findTemporaryType(new NamedType(false, typeDefinition));
-      }
-      startIndex = 1;
+      types[0] = typeHelper.findTemporaryType(new NamedType(false, typeDefinition));
+    }
+    else if (typeDefinition instanceof CompoundDefinition)
+    {
+      types[0] = typeHelper.findTemporaryType(new NamedType(false, typeDefinition));
     }
     for (int i = 0; i < parameters.length; ++i)
     {
-      types[i + startIndex] = typeHelper.findStandardType(parameters[i].getType());
+      types[i + 1] = typeHelper.findStandardType(parameters[i].getType());
     }
     LLVMTypeRef resultType = typeHelper.findStandardType(method.getReturnType());
 
@@ -346,82 +340,55 @@ public class CodeGenerator
     {
       throw new IllegalStateException("LLVM returned wrong number of parameters");
     }
-    if (!method.isStatic())
-    {
-      LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), "this");
-    }
+    LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), method.isStatic() ? "unused" : "this");
     for (int i = 0; i < parameters.length; ++i)
     {
-      LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i + startIndex);
+      LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i + 1);
       LLVM.LLVMSetValueName(parameter, parameters[i].getName());
     }
 
     // add the native function if the programmer specified one
     if (method.getNativeName() != null)
     {
-      addNativeFunction(method.getNativeName(), !(method.getReturnType() instanceof VoidType), functionType, llvmFunc);
+      addNativeFunction(method, llvmFunc);
     }
 
     return llvmFunc;
   }
 
   /**
-   * Gets a function for the specified static method, that takes an extra unused parameter of type 'opaque*' at the start of its parameter list.
-   * This indirect function allows the static method to be converted into a function type, since function types require an 'opaque*' first argument.
-   * @param method - the method to create the indirect function for
-   * @return the indirect function
+   * Adds a native function which calls the specified non-native function.
+   * This consists simply of a new function with the method's native name, which calls the non-native function and returns its result.
+   * @param method - the method that this native function is for
+   * @param nonNativeFunction - the non-native function to call
    */
-  private LLVMValueRef getStaticMethodIndirectFunction(Method method)
+  private void addNativeFunction(Method method, LLVMValueRef nonNativeFunction)
   {
-    if (!method.isStatic())
-    {
-      throw new IllegalArgumentException("Static method indirect functions can only be generated for static methods: " + method.getName());
-    }
-    String mangledName = "__static_indirect_" + method.getMangledName();
-    LLVMValueRef existingFunc = LLVM.LLVMGetNamedFunction(module, mangledName);
-    if (existingFunc != null)
-    {
-      return existingFunc;
-    }
-
-    Parameter[] parameters = method.getParameters();
-    LLVMTypeRef[] types = new LLVMTypeRef[1 + parameters.length];
-    types[0] = typeHelper.getOpaquePointer();
-    for (int i = 0; i < parameters.length; ++i)
-    {
-      types[i + 1] = typeHelper.findStandardType(parameters[i].getType());
-    }
     LLVMTypeRef resultType = typeHelper.findStandardType(method.getReturnType());
-    LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, C.toNativePointerArray(types, false, true), types.length, false);
-    LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, mangledName, functionType);
-    LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
-    LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), "unused");
-    for (int i = 0; i < parameters.length; ++i)
-    {
-      LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, i + 1), parameters[i].getName());
-    }
-    return llvmFunc;
-  }
-
-  /**
-   * Adds a function for a static method which takes an extra unused parameter of type 'opaque*' at the start of its parameter list.
-   * This should be called whenever a static method is built, in order to keep the definitions of the static method and its indirect function together.
-   * @param method - the static method to add the indirect function for
-   * @param originalFunction - the original LLVM function to call
-   */
-  private void addStaticMethodIndirectFunction(Method method, LLVMValueRef originalFunction)
-  {
-    LLVMValueRef llvmFunc = getStaticMethodIndirectFunction(method);
-    LLVMBasicBlockRef block = LLVM.LLVMAppendBasicBlock(llvmFunc, "entry");
-    LLVM.LLVMPositionBuilderAtEnd(builder, block);
-
     Parameter[] parameters = method.getParameters();
-    LLVMValueRef[] values = new LLVMValueRef[parameters.length];
+    LLVMTypeRef[] parameterTypes = new LLVMTypeRef[parameters.length];
     for (int i = 0; i < parameters.length; ++i)
     {
-      values[i] = LLVM.LLVMGetParam(llvmFunc, i + 1);
+      parameterTypes[i] = typeHelper.findStandardType(parameters[i].getType());
     }
-    LLVMValueRef result = LLVM.LLVMBuildCall(builder, originalFunction, C.toNativePointerArray(values, false, true), values.length, "");
+    LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, C.toNativePointerArray(parameterTypes, false, true), parameterTypes.length, false);
+
+    LLVMValueRef nativeFunction = LLVM.LLVMAddFunction(module, method.getNativeName(), functionType);
+    LLVM.LLVMSetFunctionCallConv(nativeFunction, LLVM.LLVMCallConv.LLVMCCallConv);
+    // if the method is static, add a null first argument to the list of arguments to pass to the non-native function
+    int offset = method.isStatic() ? 1 : 0;
+    LLVMValueRef[] arguments = new LLVMValueRef[offset + parameterTypes.length];
+    if (method.isStatic())
+    {
+      arguments[0] = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
+    }
+    for (int i = 0; i < parameterTypes.length; ++i)
+    {
+      arguments[i + offset] = LLVM.LLVMGetParam(nativeFunction, i);
+    }
+    LLVMBasicBlockRef block = LLVM.LLVMAppendBasicBlock(nativeFunction, "entry");
+    LLVM.LLVMPositionBuilderAtEnd(builder, block);
+    LLVMValueRef result = LLVM.LLVMBuildCall(builder, nonNativeFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
     if (method.getReturnType() instanceof VoidType)
     {
       LLVM.LLVMBuildRetVoid(builder);
@@ -429,37 +396,6 @@ public class CodeGenerator
     else
     {
       LLVM.LLVMBuildRet(builder, result);
-    }
-  }
-
-  /**
-   * Adds a native function which calls the specified non-native function.
-   * This consists simply of a new function with the specified native name, which calls the non-native function and returns its result.
-   * @param nativeName - the native name to export
-   * @param hasReturnValue - true if this method returns a value, false otherwise
-   * @param functionType - the type of the non-native function
-   * @param nonNativeFunction - the non-native function to call
-   */
-  private void addNativeFunction(String nativeName, boolean hasReturnValue, LLVMTypeRef functionType, LLVMValueRef nonNativeFunction)
-  {
-    LLVMValueRef nativeFunction = LLVM.LLVMAddFunction(module, nativeName, functionType);
-    LLVM.LLVMSetFunctionCallConv(nativeFunction, LLVM.LLVMCallConv.LLVMCCallConv);
-    int paramCount = LLVM.LLVMCountParams(nativeFunction);
-    LLVMValueRef[] arguments = new LLVMValueRef[paramCount];
-    for (int i = 0; i < paramCount; ++i)
-    {
-      arguments[i] = LLVM.LLVMGetParam(nativeFunction, i);
-    }
-    LLVMBasicBlockRef block = LLVM.LLVMAppendBasicBlock(nativeFunction, "entry");
-    LLVM.LLVMPositionBuilderAtEnd(builder, block);
-    LLVMValueRef result = LLVM.LLVMBuildCall(builder, nonNativeFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
-    if (hasReturnValue)
-    {
-      LLVM.LLVMBuildRet(builder, result);
-    }
-    else
-    {
-      LLVM.LLVMBuildRetVoid(builder);
     }
   }
 
@@ -646,7 +582,8 @@ public class CodeGenerator
       // store the parameter values to the LLVMValueRefs
       for (Parameter p : method.getParameters())
       {
-        LLVMValueRef llvmParameter = LLVM.LLVMGetParam(llvmFunction, p.getIndex() + (method.isStatic() ? 0 : 1));
+        // find the LLVM parameter, the +1 on the index is to account for the 'this' pointer (or the unused opaque* for static methods)
+        LLVMValueRef llvmParameter = LLVM.LLVMGetParam(llvmFunction, p.getIndex() + 1);
         LLVMValueRef convertedParameter = typeHelper.convertStandardToTemporary(llvmParameter, p.getType(), llvmFunction);
         LLVM.LLVMBuildStore(builder, convertedParameter, variables.get(p.getVariable()));
       }
@@ -666,12 +603,6 @@ public class CodeGenerator
       if (!method.getBlock().stopsExecution())
       {
         LLVM.LLVMBuildRetVoid(builder);
-      }
-
-      if (method.isStatic())
-      {
-        // add the body of the static indirection for this static method, so that it can be converted to a function type
-        addStaticMethodIndirectFunction(method, llvmFunction);
       }
     }
   }
@@ -1952,19 +1883,17 @@ public class CodeGenerator
         }
         FunctionType functionType = new FunctionType(false, method.getReturnType(), parameterTypes, null);
 
-        LLVMValueRef function;
+        LLVMValueRef function = getMethodFunction(method);
+        function = LLVM.LLVMBuildBitCast(builder, function, typeHelper.findRawFunctionPointerType(functionType), "");
         LLVMValueRef firstArgument;
         if (method.isStatic())
         {
           firstArgument = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
-          function = getStaticMethodIndirectFunction(method);
         }
         else
         {
           LLVMValueRef expressionValue = buildExpression(fieldAccessExpression.getBaseExpression(), llvmFunction, thisValue, variables);
           firstArgument = LLVM.LLVMBuildBitCast(builder, expressionValue, typeHelper.getOpaquePointer(), "");
-          LLVMValueRef realFunction = getMethodFunction(method);
-          function = LLVM.LLVMBuildBitCast(builder, realFunction, typeHelper.findRawFunctionPointerType(functionType), "");
         }
         LLVMValueRef result = LLVM.LLVMGetUndef(typeHelper.findStandardType(functionType));
         result = LLVM.LLVMBuildInsertValue(builder, result, firstArgument, 0, "");
@@ -2046,21 +1975,13 @@ public class CodeGenerator
       }
       else if (resolvedMethod != null)
       {
-        LLVMValueRef[] realArguments;
-        if (resolvedMethod.isStatic())
+        LLVMValueRef[] realArguments = new LLVMValueRef[values.length + 1];
+        realArguments[0] = resolvedMethod.isStatic() ? LLVM.LLVMConstNull(typeHelper.getOpaquePointer()) : callee;
+        if (callee == null)
         {
-          realArguments = values;
+          realArguments[0] = thisValue;
         }
-        else
-        {
-          realArguments = new LLVMValueRef[values.length + 1];
-          realArguments[0] = callee;
-          if (callee == null)
-          {
-            realArguments[0] = thisValue;
-          }
-          System.arraycopy(values, 0, realArguments, 1, values.length);
-        }
+        System.arraycopy(values, 0, realArguments, 1, values.length);
         result = LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(realArguments, false, true), realArguments.length, "");
       }
       else if (resolvedBaseExpression != null)
@@ -2357,18 +2278,16 @@ public class CodeGenerator
         }
         FunctionType functionType = new FunctionType(false, method.getReturnType(), parameterTypes, null);
 
-        LLVMValueRef function;
+        LLVMValueRef function = getMethodFunction(method);
+        function = LLVM.LLVMBuildBitCast(builder, function, typeHelper.findRawFunctionPointerType(functionType), "");
         LLVMValueRef firstArgument;
         if (method.isStatic())
         {
           firstArgument = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
-          function = getStaticMethodIndirectFunction(method);
         }
         else
         {
           firstArgument = LLVM.LLVMBuildBitCast(builder, thisValue, typeHelper.getOpaquePointer(), "");
-          LLVMValueRef realFunction = getMethodFunction(method);
-          function = LLVM.LLVMBuildBitCast(builder, realFunction, typeHelper.findRawFunctionPointerType(functionType), "");
         }
         LLVMValueRef result = LLVM.LLVMGetUndef(typeHelper.findStandardType(functionType));
         result = LLVM.LLVMBuildInsertValue(builder, result, firstArgument, 0, "");
