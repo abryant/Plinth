@@ -14,6 +14,7 @@ import eu.bryants.anthony.toylanguage.ast.type.Type;
 public class FieldAccessExpression extends Expression
 {
   private Expression baseExpression;
+  private boolean nullTraversing;
   private Type baseType;
   private String fieldName;
 
@@ -22,13 +23,15 @@ public class FieldAccessExpression extends Expression
   /**
    * Creates a new FieldAccessExpression to access the specified field of the specified base expression.
    * @param baseExpression - the base expression to access the field on
+   * @param nullTraversing - true if this should be a null traversing FieldAccessExpression
    * @param fieldName - the name of the field to access
    * @param lexicalPhrase - the LexicalPhrase of this FieldAccessExpression
    */
-  public FieldAccessExpression(Expression baseExpression, String fieldName, LexicalPhrase lexicalPhrase)
+  public FieldAccessExpression(Expression baseExpression, boolean nullTraversing, String fieldName, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.baseExpression = baseExpression;
+    this.nullTraversing = nullTraversing;
     this.fieldName = fieldName;
   }
 
@@ -51,6 +54,14 @@ public class FieldAccessExpression extends Expression
   public Expression getBaseExpression()
   {
     return baseExpression;
+  }
+
+  /**
+   * @return true if this FieldAccessExpression is null-traversing, false otherwise
+   */
+  public boolean isNullTraversing()
+  {
+    return nullTraversing;
   }
 
   /**
@@ -93,7 +104,7 @@ public class FieldAccessExpression extends Expression
   {
     if (baseExpression != null)
     {
-      return baseExpression + "." + fieldName;
+      return baseExpression + (nullTraversing ? "?." : ".") + fieldName;
     }
     return baseType + "::" + fieldName;
   }

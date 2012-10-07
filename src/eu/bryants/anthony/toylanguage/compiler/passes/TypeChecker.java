@@ -213,6 +213,10 @@ public class TypeChecker
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
           FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
+          if (fieldAccessExpression.isNullTraversing())
+          {
+            throw new IllegalStateException("An assignee cannot be null-traversing: " + fieldAssignee);
+          }
           // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
           // Type type = checkTypes(fieldAccessExpression.getBaseExpression(), compilationUnit);
           Member member = fieldAccessExpression.getResolvedMember();
@@ -877,15 +881,18 @@ public class TypeChecker
     else if (expression instanceof FieldAccessExpression)
     {
       FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
-      // no need to do the following type check here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
-      // Type type = checkTypes(fieldAccessExpression.getBaseExpression(), compilationUnit);
       if (fieldAccessExpression.getBaseExpression() != null)
       {
+        // no need to do the following type check here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
+        // Type type = checkTypes(fieldAccessExpression.getBaseExpression(), compilationUnit);
         Type baseExpressionType = fieldAccessExpression.getBaseExpression().getType();
-        if (baseExpressionType.isNullable())
+        if (baseExpressionType.isNullable() && !fieldAccessExpression.isNullTraversing())
         {
-          // TODO: add the '?.' operator, which this exception refers to
           throw new ConceptualException("Cannot access the field '" + fieldAccessExpression.getFieldName() + "' on something which is nullable. Consider using the '?.' operator.", fieldAccessExpression.getLexicalPhrase());
+        }
+        if (!baseExpressionType.isNullable() && fieldAccessExpression.isNullTraversing())
+        {
+          throw new ConceptualException("Cannot use the null traversing field access operator '?.' on a non nullable expression", fieldAccessExpression.getLexicalPhrase());
         }
       }
       Member member = fieldAccessExpression.getResolvedMember();
@@ -918,6 +925,12 @@ public class TypeChecker
       {
         throw new IllegalStateException("Unknown member type in a FieldAccessExpression: " + member);
       }
+      if (fieldAccessExpression.getBaseExpression() != null && fieldAccessExpression.isNullTraversing())
+      {
+        // we checked earlier that the base expression is nullable in this case
+        // so, since this is a null traversing field access, make the result type nullable
+        type = findTypeWithNullability(type, true);
+      }
       fieldAccessExpression.setType(type);
       return type;
     }
@@ -942,16 +955,19 @@ public class TypeChecker
       Parameter[] parameters = null;
       Type[] parameterTypes = null;
       String name = null;
-      Type returnType;
+      Type resultType;
       if (functionCallExpression.getResolvedMethod() != null)
       {
         if (functionCallExpression.getResolvedBaseExpression() != null)
         {
           Type type = checkTypes(functionCallExpression.getResolvedBaseExpression());
-          if (type.isNullable())
+          if (type.isNullable() && !functionCallExpression.getResolvedNullTraversal())
           {
-            // TODO: add the '?.' operator, which this exception refers to
             throw new ConceptualException("Cannot access the method '" + functionCallExpression.getResolvedMethod().getName() + "' on something which is nullable. Consider using the '?.' operator.", functionCallExpression.getLexicalPhrase());
+          }
+          if (!type.isNullable() && functionCallExpression.getResolvedNullTraversal())
+          {
+            throw new ConceptualException("Cannot use the null traversing method call operator '?.' on a non nullable expression", functionCallExpression.getLexicalPhrase());
           }
           Set<Member> memberSet = type.getMembers(functionCallExpression.getResolvedMethod().getName());
           if (!memberSet.contains(functionCallExpression.getResolvedMethod()))
@@ -960,13 +976,18 @@ public class TypeChecker
           }
         }
         parameters = functionCallExpression.getResolvedMethod().getParameters();
-        returnType = functionCallExpression.getResolvedMethod().getReturnType();
+        resultType = functionCallExpression.getResolvedMethod().getReturnType();
+        if (functionCallExpression.getResolvedNullTraversal() && !(resultType instanceof VoidType))
+        {
+          // this is a null traversing method call, so make the result type nullable
+          resultType = findTypeWithNullability(resultType, true);
+        }
         name = functionCallExpression.getResolvedMethod().getName();
       }
       else if (functionCallExpression.getResolvedConstructor() != null)
       {
         parameters = functionCallExpression.getResolvedConstructor().getParameters();
-        returnType = new NamedType(false, functionCallExpression.getResolvedConstructor().getContainingTypeDefinition());
+        resultType = new NamedType(false, functionCallExpression.getResolvedConstructor().getContainingTypeDefinition());
         name = functionCallExpression.getResolvedConstructor().getName();
       }
       else if (functionCallExpression.getResolvedBaseExpression() != null)
@@ -982,7 +1003,7 @@ public class TypeChecker
           throw new ConceptualException("Cannot call something which is not a function type, a method or a constructor", functionCallExpression.getLexicalPhrase());
         }
         parameterTypes = ((FunctionType) baseType).getParameterTypes();
-        returnType = ((FunctionType) baseType).getReturnType();
+        resultType = ((FunctionType) baseType).getReturnType();
       }
       else
       {
@@ -1019,8 +1040,8 @@ public class TypeChecker
           throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", arguments[i].getLexicalPhrase());
         }
       }
-      functionCallExpression.setType(returnType);
-      return returnType;
+      functionCallExpression.setType(resultType);
+      return resultType;
     }
     else if (expression instanceof InlineIfExpression)
     {

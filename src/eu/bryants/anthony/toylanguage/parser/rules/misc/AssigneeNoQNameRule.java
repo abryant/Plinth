@@ -72,7 +72,7 @@ public class AssigneeNoQNameRule extends Rule<ParseType>
     {
       Expression expression = (Expression) args[0];
       Name name = (Name) args[2];
-      FieldAccessExpression fieldAccess = new FieldAccessExpression(expression, name.getName(), LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
+      FieldAccessExpression fieldAccess = new FieldAccessExpression(expression, false, name.getName(), LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
       return new FieldAssignee(fieldAccess);
     }
     if (production == TYPE_FIELD_PRODUCTION)

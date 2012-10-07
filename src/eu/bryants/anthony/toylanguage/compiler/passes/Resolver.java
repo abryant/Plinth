@@ -1046,6 +1046,7 @@ public class Resolver
       else if (functionExpression instanceof FieldAccessExpression)
       {
         FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) functionExpression;
+        expr.setResolvedNullTraversal(fieldAccessExpression.isNullTraversing());
 
         // first, check whether this is a call to a constructor of a CompoundDefinition
         QName qname = extractFieldAccessQName(fieldAccessExpression);
@@ -1301,8 +1302,7 @@ public class Resolver
     while (current != null)
     {
       nameStack.push(current.getFieldName());
-      // TODO: when we add '?.', make sure this FieldAccessExpression doesn't use it
-      if (current.getBaseExpression() == null || current.getBaseType() != null)
+      if (current.getBaseExpression() == null || current.getBaseType() != null || current.isNullTraversing())
       {
         return null;
       }

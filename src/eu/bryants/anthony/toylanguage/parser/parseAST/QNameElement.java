@@ -92,7 +92,7 @@ public class QNameElement
       Expression current = new VariableExpression(names[0], lexicalPhrases[0]);
       for (int i = 1; i < names.length; ++i)
       {
-        current = new FieldAccessExpression(current, names[i], LexicalPhrase.combine(current.getLexicalPhrase(), lexicalPhrases[i]));
+        current = new FieldAccessExpression(current, false, names[i], LexicalPhrase.combine(current.getLexicalPhrase(), lexicalPhrases[i]));
       }
       return current;
     }

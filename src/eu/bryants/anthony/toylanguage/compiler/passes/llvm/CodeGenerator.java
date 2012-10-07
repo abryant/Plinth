@@ -1849,32 +1849,108 @@ public class CodeGenerator
     {
       FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
       Member member = fieldAccessExpression.getResolvedMember();
-      if (member instanceof ArrayLengthMember)
+
+      Expression baseExpression = fieldAccessExpression.getBaseExpression();
+      if (baseExpression != null)
       {
-        LLVMValueRef array = buildExpression(fieldAccessExpression.getBaseExpression(), llvmFunction, thisValue, variables);
-        LLVMValueRef[] sizeIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                         LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
-        LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(sizeIndices, false, true), sizeIndices.length, "");
-        return LLVM.LLVMBuildLoad(builder, elementPointer, "");
+        LLVMValueRef baseValue = buildExpression(baseExpression, llvmFunction, thisValue, variables);
+        LLVMValueRef notNullValue = baseValue;
+        LLVMBasicBlockRef startBlock = null;
+        LLVMBasicBlockRef continuationBlock = null;
+        if (fieldAccessExpression.isNullTraversing())
+        {
+          LLVMValueRef nullCheckResult = buildNullCheck(baseValue, baseExpression.getType());
+          LLVMBasicBlockRef accessBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "nullTraversalAccess");
+          continuationBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "nullTraversalContinuation");
+          startBlock = LLVM.LLVMGetInsertBlock(builder);
+          LLVM.LLVMBuildCondBr(builder, nullCheckResult, accessBlock, continuationBlock);
+
+          LLVM.LLVMPositionBuilderAtEnd(builder, accessBlock);
+          notNullValue = typeHelper.convertTemporary(baseValue, baseExpression.getType(), TypeChecker.findTypeWithNullability(baseExpression.getType(), false));
+        }
+
+        LLVMValueRef result;
+        if (member instanceof ArrayLengthMember)
+        {
+          LLVMValueRef array = notNullValue;
+          LLVMValueRef[] sizeIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                           LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
+          LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(sizeIndices, false, true), sizeIndices.length, "");
+          result = LLVM.LLVMBuildLoad(builder, elementPointer, "");
+          result = typeHelper.convertStandardToTemporary(result, ArrayLengthMember.ARRAY_LENGTH_TYPE, fieldAccessExpression.getType(), llvmFunction);
+        }
+        else if (member instanceof Field)
+        {
+          Field field = (Field) member;
+          if (field.isStatic())
+          {
+            throw new IllegalStateException("A FieldAccessExpression for a static field should not have a base expression");
+          }
+          LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getMemberIndex(), false)};
+          LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, notNullValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+          result = typeHelper.convertStandardPointerToTemporary(elementPointer, field.getType(), fieldAccessExpression.getType(), llvmFunction);
+        }
+        else if (member instanceof Method)
+        {
+          Method method = (Method) member;
+          Parameter[] parameters = method.getParameters();
+          Type[] parameterTypes = new Type[parameters.length];
+          for (int i = 0; i < parameters.length; ++i)
+          {
+            parameterTypes[i] = parameters[i].getType();
+          }
+          FunctionType functionType = new FunctionType(false, method.getReturnType(), parameterTypes, null);
+          if (method.isStatic())
+          {
+            throw new IllegalStateException("A FieldAccessExpression for a static method should not have a base expression");
+          }
+          LLVMValueRef function = getMethodFunction(method);
+          function = LLVM.LLVMBuildBitCast(builder, function, typeHelper.findRawFunctionPointerType(functionType), "");
+          LLVMValueRef firstArgument = LLVM.LLVMBuildBitCast(builder, notNullValue, typeHelper.getOpaquePointer(), "");
+          result = LLVM.LLVMGetUndef(typeHelper.findStandardType(functionType));
+          result = LLVM.LLVMBuildInsertValue(builder, result, firstArgument, 0, "");
+          result = LLVM.LLVMBuildInsertValue(builder, result, function, 1, "");
+          result = typeHelper.convertStandardToTemporary(result, functionType, fieldAccessExpression.getType(), llvmFunction);
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown member type for a FieldAccessExpression: " + member);
+        }
+
+        if (fieldAccessExpression.isNullTraversing())
+        {
+          LLVMBasicBlockRef accessBlock = LLVM.LLVMGetInsertBlock(builder);
+          LLVM.LLVMBuildBr(builder, continuationBlock);
+          LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+          LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, typeHelper.findTemporaryType(fieldAccessExpression.getType()), "");
+          LLVMValueRef nullAlternative = LLVM.LLVMConstNull(typeHelper.findTemporaryType(fieldAccessExpression.getType()));
+          LLVMValueRef[] phiValues = new LLVMValueRef[] {result, nullAlternative};
+          LLVMBasicBlockRef[] phiBlocks = new LLVMBasicBlockRef[] {accessBlock, startBlock};
+          LLVM.LLVMAddIncoming(phiNode, C.toNativePointerArray(phiValues, false, true), C.toNativePointerArray(phiBlocks, false, true), phiValues.length);
+          return phiNode;
+        }
+        return result;
       }
+
+      // we don't have a base expression, so handle the static field accesses
       if (member instanceof Field)
       {
         Field field = (Field) member;
-        if (field.isStatic())
+        if (!field.isStatic())
         {
-          LLVMValueRef global = getGlobal(field.getGlobalVariable());
-          return typeHelper.convertStandardPointerToTemporary(global, field.getType(), fieldAccessExpression.getType(), llvmFunction);
+          throw new IllegalStateException("A FieldAccessExpression for a non-static field should have a base expression");
         }
-
-        LLVMValueRef baseValue = buildExpression(fieldAccessExpression.getBaseExpression(), llvmFunction, thisValue, variables);
-        LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                     LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getMemberIndex(), false)};
-        LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, baseValue, C.toNativePointerArray(indices, false, true), indices.length, "");
-        return typeHelper.convertStandardPointerToTemporary(elementPointer, field.getType(), fieldAccessExpression.getType(), llvmFunction);
+        LLVMValueRef global = getGlobal(field.getGlobalVariable());
+        return typeHelper.convertStandardPointerToTemporary(global, field.getType(), fieldAccessExpression.getType(), llvmFunction);
       }
       if (member instanceof Method)
       {
         Method method = (Method) member;
+        if (!method.isStatic())
+        {
+          throw new IllegalStateException("A FieldAccessExpression for a non-static method should have a base expression");
+        }
         Parameter[] parameters = method.getParameters();
         Type[] parameterTypes = new Type[parameters.length];
         for (int i = 0; i < parameters.length; ++i)
@@ -1885,16 +1961,7 @@ public class CodeGenerator
 
         LLVMValueRef function = getMethodFunction(method);
         function = LLVM.LLVMBuildBitCast(builder, function, typeHelper.findRawFunctionPointerType(functionType), "");
-        LLVMValueRef firstArgument;
-        if (method.isStatic())
-        {
-          firstArgument = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
-        }
-        else
-        {
-          LLVMValueRef expressionValue = buildExpression(fieldAccessExpression.getBaseExpression(), llvmFunction, thisValue, variables);
-          firstArgument = LLVM.LLVMBuildBitCast(builder, expressionValue, typeHelper.getOpaquePointer(), "");
-        }
+        LLVMValueRef firstArgument = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
         LLVMValueRef result = LLVM.LLVMGetUndef(typeHelper.findStandardType(functionType));
         result = LLVM.LLVMBuildInsertValue(builder, result, firstArgument, 0, "");
         result = LLVM.LLVMBuildInsertValue(builder, result, function, 1, "");
@@ -1960,6 +2027,23 @@ public class CodeGenerator
         callee = buildExpression(resolvedBaseExpression, llvmFunction, thisValue, variables);
       }
 
+      // if this is a null traversing function call, apply it properly
+      boolean nullTraversal = resolvedBaseExpression != null && resolvedMethod != null && functionExpression.getResolvedNullTraversal();
+      LLVMValueRef notNullCallee = callee;
+      LLVMBasicBlockRef startBlock = null;
+      LLVMBasicBlockRef continuationBlock = null;
+      if (nullTraversal)
+      {
+        LLVMValueRef nullCheckResult = buildNullCheck(callee, resolvedBaseExpression.getType());
+        LLVMBasicBlockRef callBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "nullTraversalCall");
+        continuationBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "nullTraversalCallContinuation");
+        startBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildCondBr(builder, nullCheckResult, callBlock, continuationBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, callBlock);
+        notNullCallee = typeHelper.convertTemporary(callee, resolvedBaseExpression.getType(), TypeChecker.findTypeWithNullability(resolvedBaseExpression.getType(), false));
+      }
+
       Expression[] arguments = functionExpression.getArguments();
       LLVMValueRef[] values = new LLVMValueRef[arguments.length];
       for (int i = 0; i < arguments.length; i++)
@@ -1976,8 +2060,8 @@ public class CodeGenerator
       else if (resolvedMethod != null)
       {
         LLVMValueRef[] realArguments = new LLVMValueRef[values.length + 1];
-        realArguments[0] = resolvedMethod.isStatic() ? LLVM.LLVMConstNull(typeHelper.getOpaquePointer()) : callee;
-        if (callee == null)
+        realArguments[0] = resolvedMethod.isStatic() ? LLVM.LLVMConstNull(typeHelper.getOpaquePointer()) : notNullCallee;
+        if (notNullCallee == null)
         {
           realArguments[0] = thisValue;
         }
@@ -1998,6 +2082,29 @@ public class CodeGenerator
       {
         throw new IllegalArgumentException("Unresolved function call expression: " + functionExpression);
       }
+
+      if (nullTraversal)
+      {
+        if (returnType instanceof VoidType)
+        {
+          LLVM.LLVMBuildBr(builder, continuationBlock);
+          LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+          return null;
+        }
+
+        result = typeHelper.convertStandardToTemporary(result, returnType, functionExpression.getType(), llvmFunction);
+        LLVMBasicBlockRef callBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildBr(builder, continuationBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+        LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, typeHelper.findTemporaryType(functionExpression.getType()), "");
+        LLVMValueRef nullAlternative = LLVM.LLVMConstNull(typeHelper.findTemporaryType(functionExpression.getType()));
+        LLVMValueRef[] phiValues = new LLVMValueRef[] {result, nullAlternative};
+        LLVMBasicBlockRef[] phiBlocks = new LLVMBasicBlockRef[] {callBlock, startBlock};
+        LLVM.LLVMAddIncoming(phiNode, C.toNativePointerArray(phiValues, false, true), C.toNativePointerArray(phiBlocks, false, true), phiValues.length);
+        return phiNode;
+      }
+
       if (returnType instanceof VoidType)
       {
         return result;

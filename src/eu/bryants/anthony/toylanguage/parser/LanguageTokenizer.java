@@ -850,6 +850,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       {
         return makeSymbolToken(ParseType.QUESTION_MARK_COLON, 2);
       }
+      if (secondChar == '.')
+      {
+        return makeSymbolToken(ParseType.QUESTION_MARK_DOT, 2);
+      }
       return makeSymbolToken(ParseType.QUESTION_MARK, 1);
     }
     if (nextChar == '>')

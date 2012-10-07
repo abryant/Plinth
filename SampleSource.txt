@@ -38,11 +38,12 @@ compound complex
 
   static native uint main(final uint argc)
   {
-    Other other = new Other(test);
-    []uint values = new []uint {1, 2, 3, 4, 5, argc};
-    []?uint mapped = map(other.add, values);
-    multiply(2);
-    return complex().apply(multiply, (mapped[5] ?: 0) - 1);
+    ?complex x = complex();
+    x?.doStuff();
+    ?Other other = new Other(argc);
+    ?{uint -> uint} f = other?.add;
+    {uint -> uint} f2 = f ?: multiply;
+    return complex().apply(f2, 1);
   }
 
   static []?uint map({uint -> uint} f, []uint arg)
@@ -58,6 +59,11 @@ compound complex
   uint apply({uint -> uint} f, uint arg)
   {
     return f(arg);
+  }
+
+  void doStuff()
+  {
+    // in this context, "Stuff" means "Nothing"
   }
 
   static uint multiply(uint x)

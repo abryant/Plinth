@@ -159,6 +159,8 @@ PrimaryNoTrailingType = IntegerLiteral | FloatingLiteral |
                         NewKeyword LSquare RSquare Type LBrace RBrace |
                         NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace |
                         PrimaryNoTrailingType Dot Name |
+                        PrimaryNoTrailingType QuestionMarkDot Name |
+                        QNameExpression QuestionMarkDot Name |
                         Type DoubleColon Name |
                         FunctionCallExpression |
                         LParen TupleExpression RParen |

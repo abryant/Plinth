@@ -64,10 +64,10 @@ public class AssigneeRule extends Rule<ParseType>
       return new VariableAssignee(names[0], lexicalPhrases[0]);
     }
     VariableExpression variableExpression = new VariableExpression(names[0], lexicalPhrases[0]);
-    FieldAccessExpression current = new FieldAccessExpression(variableExpression, names[1], lexicalPhrases[1]);
+    FieldAccessExpression current = new FieldAccessExpression(variableExpression, false, names[1], lexicalPhrases[1]);
     for (int i = 2; i < names.length; ++i)
     {
-      current = new FieldAccessExpression(current, names[i], LexicalPhrase.combine(current.getLexicalPhrase(), lexicalPhrases[i]));
+      current = new FieldAccessExpression(current, false, names[i], LexicalPhrase.combine(current.getLexicalPhrase(), lexicalPhrases[i]));
     }
     return new FieldAssignee(current);
   }

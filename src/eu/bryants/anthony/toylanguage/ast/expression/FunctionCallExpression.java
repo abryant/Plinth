@@ -21,9 +21,11 @@ public class FunctionCallExpression extends Expression
   // * just a resolvedConstructor, and no resolvedBaseExpression
   // * just a resolvedMethod, and no resolvedBaseExpression, in which case the method is assumed to be called on 'this' (or on nothing, if the method is static)
   // * a resolvedMethod and a resolvedBaseExpression, in which case the base expression has a type has the resolved method as a member
+  //   in this last case, a resolvedNullTraversal is specified, which specifies whether or not this expression will just return null if the base expression is null
   private Expression resolvedBaseExpression;
   private Constructor resolvedConstructor;
   private Method resolvedMethod;
+  private boolean resolvedNullTraversal;
 
   public FunctionCallExpression(Expression functionExpression, Expression[] arguments, LexicalPhrase lexicalPhrase)
   {
@@ -94,6 +96,22 @@ public class FunctionCallExpression extends Expression
   public void setResolvedMethod(Method resolvedMethod)
   {
     this.resolvedMethod = resolvedMethod;
+  }
+
+  /**
+   * @return the resolvedNullTraversal
+   */
+  public boolean getResolvedNullTraversal()
+  {
+    return resolvedNullTraversal;
+  }
+
+  /**
+   * @param resolvedNullTraversal - the resolvedNullTraversal to set
+   */
+  public void setResolvedNullTraversal(boolean resolvedNullTraversal)
+  {
+    this.resolvedNullTraversal = resolvedNullTraversal;
   }
 
   @Override

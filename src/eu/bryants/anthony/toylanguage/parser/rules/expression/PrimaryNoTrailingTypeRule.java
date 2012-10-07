@@ -46,8 +46,10 @@ public class PrimaryNoTrailingTypeRule extends Rule<ParseType>
   private static Production<ParseType> NESTED_QNAME_LIST_ARRAY_ACCESS_PRODUCTION = new Production<ParseType>(ParseType.NESTED_QNAME_LIST, ParseType.LSQUARE, ParseType.EXPRESSION, ParseType.RSQUARE);
   private static Production<ParseType> ARRAY_CREATION_EMPTY_LIST_PRODUCTION = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE, ParseType.LBRACE, ParseType.RBRACE);
   private static Production<ParseType> ARRAY_CREATION_LIST_PRODUCTION       = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE, ParseType.LBRACE, ParseType.EXPRESSION_LIST, ParseType.RBRACE);
-  private static Production<ParseType> FIELD_ACCESS_PRODUCTION      = new Production<ParseType>(ParseType.PRIMARY_NO_TRAILING_TYPE, ParseType.DOT, ParseType.NAME);
-  private static Production<ParseType> TYPE_FIELD_ACCESS_PRODUCTION = new Production<ParseType>(ParseType.TYPE, ParseType.DOUBLE_COLON, ParseType.NAME);
+  private static Production<ParseType> FIELD_ACCESS_PRODUCTION                       = new Production<ParseType>(ParseType.PRIMARY_NO_TRAILING_TYPE, ParseType.DOT,               ParseType.NAME);
+  private static Production<ParseType> NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION       = new Production<ParseType>(ParseType.PRIMARY_NO_TRAILING_TYPE, ParseType.QUESTION_MARK_DOT, ParseType.NAME);
+  private static Production<ParseType> QNAME_NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION = new Production<ParseType>(ParseType.QNAME_EXPRESSION,         ParseType.QUESTION_MARK_DOT, ParseType.NAME);
+  private static Production<ParseType> TYPE_FIELD_ACCESS_PRODUCTION                  = new Production<ParseType>(ParseType.TYPE,                     ParseType.DOUBLE_COLON,      ParseType.NAME);
   private static Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION);
   private static Production<ParseType> BRACKETS_PRODUCTION = new Production<ParseType>(ParseType.LPAREN, ParseType.TUPLE_EXPRESSION, ParseType.RPAREN);
   private static Production<ParseType> CLASS_CREATION_PRODUCTION = new Production<ParseType>(ParseType.CLASS_CREATION_EXPRESSION);
@@ -60,7 +62,7 @@ public class PrimaryNoTrailingTypeRule extends Rule<ParseType>
                                               THIS_PRODUCTION, NULL_PRODUCTION,
                                               ARRAY_ACCESS_PRODUCTION, QNAME_ARRAY_ACCESS_PRODUCTION, NESTED_QNAME_LIST_ARRAY_ACCESS_PRODUCTION,
                                               ARRAY_CREATION_EMPTY_LIST_PRODUCTION, ARRAY_CREATION_LIST_PRODUCTION,
-                                              FIELD_ACCESS_PRODUCTION, TYPE_FIELD_ACCESS_PRODUCTION,
+                                              FIELD_ACCESS_PRODUCTION, NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION, QNAME_NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION, TYPE_FIELD_ACCESS_PRODUCTION,
                                               FUNCTION_CALL_PRODUCTION,
                                               BRACKETS_PRODUCTION,
                                               CLASS_CREATION_PRODUCTION);
@@ -133,11 +135,12 @@ public class PrimaryNoTrailingTypeRule extends Rule<ParseType>
       return new ArrayCreationExpression(arrayType, null, valueExpressions.toArray(new Expression[valueExpressions.size()]),
                                          LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], type.getLexicalPhrase(), (LexicalPhrase) args[4], valueExpressions.getLexicalPhrase(), (LexicalPhrase) args[6]));
     }
-    if (production == FIELD_ACCESS_PRODUCTION)
+    if (production == FIELD_ACCESS_PRODUCTION || production == NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION || production == QNAME_NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION)
     {
       Expression expression = (Expression) args[0];
+      boolean nullTraversing = production == NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION || production == QNAME_NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION;
       Name name = (Name) args[2];
-      return new FieldAccessExpression(expression, name.getName(), LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
+      return new FieldAccessExpression(expression, nullTraversing, name.getName(), LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase()));
     }
     if (production == TYPE_FIELD_ACCESS_PRODUCTION)
     {

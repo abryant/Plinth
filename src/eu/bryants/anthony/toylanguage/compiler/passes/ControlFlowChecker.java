@@ -758,7 +758,7 @@ public class ControlFlowChecker
     else if (expression instanceof FieldAccessExpression)
     {
       FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
-      Expression subExpression = ((FieldAccessExpression) expression).getBaseExpression();
+      Expression subExpression = fieldAccessExpression.getBaseExpression();
 
       // if we're in a constructor, we only want to check the sub-expression for uninitialised variables if it doesn't just access 'this'
       // this allows the programmer to access certain fields before 'this' is fully initialised
@@ -790,7 +790,7 @@ public class ControlFlowChecker
       else if (subExpression != null)
       {
         // otherwise (if we aren't in a constructor, or the base expression isn't 'this', but we do have a base expression) check the uninitialised variables normally
-        checkUninitialisedVariables(((FieldAccessExpression) expression).getBaseExpression(), initialisedVariables, inConstructor, inStaticContext);
+        checkUninitialisedVariables(fieldAccessExpression.getBaseExpression(), initialisedVariables, inConstructor, inStaticContext);
       }
       else
       {
