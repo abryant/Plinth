@@ -164,6 +164,10 @@ public class FunctionType extends Type
   public String toString()
   {
     StringBuffer buffer = new StringBuffer();
+    if (isNullable())
+    {
+      buffer.append('?');
+    }
     buffer.append('{');
     for (int i = 0; i < parameterTypes.length; i++)
     {

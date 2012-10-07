@@ -274,7 +274,16 @@ public class TypeHelper
     }
     if (from instanceof ArrayType && to instanceof ArrayType)
     {
-      // array casts are illegal unless from and to types are the same, so they must have the same type
+      // array casts are illegal unless the base types are the same, so they must have the same basic type
+      // nullability will be checked by the type checker, but has no effect on the native type, so we do not need to do anything special here
+
+      // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined
+      // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
+      return value;
+    }
+    if (from instanceof FunctionType && to instanceof FunctionType)
+    {
+      // function casts are illegal unless the parameter and return types are the same, so they must have the same basic type
       // nullability will be checked by the type checker, but has no effect on the native type, so we do not need to do anything special here
 
       // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined
@@ -286,7 +295,7 @@ public class TypeHelper
         ((NamedType) to).getResolvedTypeDefinition() instanceof ClassDefinition)
     {
       // TODO: this will need changing when we add inheritance
-      // class type casts are illegal unless from and to types are the same, so they must have the same type
+      // class type casts are illegal unless the type definitions are the same, so they must have the same basic type
       // nullability will be checked by the type checker, but has no effect on the temporary type, so we do not need to do anything special here
 
       // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined
@@ -297,7 +306,7 @@ public class TypeHelper
         ((NamedType) from).getResolvedTypeDefinition() instanceof CompoundDefinition &&
         ((NamedType) to).getResolvedTypeDefinition() instanceof CompoundDefinition)
     {
-      // compound type casts are illegal unless from and to types are the same, so they must have the same type
+      // compound type casts are illegal unless the type definitions are the same, so they must have the same type
       // nullability will be checked by the type checker, but has no effect on the temporary type, so we do not need to do anything special here
 
       // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined
