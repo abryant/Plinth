@@ -224,6 +224,10 @@ public class Compiler
    */
   private static File findPackageDir(File rootPackageDir, PackageNode packageNode)
   {
+    if (packageNode.getQualifiedName() == null)
+    {
+      return rootPackageDir;
+    }
     String[] names = packageNode.getQualifiedName().getNames();
     File current = rootPackageDir;
     for (String name : names)

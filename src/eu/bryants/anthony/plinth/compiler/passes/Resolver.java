@@ -109,8 +109,8 @@ public class Resolver
     if (compilationUnit.getDeclaredPackage() != null)
     {
       compilationUnitPackage = rootPackage.addPackageTree(compilationUnit.getDeclaredPackage());
-      compilationUnit.setResolvedPackage(compilationUnitPackage);
     }
+    compilationUnit.setResolvedPackage(compilationUnitPackage);
 
     // add all of the type definitions in this compilation unit to the file's package
     for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
