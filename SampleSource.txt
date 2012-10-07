@@ -13,13 +13,8 @@ compound complex
     complex::test = 6;
   }
 
-  {
-    o = null;
-  }
-
-  double real = 1;
-  double imag = 0;
-  ?Other o;
+  double real;
+  double imag;
 
   complex()
   {
@@ -28,7 +23,6 @@ compound complex
   complex(double real, double imag)
   {
     this.real, this.imag = real, imag;
-    o = new Other(cast<uint> imag);
   }
 
   complex mult(complex c)
@@ -40,18 +34,19 @@ compound complex
   {
     ?complex x = complex();
     x?.doStuff();
-    ?Other other = new Other(argc);
+    ?Other other = null;
     ?{uint -> uint} f = other?.add;
     {uint -> uint} f2 = f ?: multiply;
-    return complex().apply(f2, 1);
+    []uint arr = new []uint {1, 2, argc};
+    return map(f2, arr)[2];
   }
 
-  static []?uint map({uint -> uint} f, []uint arg)
+  static []uint map({uint -> uint} f, []uint input)
   {
-    []?uint result = new [arg.length]?uint;
-    for (uint i = 0; i < arg.length; ++i)
+    []uint result = new [input.length]uint;
+    for (uint i = 0; i < input.length; ++i)
     {
-      result[i] = f(arg[i]);
+      result[i] = f(input[i]);
     }
     return result;
   }

@@ -159,7 +159,14 @@ public class ControlFlowChecker
     {
       if (!initialisedVariables.contains(field.getMemberVariable()))
       {
-        throw new ConceptualException("Constructor does not always initialise the non-static field: " + field.getName(), constructor.getLexicalPhrase());
+        if (!field.getType().hasDefaultValue())
+        {
+          throw new ConceptualException("Constructor does not always initialise the non-static field '" + field.getName() + "', which does not have a default value", constructor.getLexicalPhrase());
+        }
+        if (field.isFinal())
+        {
+          throw new ConceptualException("Constructor does not always initialise the non-static final field '" + field.getName() + "'", constructor.getLexicalPhrase());
+        }
       }
     }
   }

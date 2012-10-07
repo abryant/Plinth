@@ -679,7 +679,7 @@ public class TypeChecker
       Type baseType = creationExpression.getType().getBaseType();
       if (creationExpression.getValueExpressions() == null)
       {
-        if (!baseType.isNullable())
+        if (!baseType.hasDefaultValue())
         {
           throw new ConceptualException("Cannot create an array of '" + baseType + "' without an initialiser.", creationExpression.getLexicalPhrase());
         }
