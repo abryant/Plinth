@@ -92,6 +92,16 @@ public class ControlFlowChecker
       Set<Variable> staticInitialisedVariables = new HashSet<Variable>();
       Set<Variable> instancePossiblyInitialisedVariables = new HashSet<Variable>();
       Set<Variable> staticPossiblyInitialisedVariables = new HashSet<Variable>();
+
+      for (Field field : nonStaticFields)
+      {
+        if (field.getType().hasDefaultValue() && !field.isFinal())
+        {
+          instanceInitialisedVariables.add(field.getMemberVariable());
+          instancePossiblyInitialisedVariables.add(field.getMemberVariable());
+        }
+      }
+
       for (Initialiser initialiser : typeDefinition.getInitialisers())
       {
         if (initialiser instanceof FieldInitialiser)

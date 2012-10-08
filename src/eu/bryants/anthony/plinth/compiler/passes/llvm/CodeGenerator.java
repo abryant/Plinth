@@ -408,6 +408,22 @@ public class CodeGenerator
     LLVMValueRef thisValue = isStatic ? null : LLVM.LLVMGetParam(initialiserFunc, 0);
     LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(initialiserFunc, "entry");
     LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+
+    if (!isStatic)
+    {
+      // initialise all of the fields which have default values to zero/null
+      for (Field field : typeDefinition.getNonStaticFields())
+      {
+        if (field.getType().hasDefaultValue())
+        {
+          LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getMemberIndex(), false)};
+          LLVMValueRef pointer = LLVM.LLVMBuildGEP(builder, thisValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+          LLVM.LLVMBuildStore(builder, LLVM.LLVMConstNull(typeHelper.findStandardType(field.getType())), pointer);
+        }
+      }
+    }
+
     // build all of the static/non-static initialisers in one LLVM function
     for (Initialiser initialiser : typeDefinition.getInitialisers())
     {
