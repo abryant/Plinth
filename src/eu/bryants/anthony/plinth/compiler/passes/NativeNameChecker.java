@@ -8,6 +8,7 @@ import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
+import eu.bryants.anthony.plinth.ast.member.Initialiser;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
@@ -41,6 +42,7 @@ public class NativeNameChecker
 
     for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
+      checkInitialiserNativeNames(typeDefinition, usedNativeNames);
       for (Constructor constructor : typeDefinition.getConstructors())
       {
         checkNativeName(constructor, usedNativeNames);
@@ -63,6 +65,31 @@ public class NativeNameChecker
       {
         checkSpecifiedNativeName(method, usedNativeNames);
       }
+    }
+  }
+
+  /**
+   * Checks whether the specified TypeDefinition has a forbidden or duplicated native name in one of its initialisers.
+   * @param typeDefinition - the TypeDefinition to check
+   * @param usedNativeNames - the set of used native names to check against
+   * @throws ConceptualException - if a bad native name is found
+   */
+  private static void checkInitialiserNativeNames(TypeDefinition typeDefinition, Set<String> usedNativeNames) throws ConceptualException
+  {
+    String staticInitialiserName = Initialiser.getMangledName(typeDefinition, true);
+    checkForbidden(staticInitialiserName, typeDefinition.getLexicalPhrase());
+    boolean newStaticInitialiserName = usedNativeNames.add(staticInitialiserName);
+    if (!newStaticInitialiserName)
+    {
+      throw new ConceptualException("Duplicate native name: " + staticInitialiserName, typeDefinition.getLexicalPhrase());
+    }
+
+    String nonStaticInitialiserName = Initialiser.getMangledName(typeDefinition, false);
+    checkForbidden(nonStaticInitialiserName, typeDefinition.getLexicalPhrase());
+    boolean newNonStaticInitialiserName = usedNativeNames.add(nonStaticInitialiserName);
+    if (!newNonStaticInitialiserName)
+    {
+      throw new ConceptualException("Duplicate native name: " + nonStaticInitialiserName, typeDefinition.getLexicalPhrase());
     }
   }
 
