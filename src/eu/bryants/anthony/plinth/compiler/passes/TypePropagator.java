@@ -228,6 +228,7 @@ public class TypePropagator
     {
       ShorthandAssignStatement shorthandAssignStatement = (ShorthandAssignStatement) statement;
       Assignee[] assignees = shorthandAssignStatement.getAssignees();
+      Type[] types = new Type[assignees.length];
       for (int i = 0; i < assignees.length; ++i)
       {
         if (assignees[i] instanceof VariableAssignee)
@@ -251,6 +252,24 @@ public class TypePropagator
           // ignore blank assignees, they shouldn't be able to get through variable resolution
           throw new IllegalStateException("Unknown Assignee type: " + assignees[i]);
         }
+        types[i] = assignees[i].getResolvedType();
+      }
+      Type expressionType = shorthandAssignStatement.getExpression().getType();
+      if (expressionType instanceof TupleType && !expressionType.isNullable() && ((TupleType) expressionType).getSubTypes().length == assignees.length)
+      {
+        // the expression is distributed over the assignees, so propagate the assignee types back up
+        TupleType assigneeTypes = new TupleType(false, types, null);
+        propagateTypes(shorthandAssignStatement.getExpression(), assigneeTypes);
+      }
+      else if (assignees.length == 1)
+      {
+        // there is only a single assignee, so propagate its type
+        propagateTypes(shorthandAssignStatement.getExpression(), types[0]);
+      }
+      else
+      {
+        // there are multiple assignees, none of which has an ultimate type which should be propagated, so just propagate the expression type (since we have no better type to use)
+        propagateTypes(shorthandAssignStatement.getExpression(), expressionType);
       }
     }
     else if (statement instanceof WhileStatement)
