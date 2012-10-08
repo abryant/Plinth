@@ -29,6 +29,7 @@ import eu.bryants.anthony.plinth.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression;
 import eu.bryants.anthony.plinth.ast.expression.ShiftExpression;
+import eu.bryants.anthony.plinth.ast.expression.StringLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.ThisExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleIndexExpression;
@@ -899,6 +900,10 @@ public class ControlFlowChecker
       ShiftExpression shiftExpression = (ShiftExpression) expression;
       checkUninitialisedVariables(shiftExpression.getLeftExpression(), initialisedVariables, inConstructor, inStaticContext);
       checkUninitialisedVariables(shiftExpression.getRightExpression(), initialisedVariables, inConstructor, inStaticContext);
+    }
+    else if (expression instanceof StringLiteralExpression)
+    {
+      // do nothing
     }
     else if (expression instanceof ThisExpression)
     {

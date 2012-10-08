@@ -24,6 +24,7 @@ import eu.bryants.anthony.plinth.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression;
 import eu.bryants.anthony.plinth.ast.expression.ShiftExpression;
+import eu.bryants.anthony.plinth.ast.expression.StringLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.ThisExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleIndexExpression;
@@ -54,10 +55,10 @@ import eu.bryants.anthony.plinth.ast.statement.Statement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
+import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
-import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 
 /*
  * Created on 17 Jul 2012
@@ -474,6 +475,10 @@ public class TypePropagator
       Type shiftType = shiftExpression.getType();
       propagateTypes(shiftExpression.getLeftExpression(), shiftType);
       propagateTypes(shiftExpression.getRightExpression(), shiftType);
+    }
+    else if (expression instanceof StringLiteralExpression)
+    {
+      // do nothing
     }
     else if (expression instanceof ThisExpression)
     {

@@ -1,0 +1,332 @@
+/**
+ * Represents a string of unicode characters.
+ * Internally, this uses UTF-8, which is lazily converted to UTF-32 whenever the string needs to be processed using characters instead of bytes.
+ */
+compound string
+{
+  []ubyte chars;
+  ?[]uint ints;
+
+  /**
+   * Creates an empty string.
+   */
+  string()
+  {
+    chars = new [0]ubyte;
+  }
+
+  /**
+   * Creates a string containing the specified UTF-8 bytes.
+   * @param chars - the UTF-8 bytes
+   */
+  string([]ubyte chars)
+  {
+    this.chars = chars;
+  }
+
+  /**
+   * Creates a string containing the specified unicode (UTF-32) characters.
+   * @param ints - the unicode characters
+   */
+  string([]uint ints)
+  {
+    chars = convertUTF32ToUTF8(ints);
+    this.ints = ints;
+  }
+
+  /**
+   * Creates a string containing the concatenation of the specified two strings.
+   * @param str1 - the first string
+   * @param str2 - the second string
+   */
+  string(string str1, string str2)
+  {
+    chars = new [str1.chars.length + str2.chars.length]ubyte;
+    for (uint i = 0; i < str1.chars.length; ++i)
+    {
+      chars[i] = str1.chars[i];
+    }
+    for (uint i = 0; i < str2.chars.length; ++i)
+    {
+      chars[str1.chars.length + i] = str2.chars[i];
+    }
+    if (str1.ints != null & str2.ints != null)
+    {
+      []uint ints1 = cast<[]uint> str1.ints;
+      []uint ints2 = cast<[]uint> str2.ints;
+      ints = new [ints1.length + ints2.length]uint;
+      for (uint i = 0; i < ints1.length; ++i)
+      {
+        ints[i] = ints1[i];
+      }
+      for (uint i = 0; i < ints2.length; ++i)
+      {
+        ints[ints1.length + i] = ints2[i];
+      }
+    }
+  }
+
+  /**
+   * Finds the character length of this string, which is the number of unicode characters it contains.
+   * This may not be equal to the number of bytes that represent this string, since in UTF-8 several bytes can represent a single character.
+   * @return the number of unicode characters in this string
+   */
+  uint characterLength()
+  {
+    return getUnicodeChars().length;
+  }
+
+  /**
+   * @return the number of bytes in the UTF-8 representation of this string.
+   */
+  uint byteLength()
+  {
+    return chars.length;
+  }
+
+  /**
+   * Finds the length of this string in terms of the number of characters it contains, rather than the number of bytes make up its UTF-8 representation.
+   * The result is equivalent to that of characterLength().
+   * @return the character length of this string.
+   */
+  uint length()
+  {
+    return characterLength();
+  }
+
+  /**
+   * Finds the character at the specified position in this string, as a string.
+   * @return the string representing the character at the specified index
+   */
+  string charAt(uint pos)
+  {
+    return substring(pos, 1);
+  }
+
+  /**
+   * Finds the character at the specified position in this string, as a uint.
+   * @return the uint code of the character at the specified position in this string
+   */
+  uint charAt(uint pos)
+  {
+    return getUnicodeChars()[pos];
+  }
+
+  /**
+   * Finds a substring of this string, starting at the specified offset, with the specified length.
+   * @param off - the offset to the substring
+   * @param len - the length of the substring
+   * @return the substring of this string with the specified offset and length
+   */
+  string substring(uint off, uint len)
+  {
+    []uint ints = getUnicodeChars();
+    []uint subInts = new [len]uint;
+    for (uint i = 0; i < len; ++i)
+    {
+      subInts[i] = ints[off + i];
+    }
+    return string(subInts);
+  }
+
+  /**
+   * @return the UTF-32 code points of the characters of this string.
+   */
+  []uint getUnicodeChars()
+  {
+    []uint ints = this.ints ?: convertUTF8ToUTF32(chars);
+    this.ints = ints;
+    return ints;
+  }
+
+  /**
+   * @param an array of UTF-8 bytes to the find the character length of
+   * @return the number of characters represented by the specified UTF-8 bytes.
+   */
+  static uint findUTF8Length([]ubyte bytes)
+  {
+    uint len = 0;
+    for (uint i = 0; i < bytes.length; ++i)
+    {
+      if (bytes[i] >> 7) != 0
+      {
+        ubyte b = bytes[i];
+        // skip the extra bytes
+             if b >> 5 ==     0b110 { i += 1; }
+        else if b >> 4 ==    0b1110 { i += 2; }
+        else if b >> 3 ==   0b11110 { i += 3; }
+        else if b >> 2 ==  0b111110 { i += 4; }
+        else if b >> 1 == 0b1111110 { i += 5; }
+      }
+      ++len;
+    }
+    return len;
+  }
+
+  /**
+   * Checks whether the specified string is equal to this one.
+   * @return true iff the string objects represent the same sequence of characters
+   */
+  boolean equals(string str)
+  {
+    if (chars.length != str.chars.length)
+    {
+      return false;
+    }
+    for (uint i = 0; i < chars.length; ++i)
+    {
+      if (chars[i] != str.chars[i])
+      {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * @param an array of UTF-8 bytes to the find the UTF-32 representation of
+   * @return the UTF-32 representation of the specified UTF-8 characters
+   */
+  static []uint convertUTF8ToUTF32([]ubyte bytes)
+  {
+    uint len = findUTF8Length(bytes);
+    []uint result = new [len]uint;
+    uint pos = 0;
+    for (uint i = 0; i < bytes.length; ++i)
+    {
+      ubyte b = bytes[i];
+      if (b & 0b10000000) == 0
+      {
+        result[pos] = b;
+      }
+      else
+      {
+        ubyte b2 = (i+1 < bytes.length) ? bytes[i+1] : 0;
+        if (b >> 5 == 0b110)
+        {
+          result[pos] = (cast<uint> (b  & 0x1f) << 6) |
+                        (cast<uint> (b2 & 0x3f));
+          i += 1;
+        }
+        else
+        {
+          ubyte b3 = (i+2 < bytes.length) ? bytes[i+2] : 0;
+          if (b >> 4 == 0b1110)
+          {
+            result[pos] = (cast<uint> (b  & 0x0f) << 12) |
+                          (cast<uint> (b2 & 0x3f) <<  6) |
+                          (cast<uint> (b3 & 0x3f));
+            i += 2;
+          }
+          else
+          {
+            ubyte b4 = (i+3 < bytes.length) ? bytes[i+3] : 0;
+            if (b >> 3 == 0b11110)
+            {
+              result[pos] = (cast<uint> (b  & 0x07) << 18) |
+                            (cast<uint> (b2 & 0x3f) << 12) |
+                            (cast<uint> (b3 & 0x3f) <<  6) |
+                            (cast<uint> (b4 & 0x3f));
+              i += 3;
+            }
+            else
+            {
+              ubyte b5 = (i+4 < bytes.length) ? bytes[i+4] : 0;
+              if (b >> 2 == 0b111110)
+              {
+                result[pos] = (cast<uint> (b  & 0x03) << 24) |
+                              (cast<uint> (b2 & 0x3f) << 18) |
+                              (cast<uint> (b3 & 0x3f) << 12) |
+                              (cast<uint> (b4 & 0x3f) <<  6) |
+                              (cast<uint> (b5 & 0x3f));
+                i += 4;
+              }
+              else if (b >> 1 == 0b1111110)
+              {
+                ubyte b6 = (i+5 < bytes.length) ? bytes[i+5] : 0;
+                result[pos] = (cast<uint> (b  & 0x01) << 30) |
+                              (cast<uint> (b2 & 0x3f) << 24) |
+                              (cast<uint> (b3 & 0x3f) << 18) |
+                              (cast<uint> (b4 & 0x3f) << 12) |
+                              (cast<uint> (b5 & 0x3f) <<  6) |
+                              (cast<uint> (b6 & 0x3f));
+                i += 5;
+              }
+            }
+          }
+        }
+      }
+      ++pos;
+    }
+    return result;
+  }
+
+  /**
+   * @param an array of UTF-32 character codes to the find the UTF-8 representation of
+   * @return the UTF-8 representation of the specified UTF-32 character codes
+   */
+  static []ubyte convertUTF32ToUTF8([]uint ints)
+  {
+    uint len = 0;
+    for (uint i = 0; i < ints.length; ++i)
+    {
+           if (ints[i] & 0xffffff80) == 0 {len += 1;}
+      else if (ints[i] & 0xfffff800) == 0 {len += 2;}
+      else if (ints[i] & 0xffff0000) == 0 {len += 3;}
+      else if (ints[i] & 0xffe00000) == 0 {len += 4;}
+      else if (ints[i] & 0xfc000000) == 0 {len += 5;}
+      else {len += 6;}
+    }
+    []ubyte bytes = new [len]ubyte;
+    uint pos = 0;
+    for (uint i = 0; i < ints.length; ++i)
+    {
+      if (ints[i] & 0xffffff80) == 0
+      {
+        bytes[pos] = cast<ubyte> ints[i];
+        pos += 1;
+      }
+      else if (ints[i] & 0xfffff800) == 0
+      {
+        bytes[pos  ] = cast<ubyte> ((ints[i] >> 6) & 0x1f) | 0b11000000;
+        bytes[pos+1] = cast<ubyte> ((ints[i]     ) & 0x3f) | 0b10000000;
+        pos += 2;
+      }
+      else if (ints[i] & 0xffff0000) == 0
+      {
+        bytes[pos  ] = cast<ubyte> ((ints[i] >> 12) & 0x0f) | 0b11100000;
+        bytes[pos+1] = cast<ubyte> ((ints[i] >>  6) & 0x3f) | 0b10000000;
+        bytes[pos+2] = cast<ubyte> ((ints[i]      ) & 0x3f) | 0b10000000;
+        pos += 3;
+      }
+      else if (ints[i] & 0xffe00000) == 0
+      {
+        bytes[pos  ] = cast<ubyte> ((ints[i] >> 18) & 0x07) | 0b11110000;
+        bytes[pos+1] = cast<ubyte> ((ints[i] >> 12) & 0x3f) | 0b10000000;
+        bytes[pos+2] = cast<ubyte> ((ints[i] >>  6) & 0x3f) | 0b10000000;
+        bytes[pos+3] = cast<ubyte> ((ints[i]      ) & 0x3f) | 0b10000000;
+        pos += 4;
+      }
+      else if (ints[i] & 0xfc000000) == 0
+      {
+        bytes[pos  ] = cast<ubyte> ((ints[i] >> 24) & 0x03) | 0b11111000;
+        bytes[pos+1] = cast<ubyte> ((ints[i] >> 18) & 0x3f) | 0b10000000;
+        bytes[pos+2] = cast<ubyte> ((ints[i] >> 12) & 0x3f) | 0b10000000;
+        bytes[pos+3] = cast<ubyte> ((ints[i] >>  6) & 0x3f) | 0b10000000;
+        bytes[pos+4] = cast<ubyte> ((ints[i]      ) & 0x3f) | 0b10000000;
+        pos += 5;
+      }
+      else
+      {
+        bytes[pos  ] = cast<ubyte> ((ints[i] >> 30) & 0x01) | 0b11111100;
+        bytes[pos+1] = cast<ubyte> ((ints[i] >> 24) & 0x3f) | 0b10000000;
+        bytes[pos+2] = cast<ubyte> ((ints[i] >> 18) & 0x3f) | 0b10000000;
+        bytes[pos+3] = cast<ubyte> ((ints[i] >> 12) & 0x3f) | 0b10000000;
+        bytes[pos+4] = cast<ubyte> ((ints[i] >>  6) & 0x3f) | 0b10000000;
+        bytes[pos+5] = cast<ubyte> ((ints[i]      ) & 0x3f) | 0b10000000;
+        pos += 6;
+      }
+    }
+    return bytes;
+  }
+}

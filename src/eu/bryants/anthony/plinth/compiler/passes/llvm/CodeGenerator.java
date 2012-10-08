@@ -1,5 +1,6 @@
 package eu.bryants.anthony.plinth.compiler.passes.llvm;
 
+import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -24,6 +25,7 @@ import eu.bryants.anthony.plinth.ast.expression.BracketedExpression;
 import eu.bryants.anthony.plinth.ast.expression.CastExpression;
 import eu.bryants.anthony.plinth.ast.expression.ClassCreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.EqualityExpression;
+import eu.bryants.anthony.plinth.ast.expression.EqualityExpression.EqualityOperator;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.plinth.ast.expression.FloatingLiteralExpression;
@@ -31,18 +33,18 @@ import eu.bryants.anthony.plinth.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.plinth.ast.expression.InlineIfExpression;
 import eu.bryants.anthony.plinth.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.LogicalExpression;
+import eu.bryants.anthony.plinth.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.plinth.ast.expression.MinusExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression;
+import eu.bryants.anthony.plinth.ast.expression.RelationalExpression.RelationalOperator;
 import eu.bryants.anthony.plinth.ast.expression.ShiftExpression;
+import eu.bryants.anthony.plinth.ast.expression.StringLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.ThisExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.plinth.ast.expression.VariableExpression;
-import eu.bryants.anthony.plinth.ast.expression.EqualityExpression.EqualityOperator;
-import eu.bryants.anthony.plinth.ast.expression.LogicalExpression.LogicalOperator;
-import eu.bryants.anthony.plinth.ast.expression.RelationalExpression.RelationalOperator;
 import eu.bryants.anthony.plinth.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
@@ -77,11 +79,12 @@ import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.NullType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
+import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
-import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.compiler.passes.Resolver;
+import eu.bryants.anthony.plinth.compiler.passes.SpecialTypeHandler;
 import eu.bryants.anthony.plinth.compiler.passes.TypeChecker;
 
 /*
@@ -2316,6 +2319,41 @@ public class CodeGenerator
         return LLVM.LLVMBuildShl(builder, convertedLeft, convertedRight, "");
       }
       throw new IllegalArgumentException("Unknown shift operator: " + shiftExpression.getOperator());
+    }
+    if (expression instanceof StringLiteralExpression)
+    {
+      StringLiteralExpression stringLiteralExpression = (StringLiteralExpression) expression;
+      String value = stringLiteralExpression.getLiteral().getLiteralValue();
+      byte[] bytes;
+      try
+      {
+        bytes = value.getBytes("UTF-8");
+      }
+      catch (UnsupportedEncodingException e)
+      {
+        throw new IllegalStateException("UTF-8 encoding not supported!", e);
+      }
+      // build the []ubyte up from the string value, and store it as a global variable
+      LLVMValueRef lengthValue = LLVM.LLVMConstInt(typeHelper.findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE), bytes.length, false);
+      LLVMValueRef constString = LLVM.LLVMConstString(bytes, bytes.length, true);
+      LLVMValueRef[] arrayValues = new LLVMValueRef[] {lengthValue, constString};
+      LLVMValueRef byteArrayStruct = LLVM.LLVMConstStruct(C.toNativePointerArray(arrayValues, false, true), arrayValues.length, false);
+
+      LLVMTypeRef stringType = LLVM.LLVMArrayType(LLVM.LLVMInt8Type(), bytes.length);
+      LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {typeHelper.findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE), stringType};
+      LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
+      LLVMValueRef globalVariable = LLVM.LLVMAddGlobal(module, structType, "");
+      LLVM.LLVMSetInitializer(globalVariable, byteArrayStruct);
+      LLVM.LLVMSetLinkage(globalVariable, LLVM.LLVMLinkage.LLVMPrivateLinkage);
+      LLVM.LLVMSetGlobalConstant(globalVariable, true);
+
+      // extract the string([]ubyte) constructor from the type of this expression
+      Type arrayType = new ArrayType(false, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
+      LLVMValueRef constructorFunction = getConstructorFunction(SpecialTypeHandler.stringArrayConstructor);
+      LLVMValueRef bitcastedArray = LLVM.LLVMBuildBitCast(builder, globalVariable, typeHelper.findStandardType(arrayType), "");
+      LLVMValueRef[] arguments = new LLVMValueRef[] {bitcastedArray};
+      LLVMValueRef result = LLVM.LLVMBuildCall(builder, constructorFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+      return typeHelper.convertStandardToTemporary(result, new NamedType(false, SpecialTypeHandler.stringArrayConstructor.getContainingTypeDefinition()), expression.getType(), llvmFunction);
     }
     if (expression instanceof ThisExpression)
     {

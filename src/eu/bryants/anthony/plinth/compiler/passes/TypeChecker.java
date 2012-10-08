@@ -19,6 +19,7 @@ import eu.bryants.anthony.plinth.ast.expression.BracketedExpression;
 import eu.bryants.anthony.plinth.ast.expression.CastExpression;
 import eu.bryants.anthony.plinth.ast.expression.ClassCreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.EqualityExpression;
+import eu.bryants.anthony.plinth.ast.expression.EqualityExpression.EqualityOperator;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.plinth.ast.expression.FloatingLiteralExpression;
@@ -26,18 +27,18 @@ import eu.bryants.anthony.plinth.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.plinth.ast.expression.InlineIfExpression;
 import eu.bryants.anthony.plinth.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.LogicalExpression;
+import eu.bryants.anthony.plinth.ast.expression.LogicalExpression.LogicalOperator;
 import eu.bryants.anthony.plinth.ast.expression.MinusExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression;
+import eu.bryants.anthony.plinth.ast.expression.RelationalExpression.RelationalOperator;
 import eu.bryants.anthony.plinth.ast.expression.ShiftExpression;
+import eu.bryants.anthony.plinth.ast.expression.StringLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.ThisExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.plinth.ast.expression.VariableExpression;
-import eu.bryants.anthony.plinth.ast.expression.EqualityExpression.EqualityOperator;
-import eu.bryants.anthony.plinth.ast.expression.LogicalExpression.LogicalOperator;
-import eu.bryants.anthony.plinth.ast.expression.RelationalExpression.RelationalOperator;
 import eu.bryants.anthony.plinth.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
@@ -62,19 +63,19 @@ import eu.bryants.anthony.plinth.ast.statement.IfStatement;
 import eu.bryants.anthony.plinth.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.plinth.ast.statement.ReturnStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
+import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement.ShorthandAssignmentOperator;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
-import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement.ShorthandAssignmentOperator;
 import eu.bryants.anthony.plinth.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.NullType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
+import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
-import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
 
 /*
@@ -1305,6 +1306,11 @@ public class TypeChecker
         }
       }
       throw new ConceptualException("The operator '" + shiftExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", shiftExpression.getLexicalPhrase());
+    }
+    else if (expression instanceof StringLiteralExpression)
+    {
+      // the string literal type will have been resolved by the Resolver, so just return it here
+      return expression.getType();
     }
     else if (expression instanceof ThisExpression)
     {

@@ -13,11 +13,13 @@ import eu.bryants.anthony.plinth.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.plinth.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullLiteralExpression;
+import eu.bryants.anthony.plinth.ast.expression.StringLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.ThisExpression;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.FloatingLiteral;
 import eu.bryants.anthony.plinth.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
+import eu.bryants.anthony.plinth.ast.terminal.StringLiteral;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.parser.ParseType;
@@ -53,6 +55,7 @@ public class PrimaryNoTrailingTypeRule extends Rule<ParseType>
   private static Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION);
   private static Production<ParseType> BRACKETS_PRODUCTION = new Production<ParseType>(ParseType.LPAREN, ParseType.TUPLE_EXPRESSION, ParseType.RPAREN);
   private static Production<ParseType> CLASS_CREATION_PRODUCTION = new Production<ParseType>(ParseType.CLASS_CREATION_EXPRESSION);
+  private static Production<ParseType> STRING_LITERAL_PRODUCTION = new Production<ParseType>(ParseType.STRING_LITERAL);
 
   @SuppressWarnings("unchecked")
   public PrimaryNoTrailingTypeRule()
@@ -65,7 +68,8 @@ public class PrimaryNoTrailingTypeRule extends Rule<ParseType>
                                               FIELD_ACCESS_PRODUCTION, NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION, QNAME_NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION, TYPE_FIELD_ACCESS_PRODUCTION,
                                               FUNCTION_CALL_PRODUCTION,
                                               BRACKETS_PRODUCTION,
-                                              CLASS_CREATION_PRODUCTION);
+                                              CLASS_CREATION_PRODUCTION,
+                                              STRING_LITERAL_PRODUCTION);
   }
 
   /**
@@ -160,6 +164,11 @@ public class PrimaryNoTrailingTypeRule extends Rule<ParseType>
     if (production == CLASS_CREATION_PRODUCTION)
     {
       return args[0];
+    }
+    if (production == STRING_LITERAL_PRODUCTION)
+    {
+      StringLiteral literal = (StringLiteral) args[0];
+      return new StringLiteralExpression(literal, literal.getLexicalPhrase());
     }
     throw badTypeList();
   }

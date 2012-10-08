@@ -37,6 +37,7 @@ import eu.bryants.anthony.plinth.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression;
 import eu.bryants.anthony.plinth.ast.expression.ShiftExpression;
+import eu.bryants.anthony.plinth.ast.expression.StringLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.ThisExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleIndexExpression;
@@ -89,7 +90,6 @@ import eu.bryants.anthony.plinth.compiler.NameNotResolvedException;
  */
 public class Resolver
 {
-
   private PackageNode rootPackage;
 
   public Resolver(PackageNode rootPackage)
@@ -1222,6 +1222,12 @@ public class Resolver
     {
       resolve(((ShiftExpression) expression).getLeftExpression(), block, enclosingDefinition, compilationUnit);
       resolve(((ShiftExpression) expression).getRightExpression(), block, enclosingDefinition, compilationUnit);
+    }
+    else if (expression instanceof StringLiteralExpression)
+    {
+      // resolve the type of the string literal here, so that we have access to it in the type checker
+      resolve(SpecialTypeHandler.STRING_TYPE, null);
+      expression.setType(SpecialTypeHandler.STRING_TYPE);
     }
     else if (expression instanceof ThisExpression)
     {

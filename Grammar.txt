@@ -164,7 +164,8 @@ PrimaryNoTrailingType = IntegerLiteral | FloatingLiteral |
                         Type DoubleColon Name |
                         FunctionCallExpression |
                         LParen TupleExpression RParen |
-                        ClassCreationExpression
+                        ClassCreationExpression |
+                        StringLiteral
 ClassCreationExpression = NewKeyword QName LParen ExpressionList RParen | NewKeyword QName LParen RParen
 FunctionCallExpression = Primary         LParen ExpressionList RParen | Primary         LParen RParen |
                          QNameExpression LParen ExpressionList RParen | QNameExpression LParen RParen

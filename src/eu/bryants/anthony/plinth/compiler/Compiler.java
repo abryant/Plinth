@@ -21,6 +21,7 @@ import eu.bryants.anthony.plinth.compiler.passes.ControlFlowChecker;
 import eu.bryants.anthony.plinth.compiler.passes.CycleChecker;
 import eu.bryants.anthony.plinth.compiler.passes.NativeNameChecker;
 import eu.bryants.anthony.plinth.compiler.passes.Resolver;
+import eu.bryants.anthony.plinth.compiler.passes.SpecialTypeHandler;
 import eu.bryants.anthony.plinth.compiler.passes.TypeChecker;
 import eu.bryants.anthony.plinth.compiler.passes.TypePropagator;
 import eu.bryants.anthony.plinth.compiler.passes.llvm.CodeGenerator;
@@ -147,6 +148,7 @@ public class Compiler
       {
         CycleChecker.checkCycles(compilationUnit);
       }
+      SpecialTypeHandler.verifySpecialTypes();
       for (CompilationUnit compilationUnit : compilationUnits)
       {
         ControlFlowChecker.checkControlFlow(compilationUnit);
