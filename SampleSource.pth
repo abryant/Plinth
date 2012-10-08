@@ -15,7 +15,6 @@ compound complex
 
   double real;
   double imag;
-  //string s = string(new []ubyte {72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33});
 
   complex()
   {
@@ -40,8 +39,12 @@ compound complex
     {uint -> uint} f2 = f ?: multiply;
     []uint arr = new []uint {1, 2, argc};
 
-    string s2 = "foo€";
-    return s2.getUnicodeChars()[3];
+    string s2 = "foo€" + "bar";
+    for (uint i = 0; i < argc; ++i)
+    {
+      s2 += ".";
+    }
+    return s2.getUnicodeChars().length;
   }
 
   static []uint map({uint -> uint} f, []uint input)

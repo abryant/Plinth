@@ -16,6 +16,7 @@ import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression;
+import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression.ArithmeticOperator;
 import eu.bryants.anthony.plinth.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.plinth.ast.expression.ArrayCreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.BitwiseNotExpression;
@@ -72,6 +73,7 @@ import eu.bryants.anthony.plinth.ast.statement.IfStatement;
 import eu.bryants.anthony.plinth.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.plinth.ast.statement.ReturnStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
+import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement.ShorthandAssignmentOperator;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
@@ -1120,73 +1122,95 @@ public class CodeGenerator
           // this is a blank assignee, so don't try to do anything for it
           continue;
         }
+        Type type = assignees[i].getResolvedType();
         LLVMValueRef leftValue = LLVM.LLVMBuildLoad(builder, llvmAssigneePointers[i], "");
         if (standardTypeRepresentations[i])
         {
-          leftValue = typeHelper.convertStandardToTemporary(leftValue, assignees[i].getResolvedType(), llvmFunction);
+          leftValue = typeHelper.convertStandardToTemporary(leftValue, type, llvmFunction);
         }
-        LLVMValueRef rightValue = typeHelper.convertTemporary(resultValues[i], resultValueTypes[i], assignees[i].getResolvedType());
-        PrimitiveTypeType primitiveType = ((PrimitiveType) assignees[i].getResolvedType()).getPrimitiveTypeType();
-        boolean floating = primitiveType.isFloating();
-        boolean signed = primitiveType.isSigned();
+        LLVMValueRef rightValue = typeHelper.convertTemporary(resultValues[i], resultValueTypes[i], type);
         LLVMValueRef assigneeResult;
-        switch (shorthandAssignStatement.getOperator())
+        boolean resultIsStandard = false; // true only if the assigneeResult has a standard type representation
+        if (shorthandAssignStatement.getOperator() == ShorthandAssignmentOperator.ADD && type.isEquivalent(SpecialTypeHandler.STRING_TYPE))
         {
-        case AND:
-          assigneeResult = LLVM.LLVMBuildAnd(builder, leftValue, rightValue, "");
-          break;
-        case OR:
-          assigneeResult = LLVM.LLVMBuildOr(builder, leftValue, rightValue, "");
-          break;
-        case XOR:
-          assigneeResult = LLVM.LLVMBuildXor(builder, leftValue, rightValue, "");
-          break;
-        case ADD:
-          assigneeResult = floating ? LLVM.LLVMBuildFAdd(builder, leftValue, rightValue, "") : LLVM.LLVMBuildAdd(builder, leftValue, rightValue, "");
-          break;
-        case SUBTRACT:
-          assigneeResult = floating ? LLVM.LLVMBuildFSub(builder, leftValue, rightValue, "") : LLVM.LLVMBuildSub(builder, leftValue, rightValue, "");
-          break;
-        case MULTIPLY:
-          assigneeResult = floating ? LLVM.LLVMBuildFMul(builder, leftValue, rightValue, "") : LLVM.LLVMBuildMul(builder, leftValue, rightValue, "");
-          break;
-        case DIVIDE:
-          assigneeResult = floating ? LLVM.LLVMBuildFDiv(builder, leftValue, rightValue, "") : signed ? LLVM.LLVMBuildSDiv(builder, leftValue, rightValue, "") : LLVM.LLVMBuildUDiv(builder, leftValue, rightValue, "");
-          break;
-        case REMAINDER:
-          assigneeResult = floating ? LLVM.LLVMBuildFRem(builder, leftValue, rightValue, "") : signed ? LLVM.LLVMBuildSRem(builder, leftValue, rightValue, "") : LLVM.LLVMBuildURem(builder, leftValue, rightValue, "");
-          break;
-        case MODULO:
-          if (floating)
-          {
-            LLVMValueRef rem = LLVM.LLVMBuildFRem(builder, leftValue, rightValue, "");
-            LLVMValueRef add = LLVM.LLVMBuildFAdd(builder, rem, rightValue, "");
-            assigneeResult = LLVM.LLVMBuildFRem(builder, add, rightValue, "");
-          }
-          else if (signed)
-          {
-            LLVMValueRef rem = LLVM.LLVMBuildSRem(builder, leftValue, rightValue, "");
-            LLVMValueRef add = LLVM.LLVMBuildAdd(builder, rem, rightValue, "");
-            assigneeResult = LLVM.LLVMBuildSRem(builder, add, rightValue, "");
-          }
-          else
-          {
-            // unsigned modulo is the same as unsigned remainder
-            assigneeResult = LLVM.LLVMBuildURem(builder, leftValue, rightValue, "");
-          }
-          break;
-        case LEFT_SHIFT:
-          assigneeResult = LLVM.LLVMBuildShl(builder, leftValue, rightValue, "");
-          break;
-        case RIGHT_SHIFT:
-          assigneeResult = signed ? LLVM.LLVMBuildAShr(builder, leftValue, rightValue, "") : LLVM.LLVMBuildLShr(builder, leftValue, rightValue, "");
-          break;
-        default:
-          throw new IllegalStateException("Unknown shorthand assignment operator: " + shorthandAssignStatement.getOperator());
+          // concatenate the strings
+          LLVMValueRef[] arguments = new LLVMValueRef[] {typeHelper.convertTemporaryToStandard(leftValue, resultType, llvmFunction),
+                                                         typeHelper.convertTemporaryToStandard(rightValue, resultType, llvmFunction)};
+          LLVMValueRef concatenationConstructor = getConstructorFunction(SpecialTypeHandler.stringConcatenationConstructor);
+          assigneeResult = LLVM.LLVMBuildCall(builder, concatenationConstructor, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+          resultIsStandard = true;
         }
-        if (standardTypeRepresentations[i])
+        else if (type instanceof PrimitiveType)
         {
-          assigneeResult = typeHelper.convertTemporaryToStandard(assigneeResult, assignees[i].getResolvedType(), llvmFunction);
+          PrimitiveTypeType primitiveType = ((PrimitiveType) type).getPrimitiveTypeType();
+          boolean floating = primitiveType.isFloating();
+          boolean signed = primitiveType.isSigned();
+          switch (shorthandAssignStatement.getOperator())
+          {
+          case AND:
+            assigneeResult = LLVM.LLVMBuildAnd(builder, leftValue, rightValue, "");
+            break;
+          case OR:
+            assigneeResult = LLVM.LLVMBuildOr(builder, leftValue, rightValue, "");
+            break;
+          case XOR:
+            assigneeResult = LLVM.LLVMBuildXor(builder, leftValue, rightValue, "");
+            break;
+          case ADD:
+            assigneeResult = floating ? LLVM.LLVMBuildFAdd(builder, leftValue, rightValue, "") : LLVM.LLVMBuildAdd(builder, leftValue, rightValue, "");
+            break;
+          case SUBTRACT:
+            assigneeResult = floating ? LLVM.LLVMBuildFSub(builder, leftValue, rightValue, "") : LLVM.LLVMBuildSub(builder, leftValue, rightValue, "");
+            break;
+          case MULTIPLY:
+            assigneeResult = floating ? LLVM.LLVMBuildFMul(builder, leftValue, rightValue, "") : LLVM.LLVMBuildMul(builder, leftValue, rightValue, "");
+            break;
+          case DIVIDE:
+            assigneeResult = floating ? LLVM.LLVMBuildFDiv(builder, leftValue, rightValue, "") : signed ? LLVM.LLVMBuildSDiv(builder, leftValue, rightValue, "") : LLVM.LLVMBuildUDiv(builder, leftValue, rightValue, "");
+            break;
+          case REMAINDER:
+            assigneeResult = floating ? LLVM.LLVMBuildFRem(builder, leftValue, rightValue, "") : signed ? LLVM.LLVMBuildSRem(builder, leftValue, rightValue, "") : LLVM.LLVMBuildURem(builder, leftValue, rightValue, "");
+            break;
+          case MODULO:
+            if (floating)
+            {
+              LLVMValueRef rem = LLVM.LLVMBuildFRem(builder, leftValue, rightValue, "");
+              LLVMValueRef add = LLVM.LLVMBuildFAdd(builder, rem, rightValue, "");
+              assigneeResult = LLVM.LLVMBuildFRem(builder, add, rightValue, "");
+            }
+            else if (signed)
+            {
+              LLVMValueRef rem = LLVM.LLVMBuildSRem(builder, leftValue, rightValue, "");
+              LLVMValueRef add = LLVM.LLVMBuildAdd(builder, rem, rightValue, "");
+              assigneeResult = LLVM.LLVMBuildSRem(builder, add, rightValue, "");
+            }
+            else
+            {
+              // unsigned modulo is the same as unsigned remainder
+              assigneeResult = LLVM.LLVMBuildURem(builder, leftValue, rightValue, "");
+            }
+            break;
+          case LEFT_SHIFT:
+            assigneeResult = LLVM.LLVMBuildShl(builder, leftValue, rightValue, "");
+            break;
+          case RIGHT_SHIFT:
+            assigneeResult = signed ? LLVM.LLVMBuildAShr(builder, leftValue, rightValue, "") : LLVM.LLVMBuildLShr(builder, leftValue, rightValue, "");
+            break;
+          default:
+            throw new IllegalStateException("Unknown shorthand assignment operator: " + shorthandAssignStatement.getOperator());
+          }
+        }
+        else
+        {
+          throw new IllegalStateException("Unknown shorthand assignment operation: " + shorthandAssignStatement);
+        }
+        if (!resultIsStandard && standardTypeRepresentations[i])
+        {
+          assigneeResult = typeHelper.convertTemporaryToStandard(assigneeResult, type, llvmFunction);
+        }
+        if (resultIsStandard && !standardTypeRepresentations[i])
+        {
+          assigneeResult = typeHelper.convertStandardToTemporary(assigneeResult, type, llvmFunction);
         }
         LLVM.LLVMBuildStore(builder, assigneeResult, llvmAssigneePointers[i]);
       }
@@ -1637,14 +1661,23 @@ public class CodeGenerator
       ArithmeticExpression arithmeticExpression = (ArithmeticExpression) expression;
       LLVMValueRef left = buildExpression(arithmeticExpression.getLeftSubExpression(), llvmFunction, thisValue, variables);
       LLVMValueRef right = buildExpression(arithmeticExpression.getRightSubExpression(), llvmFunction, thisValue, variables);
-      PrimitiveType leftType = (PrimitiveType) arithmeticExpression.getLeftSubExpression().getType();
-      PrimitiveType rightType = (PrimitiveType) arithmeticExpression.getRightSubExpression().getType();
+      Type leftType = arithmeticExpression.getLeftSubExpression().getType();
+      Type rightType = arithmeticExpression.getRightSubExpression().getType();
+      Type resultType = arithmeticExpression.getType();
       // cast if necessary
-      PrimitiveType resultType = (PrimitiveType) arithmeticExpression.getType();
       left = typeHelper.convertTemporary(left, leftType, resultType);
       right = typeHelper.convertTemporary(right, rightType, resultType);
-      boolean floating = resultType.getPrimitiveTypeType().isFloating();
-      boolean signed = resultType.getPrimitiveTypeType().isSigned();
+      if (arithmeticExpression.getOperator() == ArithmeticOperator.ADD && resultType.isEquivalent(SpecialTypeHandler.STRING_TYPE))
+      {
+        // concatenate the strings
+        LLVMValueRef[] arguments = new LLVMValueRef[] {typeHelper.convertTemporaryToStandard(left, resultType, llvmFunction),
+                                                       typeHelper.convertTemporaryToStandard(right, resultType, llvmFunction)};
+        LLVMValueRef concatenationConstructor = getConstructorFunction(SpecialTypeHandler.stringConcatenationConstructor);
+        LLVMValueRef concatenated = LLVM.LLVMBuildCall(builder, concatenationConstructor, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+        return typeHelper.convertStandardToTemporary(concatenated, new NamedType(false, SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition()), resultType, llvmFunction);
+      }
+      boolean floating = ((PrimitiveType) resultType).getPrimitiveTypeType().isFloating();
+      boolean signed = ((PrimitiveType) resultType).getPrimitiveTypeType().isSigned();
       switch (arithmeticExpression.getOperator())
       {
       case ADD:
@@ -2358,7 +2391,7 @@ public class CodeGenerator
       LLVMTypeRef stringType = LLVM.LLVMArrayType(LLVM.LLVMInt8Type(), bytes.length);
       LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {typeHelper.findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE), stringType};
       LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
-      LLVMValueRef globalVariable = LLVM.LLVMAddGlobal(module, structType, "");
+      LLVMValueRef globalVariable = LLVM.LLVMAddGlobal(module, structType, "str");
       LLVM.LLVMSetInitializer(globalVariable, byteArrayStruct);
       LLVM.LLVMSetLinkage(globalVariable, LLVM.LLVMLinkage.LLVMPrivateLinkage);
       LLVM.LLVMSetGlobalConstant(globalVariable, true);

@@ -10,6 +10,7 @@ import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression;
+import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression.ArithmeticOperator;
 import eu.bryants.anthony.plinth.ast.expression.ArrayAccessExpression;
 import eu.bryants.anthony.plinth.ast.expression.ArrayCreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.BitwiseNotExpression;
@@ -562,40 +563,47 @@ public class TypeChecker
           types[i] = left;
           assignees[i].setResolvedType(left);
         }
-        if (!(left instanceof PrimitiveType) || !(right instanceof PrimitiveType) || left.isNullable() || right.isNullable())
+        if (operator == ShorthandAssignmentOperator.ADD && left.isEquivalent(SpecialTypeHandler.STRING_TYPE) && right.isEquivalent(SpecialTypeHandler.STRING_TYPE))
         {
-          throw new ConceptualException("The operator '" + operator + "' is not defined for types " + left + " and " + right, shorthandAssignStatement.getLexicalPhrase());
+          // do nothing, this is a shorthand string concatenation, which is allowed
         }
-        PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) left).getPrimitiveTypeType();
-        PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) right).getPrimitiveTypeType();
-        if (operator == ShorthandAssignmentOperator.AND || operator == ShorthandAssignmentOperator.OR || operator == ShorthandAssignmentOperator.XOR)
+        else if ((left instanceof PrimitiveType) && (right instanceof PrimitiveType) && !left.isNullable() && !right.isNullable())
         {
-          if (leftPrimitiveType.isFloating() || rightPrimitiveType.isFloating() || !left.canAssign(right))
+          PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) left).getPrimitiveTypeType();
+          PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) right).getPrimitiveTypeType();
+          if (operator == ShorthandAssignmentOperator.AND || operator == ShorthandAssignmentOperator.OR || operator == ShorthandAssignmentOperator.XOR)
           {
-            throw new ConceptualException("The operator '" + operator + "' is not defined for types " + left + " and " + right, shorthandAssignStatement.getLexicalPhrase());
+            if (leftPrimitiveType.isFloating() || rightPrimitiveType.isFloating() || !left.canAssign(right))
+            {
+              throw new ConceptualException("The operator '" + operator + "' is not defined for types " + left + " and " + right, shorthandAssignStatement.getLexicalPhrase());
+            }
           }
-        }
-        else if (operator == ShorthandAssignmentOperator.ADD || operator == ShorthandAssignmentOperator.SUBTRACT ||
-                 operator == ShorthandAssignmentOperator.MULTIPLY || operator == ShorthandAssignmentOperator.DIVIDE ||
-                 operator == ShorthandAssignmentOperator.REMAINDER || operator == ShorthandAssignmentOperator.MODULO)
-        {
-          if (leftPrimitiveType == PrimitiveTypeType.BOOLEAN || rightPrimitiveType == PrimitiveTypeType.BOOLEAN || !left.canAssign(right))
+          else if (operator == ShorthandAssignmentOperator.ADD || operator == ShorthandAssignmentOperator.SUBTRACT ||
+                   operator == ShorthandAssignmentOperator.MULTIPLY || operator == ShorthandAssignmentOperator.DIVIDE ||
+                   operator == ShorthandAssignmentOperator.REMAINDER || operator == ShorthandAssignmentOperator.MODULO)
           {
-            throw new ConceptualException("The operator '" + operator + "' is not defined for types " + left + " and " + right, shorthandAssignStatement.getLexicalPhrase());
+            if (leftPrimitiveType == PrimitiveTypeType.BOOLEAN || rightPrimitiveType == PrimitiveTypeType.BOOLEAN || !left.canAssign(right))
+            {
+              throw new ConceptualException("The operator '" + operator + "' is not defined for types " + left + " and " + right, shorthandAssignStatement.getLexicalPhrase());
+            }
           }
-        }
-        else if (operator == ShorthandAssignmentOperator.LEFT_SHIFT || operator == ShorthandAssignmentOperator.RIGHT_SHIFT)
-        {
-          if (leftPrimitiveType.isFloating() || rightPrimitiveType.isFloating() ||
-              leftPrimitiveType == PrimitiveTypeType.BOOLEAN || rightPrimitiveType == PrimitiveTypeType.BOOLEAN ||
-              rightPrimitiveType.isSigned())
+          else if (operator == ShorthandAssignmentOperator.LEFT_SHIFT || operator == ShorthandAssignmentOperator.RIGHT_SHIFT)
           {
-            throw new ConceptualException("The operator '" + operator + "' is not defined for types " + left + " and " + right, shorthandAssignStatement.getLexicalPhrase());
+            if (leftPrimitiveType.isFloating() || rightPrimitiveType.isFloating() ||
+                leftPrimitiveType == PrimitiveTypeType.BOOLEAN || rightPrimitiveType == PrimitiveTypeType.BOOLEAN ||
+                rightPrimitiveType.isSigned())
+            {
+              throw new ConceptualException("The operator '" + operator + "' is not defined for types " + left + " and " + right, shorthandAssignStatement.getLexicalPhrase());
+            }
+          }
+          else
+          {
+            throw new IllegalStateException("Unknown shorthand assignment operator: " + operator);
           }
         }
         else
         {
-          throw new IllegalStateException("Unknown shorthand assignment operator: " + operator);
+          throw new ConceptualException("The operator '" + operator + "' is not defined for types " + left + " and " + right, shorthandAssignStatement.getLexicalPhrase());
         }
       }
     }
@@ -643,6 +651,11 @@ public class TypeChecker
           }
           // the type will now only be null if no conversion can be done, e.g. if leftType is UINT and rightType is INT
         }
+      }
+      if (arithmeticExpression.getOperator() == ArithmeticOperator.ADD && leftType.isEquivalent(SpecialTypeHandler.STRING_TYPE) && rightType.isEquivalent(SpecialTypeHandler.STRING_TYPE))
+      {
+        arithmeticExpression.setType(leftType);
+        return leftType;
       }
       throw new ConceptualException("The operator '" + arithmeticExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", arithmeticExpression.getLexicalPhrase());
     }
