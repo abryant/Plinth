@@ -4,34 +4,34 @@
  */
 compound string
 {
-  []ubyte chars;
-  ?[]uint ints;
+  []ubyte bytes;
+  ?[]uint chars;
 
   /**
    * Creates an empty string.
    */
   string()
   {
-    chars = new [0]ubyte;
+    bytes = new [0]ubyte;
   }
 
   /**
    * Creates a string containing the specified UTF-8 bytes.
-   * @param chars - the UTF-8 bytes
+   * @param bytes - the UTF-8 bytes
    */
-  string([]ubyte chars)
+  string([]ubyte bytes)
   {
-    this.chars = chars;
+    this.bytes = bytes;
   }
 
   /**
    * Creates a string containing the specified unicode (UTF-32) characters.
-   * @param ints - the unicode characters
+   * @param chars - the unicode characters
    */
-  string([]uint ints)
+  string([]uint chars)
   {
-    chars = convertUTF32ToUTF8(ints);
-    this.ints = ints;
+    bytes = convertUTF32ToUTF8(chars);
+    this.chars = chars;
   }
 
   /**
@@ -41,27 +41,27 @@ compound string
    */
   string(string str1, string str2)
   {
-    chars = new [str1.chars.length + str2.chars.length]ubyte;
-    for (uint i = 0; i < str1.chars.length; ++i)
+    bytes = new [str1.bytes.length + str2.bytes.length]ubyte;
+    for (uint i = 0; i < str1.bytes.length; ++i)
     {
-      chars[i] = str1.chars[i];
+      bytes[i] = str1.bytes[i];
     }
-    for (uint i = 0; i < str2.chars.length; ++i)
+    for (uint i = 0; i < str2.bytes.length; ++i)
     {
-      chars[str1.chars.length + i] = str2.chars[i];
+      bytes[str1.bytes.length + i] = str2.bytes[i];
     }
-    if (str1.ints != null & str2.ints != null)
+    if (str1.chars != null & str2.chars != null)
     {
-      []uint ints1 = cast<[]uint> str1.ints;
-      []uint ints2 = cast<[]uint> str2.ints;
-      ints = new [ints1.length + ints2.length]uint;
-      for (uint i = 0; i < ints1.length; ++i)
+      []uint chars1 = cast<[]uint> str1.chars;
+      []uint chars2 = cast<[]uint> str2.chars;
+      chars = new [chars1.length + chars2.length]uint;
+      for (uint i = 0; i < chars1.length; ++i)
       {
-        ints[i] = ints1[i];
+        chars[i] = chars1[i];
       }
-      for (uint i = 0; i < ints2.length; ++i)
+      for (uint i = 0; i < chars2.length; ++i)
       {
-        ints[ints1.length + i] = ints2[i];
+        chars[chars1.length + i] = chars2[i];
       }
     }
   }
@@ -81,7 +81,7 @@ compound string
    */
   uint byteLength()
   {
-    return chars.length;
+    return bytes.length;
   }
 
   /**
@@ -120,13 +120,13 @@ compound string
    */
   string substring(uint off, uint len)
   {
-    []uint ints = getUnicodeChars();
-    []uint subInts = new [len]uint;
+    []uint chars = getUnicodeChars();
+    []uint subChars = new [len]uint;
     for (uint i = 0; i < len; ++i)
     {
-      subInts[i] = ints[off + i];
+      subChars[i] = chars[off + i];
     }
-    return string(subInts);
+    return string(subChars);
   }
 
   /**
@@ -134,13 +134,13 @@ compound string
    */
   []uint getUnicodeChars()
   {
-    []uint ints = this.ints ?: convertUTF8ToUTF32(chars);
-    this.ints = ints;
-    return ints;
+    []uint chars = this.chars ?: convertUTF8ToUTF32(bytes);
+    this.chars = chars;
+    return chars;
   }
 
   /**
-   * @param an array of UTF-8 bytes to the find the character length of
+   * @param bytes - an array of UTF-8 bytes to the find the character length of
    * @return the number of characters represented by the specified UTF-8 bytes.
    */
   static uint findUTF8Length([]ubyte bytes)
@@ -165,17 +165,18 @@ compound string
 
   /**
    * Checks whether the specified string is equal to this one.
+   * @param str - the string to compare this one to
    * @return true iff the string objects represent the same sequence of characters
    */
   boolean equals(string str)
   {
-    if (chars.length != str.chars.length)
+    if (bytes.length != str.bytes.length)
     {
       return false;
     }
-    for (uint i = 0; i < chars.length; ++i)
+    for (uint i = 0; i < bytes.length; ++i)
     {
-      if (chars[i] != str.chars[i])
+      if (bytes[i] != str.bytes[i])
       {
         return false;
       }
@@ -184,7 +185,7 @@ compound string
   }
 
   /**
-   * @param an array of UTF-8 bytes to the find the UTF-32 representation of
+   * @param bytes - an array of UTF-8 bytes to the find the UTF-32 representation of
    * @return the UTF-32 representation of the specified UTF-8 characters
    */
   static []uint convertUTF8ToUTF32([]ubyte bytes)
@@ -262,68 +263,68 @@ compound string
   }
 
   /**
-   * @param an array of UTF-32 character codes to the find the UTF-8 representation of
+   * @param chars - an array of UTF-32 character codes to the find the UTF-8 representation of
    * @return the UTF-8 representation of the specified UTF-32 character codes
    */
-  static []ubyte convertUTF32ToUTF8([]uint ints)
+  static []ubyte convertUTF32ToUTF8([]uint chars)
   {
     uint len = 0;
-    for (uint i = 0; i < ints.length; ++i)
+    for (uint i = 0; i < chars.length; ++i)
     {
-           if (ints[i] & 0xffffff80) == 0 {len += 1;}
-      else if (ints[i] & 0xfffff800) == 0 {len += 2;}
-      else if (ints[i] & 0xffff0000) == 0 {len += 3;}
-      else if (ints[i] & 0xffe00000) == 0 {len += 4;}
-      else if (ints[i] & 0xfc000000) == 0 {len += 5;}
+           if (chars[i] & 0xffffff80) == 0 {len += 1;}
+      else if (chars[i] & 0xfffff800) == 0 {len += 2;}
+      else if (chars[i] & 0xffff0000) == 0 {len += 3;}
+      else if (chars[i] & 0xffe00000) == 0 {len += 4;}
+      else if (chars[i] & 0xfc000000) == 0 {len += 5;}
       else {len += 6;}
     }
     []ubyte bytes = new [len]ubyte;
     uint pos = 0;
-    for (uint i = 0; i < ints.length; ++i)
+    for (uint i = 0; i < chars.length; ++i)
     {
-      if (ints[i] & 0xffffff80) == 0
+      if (chars[i] & 0xffffff80) == 0
       {
-        bytes[pos] = cast<ubyte> ints[i];
+        bytes[pos] = cast<ubyte> chars[i];
         pos += 1;
       }
-      else if (ints[i] & 0xfffff800) == 0
+      else if (chars[i] & 0xfffff800) == 0
       {
-        bytes[pos  ] = cast<ubyte> ((ints[i] >> 6) & 0x1f) | 0b11000000;
-        bytes[pos+1] = cast<ubyte> ((ints[i]     ) & 0x3f) | 0b10000000;
+        bytes[pos  ] = cast<ubyte> ((chars[i] >> 6) & 0x1f) | 0b11000000;
+        bytes[pos+1] = cast<ubyte> ((chars[i]     ) & 0x3f) | 0b10000000;
         pos += 2;
       }
-      else if (ints[i] & 0xffff0000) == 0
+      else if (chars[i] & 0xffff0000) == 0
       {
-        bytes[pos  ] = cast<ubyte> ((ints[i] >> 12) & 0x0f) | 0b11100000;
-        bytes[pos+1] = cast<ubyte> ((ints[i] >>  6) & 0x3f) | 0b10000000;
-        bytes[pos+2] = cast<ubyte> ((ints[i]      ) & 0x3f) | 0b10000000;
+        bytes[pos  ] = cast<ubyte> ((chars[i] >> 12) & 0x0f) | 0b11100000;
+        bytes[pos+1] = cast<ubyte> ((chars[i] >>  6) & 0x3f) | 0b10000000;
+        bytes[pos+2] = cast<ubyte> ((chars[i]      ) & 0x3f) | 0b10000000;
         pos += 3;
       }
-      else if (ints[i] & 0xffe00000) == 0
+      else if (chars[i] & 0xffe00000) == 0
       {
-        bytes[pos  ] = cast<ubyte> ((ints[i] >> 18) & 0x07) | 0b11110000;
-        bytes[pos+1] = cast<ubyte> ((ints[i] >> 12) & 0x3f) | 0b10000000;
-        bytes[pos+2] = cast<ubyte> ((ints[i] >>  6) & 0x3f) | 0b10000000;
-        bytes[pos+3] = cast<ubyte> ((ints[i]      ) & 0x3f) | 0b10000000;
+        bytes[pos  ] = cast<ubyte> ((chars[i] >> 18) & 0x07) | 0b11110000;
+        bytes[pos+1] = cast<ubyte> ((chars[i] >> 12) & 0x3f) | 0b10000000;
+        bytes[pos+2] = cast<ubyte> ((chars[i] >>  6) & 0x3f) | 0b10000000;
+        bytes[pos+3] = cast<ubyte> ((chars[i]      ) & 0x3f) | 0b10000000;
         pos += 4;
       }
-      else if (ints[i] & 0xfc000000) == 0
+      else if (chars[i] & 0xfc000000) == 0
       {
-        bytes[pos  ] = cast<ubyte> ((ints[i] >> 24) & 0x03) | 0b11111000;
-        bytes[pos+1] = cast<ubyte> ((ints[i] >> 18) & 0x3f) | 0b10000000;
-        bytes[pos+2] = cast<ubyte> ((ints[i] >> 12) & 0x3f) | 0b10000000;
-        bytes[pos+3] = cast<ubyte> ((ints[i] >>  6) & 0x3f) | 0b10000000;
-        bytes[pos+4] = cast<ubyte> ((ints[i]      ) & 0x3f) | 0b10000000;
+        bytes[pos  ] = cast<ubyte> ((chars[i] >> 24) & 0x03) | 0b11111000;
+        bytes[pos+1] = cast<ubyte> ((chars[i] >> 18) & 0x3f) | 0b10000000;
+        bytes[pos+2] = cast<ubyte> ((chars[i] >> 12) & 0x3f) | 0b10000000;
+        bytes[pos+3] = cast<ubyte> ((chars[i] >>  6) & 0x3f) | 0b10000000;
+        bytes[pos+4] = cast<ubyte> ((chars[i]      ) & 0x3f) | 0b10000000;
         pos += 5;
       }
       else
       {
-        bytes[pos  ] = cast<ubyte> ((ints[i] >> 30) & 0x01) | 0b11111100;
-        bytes[pos+1] = cast<ubyte> ((ints[i] >> 24) & 0x3f) | 0b10000000;
-        bytes[pos+2] = cast<ubyte> ((ints[i] >> 18) & 0x3f) | 0b10000000;
-        bytes[pos+3] = cast<ubyte> ((ints[i] >> 12) & 0x3f) | 0b10000000;
-        bytes[pos+4] = cast<ubyte> ((ints[i] >>  6) & 0x3f) | 0b10000000;
-        bytes[pos+5] = cast<ubyte> ((ints[i]      ) & 0x3f) | 0b10000000;
+        bytes[pos  ] = cast<ubyte> ((chars[i] >> 30) & 0x01) | 0b11111100;
+        bytes[pos+1] = cast<ubyte> ((chars[i] >> 24) & 0x3f) | 0b10000000;
+        bytes[pos+2] = cast<ubyte> ((chars[i] >> 18) & 0x3f) | 0b10000000;
+        bytes[pos+3] = cast<ubyte> ((chars[i] >> 12) & 0x3f) | 0b10000000;
+        bytes[pos+4] = cast<ubyte> ((chars[i] >>  6) & 0x3f) | 0b10000000;
+        bytes[pos+5] = cast<ubyte> ((chars[i]      ) & 0x3f) | 0b10000000;
         pos += 6;
       }
     }
