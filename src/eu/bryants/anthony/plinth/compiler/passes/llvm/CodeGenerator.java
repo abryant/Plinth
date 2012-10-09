@@ -371,25 +371,38 @@ public class CodeGenerator
   {
     LLVMTypeRef resultType = typeHelper.findStandardType(method.getReturnType());
     Parameter[] parameters = method.getParameters();
-    LLVMTypeRef[] parameterTypes = new LLVMTypeRef[parameters.length];
+    // if the method is non-static, add the pointer argument
+    int offset = method.isStatic() ? 0 : 1;
+    LLVMTypeRef[] parameterTypes = new LLVMTypeRef[offset + parameters.length];
+    if (!method.isStatic())
+    {
+      if (typeDefinition instanceof ClassDefinition)
+      {
+        parameterTypes[0] = typeHelper.findTemporaryType(new NamedType(false, method.getContainingTypeDefinition()));
+      }
+      else if (typeDefinition instanceof CompoundDefinition)
+      {
+        parameterTypes[0] = typeHelper.findTemporaryType(new NamedType(false, method.getContainingTypeDefinition()));
+      }
+    }
     for (int i = 0; i < parameters.length; ++i)
     {
-      parameterTypes[i] = typeHelper.findStandardType(parameters[i].getType());
+      parameterTypes[offset + i] = typeHelper.findStandardType(parameters[i].getType());
     }
     LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, C.toNativePointerArray(parameterTypes, false, true), parameterTypes.length, false);
 
     LLVMValueRef nativeFunction = LLVM.LLVMAddFunction(module, method.getNativeName(), functionType);
     LLVM.LLVMSetFunctionCallConv(nativeFunction, LLVM.LLVMCallConv.LLVMCCallConv);
+
     // if the method is static, add a null first argument to the list of arguments to pass to the non-native function
-    int offset = method.isStatic() ? 1 : 0;
-    LLVMValueRef[] arguments = new LLVMValueRef[offset + parameterTypes.length];
+    LLVMValueRef[] arguments = new LLVMValueRef[1 + parameters.length];
     if (method.isStatic())
     {
       arguments[0] = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
     }
     for (int i = 0; i < parameterTypes.length; ++i)
     {
-      arguments[i + offset] = LLVM.LLVMGetParam(nativeFunction, i);
+      arguments[i + (method.isStatic() ? 1 : 0)] = LLVM.LLVMGetParam(nativeFunction, i);
     }
     LLVMBasicBlockRef block = LLVM.LLVMAppendBasicBlock(nativeFunction, "entry");
     LLVM.LLVMPositionBuilderAtEnd(builder, block);
