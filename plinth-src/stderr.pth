@@ -1,0 +1,30 @@
+/**
+ * Provides various static methods for manipulating the standard error stream.
+ */
+compound stderr
+{
+  /**
+   * Writes the specified character array to the underlying standard error stream.
+   * @param bytes - the bytes to write
+   */
+  static native "plinth_stderr_write" void write([]ubyte bytes);
+
+  /**
+   * Prints the specified string, followed by a newline, to the standard error stream.
+   * @param s - the string to write
+   */
+  static void println(string s)
+  {
+    write(s.bytes);
+    write("\n".bytes);
+  }
+
+  /**
+   * Prints the specified string to the standard error stream.
+   * @param s - the string to write
+   */
+  static void print(string s)
+  {
+    write(s.bytes);
+  }
+}

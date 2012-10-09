@@ -32,6 +32,7 @@ compound complex
 
   static native uint main(final uint argc)
   {
+    stderr::println("Hello, World!");
     ?complex x = complex();
     x?.doStuff();
     ?Other other = null;
@@ -44,6 +45,7 @@ compound complex
     {
       s2 += ".";
     }
+    stdout::println(s2);
     return s2.getUnicodeChars().length;
   }
 
