@@ -58,7 +58,7 @@ public class ModifiersRule extends Rule<ParseType>
     if (production == START_NATIVE_NAME_PRODUCTION)
     {
       StringLiteral literal = (StringLiteral) args[1];
-      LexicalPhrase lexicalPhrase = LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1]);
+      LexicalPhrase lexicalPhrase = LexicalPhrase.combine((LexicalPhrase) args[0], literal.getLexicalPhrase());
       return new ParseList<Modifier>(new NativeSpecifier(literal.getLiteralValue(), lexicalPhrase), lexicalPhrase);
     }
     if (production == FINAL_PRODUCTION)
