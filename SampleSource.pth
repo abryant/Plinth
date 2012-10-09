@@ -32,21 +32,12 @@ compound complex
 
   static native uint main(final uint argc)
   {
-    stderr::println("Hello, World!");
-    ?complex x = complex();
-    x?.doStuff();
-    ?Other other = null;
-    ?{uint -> uint} f = other?.add;
-    {uint -> uint} f2 = f ?: multiply;
-    []uint arr = new []uint {1, 2, argc};
-
-    string s2 = "foo€" + "bar";
-    for (uint i = 0; i < argc; ++i)
-    {
-      s2 += ".";
-    }
-    stdout::println(s2);
-    return s2.getUnicodeChars().length;
+    stdout::print("Please enter your name: ");
+    string line = stdin::readLine();
+    // remove the newline
+    line = line.substring(0, line.length() - 1);
+    stdout::println("Hello, " + line);
+    return line.length();
   }
 
   static []uint map({uint -> uint} f, []uint input)

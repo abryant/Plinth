@@ -2,8 +2,16 @@
 
 %filedesc = type opaque
 
+@stdin = external global %filedesc*
 @stdout = external global %filedesc*
 @stderr = external global %filedesc*
+
+define i32 @plinth_stdin_read() {
+entry:
+  %in = load %filedesc** @stdin
+  %val = call i32 @fgetc(%filedesc* %in)
+  ret i32 %val
+}
 
 define void @plinth_stdout_write({ i32, [0 x i8] }* %array) {
 entry:
@@ -47,4 +55,5 @@ exit:
   ret void
 }
 
+declare i32 @fgetc(%filedesc*)
 declare i32 @fputc(i32, %filedesc*)
