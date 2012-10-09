@@ -20,7 +20,9 @@ To run:
 
 To link several of the resulting LLVM bitcode files together into a full program:
 
-    llvm-link -o binary.pbc MyClass.pbc Test.pbc
+    llvm-link MyClass.pbc Test.pbc string.pbc stdout.pbc stderr.pbc plinth-lib/io.ll -o binary.pbc
+
+`string.pbc`, `stdout.pbc`, and `stderr.pbc` are the results of compiling the respective files in plinth-src, and `plinth-lib/io.ll` is an LLVM assembly file needed to access some I/O functions including stdout.
 
 To generate an executable from the linked bitcode:
 
