@@ -30,20 +30,20 @@ public class MethodRule extends Rule<ParseType>
 
   // do not use RETURN_TYPE here, as it causes shift-reduce conflicts with field declarations
   // basically, given "A b" we couldn't tell if A was a TYPE or a RETURN_TYPE without further information
-  private static final Production<ParseType> PARAMS_PRODUCTION                = new Production<ParseType>(                     ParseType.TYPE,         ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> PRODUCTION                       = new Production<ParseType>(                     ParseType.TYPE,         ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> VOID_PARAMS_PRODUCTION           = new Production<ParseType>(                     ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> VOID_PRODUCTION                  = new Production<ParseType>(                     ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> MODIFIERS_PARAMS_PRODUCTION      = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> MODIFIERS_PRODUCTION             = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> MODIFIERS_VOID_PARAMS_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN, ParseType.BLOCK);
-  private static final Production<ParseType> MODIFIERS_VOID_PRODUCTION        = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.LPAREN,                       ParseType.RPAREN, ParseType.BLOCK);
+  private static final Production<ParseType> PRODUCTION                            = new Production<ParseType>(                     ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.BLOCK);
+  private static final Production<ParseType> VOID_PRODUCTION                       = new Production<ParseType>(                     ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_PRODUCTION                  = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_VOID_PRODUCTION             = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.BLOCK);
+  private static final Production<ParseType> DECLARATION_PRODUCTION                = new Production<ParseType>(                     ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.SEMICOLON);
+  private static final Production<ParseType> VOID_DECLARATION_PRODUCTION           = new Production<ParseType>(                     ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.SEMICOLON);
+  private static final Production<ParseType> MODIFIERS_DECLARATION_PRODUCTION      = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.SEMICOLON);
+  private static final Production<ParseType> MODIFIERS_VOID_DECLARATION_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.SEMICOLON);
 
   @SuppressWarnings("unchecked")
   public MethodRule()
   {
-    super(ParseType.METHOD, PARAMS_PRODUCTION, PRODUCTION, VOID_PARAMS_PRODUCTION, VOID_PRODUCTION,
-                            MODIFIERS_PARAMS_PRODUCTION, MODIFIERS_PRODUCTION, MODIFIERS_VOID_PARAMS_PRODUCTION, MODIFIERS_VOID_PRODUCTION);
+    super(ParseType.METHOD, PRODUCTION, VOID_PRODUCTION, MODIFIERS_PRODUCTION, MODIFIERS_VOID_PRODUCTION,
+                            DECLARATION_PRODUCTION, VOID_DECLARATION_PRODUCTION, MODIFIERS_DECLARATION_PRODUCTION, MODIFIERS_VOID_DECLARATION_PRODUCTION);
   }
 
   /**
@@ -52,51 +52,24 @@ public class MethodRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == PARAMS_PRODUCTION)
-    {
-      Type returnType = (Type) args[0];
-      Name name = (Name) args[1];
-      @SuppressWarnings("unchecked")
-      ParseList<Parameter> parameters = (ParseList<Parameter>) args[3];
-      Block block = (Block) args[5];
-      return processModifiers(null, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
-                              LexicalPhrase.combine(returnType.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], parameters.getLexicalPhrase(), (LexicalPhrase) args[4], block.getLexicalPhrase()));
-    }
     if (production == PRODUCTION)
     {
       Type returnType = (Type) args[0];
       Name name = (Name) args[1];
-      Block block = (Block) args[4];
-      return processModifiers(null, returnType, name.getName(), new Parameter[0], block,
-                              LexicalPhrase.combine(returnType.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3], block.getLexicalPhrase()));
-    }
-    if (production == VOID_PARAMS_PRODUCTION)
-    {
-      Name name = (Name) args[1];
       @SuppressWarnings("unchecked")
-      ParseList<Parameter> parameters = (ParseList<Parameter>) args[3];
-      Block block = (Block) args[5];
-      return processModifiers(null, new VoidType((LexicalPhrase) args[0]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
-                              LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase(), (LexicalPhrase) args[2], parameters.getLexicalPhrase(), (LexicalPhrase) args[4], block.getLexicalPhrase()));
+      ParseList<Parameter> parameters = (ParseList<Parameter>) args[2];
+      Block block = (Block) args[3];
+      return processModifiers(null, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
+                              LexicalPhrase.combine(returnType.getLexicalPhrase(), name.getLexicalPhrase(), parameters.getLexicalPhrase(), block.getLexicalPhrase()));
     }
     if (production == VOID_PRODUCTION)
     {
       Name name = (Name) args[1];
-      Block block = (Block) args[4];
-      return processModifiers(null, new VoidType((LexicalPhrase) args[0]), name.getName(), new Parameter[0], block,
-                              LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3], block.getLexicalPhrase()));
-    }
-    if (production == MODIFIERS_PARAMS_PRODUCTION)
-    {
       @SuppressWarnings("unchecked")
-      ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
-      Type returnType = (Type) args[1];
-      Name name = (Name) args[2];
-      @SuppressWarnings("unchecked")
-      ParseList<Parameter> parameters = (ParseList<Parameter>) args[4];
-      Block block = (Block) args[6];
-      return processModifiers(modifiers, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
-                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), returnType.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[3], parameters.getLexicalPhrase(), (LexicalPhrase) args[5], block.getLexicalPhrase()));
+      ParseList<Parameter> parameters = (ParseList<Parameter>) args[2];
+      Block block = (Block) args[3];
+      return processModifiers(null, new VoidType((LexicalPhrase) args[0]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
+                              LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase(), parameters.getLexicalPhrase(), block.getLexicalPhrase()));
     }
     if (production == MODIFIERS_PRODUCTION)
     {
@@ -104,29 +77,60 @@ public class MethodRule extends Rule<ParseType>
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
       Type returnType = (Type) args[1];
       Name name = (Name) args[2];
-      Block block = (Block) args[5];
-      return processModifiers(modifiers, returnType, name.getName(), new Parameter[0], block,
-                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), returnType.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[3], (LexicalPhrase) args[4], block.getLexicalPhrase()));
-    }
-    if (production == MODIFIERS_VOID_PARAMS_PRODUCTION)
-    {
       @SuppressWarnings("unchecked")
-      ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
-      Name name = (Name) args[2];
-      @SuppressWarnings("unchecked")
-      ParseList<Parameter> parameters = (ParseList<Parameter>) args[4];
-      Block block = (Block) args[6];
-      return processModifiers(modifiers, new VoidType((LexicalPhrase) args[1]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
-                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), (LexicalPhrase) args[3], parameters.getLexicalPhrase(), (LexicalPhrase) args[5], block.getLexicalPhrase()));
+      ParseList<Parameter> parameters = (ParseList<Parameter>) args[3];
+      Block block = (Block) args[4];
+      return processModifiers(modifiers, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), returnType.getLexicalPhrase(), name.getLexicalPhrase(), parameters.getLexicalPhrase(), block.getLexicalPhrase()));
     }
     if (production == MODIFIERS_VOID_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
       Name name = (Name) args[2];
-      Block block = (Block) args[5];
-      return processModifiers(modifiers, new VoidType((LexicalPhrase) args[1]), name.getName(), new Parameter[0], block,
-                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), (LexicalPhrase) args[3], (LexicalPhrase) args[4], block.getLexicalPhrase()));
+      @SuppressWarnings("unchecked")
+      ParseList<Parameter> parameters = (ParseList<Parameter>) args[3];
+      Block block = (Block) args[4];
+      return processModifiers(modifiers, new VoidType((LexicalPhrase) args[1]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), parameters.getLexicalPhrase(), block.getLexicalPhrase()));
+    }
+    if (production == DECLARATION_PRODUCTION)
+    {
+      Type returnType = (Type) args[0];
+      Name name = (Name) args[1];
+      @SuppressWarnings("unchecked")
+      ParseList<Parameter> parameters = (ParseList<Parameter>) args[2];
+      return processModifiers(null, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), null,
+                              LexicalPhrase.combine(returnType.getLexicalPhrase(), name.getLexicalPhrase(), parameters.getLexicalPhrase(), (LexicalPhrase) args[3]));
+    }
+    if (production == VOID_DECLARATION_PRODUCTION)
+    {
+      Name name = (Name) args[1];
+      @SuppressWarnings("unchecked")
+      ParseList<Parameter> parameters = (ParseList<Parameter>) args[2];
+      return processModifiers(null, new VoidType((LexicalPhrase) args[0]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), null,
+                              LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase(), parameters.getLexicalPhrase(), (LexicalPhrase) args[3]));
+    }
+    if (production == MODIFIERS_DECLARATION_PRODUCTION)
+    {
+      @SuppressWarnings("unchecked")
+      ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
+      Type returnType = (Type) args[1];
+      Name name = (Name) args[2];
+      @SuppressWarnings("unchecked")
+      ParseList<Parameter> parameters = (ParseList<Parameter>) args[3];
+      return processModifiers(modifiers, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), null,
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), returnType.getLexicalPhrase(), name.getLexicalPhrase(), parameters.getLexicalPhrase(), (LexicalPhrase) args[4]));
+    }
+    if (production == MODIFIERS_VOID_DECLARATION_PRODUCTION)
+    {
+      @SuppressWarnings("unchecked")
+      ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
+      Name name = (Name) args[2];
+      @SuppressWarnings("unchecked")
+      ParseList<Parameter> parameters = (ParseList<Parameter>) args[3];
+      return processModifiers(modifiers, new VoidType((LexicalPhrase) args[1]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), null,
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), parameters.getLexicalPhrase(), (LexicalPhrase) args[4]));
     }
     throw badTypeList();
   }

@@ -106,7 +106,10 @@ public class TypeChecker
       }
       for (Method method : typeDefinition.getAllMethods())
       {
-        checkTypes(method.getBlock(), method.getReturnType());
+        if (method.getBlock() != null)
+        {
+          checkTypes(method.getBlock(), method.getReturnType());
+        }
       }
     }
   }

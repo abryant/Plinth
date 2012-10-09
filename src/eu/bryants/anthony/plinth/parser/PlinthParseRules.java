@@ -37,6 +37,7 @@ import eu.bryants.anthony.plinth.parser.rules.misc.ImportsRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ModifiersRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.NestedQNameListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.OptionalModifiersRule;
+import eu.bryants.anthony.plinth.parser.rules.misc.ParameterListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ParametersRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.QNameListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.QNameRule;
@@ -108,6 +109,7 @@ public class PlinthParseRules
     new ModifiersRule(),
     new NestedQNameListRule(),
     new OptionalModifiersRule(),
+    new ParameterListRule(),
     new ParametersRule(),
     new QNameListRule(),
     new QNameRule(),

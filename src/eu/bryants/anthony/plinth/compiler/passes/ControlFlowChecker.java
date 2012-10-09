@@ -189,6 +189,16 @@ public class ControlFlowChecker
    */
   private static void checkControlFlow(Method method) throws ConceptualException
   {
+    Block mainBlock = method.getBlock();
+    if (mainBlock == null)
+    {
+      if (method.getNativeName() == null)
+      {
+        throw new ConceptualException("A non-native method must always have a body", method.getLexicalPhrase());
+      }
+      // this method has no body, so there is nothing to check
+      return;
+    }
     Set<Variable> initialisedVariables = new HashSet<Variable>();
     for (Parameter p : method.getParameters())
     {

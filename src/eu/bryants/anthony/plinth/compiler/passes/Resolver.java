@@ -263,7 +263,7 @@ public class Resolver
       Block mainBlock = method.getBlock();
       if (mainBlock == null)
       {
-        // we are resolving a bitcode file with no blocks inside it, so create a temporary one so that we can check for duplicate parameters easily
+        // we are resolving a method with no block, so create a temporary one so that we can check for duplicate parameters easily
         mainBlock = new Block(null, null);
       }
       Parameter[] parameters = method.getParameters();
@@ -315,9 +315,12 @@ public class Resolver
     for (Method method : typeDefinition.getAllMethods())
     {
       Block mainBlock = method.getBlock();
-      for (Statement s : mainBlock.getStatements())
+      if (mainBlock != null)
       {
-        resolve(s, mainBlock, typeDefinition, compilationUnit);
+        for (Statement s : mainBlock.getStatements())
+        {
+          resolve(s, mainBlock, typeDefinition, compilationUnit);
+        }
       }
     }
   }

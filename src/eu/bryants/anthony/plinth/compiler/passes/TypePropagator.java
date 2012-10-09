@@ -99,7 +99,10 @@ public class TypePropagator
       }
       for (Method method : typeDefinition.getAllMethods())
       {
-        propagateTypes(method.getBlock(), method.getReturnType());
+        if (method.getBlock() != null)
+        {
+          propagateTypes(method.getBlock(), method.getReturnType());
+        }
       }
     }
   }

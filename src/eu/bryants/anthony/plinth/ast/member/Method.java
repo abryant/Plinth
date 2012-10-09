@@ -170,13 +170,14 @@ public class Method extends Member
         buffer.append(", ");
       }
     }
-    buffer.append(")\n");
+    buffer.append(')');
     if (block == null)
     {
-      buffer.append("{...}");
+      buffer.append(';');
     }
     else
     {
+      buffer.append('\n');
       buffer.append(block);
     }
     return buffer.toString();

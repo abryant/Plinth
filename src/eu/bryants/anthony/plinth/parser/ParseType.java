@@ -33,6 +33,7 @@ public enum ParseType
   ASSIGNEE_LIST,                 // ParseList<Assignee>
   DECLARATION_ASSIGNEE_LIST,     // ParseList<Assignee>
   PARAMETERS,                    // ParseList<Parameter>
+  PARAMETER_LIST,                // ParseList<Parameter>
   FOR_INIT,                      // ParseContainer<Statement> (possibly containing null)
   FOR_UPDATE,                    // Statement or null
   MODIFIERS,                     // ParseList<Modifier>

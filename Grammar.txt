@@ -26,15 +26,16 @@ Constructor = Modifiers Name LParen Parameters RParen Block |
               Modifiers Name LParen            RParen Block |
               Name LParen Parameters RParen Block |
               Name LParen            RParen Block
-Method = Modifiers Type Name LParen Parameters RParen Block |
-         Modifiers Type Name LParen            RParen Block |
-         Modifiers VoidKeyword Name LParen Parameters RParen Block |
-         Modifiers VoidKeyword Name LParen            RParen Block |
-         Type Name LParen Parameters RParen Block |
-         Type Name LParen            RParen Block |
-         VoidKeyword Name LParen Parameters RParen Block |
-         VoidKeyword Name LParen            RParen Block
+Method = Modifiers Type        Name ParameterList Block |
+         Modifiers VoidKeyword Name ParameterList Block |
+                   Type        Name ParameterList Block |
+                   VoidKeyword Name ParameterList Block |
+         Modifiers Type        Name ParameterList Semicolon |
+         Modifiers VoidKeyword Name ParameterList Semicolon |
+                   Type        Name ParameterList Semicolon |
+                   VoidKeyword Name ParameterList Semicolon
 
+ParameterList = LParen Parameters RParen | LParen RParen
 Parameters = OptionalModifiers Type Name | Parameters Comma OptionalModifiers Type Name
 
 Block = LBrace Statements RBrace | LBrace RBrace
