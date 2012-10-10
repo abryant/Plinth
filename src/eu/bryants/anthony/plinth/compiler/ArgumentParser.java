@@ -1,7 +1,9 @@
 package eu.bryants.anthony.plinth.compiler;
 
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 /*
  * Created on 12 Jul 2012
@@ -15,17 +17,21 @@ public class ArgumentParser
   private String output;
   private String outputDir;
   private String[] sources;
+  private String[] importFiles;
+  private Set<String> linkSet = new HashSet<String>();
 
   public ArgumentParser(String... arguments)
   {
     List<String> sourceList = new LinkedList<String>();
+    List<String> importList = new LinkedList<String>();
     for (int i = 0; i < arguments.length; ++i)
     {
       if (arguments[i].equals("-o") || arguments[i].equals("--output"))
       {
-        if (i >= arguments.length - 1 | output != null | !sourceList.isEmpty())
+        if (i >= arguments.length - 1 | output != null)
         {
           usage();
+          System.exit(1);
         }
         ++i;
         output = arguments[i];
@@ -33,17 +39,42 @@ public class ArgumentParser
       }
       if (arguments[i].equals("-d") || arguments[i].equals("--output-dir"))
       {
-        if (i >= arguments.length - 1 | outputDir != null | !sourceList.isEmpty())
+        if (i >= arguments.length - 1 | outputDir != null)
         {
           usage();
+          System.exit(1);
         }
         ++i;
         outputDir = arguments[i];
         continue;
       }
+      if (arguments[i].equals("-i") || arguments[i].equals("--import"))
+      {
+        if (i >= arguments.length - 1)
+        {
+          usage();
+          System.exit(1);
+        }
+        ++i;
+        importList.add(arguments[i]);
+        continue;
+      }
+      if (arguments[i].equals("-l") || arguments[i].equals("--link"))
+      {
+        if (i >= arguments.length - 1)
+        {
+          usage();
+          System.exit(1);
+        }
+        ++i;
+        importList.add(arguments[i]);
+        linkSet.add(arguments[i]);
+        continue;
+      }
       sourceList.add(arguments[i]);
     }
     sources = sourceList.toArray(new String[sourceList.size()]);
+    importFiles = importList.toArray(new String[importList.size()]);
   }
 
   /**
@@ -71,6 +102,22 @@ public class ArgumentParser
   }
 
   /**
+   * @return the array of names of files which were specified with --import or --link, in the order they were specified
+   */
+  public String[] getImportedFiles()
+  {
+    return importFiles;
+  }
+
+  /**
+   * @return the set of names of files which were specified with --link. A file name in this set will always be in the array returned by getImportedFiles().
+   */
+  public Set<String> getLinkedFileSet()
+  {
+    return linkSet;
+  }
+
+  /**
    * Prints the usage information for the program.
    */
   public static void usage()
@@ -80,6 +127,14 @@ public class ArgumentParser
                        "  -o <binary>, --output <binary>\n" +
                        "      Specifies the name of the binary produced.\n" +
                        "  -d <output-dir>, --output-dir <output-dir>\n" +
-                       "      Specifies the output directory for the generated bitcode files. They will be generated in a directory structure equivalent to the package structure. If this is not specified, these files will not be generated.");
+                       "      Specifies the output directory for the generated bitcode files, which will be generated in a directory structure equivalent to the package structure.\n" +
+                       "      If this is not specified, these files will not be generated.\n" +
+                       "  -i <bitcode-file>, --import <bitcode-file>\n" +
+                       "      Imports the type definition(s) defined in the specified file into the search when searching for types.\n" +
+                       "      Note: This option can be specified multiple times.\n" +
+                       "  -l <bitcode-file>, --link <bitcode-file>\n" +
+                       "      Links the specified bitcode file into the output module.\n" +
+                       "      Using this option also implicitly imports the specified bitcode file (i.e. it also acts as --import).\n" +
+                       "      Note: This option can be specified multiple times.");
   }
 }

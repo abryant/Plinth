@@ -5,11 +5,15 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
+import nativelib.llvm.LLVM;
+import nativelib.llvm.LLVM.LLVMModuleRef;
+
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.metadata.PackageNode;
 import eu.bryants.anthony.plinth.ast.metadata.PackageNode.PackageSearcher;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.compiler.passes.Resolver;
+import eu.bryants.anthony.plinth.compiler.passes.llvm.Linker;
 import eu.bryants.anthony.plinth.compiler.passes.llvm.MalformedMetadataException;
 import eu.bryants.anthony.plinth.compiler.passes.llvm.MetadataLoader;
 
@@ -93,7 +97,9 @@ public class BitcodePackageSearcher implements PackageSearcher
         List<TypeDefinition> loadedDefinitions;
         try
         {
-          loadedDefinitions = MetadataLoader.loadBitcodeFile(bitcodeFile);
+          LLVMModuleRef module = Linker.loadModule(bitcodeFile);
+          loadedDefinitions = MetadataLoader.loadTypeDefinitions(module);
+          LLVM.LLVMDisposeModule(module);
         }
         catch (IOException e)
         {

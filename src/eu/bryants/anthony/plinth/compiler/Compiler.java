@@ -2,12 +2,16 @@ package eu.bryants.anthony.plinth.compiler;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
+import java.util.Set;
 
+import nativelib.llvm.LLVM;
+import nativelib.llvm.LLVM.LLVMModuleRef;
 import parser.BadTokenException;
 import parser.ParseException;
 import parser.Token;
@@ -15,6 +19,7 @@ import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.metadata.PackageNode;
+import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
 import eu.bryants.anthony.plinth.compiler.passes.ControlFlowChecker;
@@ -25,6 +30,10 @@ import eu.bryants.anthony.plinth.compiler.passes.SpecialTypeHandler;
 import eu.bryants.anthony.plinth.compiler.passes.TypeChecker;
 import eu.bryants.anthony.plinth.compiler.passes.TypePropagator;
 import eu.bryants.anthony.plinth.compiler.passes.llvm.CodeGenerator;
+import eu.bryants.anthony.plinth.compiler.passes.llvm.Linker;
+import eu.bryants.anthony.plinth.compiler.passes.llvm.LinkerException;
+import eu.bryants.anthony.plinth.compiler.passes.llvm.MalformedMetadataException;
+import eu.bryants.anthony.plinth.compiler.passes.llvm.MetadataLoader;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.PlinthParser;
@@ -44,17 +53,42 @@ public class Compiler
   {
     ArgumentParser argumentParser = new ArgumentParser(args);
     String[] sources = argumentParser.getSources();
+    String[] importedFiles = argumentParser.getImportedFiles();
+    Set<String> linkedFiles = argumentParser.getLinkedFileSet();
+    String output = argumentParser.getOutput();
     String outputDir = argumentParser.getOutputDir();
-    if (sources.length < 1 || outputDir == null)
+    if (sources.length < 1 || (outputDir == null && output == null))
     {
       ArgumentParser.usage();
       System.exit(1);
     }
-    File outputDirFile = new File(outputDir);
-    if (!outputDirFile.isDirectory())
+    File outputFile = null;
+    if (output != null)
     {
-      ArgumentParser.usage();
-      System.exit(2);
+      outputFile = new File(output);
+      if (outputFile.exists())
+      {
+        if (!outputFile.isFile())
+        {
+          System.err.println("Output already exists, and is not a file: " + outputFile);
+          System.exit(2);
+        }
+        if (!outputFile.delete())
+        {
+          System.err.println("Output already exists, and could not be deleted: " + outputFile);
+          System.exit(2);
+        }
+      }
+    }
+    File outputDirFile = null;
+    if (outputDir != null)
+    {
+      outputDirFile = new File(outputDir);
+      if (!outputDirFile.isDirectory())
+      {
+        ArgumentParser.usage();
+        System.exit(3);
+      }
     }
 
     File[] sourceFiles = new File[sources.length];
@@ -65,7 +99,7 @@ public class Compiler
       if (!sourceFiles[i].isFile())
       {
         System.err.println("Source is not a file: " + sourceFiles[i]);
-        System.exit(3);
+        System.exit(4);
       }
 
       try
@@ -75,13 +109,13 @@ public class Compiler
       catch (LanguageParseException e)
       {
         printParseError(e.getMessage(), e.getLexicalPhrase());
-        System.exit(4);
+        System.exit(5);
         return;
       }
       catch (ParseException e)
       {
         e.printStackTrace();
-        System.exit(5);
+        System.exit(6);
         return;
       }
       catch (BadTokenException e)
@@ -117,24 +151,54 @@ public class Compiler
           }
         }
         printParseError(message, lexicalPhrase);
-        System.exit(4);
+        System.exit(5);
         return;
       }
     }
 
     List<File> searchDirectories = new LinkedList<File>();
-    searchDirectories.add(outputDirFile);
+    if (outputDirFile != null)
+    {
+      searchDirectories.add(outputDirFile);
+    }
     BitcodePackageSearcher bitcodePackageSearcher = new BitcodePackageSearcher(searchDirectories);
 
     PackageNode rootPackage = new PackageNode(bitcodePackageSearcher);
     Resolver resolver = new Resolver(rootPackage);
     bitcodePackageSearcher.initialise(rootPackage, resolver);
 
+    List<TypeDefinition> importedTypeDefinitions = new LinkedList<TypeDefinition>();
+    List<LLVMModuleRef> linkedModules = new LinkedList<LLVM.LLVMModuleRef>();
+    for (String filename : importedFiles)
+    {
+      LLVMModuleRef module;
+      try
+      {
+        module = Linker.loadModule(new File(filename));
+      }
+      catch (IOException e)
+      {
+        e.printStackTrace();
+        System.err.println("Error loading bitcode from '" + filename + "' - skipping.");
+        continue;
+      }
+      List<TypeDefinition> newDefinitions = loadImportedTypeDefinitions(module, filename, rootPackage);
+      importedTypeDefinitions.addAll(newDefinitions);
+      if (linkedFiles.contains(filename))
+      {
+        linkedModules.add(module);
+      }
+    }
+
     try
     {
       for (CompilationUnit compilationUnit : compilationUnits)
       {
         resolver.resolvePackages(compilationUnit);
+      }
+      for (TypeDefinition typeDefinition : importedTypeDefinitions)
+      {
+        resolver.resolveTypes(typeDefinition, null);
       }
       for (CompilationUnit compilationUnit : compilationUnits)
       {
@@ -170,50 +234,94 @@ public class Compiler
     {
       printConceptualException(e.getMessage(), e.getLexicalPhrase());
       e.printStackTrace();
-      System.exit(6);
+      System.exit(7);
     }
     catch (NameNotResolvedException e)
     {
       printConceptualException(e.getMessage(), e.getLexicalPhrase());
       e.printStackTrace();
-      System.exit(6);
+      System.exit(7);
     }
 
     Map<TypeDefinition, File> resultFiles = new HashMap<TypeDefinition, File>();
+    if (outputDirFile != null)
+    {
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        PackageNode declaredPackage = compilationUnit.getResolvedPackage();
+        File packageDir = findPackageDir(outputDirFile, declaredPackage);
+        for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
+        {
+          File typeOutputFile = new File(packageDir, typeDefinition.getName() + BITCODE_EXTENSION);
+          if (typeOutputFile.exists() && !typeOutputFile.isFile())
+          {
+            System.err.println("Cannot create output file for " + typeDefinition.getQualifiedName() + ", a non-file with that name already exists");
+            System.exit(8);
+          }
+          if (typeOutputFile.exists())
+          {
+            if (!typeOutputFile.delete())
+            {
+              System.err.println("Cannot create output file for " + typeDefinition.getQualifiedName() + ", failed to delete existing file");
+              System.exit(9);
+            }
+          }
+          resultFiles.put(typeDefinition, typeOutputFile);
+        }
+        // print each compilation unit before writing their bitcode files
+        System.out.println(compilationUnit);
+      }
+    }
+
+    Linker linker = null;
+    if (outputFile != null)
+    {
+      linker = new Linker(output);
+      for (LLVMModuleRef imported : linkedModules)
+      {
+        try
+        {
+          linker.linkModule(imported);
+          LLVM.LLVMDisposeModule(imported);
+        }
+        catch (LinkerException e)
+        {
+          e.printStackTrace();
+          System.exit(10);
+        }
+      }
+    }
     for (CompilationUnit compilationUnit : compilationUnits)
     {
-      PackageNode declaredPackage = compilationUnit.getResolvedPackage();
-      File packageDir = findPackageDir(outputDirFile, declaredPackage);
       for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
       {
-        File outputFile = new File(packageDir, typeDefinition.getName() + BITCODE_EXTENSION);
-        if (outputFile.exists() && !outputFile.isFile())
+        CodeGenerator generator = new CodeGenerator(typeDefinition);
+        generator.generateModule();
+        LLVMModuleRef module = generator.getModule();
+
+        File resultFile = resultFiles.get(typeDefinition);
+        if (resultFile != null)
         {
-          System.err.println("Cannot create output file for " + typeDefinition.getQualifiedName() + ", a non-file with that name already exists");
-          System.exit(9);
+          LLVM.LLVMWriteBitcodeToFile(module, resultFile.getAbsolutePath());
         }
-        if (outputFile.exists())
+        if (linker != null)
         {
-          if (!outputFile.delete())
+          try
           {
-            System.err.println("Cannot create output file for " + typeDefinition.getQualifiedName() + ", failed to delete existing file");
+            linker.linkModule(module);
+          }
+          catch (LinkerException e)
+          {
+            e.printStackTrace();
             System.exit(10);
           }
         }
-        resultFiles.put(typeDefinition, outputFile);
       }
-      // print each compilation unit before writing their bitcode files
-      System.out.println(compilationUnit);
     }
 
-    for (Entry<TypeDefinition, File> entry : resultFiles.entrySet())
+    if (linker != null)
     {
-      TypeDefinition typeDefinition = entry.getKey();
-      File file = entry.getValue();
-      CodeGenerator generator = new CodeGenerator(typeDefinition);
-      generator.generateModule();
-
-      generator.writeModule(file.getAbsolutePath());
+      LLVM.LLVMWriteBitcodeToFile(linker.getLinkedModule(), outputFile.getAbsolutePath());
     }
   }
 
@@ -250,6 +358,53 @@ public class Compiler
       }
     }
     return current;
+  }
+
+  /**
+   * Loads all of the type definitions declared in the specified module into their respective packages under the root package.
+   * Note: the loaded TypeDefinitions returned from this method must all have their types resolved later on, by calling Resolver.resolveTypes(typeDef, null).
+   * @param module - the module to load the type definitions from
+   * @param moduleFileName - the file name of the module that we are loading type definitions from
+   * @param rootPackage - the root package to add the type definitions to
+   * @return the list of TypeDefinitions loaded
+   */
+  private static List<TypeDefinition> loadImportedTypeDefinitions(LLVMModuleRef module, String moduleFileName, PackageNode rootPackage)
+  {
+    List<TypeDefinition> typeDefinitions;
+    try
+    {
+      typeDefinitions = MetadataLoader.loadTypeDefinitions(module);
+    }
+    catch (MalformedMetadataException e)
+    {
+      // we couldn't load any type definitions from the file, so print the error and abort
+      e.printStackTrace();
+      System.err.println("Metadata parse error occurred while loading '" + moduleFileName + "' - skipping.\n" +
+                         "  Note: If it was specified with '--link', this error will not exclude it from being linked.");
+      return new LinkedList<TypeDefinition>();
+    }
+    Iterator<TypeDefinition> it = typeDefinitions.iterator();
+    while (it.hasNext())
+    {
+      TypeDefinition typeDefinition = it.next();
+      QName qualifiedName = typeDefinition.getQualifiedName();
+      QName containingPackageName = new QName(qualifiedName.getAllNamesButLast());
+      try
+      {
+        PackageNode containingPackage = rootPackage.addPackageTree(containingPackageName);
+        containingPackage.addTypeDefinition(typeDefinition);
+      }
+      catch (ConceptualException e)
+      {
+        // there was a name conflict, so abort for this type definition and try the others
+        e.printStackTrace();
+        System.err.println("Name conflict occurred while loading '" + qualifiedName + "' - skipping.\n" +
+                           "  Note: If it was specified with '--link', this error will not exclude it from being linked.");
+        it.remove();
+        continue;
+      }
+    }
+    return typeDefinitions;
   }
 
   /**

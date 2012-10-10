@@ -149,15 +149,6 @@ public class CodeGenerator
     return module;
   }
 
-  public void writeModule(String outputPath)
-  {
-    if (module == null)
-    {
-      throw new IllegalStateException("The module has not yet been created; please call generateModule() before writeModule()");
-    }
-    LLVM.LLVMWriteBitcodeToFile(module, outputPath);
-  }
-
   private void addGlobalVariables()
   {
     for (Field field : typeDefinition.getFields())

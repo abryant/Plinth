@@ -16,13 +16,11 @@ To compile the compiler:
 
 To run:
 
-    bin$ java -cp ../lib/jna.jar:. eu.bryants.anthony.plinth.compiler.Compiler -d /path/to/output/folder /path/to/source.pth /path/to/source2.pth
+    bin$ java -cp ../lib/jna.jar:. eu.bryants.anthony.plinth.compiler.Compiler -o binary.pbc -l plinth-lib/core.pbc /path/to/source.pth /path/to/source2.pth
 
-To link several of the resulting LLVM bitcode files together into a full program:
+The files in plinth-src, including `string.pth`, `stdout.pth`, and `stderr.pth`, should be compiled along with your own source files to allow you to use strings and the standard I/O streams.
 
-    llvm-link MyClass.pbc Test.pbc string.pbc stdout.pbc stderr.pbc plinth-lib/io.ll -o binary.pbc
-
-`string.pbc`, `stdout.pbc`, and `stderr.pbc` are the results of compiling the respective files in plinth-src, and `plinth-lib/io.ll` is an LLVM assembly file needed to access some I/O functions including stdout.
+The file `plinth-lib/core.pbc` is the compiled version of `plinth-lib/core/*.ll`, and includes low level functions that must be linked to your program in order to use `stdin`, `stdout`, and `stderr`.
 
 To generate an executable from the linked bitcode:
 

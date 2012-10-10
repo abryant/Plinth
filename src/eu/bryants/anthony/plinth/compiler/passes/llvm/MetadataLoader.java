@@ -1,20 +1,16 @@
 package eu.bryants.anthony.plinth.compiler.passes.llvm;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
 
 import nativelib.c.C;
 import nativelib.c.C.PointerConverter;
 import nativelib.llvm.LLVM;
-import nativelib.llvm.LLVM.LLVMMemoryBufferRef;
 import nativelib.llvm.LLVM.LLVMModuleRef;
 import nativelib.llvm.LLVM.LLVMValueRef;
 
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
-import com.sun.jna.ptr.PointerByReference;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
@@ -28,10 +24,10 @@ import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
+import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
-import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 
@@ -46,33 +42,13 @@ public class MetadataLoader
 {
 
   /**
-   * Parses the specified file as a bitcode file.
-   * @param file - the file to load
+   * Loads all TypeDefinitions from the specified module.
+   * @param module - the module to load the TypeDefinitions from the metadata of.
    * @return the list of TypeDefinitions loaded
-   * @throws IOException - if an IO problem occurs while trying to load the bitcode file
-   * @throws MalformedMetadataException - if the bitcode file is malformed in some way (e.g. it doesn't have valid metadata)
+   * @throws MalformedMetadataException - if the bitcode file is malformed in some way(e.g. it doesn't have valid metadata)
    */
-  public static List<TypeDefinition> loadBitcodeFile(File file) throws IOException, MalformedMetadataException
+  public static List<TypeDefinition> loadTypeDefinitions(LLVMModuleRef module) throws MalformedMetadataException
   {
-    PointerByReference outMemoryBuffer = new PointerByReference();
-    PointerByReference bufferOutMessage = new PointerByReference();
-    boolean bufferFailure = LLVM.LLVMCreateMemoryBufferWithContentsOfFile(file.getAbsolutePath(), outMemoryBuffer, bufferOutMessage);
-    if (bufferFailure || outMemoryBuffer.getValue() == null)
-    {
-      throw new IOException("Failed to load bitcode file: " + file.getAbsolutePath() + "\nReason: " + bufferOutMessage.getValue().getString(0));
-    }
-    LLVMMemoryBufferRef memoryBuffer = new LLVMMemoryBufferRef();
-    memoryBuffer.setPointer(outMemoryBuffer.getValue());
-    PointerByReference outModule = new PointerByReference();
-    PointerByReference parseOutMessage = new PointerByReference();
-    boolean parseFailure = LLVM.LLVMParseBitcode(memoryBuffer, outModule, parseOutMessage);
-    LLVM.LLVMDisposeMemoryBuffer(memoryBuffer);
-    if (parseFailure || outModule.getValue() == null)
-    {
-      throw new MalformedMetadataException("Failed to parse bitcode file: " + file.getAbsolutePath() + "\nReason: " + parseOutMessage.getValue().getString(0));
-    }
-    LLVMModuleRef module = new LLVMModuleRef();
-    module.setPointer(outModule.getValue());
     LLVMValueRef[] classDefinitionNodes = readNamedMetadataOperands(module, "ClassDefinitions");
     LLVMValueRef[] compoundDefinitionNodes = readNamedMetadataOperands(module, "CompoundDefinitions");
 
@@ -85,7 +61,6 @@ public class MetadataLoader
     {
       results.add(loadTypeDefinition(compoundDefinitionNode, false));
     }
-    LLVM.LLVMDisposeModule(module);
     return results;
   }
 

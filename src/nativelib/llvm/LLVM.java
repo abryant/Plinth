@@ -59,6 +59,12 @@ public class LLVM
     public static final int LLVMLinkerPrivateWeakLinkage   = 16;
   }
 
+  public static class LLVMLinkerMode
+  {
+    public static final int LLVMLinkerDestroySource = 0;
+    public static final int LLVMLinkerPreserveSource = 1;
+  }
+
   public static class LLVMIntPredicate
   {
     public static final int LLVMIntEQ  = 32;
@@ -220,6 +226,8 @@ public class LLVM
   public static native void LLVMStructSetBody(LLVMTypeRef struct, Pointer elementTypes, int elementCount, boolean packed);
 
   public static native LLVMContextRef LLVMGetGlobalContext();
+
+  public static native boolean LLVMLinkModules(LLVMModuleRef dest, LLVMModuleRef src, int linkerMode, PointerByReference outMessage);
 
   public static native int LLVMWriteBitcodeToFile(LLVMModuleRef module, String path);
 
