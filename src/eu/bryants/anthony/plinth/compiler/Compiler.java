@@ -55,6 +55,7 @@ public class Compiler
     String[] sources = argumentParser.getSources();
     String[] importedFiles = argumentParser.getImportedFiles();
     Set<String> linkedFiles = argumentParser.getLinkedFileSet();
+    String mainTypeName = argumentParser.getMainTypeName();
     String output = argumentParser.getOutput();
     String outputDir = argumentParser.getOutputDir();
     if (sources.length < 1 || (outputDir == null && output == null))
@@ -190,12 +191,14 @@ public class Compiler
       }
     }
 
+    TypeDefinition mainTypeDefinition = null;
     try
     {
       for (CompilationUnit compilationUnit : compilationUnits)
       {
         resolver.resolvePackages(compilationUnit);
       }
+      resolver.resolveSpecialTypes();
       for (TypeDefinition typeDefinition : importedTypeDefinitions)
       {
         resolver.resolveTypes(typeDefinition, null);
@@ -203,6 +206,11 @@ public class Compiler
       for (CompilationUnit compilationUnit : compilationUnits)
       {
         resolver.resolveTopLevelTypes(compilationUnit);
+      }
+      if (mainTypeName != null)
+      {
+        mainTypeDefinition = resolver.resolveTypeDefinition(new QName(mainTypeName));
+        SpecialTypeHandler.checkMainMethod(mainTypeDefinition);
       }
       for (CompilationUnit compilationUnit : compilationUnits)
       {
@@ -268,8 +276,6 @@ public class Compiler
           }
           resultFiles.put(typeDefinition, typeOutputFile);
         }
-        // print each compilation unit before writing their bitcode files
-        System.out.println(compilationUnit);
       }
     }
 
@@ -297,6 +303,11 @@ public class Compiler
       {
         CodeGenerator generator = new CodeGenerator(typeDefinition);
         generator.generateModule();
+        if (typeDefinition == mainTypeDefinition)
+        {
+          generator.generateMainMethod();
+        }
+
         LLVMModuleRef module = generator.getModule();
 
         File resultFile = resultFiles.get(typeDefinition);
@@ -317,6 +328,8 @@ public class Compiler
           }
         }
       }
+      // print each compilation unit before writing their bitcode files
+      System.out.println(compilationUnit);
     }
 
     if (linker != null)

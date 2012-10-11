@@ -120,6 +120,16 @@ public class Resolver
   }
 
   /**
+   * Resolves the special types that are required for every program, such as string.
+   * @throws ConceptualException - if there is a conceptual problem while resolving the names
+   * @throws NameNotResolvedException - if a name could not be resolved
+   */
+  public void resolveSpecialTypes() throws NameNotResolvedException, ConceptualException
+  {
+    resolve(SpecialTypeHandler.STRING_TYPE, null);
+  }
+
+  /**
    * Resolves the top level types in the specified compilation unit (e.g. function parameters and return types, field types),
    * so that they can be used anywhere in statements and expressions later on.
    * @param compilationUnit - the compilation unit to resolve the top level types of
@@ -284,6 +294,20 @@ public class Resolver
         throw new ConceptualException("Duplicate method: " + method.getName(), method.getLexicalPhrase());
       }
     }
+  }
+
+  /**
+   * Tries to resolve the specified QName to a TypeDefinition, from the context of the root package.
+   * @param qname - the QName to resolve
+   * @return the TypeDefinition resolved
+   * @throws NameNotResolvedException - if the QName cannot be resolved
+   * @throws ConceptualException - if a conceptual error occurs while resolving the TypeDefinition
+   */
+  public TypeDefinition resolveTypeDefinition(QName qname) throws NameNotResolvedException, ConceptualException
+  {
+    NamedType namedType = new NamedType(false, qname, null);
+    resolve(namedType, null);
+    return namedType.getResolvedTypeDefinition();
   }
 
   private void resolve(TypeDefinition typeDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
@@ -1229,7 +1253,6 @@ public class Resolver
     else if (expression instanceof StringLiteralExpression)
     {
       // resolve the type of the string literal here, so that we have access to it in the type checker
-      resolve(SpecialTypeHandler.STRING_TYPE, null);
       expression.setType(SpecialTypeHandler.STRING_TYPE);
     }
     else if (expression instanceof ThisExpression)

@@ -14,6 +14,7 @@ import java.util.Set;
  */
 public class ArgumentParser
 {
+  private String mainTypeName;
   private String output;
   private String outputDir;
   private String[] sources;
@@ -26,6 +27,17 @@ public class ArgumentParser
     List<String> importList = new LinkedList<String>();
     for (int i = 0; i < arguments.length; ++i)
     {
+      if (arguments[i].equals("-m") || arguments[i].equals("--main-type"))
+      {
+        if (i >= arguments.length - 1 | mainTypeName != null)
+        {
+          usage();
+          System.exit(1);
+        }
+        ++i;
+        mainTypeName = arguments[i];
+        continue;
+      }
       if (arguments[i].equals("-o") || arguments[i].equals("--output"))
       {
         if (i >= arguments.length - 1 | output != null)
@@ -78,6 +90,14 @@ public class ArgumentParser
   }
 
   /**
+   * @return the mainTypeName
+   */
+  public String getMainTypeName()
+  {
+    return mainTypeName;
+  }
+
+  /**
    * @return the output
    */
   public String getOutput()
@@ -124,6 +144,10 @@ public class ArgumentParser
   {
     System.out.println("Usage: java eu.bryants.anthony.plinth.compiler.Compiler [option]... [source-file]...\n" +
                        "Options:\n" +
+                       "  -m <main-type>, --main-type <main-type>\n" +
+                       "      Generates a low-level main method which calls the main() method in the type with the specified fully qualified name.\n" +
+                       "      The correct signature for a main method is:\n" +
+                       "        static uint main([]string)" +
                        "  -o <binary>, --output <binary>\n" +
                        "      Specifies the name of the binary produced.\n" +
                        "  -d <output-dir>, --output-dir <output-dir>\n" +

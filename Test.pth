@@ -1,0 +1,33 @@
+package foo.bar;
+
+class Test
+{
+  static uint main([]string args)
+  {
+    stdout::print("Please enter your name: ");
+    string line = stdin::readLine();
+    // remove the newline
+    line = line.substring(0, line.length() - 1);
+    stdout::println("Hello, " + line + "!");
+
+    // find all of the command line arguments
+    string fullargs = concatMap(addSpace, args);
+    stdout::println("Your arguments were:" + fullargs);
+    return args.length;
+  }
+
+  static string concatMap({string -> string} f, []string input)
+  {
+    string result = string();
+    for (uint i = 0; i < input.length; ++i)
+    {
+      result += f(input[i]);
+    }
+    return result;
+  }
+
+  static string addSpace(string x)
+  {
+    return " " + x;
+  }
+}

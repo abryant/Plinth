@@ -695,6 +695,152 @@ public class CodeGenerator
     }
   }
 
+  /**
+   * Generates a main method for the "static uint main([]string)" method in the TypeDefinition we are generating.
+   */
+  public void generateMainMethod()
+  {
+    Type argsType = new ArrayType(false, SpecialTypeHandler.STRING_TYPE, null);
+    Method mainMethod = null;
+    for (Method method : typeDefinition.getAllMethods())
+    {
+      if (method.isStatic() && method.getName().equals(SpecialTypeHandler.MAIN_METHOD_NAME) && method.getReturnType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.UINT, null)))
+      {
+        Parameter[] parameters = method.getParameters();
+        if (parameters.length == 1 && parameters[0].getType().isEquivalent(argsType))
+        {
+          mainMethod = method;
+          break;
+        }
+      }
+    }
+    if (mainMethod == null)
+    {
+      throw new IllegalArgumentException("Could not find main method in " + typeDefinition.getQualifiedName());
+    }
+    LLVMValueRef languageMainFunction = getMethodFunction(mainMethod);
+
+    // define strlen (which we will need for finding the length of each of the arguments)
+    LLVMTypeRef[] strlenParameters = new LLVMTypeRef[] {LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0)};
+    LLVMTypeRef strlenFunctionType = LLVM.LLVMFunctionType(LLVM.LLVMInt32Type(), C.toNativePointerArray(strlenParameters, false, true), strlenParameters.length, false);
+    LLVMValueRef strlenFunction = LLVM.LLVMAddFunction(module, "strlen", strlenFunctionType);
+
+    // define main
+    LLVMTypeRef argvType = LLVM.LLVMPointerType(LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), 0);
+    LLVMTypeRef[] paramTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), argvType};
+    LLVMTypeRef returnType = LLVM.LLVMInt32Type();
+    LLVMTypeRef functionType = LLVM.LLVMFunctionType(returnType, C.toNativePointerArray(paramTypes, false, true), paramTypes.length, false);
+
+    LLVMValueRef mainFunction = LLVM.LLVMAddFunction(module, "main", functionType);
+    LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(mainFunction, "entry");
+    LLVMBasicBlockRef argvLoopBlock = LLVM.LLVMAppendBasicBlock(mainFunction, "argvCopyLoop");
+    LLVMBasicBlockRef stringLoopBlock = LLVM.LLVMAppendBasicBlock(mainFunction, "stringCopyLoop");
+    LLVMBasicBlockRef argvLoopEndBlock = LLVM.LLVMAppendBasicBlock(mainFunction, "argvCopyLoopEnd");
+    LLVMBasicBlockRef finalBlock = LLVM.LLVMAppendBasicBlock(mainFunction, "startProgram");
+    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+
+    LLVMValueRef argc = LLVM.LLVMGetParam(mainFunction, 0);
+    LLVM.LLVMSetValueName(argc, "argc");
+    LLVMValueRef argv = LLVM.LLVMGetParam(mainFunction, 1);
+    LLVM.LLVMSetValueName(argv, "argv");
+
+    // create the final args array
+    LLVMTypeRef llvmArrayType = typeHelper.findTemporaryType(new ArrayType(false, SpecialTypeHandler.STRING_TYPE, null));
+    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false), // go into the pointer to the {i32, [0 x <string>]}
+                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false), // go into the structure to get the [0 x <string>]
+                                                 argc};                                                                               // go argc elements along the array, to get the byte directly after the whole structure, which is also our size
+    LLVMValueRef llvmArraySize = LLVM.LLVMBuildGEP(builder, LLVM.LLVMConstNull(llvmArrayType), C.toNativePointerArray(indices, false, true), indices.length, "");
+    LLVMValueRef llvmSize = LLVM.LLVMBuildPtrToInt(builder, llvmArraySize, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
+    LLVMValueRef[] callocArgs = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false), llvmSize};
+    LLVMValueRef stringArray = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(callocArgs, false, true), callocArgs.length, "");
+    stringArray = LLVM.LLVMBuildBitCast(builder, stringArray, llvmArrayType, "");
+    LLVMValueRef[] sizePointerIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                            LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
+    LLVMValueRef sizePointer = LLVM.LLVMBuildGEP(builder, stringArray, C.toNativePointerArray(sizePointerIndices, false, true), sizePointerIndices.length, "");
+    LLVM.LLVMBuildStore(builder, argc, sizePointer);
+
+    // branch to the argv-copying loop
+    LLVMValueRef initialArgvLoopCheck = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntNE, argc, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false), "");
+    LLVM.LLVMBuildCondBr(builder, initialArgvLoopCheck, argvLoopBlock, finalBlock);
+    LLVM.LLVMPositionBuilderAtEnd(builder, argvLoopBlock);
+
+    LLVMValueRef argvIndex = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt32Type(), "");
+    LLVMValueRef[] charArrayIndices = new LLVMValueRef[] {argvIndex};
+    LLVMValueRef charArrayPointer = LLVM.LLVMBuildGEP(builder, argv, C.toNativePointerArray(charArrayIndices, false, true), charArrayIndices.length, "");
+    LLVMValueRef charArray = LLVM.LLVMBuildLoad(builder, charArrayPointer, "");
+
+    // call strlen(argv[argvIndex])
+    LLVMValueRef[] strlenArgs = new LLVMValueRef[] {charArray};
+    LLVMValueRef argLength = LLVM.LLVMBuildCall(builder, strlenFunction, C.toNativePointerArray(strlenArgs, false, true), strlenArgs.length, "");
+
+    // allocate the []ubyte to contain this argument
+    LLVMTypeRef ubyteArrayType = typeHelper.findTemporaryType(new ArrayType(false, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null));
+    LLVMValueRef[] ubyteArraySizeIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false), // go into the pointer to the {i32, [0 x i8]}
+                                                               LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false), // go into the structure to get the [0 x i8]
+                                                               argLength};                                                                          // go argLength elements along the array, to get the byte directly after the whole structure, which is also our size
+    LLVMValueRef llvmUbyteArraySize = LLVM.LLVMBuildGEP(builder, LLVM.LLVMConstNull(ubyteArrayType), C.toNativePointerArray(ubyteArraySizeIndices, false, true), ubyteArraySizeIndices.length, "");
+    LLVMValueRef llvmUbyteSize = LLVM.LLVMBuildPtrToInt(builder, llvmUbyteArraySize, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
+    LLVMValueRef[] ubyteCallocArgs = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false), llvmUbyteSize};
+    LLVMValueRef bytes = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(ubyteCallocArgs, false, true), ubyteCallocArgs.length, "");
+    bytes = LLVM.LLVMBuildBitCast(builder, bytes, ubyteArrayType, "");
+    LLVMValueRef[] bytesSizePointerIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
+    LLVMValueRef bytesSizePointer = LLVM.LLVMBuildGEP(builder, bytes, C.toNativePointerArray(bytesSizePointerIndices, false, true), bytesSizePointerIndices.length, "");
+    LLVM.LLVMBuildStore(builder, argLength, bytesSizePointer);
+
+    // branch to the character copying loop
+    LLVMValueRef initialBytesLoopCheck = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntNE, argLength, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false), "");
+    LLVM.LLVMBuildCondBr(builder, initialBytesLoopCheck, stringLoopBlock, argvLoopEndBlock);
+    LLVM.LLVMPositionBuilderAtEnd(builder, stringLoopBlock);
+
+    // copy the character
+    LLVMValueRef characterIndex = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt32Type(), "");
+    LLVMValueRef[] inPointerIndices = new LLVMValueRef[] {characterIndex};
+    LLVMValueRef inPointer = LLVM.LLVMBuildGEP(builder, charArray, C.toNativePointerArray(inPointerIndices, false, true), inPointerIndices.length, "");
+    LLVMValueRef character = LLVM.LLVMBuildLoad(builder, inPointer, "");
+    LLVMValueRef[] outPointerIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                           LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
+                                                           characterIndex};
+    LLVMValueRef outPointer = LLVM.LLVMBuildGEP(builder, bytes, C.toNativePointerArray(outPointerIndices, false, true), outPointerIndices.length, "");
+    LLVM.LLVMBuildStore(builder, character, outPointer);
+
+    // update the character index, and branch
+    LLVMValueRef incCharacterIndex = LLVM.LLVMBuildAdd(builder, characterIndex, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false), "");
+    LLVMValueRef bytesLoopCheck = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntNE, incCharacterIndex, argLength, "");
+    LLVM.LLVMBuildCondBr(builder, bytesLoopCheck, stringLoopBlock, argvLoopEndBlock);
+
+    // add the incomings for the character index
+    LLVMValueRef[] bytesLoopPhiValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false), incCharacterIndex};
+    LLVMBasicBlockRef[] bytesLoopPhiBlocks = new LLVMBasicBlockRef[] {argvLoopBlock, stringLoopBlock};
+    LLVM.LLVMAddIncoming(characterIndex, C.toNativePointerArray(bytesLoopPhiValues, false, true), C.toNativePointerArray(bytesLoopPhiBlocks, false, true), bytesLoopPhiValues.length);
+
+    // build the end of the string creation loop
+    LLVM.LLVMPositionBuilderAtEnd(builder, argvLoopEndBlock);
+    LLVMValueRef[] stringCreationArgs = new LLVMValueRef[] {bytes};
+    LLVMValueRef string = LLVM.LLVMBuildCall(builder, getConstructorFunction(SpecialTypeHandler.stringArrayConstructor), C.toNativePointerArray(stringCreationArgs, false, true), stringCreationArgs.length, "");
+    LLVMValueRef[] stringArrayIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                            LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
+                                                            argvIndex};
+    LLVMValueRef stringArrayElementPointer = LLVM.LLVMBuildGEP(builder, stringArray, C.toNativePointerArray(stringArrayIndices, false, true), stringArrayIndices.length, "");
+    LLVM.LLVMBuildStore(builder, string, stringArrayElementPointer);
+
+    // update the argv index, and branch
+    LLVMValueRef incArgvIndex = LLVM.LLVMBuildAdd(builder, argvIndex, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false), "");
+    LLVMValueRef argvLoopCheck = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntNE, incArgvIndex, argc, "");
+    LLVM.LLVMBuildCondBr(builder, argvLoopCheck, argvLoopBlock, finalBlock);
+
+    // add the incomings for the argv index
+    LLVMValueRef[] argvLoopPhiValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false), incArgvIndex};
+    LLVMBasicBlockRef[] argvLoopPhiBlocks = new LLVMBasicBlockRef[] {entryBlock, argvLoopEndBlock};
+    LLVM.LLVMAddIncoming(argvIndex, C.toNativePointerArray(argvLoopPhiValues, false, true), C.toNativePointerArray(argvLoopPhiBlocks, false, true), argvLoopPhiValues.length);
+
+    // build the actual function call
+    LLVM.LLVMPositionBuilderAtEnd(builder, finalBlock);
+    LLVMValueRef[] arguments = new LLVMValueRef[] {LLVM.LLVMConstNull(typeHelper.getOpaquePointer()), stringArray};
+    LLVMValueRef returnCode = LLVM.LLVMBuildCall(builder, languageMainFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+    LLVM.LLVMBuildRet(builder, returnCode);
+  }
+
   private void buildStatement(Statement statement, Type returnType, LLVMValueRef llvmFunction, LLVMValueRef thisValue, Map<Variable, LLVMValueRef> variables,
                               Map<BreakableStatement, LLVMBasicBlockRef> breakBlocks, Map<BreakableStatement, LLVMBasicBlockRef> continueBlocks, Runnable returnVoidCallback)
   {

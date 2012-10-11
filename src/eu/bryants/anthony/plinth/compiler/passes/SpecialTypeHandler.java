@@ -3,6 +3,7 @@ package eu.bryants.anthony.plinth.compiler.passes;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
+import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
@@ -24,6 +25,8 @@ public class SpecialTypeHandler
   public static final NamedType STRING_TYPE = new NamedType(false, new QName("string", null), null);
   public static Constructor stringArrayConstructor;
   public static Constructor stringConcatenationConstructor;
+
+  public static final String MAIN_METHOD_NAME = "main";
 
   /**
    * Verifies that all of the special types (types that the compiler has special cases for)
@@ -69,6 +72,33 @@ public class SpecialTypeHandler
     if (stringConcatenationConstructor == null)
     {
       throw new ConceptualException("The string type must have a constructor which takes two " + STRING_TYPE + " arguments", typeDefinition.getLexicalPhrase());
+    }
+  }
+
+  /**
+   * Checks that the specified TypeDefinition has a valid main method.
+   * @param typeDefinition - the TypeDefinition to check
+   * @throws ConceptualException - if a valid main() method could not be found
+   */
+  public static void checkMainMethod(TypeDefinition typeDefinition) throws ConceptualException
+  {
+    Type argsType = new ArrayType(false, STRING_TYPE, null);
+    Method mainMethod = null;
+    for (Method method : typeDefinition.getAllMethods())
+    {
+      if (method.isStatic() && method.getName().equals(MAIN_METHOD_NAME) && method.getReturnType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.UINT, null)))
+      {
+        Parameter[] parameters = method.getParameters();
+        if (parameters.length == 1 && parameters[0].getType().isEquivalent(argsType))
+        {
+          mainMethod = method;
+          break;
+        }
+      }
+    }
+    if (mainMethod == null)
+    {
+      throw new ConceptualException("Could not find main method in " + typeDefinition.getQualifiedName(), typeDefinition.getLexicalPhrase());
     }
   }
 
