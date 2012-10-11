@@ -18,7 +18,8 @@ entry:
   %lenptr = getelementptr {i32, [0 x i8]}* %array, i32 0, i32 0
   %len = load i32* %lenptr
   %out = load %filedesc** @stdout
-  br label %loop
+  %check = icmp ult i32 0, %len
+  br i1 %check, label %loop, label %exit
 
 loop:
   %i = phi i32 [0, %entry], [%inc, %loop]
@@ -39,7 +40,8 @@ entry:
   %lenptr = getelementptr {i32, [0 x i8]}* %array, i32 0, i32 0
   %len = load i32* %lenptr
   %err = load %filedesc** @stderr
-  br label %loop
+  %check = icmp ult i32 0, %len
+  br i1 %check, label %loop, label %exit
 
 loop:
   %i = phi i32 [0, %entry], [%inc, %loop]
