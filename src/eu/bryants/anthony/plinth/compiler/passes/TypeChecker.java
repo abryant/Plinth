@@ -3,7 +3,6 @@ package eu.bryants.anthony.plinth.compiler.passes;
 import java.math.BigInteger;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
@@ -985,11 +984,6 @@ public class TypeChecker
           if (!type.isNullable() && functionCallExpression.getResolvedNullTraversal())
           {
             throw new ConceptualException("Cannot use the null traversing method call operator '?.' on a non nullable expression", functionCallExpression.getLexicalPhrase());
-          }
-          Set<Member> memberSet = type.getMembers(functionCallExpression.getResolvedMethod().getName());
-          if (!memberSet.contains(functionCallExpression.getResolvedMethod()))
-          {
-            throw new ConceptualException("The method '" + functionCallExpression.getResolvedMethod().getName() + "' does not exist for type '" + type + "'", functionCallExpression.getLexicalPhrase());
           }
         }
         parameters = functionCallExpression.getResolvedMethod().getParameters();
