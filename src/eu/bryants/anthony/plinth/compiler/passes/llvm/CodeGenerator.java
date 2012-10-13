@@ -47,6 +47,7 @@ import eu.bryants.anthony.plinth.ast.expression.TupleExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.plinth.ast.expression.VariableExpression;
 import eu.bryants.anthony.plinth.ast.member.ArrayLengthMember;
+import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
@@ -108,6 +109,7 @@ public class CodeGenerator
   private Map<GlobalVariable, LLVMValueRef> globalVariables = new HashMap<GlobalVariable, LLVMValueRef>();
 
   private TypeHelper typeHelper;
+  private BuiltinCodeGenerator builtinGenerator;
 
   public CodeGenerator(TypeDefinition typeDefinition)
   {
@@ -125,6 +127,7 @@ public class CodeGenerator
     builder = LLVM.LLVMCreateBuilder();
 
     typeHelper = new TypeHelper(builder);
+    builtinGenerator = new BuiltinCodeGenerator(builder, module, this, typeHelper);
 
     // add all of the global (static) variables
     addGlobalVariables();
@@ -242,7 +245,7 @@ public class CodeGenerator
    * @param constructor - the Constructor to find the declaration of (or to declare)
    * @return the function declaration for the specified Constructor
    */
-  private LLVMValueRef getConstructorFunction(Constructor constructor)
+  LLVMValueRef getConstructorFunction(Constructor constructor)
   {
     String mangledName = constructor.getMangledName();
     LLVMValueRef existingFunc = LLVM.LLVMGetNamedFunction(module, mangledName);
@@ -295,13 +298,17 @@ public class CodeGenerator
    * @param method - the Method to find the declaration of (or to declare)
    * @return the function declaration for the specified Method
    */
-  private LLVMValueRef getMethodFunction(Method method)
+  LLVMValueRef getMethodFunction(Method method)
   {
     String mangledName = method.getMangledName();
     LLVMValueRef existingFunc = LLVM.LLVMGetNamedFunction(module, mangledName);
     if (existingFunc != null)
     {
       return existingFunc;
+    }
+    if (method instanceof BuiltinMethod)
+    {
+      return builtinGenerator.generateMethod((BuiltinMethod) method);
     }
     TypeDefinition typeDefinition = method.getContainingTypeDefinition();
 

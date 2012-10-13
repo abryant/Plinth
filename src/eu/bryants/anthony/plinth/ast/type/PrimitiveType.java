@@ -4,6 +4,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
+import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
+import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
 import eu.bryants.anthony.plinth.ast.member.Member;
 
 /*
@@ -228,8 +230,52 @@ public class PrimitiveType extends Type
   @Override
   public Set<Member> getMembers(String name)
   {
-    // primitive types currently have no members
-    return new HashSet<Member>();
+    PrimitiveType notNullThis = new PrimitiveType(false, primitiveTypeType, null);
+
+    HashSet<Member> members = new HashSet<Member>();
+    switch (primitiveTypeType)
+    {
+    case BOOLEAN:
+      if (name.equals(BuiltinMethodType.BOOLEAN_TO_STRING.methodName))
+      {
+        members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.BOOLEAN_TO_STRING));
+      }
+      break;
+    case BYTE:
+    case SHORT:
+    case INT:
+    case LONG:
+      if (name.equals(BuiltinMethodType.SIGNED_TO_STRING.methodName))
+      {
+        members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.SIGNED_TO_STRING));
+      }
+      if (name.equals(BuiltinMethodType.SIGNED_TO_STRING_RADIX.methodName))
+      {
+        members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.SIGNED_TO_STRING_RADIX));
+      }
+      break;
+    case UBYTE:
+    case USHORT:
+    case UINT:
+    case ULONG:
+      if (name.equals(BuiltinMethodType.UNSIGNED_TO_STRING.methodName))
+      {
+        members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.UNSIGNED_TO_STRING));
+      }
+      if (name.equals(BuiltinMethodType.UNSIGNED_TO_STRING_RADIX.methodName))
+      {
+        members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.UNSIGNED_TO_STRING_RADIX));
+      }
+      break;
+    case FLOAT:
+    case DOUBLE:
+      if (name.equals(BuiltinMethodType.FLOATING_TO_STRING.methodName))
+      {
+        members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.FLOATING_TO_STRING));
+      }
+      break;
+    }
+    return members;
   }
 
   /**

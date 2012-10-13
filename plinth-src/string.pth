@@ -185,6 +185,142 @@ compound string
   }
 
   /**
+   * Finds the string which represents the specified boolean value.
+   * @param value - the boolean value to find the string representation of
+   * @return a string representation of value
+   */
+  static string valueOf(boolean value)
+  {
+    return value ? "true" : "false";
+  }
+
+  /**
+   * Finds the string which represents the specified signed value in base 10.
+   * @param value - the signed value to find the string representation of
+   * @return a string representation of value in base 10
+   */
+  static string valueOf(long value)
+  {
+    return valueOf(value, 10);
+  }
+
+  /**
+   * Finds the string which represents the specified unsigned value in base 10.
+   * @param value - the unsigned value to find the string representation of
+   * @return a string representation of value in base 10
+   */
+  static string valueOf(ulong value)
+  {
+    return valueOf(value, 10);
+  }
+
+  /**
+   * Finds the string which represents the specified signed value.
+   * @param value - the signed value to find the string representation of
+   * @param radix - the radix to encode the value with
+   * @return a string representation of value in radix
+   */
+  static string valueOf(long value, uint radix)
+  {
+    []ubyte numerals = "0123456789abcdefghijklmnopqrstuvwxyz".bytes;
+    if radix < 2 | radix > numerals.length
+    {
+      return "#RadixError";
+    }
+    if value == 0
+    {
+      return "0";
+    }
+    uint length = 0;
+    ulong test = 1;
+    ulong abs = cast<ulong> value;
+    if value < 0
+    {
+      ++length;
+      abs = cast<ulong> -value;
+      // because of the way negative numbers are represented,
+      // even if value == long::MIN_VALUE (which cannot be negated),
+      // abs will now be the correct unsigned value
+    }
+    while test <= abs
+    {
+      test *= radix;
+      ++length;
+    }
+    []ubyte bytes = new [length]ubyte;
+    for (uint i = bytes.length - 1; i != 0; --i)
+    {
+      bytes[i] = numerals[cast<uint> (abs % radix)];
+      abs /= radix;
+    }
+    if value < 0
+    {
+      bytes[0] = "-".bytes[0];
+    }
+    else
+    {
+      bytes[0] = numerals[cast<uint> abs];
+    }
+    return string(bytes);
+  }
+
+  /**
+   * Finds the string which represents the specified unsigned value.
+   * @param value - the unsigned value to find the string representation of
+   * @param radix - the radix to encode the value with
+   * @return a string representation of value in radix
+   */
+  static string valueOf(ulong value, uint radix)
+  {
+    []ubyte numerals = "0123456789abcdefghijklmnopqrstuvwxyz".bytes;
+    if radix < 2 | radix > numerals.length
+    {
+      return "#RadixError";
+    }
+    if value == 0
+    {
+      return "0";
+    }
+    uint length = 0;
+    ulong test = 1;
+    while test <= value
+    {
+      test *= radix;
+      ++length;
+    }
+    []ubyte bytes = new [length]ubyte;
+    for (uint i = bytes.length - 1; i != 0; --i)
+    {
+      bytes[i] = numerals[cast<uint> (value % radix)];
+      value /= radix;
+    }
+    bytes[0] = numerals[cast<uint> value];
+    return string(bytes);
+  }
+
+  /**
+   * Finds the string which represents the specified float.
+   * @param value - the float value to find the string representation of
+   * @return a string representation of value
+   */
+  static string valueOf(float value)
+  {
+    // TODO: implement
+    return "<float-valueOf()-unimplemented>";
+  }
+
+  /**
+   * Finds the string which represents the specified double.
+   * @param value - the double value to find the string representation of
+   * @return a string representation of value
+   */
+  static string valueOf(double value)
+  {
+    // TODO: implement
+    return "<double-valueOf()-unimplemented>";
+  }
+
+  /**
    * @param bytes - an array of UTF-8 bytes to the find the UTF-32 representation of
    * @return the UTF-32 representation of the specified UTF-8 characters
    */

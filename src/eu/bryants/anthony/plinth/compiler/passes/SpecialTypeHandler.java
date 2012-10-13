@@ -23,8 +23,16 @@ import eu.bryants.anthony.plinth.compiler.ConceptualException;
 public class SpecialTypeHandler
 {
   public static final NamedType STRING_TYPE = new NamedType(false, new QName("string", null), null);
+  private static final String STRING_VALUEOF_NAME = "valueOf";
   public static Constructor stringArrayConstructor;
   public static Constructor stringConcatenationConstructor;
+  public static Method stringValueOfBoolean;
+  public static Method stringValueOfLong;
+  public static Method stringValueOfUlong;
+  public static Method stringValueOfLongRadix;
+  public static Method stringValueOfUlongRadix;
+  public static Method stringValueOfFloat;
+  public static Method stringValueOfDouble;
 
   public static final String MAIN_METHOD_NAME = "main";
 
@@ -65,6 +73,44 @@ public class SpecialTypeHandler
         stringConcatenationConstructor = constructor;
       }
     }
+    for (Method method : typeDefinition.getMethodsByName(STRING_VALUEOF_NAME))
+    {
+      if (!method.getReturnType().isEquivalent(STRING_TYPE) || !method.isStatic())
+      {
+        continue;
+      }
+      Parameter[] parameters = method.getParameters();
+      if (parameters.length == 1 && parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null)))
+      {
+        stringValueOfBoolean = method;
+      }
+      if (parameters.length == 1 && parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.LONG, null)))
+      {
+        stringValueOfLong = method;
+      }
+      if (parameters.length == 1 && parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.ULONG, null)))
+      {
+        stringValueOfUlong = method;
+      }
+      if (parameters.length == 2 && parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.LONG, null)) &&
+                                    parameters[1].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.UINT, null)))
+      {
+        stringValueOfLongRadix = method;
+      }
+      if (parameters.length == 2 && parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.ULONG, null)) &&
+                                    parameters[1].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.UINT, null)))
+      {
+        stringValueOfUlongRadix = method;
+      }
+      if (parameters.length == 1 && parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.FLOAT, null)))
+      {
+        stringValueOfFloat = method;
+      }
+      if (parameters.length == 1 && parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.DOUBLE, null)))
+      {
+        stringValueOfDouble = method;
+      }
+    }
     if (stringArrayConstructor == null)
     {
       throw new ConceptualException("The string type must have a constructor which takes a single " + arrayType + " argument", typeDefinition.getLexicalPhrase());
@@ -72,6 +118,13 @@ public class SpecialTypeHandler
     if (stringConcatenationConstructor == null)
     {
       throw new ConceptualException("The string type must have a constructor which takes two " + STRING_TYPE + " arguments", typeDefinition.getLexicalPhrase());
+    }
+    if (stringValueOfBoolean == null ||
+        stringValueOfLong    == null || stringValueOfLongRadix  == null ||
+        stringValueOfUlong   == null || stringValueOfUlongRadix == null ||
+        stringValueOfFloat   == null || stringValueOfDouble     == null)
+    {
+      throw new ConceptualException("The string type must have the correct static " + STRING_VALUEOF_NAME + " methods", typeDefinition.getLexicalPhrase());
     }
   }
 
@@ -101,5 +154,4 @@ public class SpecialTypeHandler
       throw new ConceptualException("Could not find main method in " + typeDefinition.getQualifiedName(), typeDefinition.getLexicalPhrase());
     }
   }
-
 }
