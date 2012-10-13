@@ -2170,7 +2170,9 @@ public class CodeGenerator
           {
             throw new IllegalStateException("A FieldAccessExpression for a static method should not have a base expression");
           }
+          LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
           LLVMValueRef function = getMethodFunction(method);
+          LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
           function = LLVM.LLVMBuildBitCast(builder, function, typeHelper.findRawFunctionPointerType(functionType), "");
           LLVMValueRef firstArgument = LLVM.LLVMBuildBitCast(builder, notNullValue, typeHelper.getOpaquePointer(), "");
           result = LLVM.LLVMGetUndef(typeHelper.findStandardType(functionType));
@@ -2224,7 +2226,9 @@ public class CodeGenerator
         }
         FunctionType functionType = new FunctionType(false, method.getReturnType(), parameterTypes, null);
 
+        LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
         LLVMValueRef function = getMethodFunction(method);
+        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
         function = LLVM.LLVMBuildBitCast(builder, function, typeHelper.findRawFunctionPointerType(functionType), "");
         LLVMValueRef firstArgument = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
         LLVMValueRef result = LLVM.LLVMGetUndef(typeHelper.findStandardType(functionType));
