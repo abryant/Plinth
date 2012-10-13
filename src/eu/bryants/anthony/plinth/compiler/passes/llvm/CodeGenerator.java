@@ -2325,10 +2325,13 @@ public class CodeGenerator
       else if (resolvedMethod != null)
       {
         LLVMValueRef[] realArguments = new LLVMValueRef[values.length + 1];
-        realArguments[0] = resolvedMethod.isStatic() ? LLVM.LLVMConstNull(typeHelper.getOpaquePointer()) : notNullCallee;
-        if (notNullCallee == null)
+        if (resolvedMethod.isStatic())
         {
-          realArguments[0] = thisValue;
+          realArguments[0] = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
+        }
+        else
+        {
+          realArguments[0] = notNullCallee != null ? notNullCallee : thisValue;
         }
         System.arraycopy(values, 0, realArguments, 1, values.length);
         result = LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(realArguments, false, true), realArguments.length, "");
