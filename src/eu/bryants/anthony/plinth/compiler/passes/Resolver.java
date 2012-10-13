@@ -1130,21 +1130,15 @@ public class Resolver
             throw new IllegalStateException("Unknown base type for a field access: " + fieldAccessExpression);
           }
 
-          if (baseType instanceof NamedType)
+          Set<Member> memberSet = baseType.getMembers(name);
+          for (Member member : memberSet)
           {
-            TypeDefinition typeDefinition = ((NamedType) baseType).getResolvedTypeDefinition();
-            Set<Method> methodSet = typeDefinition.getMethodsByName(name);
-            if (methodSet != null)
+            // only allow access to this method if it is called in the right way, depending on whether or not it is static
+            if (member instanceof Method && ((Method) member).isStatic() == baseIsStatic)
             {
-              for (Method m : methodSet)
-              {
-                // only allow access to this method if it is called in the right way, depending on whether or not it is static
-                if (m.isStatic() == baseIsStatic)
-                {
-                  paramLists.put(m.getParameters(), m);
-                  methodBaseExpressions.put(m, baseExpression);
-                }
-              }
+              Method method = (Method) member;
+              paramLists.put(method.getParameters(), method);
+              methodBaseExpressions.put(method, baseExpression);
             }
           }
         }
