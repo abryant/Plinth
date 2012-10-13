@@ -672,7 +672,7 @@ public class TypeChecker
       Type dimensionType = checkTypes(arrayAccessExpression.getDimensionExpression());
       if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
       {
-        throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, dimensionType.getLexicalPhrase());
+        throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, arrayAccessExpression.getDimensionExpression().getLexicalPhrase());
       }
       Type baseType = ((ArrayType) type).getBaseType();
       arrayAccessExpression.setType(baseType);
