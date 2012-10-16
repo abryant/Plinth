@@ -6,7 +6,7 @@ compound stdin
    * If an error occurs while reading (for example, if the end of the stream is reached), a value less than zero is returned.
    * @return the resulting character, or a value less than 0 on error
    */
-  static native "plinth_stdin_read" int readByte();
+  static native "plinth_stdin_getc" int readByte();
 
   /**
    * Tries to read len characters from stdin into the specified byte array, starting at bytes[off] and ending at bytes[off + len - 1].

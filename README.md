@@ -14,6 +14,11 @@ To compile the compiler:
 
     src$ javac -d ../bin -cp ../lib/jna.jar:. **/*.java
 
+To build the plinth runtime (the runtime is architecture independent, but platform dependent; a pre-built runtime for linux exists at `plinth-lib/core-linux.pbc`):
+
+    plinth-lib$ clang -emit-llvm -o core/c/io.bc -c core/c/io.c
+    plinth-lib$ llvm-link -o core.pbc core/c/io.bc core/*.ll
+
 To run (after making sure your `llvm/lib` folder is in your `LD_LIBRARY_PATH`):
 
     bin$ java -cp ../lib/jna.jar:. eu.bryants.anthony.plinth.compiler.Compiler -o binary.pbc --main-type foo.bar.Test -l ../plinth-lib/core.pbc ../Test.pth ../plinth-src/string.pth ../plinth-src/stdin.pth ../plinth-src/stdout.pth
