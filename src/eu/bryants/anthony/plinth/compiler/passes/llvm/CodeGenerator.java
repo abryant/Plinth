@@ -351,7 +351,8 @@ public class CodeGenerator
     }
 
     // add the native function if the programmer specified one
-    if (method.getNativeName() != null)
+    // but only if we are in the type definition which defines this Method
+    if (method.getNativeName() != null && method.getContainingTypeDefinition() == this.typeDefinition)
     {
       if (method.getBlock() == null)
       {
