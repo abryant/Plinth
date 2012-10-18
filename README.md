@@ -30,7 +30,7 @@ The file `plinth-lib/core.pbc` is the compiled version of `plinth-lib/core/*.ll`
 To generate an executable from the linked bitcode:
 
     llc binary.pbc -o binary.s
-    gcc binary.s -o binary
+    gcc binary.s -o binary -lc -lm
 
 To run your program and check the result:
 
