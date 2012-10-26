@@ -261,7 +261,6 @@ compound string
       return "0";
     }
     uint length = 0;
-    ulong test = 1;
     ulong abs = cast<ulong> value;
     if value < 0
     {
@@ -271,9 +270,10 @@ compound string
       // even if value == long::MIN_VALUE (which cannot be negated),
       // abs will now be the correct unsigned value
     }
-    while test <= abs
+    ulong test = abs;
+    while test != 0
     {
-      test *= radix;
+      test /= radix;
       ++length;
     }
     []ubyte bytes = new [length]ubyte;
@@ -311,10 +311,10 @@ compound string
       return "0";
     }
     uint length = 0;
-    ulong test = 1;
-    while test <= value
+    ulong test = value;
+    while test != 0
     {
-      test *= radix;
+      test /= radix;
       ++length;
     }
     []ubyte bytes = new [length]ubyte;
