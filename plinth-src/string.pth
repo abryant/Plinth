@@ -100,14 +100,14 @@ compound string
    */
   string charAt(uint pos)
   {
-    return substring(pos, 1);
+    return substring(pos, pos + 1);
   }
 
   /**
-   * Finds the character at the specified position in this string, as a uint.
+   * Finds the character code at the specified position in this string, as a uint.
    * @return the uint code of the character at the specified position in this string
    */
-  uint charAt(uint pos)
+  uint charCodeAt(uint pos)
   {
     return getUnicodeChars()[pos];
   }
@@ -118,13 +118,15 @@ compound string
    * @param len - the length of the substring
    * @return the substring of this string with the specified offset and length
    */
-  string substring(uint off, uint len)
+  string substring(uint start, uint end)
   {
+    // TODO: make assertions about arguments
+    uint len = end - start;
     []uint chars = getUnicodeChars();
     []uint subChars = new [len]uint;
     for (uint i = 0; i < len; ++i)
     {
-      subChars[i] = chars[off + i];
+      subChars[i] = chars[start + i];
     }
     return string(subChars);
   }
