@@ -1,0 +1,376 @@
+compound bigint
+{
+  // zero is always positive
+  boolean negative;
+  uint bitLength;
+  // data is a little endian array, so the first element is the least significant
+  // so for a bigint with two ulongs, the binary value would be: data[0] | data[1] << 64
+  []ulong data;
+
+  bigint(boolean negative, ulong value)
+  {
+    this.negative = negative;
+    if value == 0
+    {
+      bitLength = 0;
+      data = new [0]ulong;
+      return;
+    }
+    bitLength = findBitLength(value);
+    data = new []ulong {value};
+  }
+
+  bigint(ulong value)
+  {
+    bigint i = bigint(false, value);
+    negative = false;
+    bitLength = i.bitLength;
+    data = i.data;
+  }
+
+  bigint(boolean negative, []ulong data)
+  {
+    this.negative = negative;
+    this.bitLength = findBitLength(data);
+    this.data = data;
+  }
+
+  /**
+   * Copies the data from this bigint so that it can be modified elsewhere.
+   * @return a copy of the internal data array of this bigint
+   */
+  []ulong copyData()
+  {
+    []ulong copy = new [data.length]ulong;
+    for (uint i = 0; i < data.length; ++i)
+    {
+      copy[i] = data[i];
+    }
+    return copy;
+  }
+
+  /**
+   * Finds the least significant 32 bits of this bigint, and converts them to a uint.
+   * If this bigint is negative, the result is based on its absolute value.
+   * @return the least significant 32 bits of this bigint, as a uint
+   */
+  uint toUint()
+  {
+    if data.length == 0
+    {
+      return 0;
+    }
+    return cast<uint> data[0];
+  }
+
+  /**
+   * Finds the least significant 64 bits of this bigint, and converts them to a ulong.
+   * If this bigint is negative, the result is based on its absolute value.
+   * @return the least significant 64 bits of this bigint, as a ulong
+   */
+  ulong toUlong()
+  {
+    if data.length == 0
+    {
+      return 0;
+    }
+    return data[0];
+  }
+
+  /**
+   * @return the negation of this bigint
+   */
+  bigint negate()
+  {
+    return bigint(!negative, data);
+  }
+
+  /**
+   * Adds this bigint to the specified bigint x, and returns the result.
+   * Neither this nor x are changed.
+   * @param x - the bigint to add to this one
+   * @return the result of the addition
+   */
+  bigint add(bigint x)
+  {
+    if !negative & x.negative
+    {
+      return sub(x.negate());
+    }
+    if negative & !x.negative
+    {
+      return x.sub(this.negate());
+    }
+    boolean resultNegative = false;
+    if negative & x.negative
+    {
+      resultNegative = true;
+    }
+    bigint larger  = bitLength < x.bitLength ? x : this;
+    bigint smaller = bitLength < x.bitLength ? this : x;
+    // find the number of ulongs in the new bigint - we add 1 bit in case we have to carry
+    // (the +63 is to find the ceiling of it after dividing by 64)
+    uint length = (larger.bitLength + 1 + 63) / 64;
+    []ulong newData = new [length]ulong;
+    boolean carry = false;
+    for (uint i = 0; i < (smaller.bitLength + 63) / 64; ++i)
+    {
+      ulong a = larger.data[i];
+      ulong b = smaller.data[i];
+      ulong value;
+      if carry
+      {
+        value = a + b + 1;
+        carry = value <= a;
+      }
+      else
+      {
+        value = a + b;
+        carry = value < a;
+      }
+      newData[i] = value;
+    }
+    for (uint i = (smaller.bitLength + 63) / 64; i < (larger.bitLength + 63) / 64; ++i)
+    {
+      ulong value = larger.data[i] + (carry ? 1 : 0);
+      carry &= value == 0;
+      newData[i] = value;
+    }
+    if carry
+    {
+      newData[(larger.bitLength + 63) / 64] = 1;
+    }
+    return bigint(resultNegative, newData);
+  }
+
+  /**
+   * Subtracts the specified bigint x from this bigint, and returns the result.
+   * Neither this nor x are changed.
+   * @param x - the bigint to subtract from this one
+   * @return the result of the subtraction
+   */
+  bigint sub(bigint x)
+  {
+    if negative != x.negative
+    {
+      return add(x.negate());
+    }
+    bigint larger  = bitLength < x.bitLength ? x : this;
+    bigint smaller = bitLength < x.bitLength ? this : x;
+    boolean thisLarger = bitLength >= x.bitLength;
+    []ulong newData = new [(larger.bitLength + 63) / 64]ulong;
+    boolean borrow = false;
+    for (uint i = 0; i < (smaller.bitLength + 63) / 64; ++i)
+    {
+      ulong a = larger.data[i];
+      ulong b = smaller.data[i];
+      ulong value;
+      if borrow
+      {
+        value = a - b - 1;
+        borrow = b >= a;
+      }
+      else
+      {
+        value = a - b;
+        borrow = b > a;
+      }
+      newData[i] = value;
+    }
+    for (uint i = (smaller.bitLength + 63) / 64; i < (larger.bitLength + 63) / 64; ++i)
+    {
+      ulong value = larger.data[i] - (borrow ? 1 : 0);
+      borrow &= larger.data[i] == 0;
+      newData[i] = value;
+    }
+    // if borrow is true here, then the answer is negative
+    if thisLarger == borrow
+    {
+      // either we have done (this - x) and got a negative answer, or we have done (x - this) and got a positive answer
+      return bigint(true, newData);
+    }
+    // either we have done (this - x) and got a positive answer, or we have done (x - this) and got a negative answer
+    return bigint(false, newData);
+  }
+
+  /**
+   * Multiplies this bigint by the specified ulong, and returns the result.
+   * This bigint's value is not changed.
+   * @param n - the ulong to multiply by
+   * @return the result of the multiplication
+   */
+  bigint mult(ulong n)
+  {
+    // find the number of ulongs in the new bigint - we add 64 bits in case we have to carry
+    // (the +63 is to find the ceiling of it after dividing by 64)
+    uint length = (bitLength + 64 + 63) / 64;
+    []ulong newData = new [length]ulong;
+    ulong carry = 0;
+    uint high, low = cast<uint> (n >> 32), cast<uint> (n & 0xFFFFFFFF);
+    for (uint i = 0; i < data.length; ++i)
+    {
+      ulong thisLow = data[i] & 0xFFFFFFFF;
+      ulong thisHigh = data[i] >> 32;
+      ulong lowPart = (thisLow * low) + carry;
+      ulong highPart = (thisLow * high) + (thisHigh * low);
+      ulong overflow = highPart < thisHigh * low ? 1 << 32 : 0;
+      highPart += lowPart >> 32;
+      overflow += highPart < (lowPart >> 32) ? 1 << 32 : 0;
+      newData[i] = (highPart << 32) | (lowPart & 0xFFFFFFFF);
+      carry = (thisHigh * high) + overflow + (highPart >> 32) + (lowPart < carry ? 1 : 0);
+    }
+    if carry != 0
+    {
+      newData[data.length] = carry;
+    }
+    return bigint(negative, newData);
+  }
+
+  /**
+   * Shifts this bigint to the left by n bits, and returns the result.
+   * This bigint's value is not changed.
+   * @param n - the number of bits to shift the value left.
+   * @return the result of the bit shift
+   */
+  bigint shiftLeft(uint n)
+  {
+    // find the number of ulongs in the new bigint
+    // (the +63 is to find the ceiling of it after dividing by 64)
+    uint length = (bitLength + n + 63) / 64;
+    []ulong newData = new [length]ulong;
+    uint zeroElements = n / 64;
+    for (uint i = 0; i < zeroElements; ++i)
+    {
+      newData[i] = 0;
+    }
+    uint finalZeros = n % 64;
+    if finalZeros == 0
+    {
+      for (uint i = 0; i < data.length; ++i)
+      {
+        newData[zeroElements + i] = data[i];
+      }
+    }
+    else
+    {
+      ulong carry = 0;
+      for (uint i = 0; i < data.length; ++i)
+      {
+        ulong value = data[i];
+        newData[zeroElements + i] = (value << finalZeros) | carry;
+        carry = value >> (64 - finalZeros);
+      }
+      if zeroElements + data.length < newData.length
+      {
+        newData[zeroElements + data.length] = carry;
+      }
+    }
+    return bigint(negative, newData);
+  }
+
+  /**
+   * Compares this bigint to the specified other bigint.
+   * @param other - the bigint to compare this one to
+   * @return a value less than zero if this is less than other, greater than zero if this is greater than other, or zero if the values are the same
+   */
+  int compareTo(bigint other)
+  {
+    if negative & !other.negative
+    {
+      return -1;
+    }
+    if !negative & other.negative
+    {
+      return 1;
+    }
+    // if we are negative, the value being bigger actually makes us smaller
+    int bigger = negative ? -1 : 1;
+    if bitLength < other.bitLength { return -bigger; }
+    if bitLength > other.bitLength { return bigger; }
+    uint commonLength = maths::min(data.length, other.data.length);
+    for (uint i = 0; i < commonLength; ++i)
+    {
+      ulong a = data[commonLength - 1 - i];
+      ulong b = other.data[commonLength - 1 - i];
+      if a < b
+      {
+        return -bigger;
+      }
+      if a > b
+      {
+        return bigger;
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * Converts this bigint into a hexadecimal string.
+   * @return the hexadecimal string representation of this bigint
+   */
+  string toHexString()
+  {
+    []ubyte numerals = "0123456789abcdef".bytes;
+    []ubyte hexChars = new [(bitLength + 3) / 4]ubyte;
+    for (uint i = 0; i < hexChars.length; ++i)
+    {
+      uint bitIndex = (hexChars.length - 1 - i) * 4;
+      ulong value = (data[bitIndex / 64] >> (bitIndex % 64)) & 0xf;
+      hexChars[i] = numerals[cast<uint> value];
+    }
+    return (negative ? "-" : "") + string(hexChars);
+  }
+
+  /**
+   * Finds the nth power of two, by bit shifting a single one bit left n times.
+   * @param n - the number to raise to the power of two
+   * @return a bigint representing the nth power of two
+   */
+  static bigint getPowerOfTwo(uint n)
+  {
+    uint zeroElements = n / 64;
+    uint finalZeros = n % 64;
+    []ulong data = new [zeroElements + 1]ulong;
+    for (uint i = 0; i < zeroElements; ++i)
+    {
+      data[i] = 0;
+    }
+    data[zeroElements] = (cast<ulong> 1) << finalZeros;
+    return bigint(false, data);
+  }
+
+  /**
+   * Finds the bit length of a ulong.
+   * Adapted from http://www-graphics.stanford.edu/~seander/bithacks.html#IntegerLog
+   */
+  static uint findBitLength(ulong value)
+  {
+    if value == 0
+    {
+      return 0;
+    }
+    uint result = (value > 0xFFFFFFFF ? 1 : 0) << 5; value >>= result;
+    uint shift  = (value > 0x0000FFFF ? 1 : 0) << 4; value >>= shift; result |= shift;
+         shift  = (value > 0x000000FF ? 1 : 0) << 3; value >>= shift; result |= shift;
+         shift  = (value > 0x0000000F ? 1 : 0) << 2; value >>= shift; result |= shift;
+         shift  = (value > 0x00000003 ? 1 : 0) << 1; value >>= shift; result |= shift;
+    result |= cast<uint> value >> 1;
+    return result + 1;
+  }
+
+  /**
+   * Finds the bit length of a bigint's data array.
+   */
+  static uint findBitLength([]ulong data)
+  {
+    uint bitLength = 0;
+    for (uint i = data.length - 1; i > 0; --i)
+    {
+      if data[i] != 0
+      {
+        return i * 64 + findBitLength(data[i]);
+      }
+    }
+    return findBitLength(data[0]);
+  }
+}
