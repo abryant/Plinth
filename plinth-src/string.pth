@@ -132,6 +132,33 @@ compound string
   }
 
   /**
+   * Finds the index of the specified string inside this one.
+   * @param s - the string to find the index of
+   * @return the index of the specified string inside this string, or null if it does not occur
+   */
+  ?uint indexOf(string s)
+  {
+    []uint chars = getUnicodeChars();
+    []uint otherChars = getUnicodeChars();
+    for (uint i = 0; i < chars.length - otherChars.length; ++i)
+    {
+      if chars[i] == otherChars[0]
+      {
+        for (uint j = 0; j < otherChars.length; ++j)
+        {
+          if chars[i + j] != otherChars[j]
+          {
+            // continue with the outer loop
+            continue 2;
+          }
+        }
+        return i;
+      }
+    }
+    return null;
+  }
+
+  /**
    * @return the UTF-32 code points of the characters of this string.
    */
   []uint getUnicodeChars()
