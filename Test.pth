@@ -13,6 +13,8 @@ class Test
     // find all of the command line arguments
     string fullargs = concatMap(addSpace, args);
     stdout::println("Your " + args.length.toString() + " arguments were:" + fullargs);
+
+    stdout::println(0.00000000123456789.toString());
     return args.length;
   }
 

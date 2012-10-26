@@ -334,8 +334,36 @@ compound string
    */
   static string valueOf(float value)
   {
-    // TODO: implement
-    return "<float-valueOf()-unimplemented>";
+    uint binaryValue = maths::convertFloatBitsToUint(value);
+    boolean negative = (binaryValue & 0b10000000000000000000000000000000) != 0;
+    uint rawExponent = (binaryValue & 0b01111111100000000000000000000000) >> 23;
+    uint mantissa    = (binaryValue & 0b00000000011111111111111111111111);
+    if rawExponent == 0 & mantissa == 0
+    {
+      return negative ? "-0.0" : "0.0";
+    }
+    if rawExponent == 0b11111111
+    {
+      if mantissa == 0
+      {
+        return negative ? "-Infinity" : "Infinity";
+      }
+      return "NaN";
+    }
+    int exponent;
+    if rawExponent == 0
+    {
+      exponent = -126;
+    }
+    else
+    {
+      exponent = cast<int> rawExponent - 127;
+      mantissa |= 0b00000000100000000000000000000000;
+    }
+
+    (int, []ubyte) decimalExponent, digits = maths::findFloatingPointDigits(mantissa, 23, exponent - 23, -126 - 23, 9);
+    boolean startWithOne = digits.length > 0 & digits[0] == 10;
+    return formatFloatingDigits(negative, decimalExponent, digits, startWithOne);
   }
 
   /**
@@ -345,8 +373,134 @@ compound string
    */
   static string valueOf(double value)
   {
-    // TODO: implement
-    return "<double-valueOf()-unimplemented>";
+    ulong binaryValue = maths::convertDoubleBitsToUlong(value);
+    boolean negative =  (binaryValue & 0b1000000000000000000000000000000000000000000000000000000000000000) != 0;
+    ulong rawExponent = (binaryValue & 0b0111111111110000000000000000000000000000000000000000000000000000) >> 52;
+    ulong mantissa   =  (binaryValue & 0b0000000000001111111111111111111111111111111111111111111111111111);
+    if rawExponent == 0 & mantissa == 0
+    {
+      return negative ? "-0.0" : "0.0";
+    }
+    if rawExponent == 0b11111111111
+    {
+      if mantissa == 0
+      {
+        return negative ? "-Infinity" : "Infinity";
+      }
+      return "NaN";
+    }
+    int exponent;
+    if rawExponent == 0
+    {
+      exponent = -1022;
+    }
+    else
+    {
+      exponent = cast<int> cast<uint> rawExponent - 1023;
+      mantissa |= 0b0000000000010000000000000000000000000000000000000000000000000000;
+    }
+
+    (int, []ubyte) decimalExponent, digits = maths::findFloatingPointDigits(mantissa, 52, exponent - 52, -1022 - 52, 17);
+    boolean startWithOne = digits.length > 0 & digits[0] == 10;
+    return formatFloatingDigits(negative, decimalExponent, digits, startWithOne);
+  }
+
+  /**
+   * Finds the string which represents the specified array of floating point digits, in the format produced by maths::findFloatingPointDigits().
+   * @param negative - true if the number is negative, false otherwise
+   * @param decimalExponent - the decimal exponent to be applied to the digits
+   * @param digits - the digits of the floating point number, in the format 0.[d0][d1][d2][d3][d4]...
+   * @param startWithOne - true iff the digits array begins with a 10, implying that the number before the decimal point is a 1 instead of a 0
+   * @return the string representation of the specified floating point digits
+   */
+  static string formatFloatingDigits(boolean negative, int decimalExponent, []ubyte digits, boolean startWithOne)
+  {
+    if startWithOne
+    {
+      digits[0] = 0;
+    }
+    ubyte zero = "0".bytes[0];
+    if decimalExponent > 9 | decimalExponent < -6
+    {
+      if !startWithOne
+      {
+        --decimalExponent;
+      }
+      boolean digitsAfterPoint = digits.length > (startWithOne ? 0 : 1);
+      []ubyte bytes = new [(startWithOne ? 1 : 0) + 1 + digits.length + (digitsAfterPoint ? 0 : 1)]ubyte;
+      bytes[0] = startWithOne ? "1".bytes[0] : zero + digits[0];
+      bytes[1] = ".".bytes[0];
+      if !digitsAfterPoint
+      {
+        bytes[2] = zero;
+      }
+      uint offset = startWithOne ? 0 : 1;
+      for (uint i = 0; i < digits.length - offset; ++i)
+      {
+        bytes[2 + i] = zero + digits[i + offset];
+      }
+      return (negative ? "-" : "") + string(bytes) + "E" + decimalExponent.toString();
+    }
+    if decimalExponent > 0
+    {
+      // if it starts with one, we need an extra digit for that one
+      // if the whole number is in the integer part, we need to pad with zeros and add a zero after the decimal point
+      uint length = (startWithOne ? 1 : 0) + 1 + (decimalExponent >= digits.length ? cast<uint> decimalExponent + 1 : digits.length);
+      []ubyte bytes = new [length]ubyte;
+      uint offset = 0;
+      if startWithOne
+      {
+        bytes[0] = "1".bytes[0];
+        offset = 1;
+      }
+      for (uint i = 0; i < digits.length & i < decimalExponent; ++i)
+      {
+        bytes[offset + i] = zero + digits[i];
+      }
+      if decimalExponent >= digits.length
+      {
+        // pad with zeros, and add ".0" to the end
+        for (uint i = digits.length; i < decimalExponent; ++i)
+        {
+          bytes[offset + i] = zero;
+        }
+        bytes[offset + cast<uint> decimalExponent] = ".".bytes[0];
+        bytes[offset + cast<uint> decimalExponent + 1] = zero;
+        return (negative ? "-" : "") + string(bytes);
+      }
+      bytes[offset + cast<uint> decimalExponent] = ".".bytes[0];
+      for (uint i = cast<uint> decimalExponent; i < digits.length; ++i)
+      {
+        bytes[offset + 1 + i] = zero + digits[i];
+      }
+      return (negative ? "-" : "") + string(bytes);
+    }
+    if decimalExponent == 0
+    {
+      []ubyte bytes = new [2 + digits.length]ubyte;
+      bytes[0] = zero + (startWithOne ? 1 : 0);
+      bytes[1] = ".".bytes[0];
+      for (uint i = 0; i < digits.length; ++i)
+      {
+        bytes[2 + i] = zero + digits[i];
+      }
+      return (negative ? "-" : "") + string(bytes);
+    }
+    []ubyte bytes = new [2 + cast<uint> (-decimalExponent) + digits.length]ubyte;
+    bytes[0] = zero;
+    bytes[1] = ".".bytes[0];
+    // pad with zeros
+    for (uint i = 0; i < cast<uint> (-decimalExponent) - 1; ++i)
+    {
+      bytes[2 + i] = zero;
+    }
+    uint offset = 2 + cast<uint> (-decimalExponent);
+    bytes[offset - 1] = zero + (startWithOne ? 1 : 0);
+    for (uint i = 0; i < digits.length; ++i)
+    {
+      bytes[offset + i] = zero + digits[i];
+    }
+    return (negative ? "-" : "") + string(bytes);
   }
 
   /**

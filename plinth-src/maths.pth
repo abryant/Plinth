@@ -168,4 +168,272 @@ compound maths
    * @return the square root of x
    */
   static native "sqrt" double sqrt(double x);
+
+  /**
+   * Finds the decimal digits of the floating point number with the specified mantissa and exponent.
+   * In terms of the mantissa and exponent, this function takes the value of the double as: mantissa * (2 ^ exponent)
+   * This function also rounds to even once it has generated maxDigits digits. If the number rounds up to 1 because of this,
+   * then the first digit returned will be 10, and successive digits will all be zero.
+   * This function uses the algorithm described in the following paper: Burger, Robert G., and R. Kent Dybvig. "Printing floating-point numbers quickly and accurately." ACM SIGPLAN Notices. Vol. 31. No. 5. ACM, 1996.
+   * It is an adapted version of the C code by Robert G. Burger, linked from: http://www.cs.indiana.edu/~burger/fp/index.html, in "free.c"
+   * @param mantissa - a ulong representing the mantissa of the double
+   * @param mantissaBitLength - the number of bits that the mantissa uses in this floating point format
+   * @param exponent - the number of powers of two that the mantissa must be multiplied by in order to reach the actual value of the double
+   * @param minimumExponent - the minimum possible value for exponent in this floating point format, including the mantissa's bit length (e.g. -126 - 23 for float)
+   * @param maxDigits - the maximum number of digits to return
+   * @return a tuple of the decimal exponent, and the digits representing the decimal mantissa, in the format 0.[d0][d1][d2][d3][d4]...
+   */
+  static (int, []ubyte) findFloatingPointDigits(ulong mantissa, uint mantissaBitLength, int exponent, int minimumExponent, uint maxDigits)
+  {
+    boolean even = (mantissa & 0b1) == 0;
+
+    // step 1: lookup the values in the table (we don't turn them into bigints yet, just keep them as exponents for step 3)
+    uint rExp, sExp, mExp;
+    boolean separateRoundingWidths;
+    if exponent >= 0
+    {
+      if mantissa == (cast<ulong> 1 << mantissaBitLength)
+      {
+        rExp, sExp, mExp = cast<uint> exponent + 2, 2, cast<uint> exponent;
+        separateRoundingWidths = true;
+      }
+      else
+      {
+        rExp, sExp, mExp = cast<uint> exponent + 1, 1, cast<uint> exponent;
+        separateRoundingWidths = false;
+      }
+    }
+    else
+    {
+      if exponent > minimumExponent & mantissa == (cast<ulong> 1 << mantissaBitLength)
+      {
+        rExp, sExp, mExp = 2, cast<uint> (2 - exponent), 0;
+        separateRoundingWidths = true;
+      }
+      else
+      {
+        rExp, sExp, mExp = 1, cast<uint> (1 - exponent), 0;
+        separateRoundingWidths = false;
+      }
+    }
+
+    // step 2: estimate the decimal exponent, by multiplying the binary exponent by log_10(2)
+    // if the exponent is negative, we round down, if it's positive, we round up
+    // this either gives us the actual decimal exponent, or a value 1 greater than it
+    uint mantissaLength = bigint::findBitLength(mantissa);
+    int decimalExponent = (exponent + mantissaLength - 1) < 0 ? cast<int> ((exponent + mantissaLength - 1) * 0.3010299956639812) : cast<int> (1 + (exponent + mantissaLength - 1) * 0.3010299956639811);
+
+    // step 3: scale the values of r, s, m+, and m-, and find their values using the exponents
+    bigint r, s, mPlus, mMinus;
+    boolean sPowerOfTwo;
+    if decimalExponent == 0
+    {
+      r = bigint(mantissa).shiftLeft(rExp);
+      s = bigint::getPowerOfTwo(sExp);
+      sPowerOfTwo = true;
+      mMinus = bigint::getPowerOfTwo(mExp);
+      mPlus = separateRoundingWidths ? bigint::getPowerOfTwo(mExp + 1) : mMinus;
+    }
+    else if decimalExponent > 0
+    {
+      sExp += cast<uint> decimalExponent;
+      rExp, sExp, mExp -= maths::min(mExp, sExp);
+      r = bigint(mantissa).shiftLeft(rExp);
+      s = bigint(1);
+      for (uint i = 0; i < decimalExponent; ++i)
+      {
+        s = s.mult(5);
+      }
+      s = s.shiftLeft(sExp);
+      sPowerOfTwo = false;
+      mMinus = bigint::getPowerOfTwo(mExp);
+      mPlus = separateRoundingWidths ? bigint::getPowerOfTwo(mExp + 1) : mMinus;
+    }
+    else // decimalExponent < 0
+    {
+      bigint power = bigint(1);
+      for (uint i = 0; i < -decimalExponent; ++i)
+      {
+        power = power.mult(5);
+      }
+      sExp -= cast<uint> (0 - decimalExponent);
+      r = power.mult(mantissa).shiftLeft(rExp);
+      s = bigint::getPowerOfTwo(sExp);
+      sPowerOfTwo = true;
+      mMinus = power.shiftLeft(mExp);
+      mPlus = separateRoundingWidths ? power.shiftLeft(mExp + 1) : mMinus;
+    }
+
+    // make sure the value for decimalExponent is accurate (fix up our old estimate)
+    if r.add(mPlus).compareTo(s) <= (even ? -1 : 0)
+    {
+      --decimalExponent;
+      r = r.mult(10);
+      mMinus = mMinus.mult(10);
+      mPlus = separateRoundingWidths ? mPlus.mult(10) : mMinus;
+    }
+
+    // find the multiples of s, if we need to use them in the quotient-remainder process
+    ?[]bigint sMultiples = null;
+    if !sPowerOfTwo
+    {
+      bigint m1 = s;
+      bigint m2 = s.shiftLeft(1);
+      bigint m3 = m1.add(m2);
+      bigint m4 = s.shiftLeft(2);
+      bigint m5 = m4.add(m1);
+      bigint m6 = m4.add(m2);
+      bigint m7 = m6.add(m1);
+      bigint m8 = s.shiftLeft(3);
+      bigint m9 = m1.add(m8);
+      sMultiples = new []bigint {m1, m2, m3, m4, m5, m6, m7, m8, m9};
+    }
+
+    []ubyte digits = new [maxDigits]ubyte;
+    uint digitIndex = 0;
+    while true
+    {
+      ubyte digit;
+      if sPowerOfTwo
+      {
+        if (r.bitLength / 64) < (sExp / 64)
+        {
+          digit = 0;
+        }
+        else if (r.bitLength / 64) == (sExp / 64)
+        {
+          []ulong data = r.copyData();
+          digit = cast<ubyte> (data[sExp / 64] >> (sExp % 64));
+          data[sExp / 64] &= (cast<ulong> 1 << (sExp % 64)) - 1;
+          r = bigint(false, data);
+        }
+        else
+        {
+          []ulong data = r.copyData();
+          digit = cast<ubyte> ((data[(sExp / 64) + 1] << (64 - (sExp % 64))) | (data[sExp / 64] >> (sExp % 64)));
+          data[sExp / 64] &= (cast<ulong> 1 << (sExp % 64)) - 1;
+          data[(sExp / 64) + 1] = 0;
+          r = bigint(false, data);
+        }
+      }
+      else
+      {
+        []bigint mults = cast<[]bigint> sMultiples;
+        if r.compareTo(mults[4]) < 0
+        {
+          if r.compareTo(mults[1]) < 0
+          {
+            if r.compareTo(mults[0]) < 0
+            {
+              digit = 0;
+            }
+            else
+            {
+              digit = 1;
+              r = r.sub(mults[0]);
+            }
+          }
+          else if r.compareTo(mults[2]) < 0
+          {
+            digit = 2;
+            r = r.sub(mults[1]);
+          }
+          else if r.compareTo(mults[3]) < 0
+          {
+            digit = 3;
+            r = r.sub(mults[2]);
+          }
+          else
+          {
+            digit = 4;
+            r = r.sub(mults[3]);
+          }
+        }
+        else if r.compareTo(mults[6]) < 0
+        {
+          if r.compareTo(mults[5]) < 0
+          {
+            digit = 5;
+            r = r.sub(mults[4]);
+          }
+          else
+          {
+            digit = 6;
+            r = r.sub(mults[5]);
+          }
+        }
+        else if r.compareTo(mults[8]) < 0
+        {
+          if r.compareTo(mults[7]) < 0
+          {
+            digit = 7;
+            r = r.sub(mults[6]);
+          }
+          else
+          {
+            digit = 8;
+            r = r.sub(mults[7]);
+          }
+        }
+        else
+        {
+          digit = 9;
+          r = r.sub(mults[8]);
+        }
+      }
+
+      boolean negativeTest = r.compareTo(mMinus) < (even ? 1 : 0);
+      boolean positiveTest = r.add(mPlus).compareTo(s) > (even ? -1 : 0);
+      if negativeTest
+      {
+        if positiveTest && r.shiftLeft(1).compareTo(s) >= 0
+        {
+          digits[digitIndex] = digit + 1;
+          ++digitIndex;
+          break;
+        }
+        digits[digitIndex] = digit;
+        ++digitIndex;
+        break;
+      }
+      if positiveTest
+      {
+        digits[digitIndex] = digit + 1;
+        ++digitIndex;
+        break;
+      }
+      r = r.mult(10);
+      mMinus = mMinus.mult(10);
+      mPlus = separateRoundingWidths ? mPlus.mult(10) : mMinus;
+      digits[digitIndex] = digit;
+      ++digitIndex;
+      if digitIndex == digits.length
+      {
+        // we don't have any more digits left, so round it off, half to even
+        int comparison = r.shiftLeft(1).compareTo(s);
+        boolean roundUp = comparison > 0 | (comparison == 0 & digits[digitIndex - 1] % 2 == 0);
+        if roundUp
+        {
+          ++digits[digitIndex - 1];
+          uint i = digitIndex - 1;
+          while i > 0 & digits[i] == 10
+          {
+            digits[i] = 0;
+            --i;
+            ++digits[i];
+          }
+          // if we have reached i == 0, then digits[0] == 10
+          // since we have no way of representing a result of 1 to the caller, we leave the first digit as 10 so that they can process it specially
+        }
+        break;
+      }
+    }
+
+    []ubyte resultDigits = new [digitIndex]ubyte;
+    for (uint i = 0; i < digitIndex; ++i)
+    {
+      resultDigits[i] = digits[i];
+    }
+    return decimalExponent + 1, resultDigits;
+  }
 }
