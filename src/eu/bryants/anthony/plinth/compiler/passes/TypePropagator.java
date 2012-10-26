@@ -225,7 +225,10 @@ public class TypePropagator
     else if (statement instanceof ReturnStatement)
     {
       ReturnStatement returnStatement = (ReturnStatement) statement;
-      propagateTypes(returnStatement.getExpression(), returnType);
+      if (!(returnType instanceof VoidType))
+      {
+        propagateTypes(returnStatement.getExpression(), returnType);
+      }
     }
     else if (statement instanceof ShorthandAssignStatement)
     {
