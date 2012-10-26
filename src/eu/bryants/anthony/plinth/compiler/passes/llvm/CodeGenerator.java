@@ -1,6 +1,7 @@
 package eu.bryants.anthony.plinth.compiler.passes.llvm;
 
 import java.io.UnsupportedEncodingException;
+import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -2423,8 +2424,17 @@ public class CodeGenerator
     }
     if (expression instanceof IntegerLiteralExpression)
     {
-      int n = ((IntegerLiteralExpression) expression).getLiteral().getValue().intValue();
-      LLVMValueRef value = LLVM.LLVMConstInt(typeHelper.findStandardType(TypeChecker.findTypeWithNullability(expression.getType(), false)), n, false);
+      BigInteger bigintValue = ((IntegerLiteralExpression) expression).getLiteral().getValue();
+      byte[] bytes = bigintValue.toByteArray();
+      // convert the big-endian byte[] from the BigInteger into a little-endian long[] for LLVM
+      long[] longs = new long[(bytes.length + 7) / 8];
+      for (int i = 0; i < bytes.length; ++i)
+      {
+        int longIndex = (bytes.length - 1 - i) / 8;
+        int longBitPos = ((bytes.length - 1 - i) % 8) * 8;
+        longs[longIndex] |= (((long) bytes[i]) & 0xff) << longBitPos;
+      }
+      LLVMValueRef value = LLVM.LLVMConstIntOfArbitraryPrecision(typeHelper.findStandardType(TypeChecker.findTypeWithNullability(expression.getType(), false)), longs.length, longs);
       return typeHelper.convertStandardToTemporary(value, TypeChecker.findTypeWithNullability(expression.getType(), false), expression.getType(), llvmFunction);
     }
     if (expression instanceof LogicalExpression)

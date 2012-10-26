@@ -174,6 +174,7 @@ public class LLVM
   public static native void LLVMAddIncoming(LLVMValueRef phiNode, Pointer incomingValues, Pointer incomingBlocks, int count);
 
   public static native LLVMValueRef LLVMConstInt(LLVMTypeRef type, long n, boolean signExtend);
+  public static native LLVMValueRef LLVMConstIntOfArbitraryPrecision(LLVMTypeRef type, int numWords, long[] words);
   public static native LLVMValueRef LLVMConstReal(LLVMTypeRef type, double n);
   public static native LLVMValueRef LLVMConstNull(LLVMTypeRef type);
   public static native LLVMValueRef LLVMConstArray(LLVMTypeRef elementType, Pointer constantValues, int constantValueCount);
