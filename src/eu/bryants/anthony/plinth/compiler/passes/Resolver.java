@@ -852,55 +852,74 @@ public class Resolver
       }
       // resolve the constructor being called
       Collection<Constructor> constructors = type.getResolvedTypeDefinition().getConstructors();
-      Constructor resolvedConstructor = null;
-      Constructor mostRelevantConstructor = null;
-      int mostRelevantArgCount = -1;
+      Map<Parameter[], Constructor> parameterLists = new HashMap<Parameter[], Constructor>();
       for (Constructor constructor : constructors)
       {
-        Parameter[] parameters = constructor.getParameters();
-        boolean typesMatch = parameters.length == arguments.length;
-        if (typesMatch)
+        parameterLists.put(constructor.getParameters(), constructor);
+      }
+      filterParameterLists(parameterLists.entrySet(), arguments, false, false);
+
+      // if there are multiple parameter lists, try to narrow it down to one that is equivalent to the argument list
+      if (parameterLists.size() > 1)
+      {
+        Map<Parameter[], Constructor> backupParamLists = new HashMap<Parameter[], Constructor>(parameterLists);
+
+        filterParameterLists(parameterLists.entrySet(), arguments, true, false);
+
+        // if we have filtered out all of the parameter lists, try to narrow it down again, but this time allow nullable versions of argument types for parameters
+        if (parameterLists.isEmpty())
         {
-          for (int i = 0; i < parameters.length; ++i)
+          // revert back to the unfiltered one, and refilter with a broader condition
+          parameterLists = backupParamLists;
+          filterParameterLists(parameterLists.entrySet(), arguments, true, true);
+        }
+      }
+
+      if (parameterLists.size() > 1)
+      {
+        throw new ConceptualException("Ambiguous constructor call, there are at least two applicable constructors which take these arguments", classCreationExpression.getLexicalPhrase());
+      }
+      if (parameterLists.isEmpty())
+      {
+        // since we failed to resolve the constructor, pick the most relevant one so that the type checker can point out exactly why it failed to match
+        Constructor mostRelevantConstructor = null;
+        int mostRelevantArgCount = -1;
+        for (Constructor constructor : constructors)
+        {
+          Parameter[] parameters = constructor.getParameters();
+          if (parameters.length == arguments.length)
           {
-            typesMatch &= parameters[i].getType().canAssign(argumentTypes[i]);
-            if (!typesMatch)
+            for (int i = 0; i < parameters.length; ++i)
             {
-              if (i + 1 > mostRelevantArgCount)
+              if (!parameters[i].getType().canAssign(argumentTypes[i]))
               {
-                mostRelevantConstructor = constructor;
-                mostRelevantArgCount = i + 1;
+                if (i + 1 > mostRelevantArgCount)
+                {
+                  mostRelevantConstructor = constructor;
+                  mostRelevantArgCount = i + 1;
+                }
+                break;
               }
-              break;
             }
           }
         }
-        if (typesMatch)
-        {
-          if (resolvedConstructor != null)
-          {
-            throw new ConceptualException("Ambiguous constructor call, there are at least two applicable functions which take these arguments", classCreationExpression.getLexicalPhrase());
-          }
-          resolvedConstructor = constructor;
-        }
-      }
-      if (resolvedConstructor == null)
-      {
-        // since we failed to resolve the constructor, pick the most relevant one so that the type checker can point out exactly why it failed to match
         if (mostRelevantConstructor != null)
         {
-          resolvedConstructor = mostRelevantConstructor;
+          classCreationExpression.setResolvedConstructor(mostRelevantConstructor);
         }
         else if (constructors.size() >= 1)
         {
-          resolvedConstructor = constructors.iterator().next();
+          classCreationExpression.setResolvedConstructor(constructors.iterator().next());
         }
         else
         {
           throw new ConceptualException("Cannot create a '" + type + "' because it has no constructors", classCreationExpression.getLexicalPhrase());
         }
       }
-      classCreationExpression.setResolvedConstructor(resolvedConstructor);
+      else // if !parameterLists.isEmpty()
+      {
+        classCreationExpression.setResolvedConstructor(parameterLists.entrySet().iterator().next().getValue());
+      }
     }
     else if (expression instanceof EqualityExpression)
     {
@@ -1321,13 +1340,14 @@ public class Resolver
    * @param arguments - the arguments to filter the parameter lists based on
    * @param ensureEquivalent - true to filter out parameter lists which do not have equivalent types to the arguments, false to just check whether they are assign-compatible
    * @param allowNullable - true to ignore the nullability of the parameter types in the equivalence check, false to check for strict equivalence.
+   * @param M - the Member type for the set of entries (this is never actually used)
    */
-  private void filterParameterLists(Set<Entry<Parameter[], Member>> paramLists, Expression[] arguments, boolean ensureEquivalent, boolean allowNullable)
+  private <M extends Member> void filterParameterLists(Set<Entry<Parameter[], M>> paramLists, Expression[] arguments, boolean ensureEquivalent, boolean allowNullable)
   {
-    Iterator<Entry<Parameter[], Member>> it = paramLists.iterator();
+    Iterator<Entry<Parameter[], M>> it = paramLists.iterator();
     while (it.hasNext())
     {
-      Entry<Parameter[], Member> entry = it.next();
+      Entry<Parameter[], M> entry = it.next();
       Parameter[] parameters = entry.getKey();
       boolean typesMatch = parameters.length == arguments.length;
       if (typesMatch)

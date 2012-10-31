@@ -2,6 +2,19 @@ package foo.bar;
 
 class Test
 {
+  Test(uint a)
+  {
+    stderr::println("Test(uint)");
+  }
+  Test(short c)
+  {
+    stderr::println("Test(short)");
+  }
+  Test(?ubyte b)
+  {
+    stderr::println("Test(?ubyte)");
+  }
+
   static uint main([]string args)
   {
     stdout::print("Please enter your name: ");
@@ -16,6 +29,7 @@ class Test
 
     stdout::println("0.00000000123456789 = " + 0.00000000123456789.toString());
     stdout::println("maths::abs(-1) = " + maths::abs(-1).toString());
+    new Test(2);
     return args.length;
   }
 
