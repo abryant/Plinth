@@ -12,7 +12,7 @@ To run the compiler, you will need an LLVM shared library to be installed. The v
 
 To compile the compiler:
 
-    src$ javac -d ../bin -cp ../lib/jna.jar:. **/*.java
+    src$ find . -name \*.java | xargs javac -d ../bin -cp ../lib/jna.jar:.
 
 To build the plinth runtime (the runtime is architecture independent, but platform dependent; a pre-built runtime for linux exists at `plinth-lib/core-linux.pbc`):
 
