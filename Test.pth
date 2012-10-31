@@ -14,7 +14,8 @@ class Test
     string fullargs = concatMap(addSpace, args);
     stdout::println("Your " + args.length.toString() + " arguments were:" + fullargs);
 
-    stdout::println(0.00000000123456789.toString());
+    stdout::println("0.00000000123456789 = " + 0.00000000123456789.toString());
+    stdout::println("maths::abs(-1) = " + maths::abs(-1).toString());
     return args.length;
   }
 

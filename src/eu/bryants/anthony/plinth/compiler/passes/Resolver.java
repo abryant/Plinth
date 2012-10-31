@@ -74,6 +74,7 @@ import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
+import eu.bryants.anthony.plinth.ast.type.NullType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
@@ -1152,50 +1153,30 @@ public class Resolver
         }
       }
 
-      // resolve the called function
-      boolean resolved = false;
-      for (Entry<Parameter[], Member> entry : paramLists.entrySet())
+      // filter out parameter lists which are not assign-compatible with the arguments
+      filterParameterLists(paramLists.entrySet(), expr.getArguments(), false, false);
+
+      // if there are multiple parameter lists, try to narrow it down to one that is equivalent to the argument list
+      if (paramLists.size() > 1)
       {
-        Parameter[] parameters = entry.getKey();
-        // make sure the types match, otherwise we need to find another candidate
-        boolean typesMatch = parameters.length == expr.getArguments().length;
-        if (typesMatch)
+        Map<Parameter[], Member> backupParamLists = new HashMap<Parameter[], Member>(paramLists);
+
+        filterParameterLists(paramLists.entrySet(), expr.getArguments(), true, false);
+
+        // if we have filtered out all of the parameter lists, try to narrow it down again, but this time allow nullable versions of argument types for parameters
+        if (paramLists.isEmpty())
         {
-          for (int i = 0; i < parameters.length; i++)
-          {
-            Type parameterType = parameters[i].getType();
-            Type argumentType = expr.getArguments()[i].getType();
-            if (!parameterType.canAssign(argumentType))
-            {
-              typesMatch = false;
-              break;
-            }
-          }
-        }
-        if (typesMatch)
-        {
-          if (resolved)
-          {
-            throw new ConceptualException("Ambiguous function call, there are at least two applicable functions which take these arguments", expr.getLexicalPhrase());
-          }
-          else if (entry.getValue() instanceof Constructor)
-          {
-            expr.setResolvedConstructor((Constructor) entry.getValue());
-          }
-          else if (entry.getValue() instanceof Method)
-          {
-            expr.setResolvedMethod((Method) entry.getValue());
-            // if the method call had no base expression, e.g. it was a VariableExpression being called, this will just set it to null
-            expr.setResolvedBaseExpression(methodBaseExpressions.get(entry.getValue()));
-          }
-          else
-          {
-            throw new IllegalStateException("Unknown function call expression target type: " + entry.getValue());
-          }
-          resolved = true;
+          // revert back to the unfiltered one, and refilter with a broader condition
+          paramLists = backupParamLists;
+          filterParameterLists(paramLists.entrySet(), expr.getArguments(), true, true);
         }
       }
-      if (!resolved)
+
+      if (paramLists.size() > 1)
+      {
+        throw new ConceptualException("Ambiguous function call, there are at least two applicable functions which take these arguments", expr.getLexicalPhrase());
+      }
+      if (paramLists.isEmpty())
       {
         // we didn't find anything, so rethrow the exception from earlier
         if (cachedException instanceof NameNotResolvedException)
@@ -1203,6 +1184,22 @@ public class Resolver
           throw (NameNotResolvedException) cachedException;
         }
         throw (ConceptualException) cachedException;
+      }
+
+      Entry<Parameter[], Member> entry = paramLists.entrySet().iterator().next();
+      if (entry.getValue() instanceof Constructor)
+      {
+        expr.setResolvedConstructor((Constructor) entry.getValue());
+      }
+      else if (entry.getValue() instanceof Method)
+      {
+        expr.setResolvedMethod((Method) entry.getValue());
+        // if the method call had no base expression, e.g. it was a VariableExpression being called, this will just set it to null
+        expr.setResolvedBaseExpression(methodBaseExpressions.get(entry.getValue()));
+      }
+      else
+      {
+        throw new IllegalStateException("Unknown function call expression target type: " + entry.getValue());
       }
     }
     else if (expression instanceof InlineIfExpression)
@@ -1313,6 +1310,50 @@ public class Resolver
     else
     {
       throw new ConceptualException("Internal name resolution error: Unknown expression type", expression.getLexicalPhrase());
+    }
+  }
+
+  /**
+   * Filters a set of parameter lists based on which lists can be assigned from the specified arguments.
+   * If ensureEquivalent is true, then this method will also remove all parameter lists which do not have types equivalent to the argument types.
+   * If allowNullable is true, then the equivalency check ignores the nullability of the parameter types.
+   * @param paramLists - the set of parameter lists to filter
+   * @param arguments - the arguments to filter the parameter lists based on
+   * @param ensureEquivalent - true to filter out parameter lists which do not have equivalent types to the arguments, false to just check whether they are assign-compatible
+   * @param allowNullable - true to ignore the nullability of the parameter types in the equivalence check, false to check for strict equivalence.
+   */
+  private void filterParameterLists(Set<Entry<Parameter[], Member>> paramLists, Expression[] arguments, boolean ensureEquivalent, boolean allowNullable)
+  {
+    Iterator<Entry<Parameter[], Member>> it = paramLists.iterator();
+    while (it.hasNext())
+    {
+      Entry<Parameter[], Member> entry = it.next();
+      Parameter[] parameters = entry.getKey();
+      boolean typesMatch = parameters.length == arguments.length;
+      if (typesMatch)
+      {
+        for (int i = 0; i < parameters.length; i++)
+        {
+          Type parameterType = parameters[i].getType();
+          Type argumentType = arguments[i].getType();
+          if (!parameterType.canAssign(argumentType))
+          {
+            typesMatch = false;
+            break;
+          }
+          if (ensureEquivalent && !(parameterType.isEquivalent(argumentType) ||
+                                    (argumentType instanceof NullType && parameterType.isNullable()) ||
+                                    (allowNullable && parameterType.isEquivalent(TypeChecker.findTypeWithNullability(argumentType, true)))))
+          {
+            typesMatch = false;
+            break;
+          }
+        }
+      }
+      if (!typesMatch)
+      {
+        it.remove();
+      }
     }
   }
 
