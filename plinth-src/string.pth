@@ -363,6 +363,10 @@ compound string
 
     (int, []ubyte) decimalExponent, digits = maths::findFloatingPointDigits(mantissa, 23, exponent - 23, -126 - 23, 9);
     boolean startWithOne = digits.length > 0 & digits[0] == 10;
+    if startWithOne
+    {
+      digits[0] = 0;
+    }
     return formatFloatingDigits(negative, decimalExponent, digits, startWithOne);
   }
 
@@ -402,6 +406,10 @@ compound string
 
     (int, []ubyte) decimalExponent, digits = maths::findFloatingPointDigits(mantissa, 52, exponent - 52, -1022 - 52, 17);
     boolean startWithOne = digits.length > 0 & digits[0] == 10;
+    if startWithOne
+    {
+      digits[0] = 0;
+    }
     return formatFloatingDigits(negative, decimalExponent, digits, startWithOne);
   }
 
@@ -415,10 +423,6 @@ compound string
    */
   static string formatFloatingDigits(boolean negative, int decimalExponent, []ubyte digits, boolean startWithOne)
   {
-    if startWithOne
-    {
-      digits[0] = 0;
-    }
     ubyte zero = "0".bytes[0];
     if decimalExponent > 9 | decimalExponent < -6
     {
