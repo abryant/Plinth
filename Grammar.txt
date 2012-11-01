@@ -22,10 +22,8 @@ Field = Modifiers Type Name Semicolon |
         Modifiers Type Name Equals Expression Semicolon |
         Type Name Semicolon |
         Type Name Equals Expression Semicolon
-Constructor = Modifiers Name LParen Parameters RParen Block |
-              Modifiers Name LParen            RParen Block |
-              Name LParen Parameters RParen Block |
-              Name LParen            RParen Block
+Constructor = Modifiers Name ParameterList Block |
+              Name ParameterList Block
 Method = Modifiers Type        Name ParameterList Block |
          Modifiers VoidKeyword Name ParameterList Block |
                    Type        Name ParameterList Block |
