@@ -28,7 +28,6 @@ public class TypeListNoQNameRule extends Rule<ParseType>
   private static final Production<ParseType> END_QNAME_LIST_PRODUCTION        = new Production<ParseType>(ParseType.TYPE_NO_QNAME,     ParseType.COMMA, ParseType.QNAME_LIST);
   private static final Production<ParseType> END_PRODUCTION                   = new Production<ParseType>(ParseType.TYPE_NO_QNAME);
 
-  @SuppressWarnings("unchecked")
   public TypeListNoQNameRule()
   {
     super(ParseType.TYPE_LIST_NO_QNAME, QNAME_PRODUCTION, NESTED_QNAME_LIST_PRODUCTION, TYPE_NO_QNAME_PRODUCTION, END_QNAME_LIST_PRODUCTION, END_PRODUCTION);

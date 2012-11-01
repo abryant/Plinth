@@ -22,7 +22,6 @@ public class PrefixIncDecStatementRule extends Rule<ParseType>
   private static final Production<ParseType> INC_PRODUCTION = new Production<ParseType>(ParseType.DOUBLE_PLUS, ParseType.ASSIGNEE, ParseType.SEMICOLON);
   private static final Production<ParseType> DEC_PRODUCTION = new Production<ParseType>(ParseType.DOUBLE_MINUS, ParseType.ASSIGNEE, ParseType.SEMICOLON);
 
-  @SuppressWarnings("unchecked")
   public PrefixIncDecStatementRule()
   {
     super(ParseType.PREFIX_INC_DEC_STATEMENT, INC_PRODUCTION, DEC_PRODUCTION);

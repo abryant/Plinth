@@ -231,7 +231,6 @@ public class LALRParserGenerator<T extends Enum<T>>
 
     private Rule<T> startRule;
 
-    @SuppressWarnings("unchecked") // this is unchecked because a generic array has to be created for the varargs
     public GeneratedStartRule(Rule<T> startRule, T type)
     {
       super(type, new Production<T>(startRule.getType()));

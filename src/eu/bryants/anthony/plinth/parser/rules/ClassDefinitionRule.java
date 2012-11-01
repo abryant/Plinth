@@ -23,7 +23,6 @@ public class ClassDefinitionRule extends Rule<ParseType>
 
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.CLASS_KEYWORD, ParseType.NAME, ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
 
-  @SuppressWarnings("unchecked")
   public ClassDefinitionRule()
   {
     super(ParseType.CLASS_DEFINITION, PRODUCTION);

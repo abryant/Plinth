@@ -21,7 +21,6 @@ public class NestedQNameListRule extends Rule<ParseType>
 
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.LPAREN, ParseType.QNAME_LIST, ParseType.RPAREN);
 
-  @SuppressWarnings("unchecked")
   public NestedQNameListRule()
   {
     super(ParseType.NESTED_QNAME_LIST, PRODUCTION);

@@ -5,8 +5,8 @@ import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression;
-import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression.ArithmeticOperator;
+import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.parser.ParseType;
 
 /*
@@ -30,7 +30,6 @@ public class AdditiveExpressionRule extends Rule<ParseType>
   private static Production<ParseType> QNAME_SUBTRACTION_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.MINUS, ParseType.MULTIPLICATIVE_EXPRESSION);
   private static Production<ParseType> QNAME_SUBTRACTION_QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.MINUS, ParseType.QNAME_EXPRESSION);
 
-  @SuppressWarnings("unchecked")
   public AdditiveExpressionRule()
   {
     super(ParseType.ADDITIVE_EXPRESSION, START_PRODUCTION,

@@ -24,7 +24,6 @@ public class IfStatementRule extends Rule<ParseType>
   private static final Production<ParseType> IF_ELSE_PRODUCTION    = new Production<ParseType>(ParseType.IF_KEYWORD, ParseType.EXPRESSION, ParseType.BLOCK, ParseType.ELSE_KEYWORD, ParseType.BLOCK);
   private static final Production<ParseType> IF_ELSE_IF_PRODUCTION = new Production<ParseType>(ParseType.IF_KEYWORD, ParseType.EXPRESSION, ParseType.BLOCK, ParseType.ELSE_KEYWORD, ParseType.IF_STATEMENT);
 
-  @SuppressWarnings("unchecked")
   public IfStatementRule()
   {
     super(ParseType.IF_STATEMENT, IF_PRODUCTION, IF_ELSE_PRODUCTION, IF_ELSE_IF_PRODUCTION);

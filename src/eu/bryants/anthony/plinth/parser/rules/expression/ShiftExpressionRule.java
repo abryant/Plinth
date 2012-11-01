@@ -30,7 +30,6 @@ public class ShiftExpressionRule extends Rule<ParseType>
   private static final Production<ParseType> QNAME_RIGHT_SHIFT_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION, ParseType.DOUBLE_RANGLE, ParseType.TUPLE_INDEX_EXPRESSION);
   private static final Production<ParseType> QNAME_RIGHT_SHIFT_QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_EXPRESSION, ParseType.DOUBLE_RANGLE, ParseType.QNAME_EXPRESSION);
 
-  @SuppressWarnings("unchecked")
   public ShiftExpressionRule()
   {
     super(ParseType.SHIFT_EXPRESSION, PRODUCTION,

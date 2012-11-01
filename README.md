@@ -6,7 +6,7 @@ There is not yet much documentation on the syntax and semantics of the language,
 
 ### Instructions
 
-You will need: Java (JDK) >= 1.5, LLVM 3.2, and optionally GCC (for compilation to native code)
+You will need: Java (JDK) >= 1.7, LLVM 3.2, and optionally GCC (for compilation to native code)
 
 To run the compiler, you will need an LLVM shared library to be installed. The version it requires has not yet been released, so it must be built from the LLVM source repository (revision 164247 or later). Specifically, it looks for "LLVM-3.2svn" (`libLLVM-3.2svn.so` on Linux). Since we need the shared library version of LLVM here, you need to configure your LLVM build with `--enable-shared`.
 

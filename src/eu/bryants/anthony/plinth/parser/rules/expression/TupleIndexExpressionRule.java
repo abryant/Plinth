@@ -24,7 +24,6 @@ public class TupleIndexExpressionRule extends Rule<ParseType>
   private static final Production<ParseType> CONTINUATION_PRODUCTION = new Production<ParseType>(ParseType.TUPLE_INDEX_EXPRESSION, ParseType.EXCLAIMATION_MARK, ParseType.INTEGER_LITERAL);
   private static final Production<ParseType> QNAME_PRODUCTION        = new Production<ParseType>(ParseType.QNAME_EXPRESSION,       ParseType.EXCLAIMATION_MARK, ParseType.INTEGER_LITERAL);
 
-  @SuppressWarnings("unchecked")
   public TupleIndexExpressionRule()
   {
     super(ParseType.TUPLE_INDEX_EXPRESSION, START_PRODUCTION, CONTINUATION_PRODUCTION, QNAME_PRODUCTION);

@@ -31,7 +31,6 @@ public class ModifiersRule extends Rule<ParseType>
   private static final Production<ParseType> NATIVE_PRODUCTION      = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NATIVE_KEYWORD);
   private static final Production<ParseType> NATIVE_NAME_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NATIVE_KEYWORD, ParseType.STRING_LITERAL);
 
-  @SuppressWarnings("unchecked")
   public ModifiersRule()
   {
     super(ParseType.MODIFIERS, START_FINAL_PRODUCTION, START_STATIC_PRODUCTION, START_NATIVE_PRODUCTION, START_NATIVE_NAME_PRODUCTION, FINAL_PRODUCTION, STATIC_PRODUCTION, NATIVE_PRODUCTION, NATIVE_NAME_PRODUCTION);

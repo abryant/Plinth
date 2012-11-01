@@ -27,7 +27,6 @@ public class ParametersRule extends Rule<ParseType>
   private static Production<ParseType> START_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.TYPE, ParseType.NAME);
   private static Production<ParseType> CONTINUATION_PRODUCTION = new Production<ParseType>(ParseType.PARAMETERS, ParseType.COMMA, ParseType.OPTIONAL_MODIFIERS, ParseType.TYPE, ParseType.NAME);
 
-  @SuppressWarnings("unchecked")
   public ParametersRule()
   {
     super(ParseType.PARAMETERS, START_PRODUCTION, CONTINUATION_PRODUCTION);

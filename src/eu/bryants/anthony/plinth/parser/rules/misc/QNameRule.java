@@ -21,7 +21,6 @@ public class QNameRule extends Rule<ParseType>
   private static final Production<ParseType> START_PRODUCTION = new Production<ParseType>(ParseType.NAME);
   private static final Production<ParseType> CONTINUATION_PRODUCTION = new Production<ParseType>(ParseType.QNAME, ParseType.DOT, ParseType.NAME);
 
-  @SuppressWarnings("unchecked")
   public QNameRule()
   {
     super(ParseType.QNAME, START_PRODUCTION, CONTINUATION_PRODUCTION);

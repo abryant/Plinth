@@ -39,7 +39,6 @@ public class MethodRule extends Rule<ParseType>
   private static final Production<ParseType> MODIFIERS_DECLARATION_PRODUCTION      = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.SEMICOLON);
   private static final Production<ParseType> MODIFIERS_VOID_DECLARATION_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.SEMICOLON);
 
-  @SuppressWarnings("unchecked")
   public MethodRule()
   {
     super(ParseType.METHOD, PRODUCTION, VOID_PRODUCTION, MODIFIERS_PRODUCTION, MODIFIERS_VOID_PRODUCTION,

@@ -23,7 +23,6 @@ public class CompoundDefinitionRule extends Rule<ParseType>
 
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.COMPOUND_KEYWORD, ParseType.NAME, ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
 
-  @SuppressWarnings("unchecked")
   public CompoundDefinitionRule()
   {
     super(ParseType.COMPOUND_DEFINITION, PRODUCTION);

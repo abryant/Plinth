@@ -28,6 +28,7 @@ public abstract class Rule<T extends Enum<T>> implements Serializable
    * @param type - the type that this rule reduces to
    * @param productions - the list of productions that can reduce via this rule
    */
+  @SafeVarargs
   public Rule(T type, Production<T>... productions)
   {
     this.type = type;

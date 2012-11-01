@@ -23,7 +23,6 @@ public class ExpressionRule extends Rule<ParseType>
   private static final Production<ParseType> TUPLE_PRODUCTION             = new Production<ParseType>(ParseType.TUPLE_EXPRESSION);
   private static final Production<ParseType> QNAME_LIST_PRODUCTION        = new Production<ParseType>(ParseType.QNAME_LIST);
 
-  @SuppressWarnings("unchecked")
   public ExpressionRule()
   {
     super(ParseType.EXPRESSION, TUPLE_PRODUCTION, QNAME_LIST_PRODUCTION);

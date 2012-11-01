@@ -25,7 +25,6 @@ public class FunctionCallExpressionRule extends Rule<ParseType>
   private static Production<ParseType> QNAME_FUNCTION_CALL_PRODUCTION                          = new Production<ParseType>(ParseType.QNAME_EXPRESSION, ParseType.LPAREN, ParseType.EXPRESSION_LIST, ParseType.RPAREN);
   private static Production<ParseType> QNAME_FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION             = new Production<ParseType>(ParseType.QNAME_EXPRESSION, ParseType.LPAREN,                                     ParseType.RPAREN);
 
-  @SuppressWarnings("unchecked")
   public FunctionCallExpressionRule()
   {
     super(ParseType.FUNCTION_CALL_EXPRESSION, FUNCTION_CALL_PRODUCTION,       FUNCTION_CALL_NO_ARGUMENTS_PRODUCTION,

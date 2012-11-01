@@ -28,7 +28,6 @@ public class TupleExpressionRule extends Rule<ParseType>
   private static final Production<ParseType> END_QNAME_LIST_PRODUCTION        = new Production<ParseType>(ParseType.EXPRESSION_NO_TUPLE, ParseType.COMMA, ParseType.QNAME_LIST);
   private static final Production<ParseType> END_PRODUCTION                   = new Production<ParseType>(ParseType.EXPRESSION_NO_TUPLE);
 
-  @SuppressWarnings("unchecked")
   public TupleExpressionRule()
   {
     super(ParseType.TUPLE_EXPRESSION, QNAME_PRODUCTION, NESTED_QNAME_LIST_PRODUCTION, EXPRESSION_PRODUCTION, END_QNAME_LIST_PRODUCTION, END_PRODUCTION);

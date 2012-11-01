@@ -42,7 +42,6 @@ public class LogicalExpressionRule extends Rule<ParseType>
   private static final Production<ParseType> QNAME_SHORT_CIRCUIT_OR_PRODUCTION        = new Production<ParseType>(ParseType.QNAME_EXPRESSION,   ParseType.DOUBLE_PIPE,      ParseType.COMPARISON_EXPRESSION);
   private static final Production<ParseType> QNAME_SHORT_CIRCUIT_OR_QNAME_PRODUCTION  = new Production<ParseType>(ParseType.QNAME_EXPRESSION,   ParseType.DOUBLE_PIPE,      ParseType.QNAME_EXPRESSION);
 
-  @SuppressWarnings("unchecked")
   public LogicalExpressionRule()
   {
     super(ParseType.LOGICAL_EXPRESSION, START_PRODUCTION,

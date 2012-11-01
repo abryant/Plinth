@@ -9,9 +9,9 @@ import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
+import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
-import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 import eu.bryants.anthony.plinth.parser.parseAST.QNameElement;
@@ -67,7 +67,6 @@ public class TypeNoQNameRule extends Rule<ParseType>
   private static final Production<ParseType> NULLABLE_QNAME_FUNCTION_PRODUCTION   = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE, ParseType.QNAME_LIST,         ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
   private static final Production<ParseType> NULLABLE_NO_ARGS_FUNCTION_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE,                               ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
 
-  @SuppressWarnings("unchecked")
   public TypeNoQNameRule()
   {
     super(ParseType.TYPE_NO_QNAME, BOOLEAN_PRODUCTION,                    NULLABLE_BOOLEAN_PRODUCTION,

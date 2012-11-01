@@ -25,7 +25,6 @@ public class MemberListRule extends Rule<ParseType>
   private static final Production<ParseType> CONSTRUCTOR_PRODUCTION = new Production<ParseType>(ParseType.MEMBER_LIST, ParseType.CONSTRUCTOR);
   private static final Production<ParseType> METHOD_PRODUCTION = new Production<ParseType>(ParseType.MEMBER_LIST, ParseType.METHOD);
 
-  @SuppressWarnings("unchecked")
   public MemberListRule()
   {
     super(ParseType.MEMBER_LIST, EMPTY_PRODUCTION, INITIALISER_PRODUCTION, FIELD_PRODUCTION, CONSTRUCTOR_PRODUCTION, METHOD_PRODUCTION);

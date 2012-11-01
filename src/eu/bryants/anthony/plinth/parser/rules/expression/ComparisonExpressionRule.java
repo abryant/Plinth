@@ -5,9 +5,9 @@ import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.EqualityExpression;
+import eu.bryants.anthony.plinth.ast.expression.EqualityExpression.EqualityOperator;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression;
-import eu.bryants.anthony.plinth.ast.expression.EqualityExpression.EqualityOperator;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression.RelationalOperator;
 import eu.bryants.anthony.plinth.parser.ParseType;
 
@@ -48,7 +48,6 @@ public class ComparisonExpressionRule extends Rule<ParseType>
   private static Production<ParseType> QNAME_MORE_THAN_EQUAL_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.RANGLE_EQUALS,            ParseType.ADDITIVE_EXPRESSION);
   private static Production<ParseType> QNAME_MORE_THAN_EQUAL_QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.RANGLE_EQUALS,            ParseType.QNAME_EXPRESSION);
 
-  @SuppressWarnings("unchecked")
   public ComparisonExpressionRule()
   {
     super(ParseType.COMPARISON_EXPRESSION, NORMAL_PRODUCTION,

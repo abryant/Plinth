@@ -27,7 +27,6 @@ public class DeclarationAssigneeListRule extends Rule<ParseType>
   private static final Production<ParseType> CONTINUATION_NAME_PRODUCTION = new Production<ParseType>(ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.COMMA, ParseType.NAME);
   private static final Production<ParseType> CONTINUATION_BLANK_PRODUCTION = new Production<ParseType>(ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.COMMA, ParseType.UNDERSCORE);
 
-  @SuppressWarnings("unchecked")
   public DeclarationAssigneeListRule()
   {
     super(ParseType.DECLARATION_ASSIGNEE_LIST, START_NAME_PRODUCTION, START_BLANK_PRODUCTION, CONTINUATION_NAME_PRODUCTION, CONTINUATION_BLANK_PRODUCTION);

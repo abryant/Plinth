@@ -30,7 +30,6 @@ public class ExpressionNoTupleRule extends Rule<ParseType>
   private static final Production<ParseType> QNAME_NULL_COALESCING_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION,   ParseType.QUESTION_MARK_COLON, ParseType.EXPRESSION_NO_TUPLE);
   private static final Production<ParseType> QNAME_NULL_COALESCING_QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_EXPRESSION,   ParseType.QUESTION_MARK_COLON, ParseType.QNAME_EXPRESSION);
 
-  @SuppressWarnings("unchecked")
   public ExpressionNoTupleRule()
   {
     super(ParseType.EXPRESSION_NO_TUPLE, PRODUCTION,

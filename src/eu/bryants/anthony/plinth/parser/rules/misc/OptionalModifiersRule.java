@@ -21,7 +21,6 @@ public class OptionalModifiersRule extends Rule<ParseType>
   private static final Production<ParseType> EMPTY_PRODUCTION = new Production<ParseType>();
   private static final Production<ParseType> MODIFIERS_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS);
 
-  @SuppressWarnings("unchecked")
   public OptionalModifiersRule()
   {
     super(ParseType.OPTIONAL_MODIFIERS, EMPTY_PRODUCTION, MODIFIERS_PRODUCTION);

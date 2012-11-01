@@ -30,7 +30,6 @@ public class ForUpdateRule extends Rule<ParseType>
   private static final Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION);
   private static final Production<ParseType> EMPTY_PRODUCTION = new Production<ParseType>();
 
-  @SuppressWarnings("unchecked")
   public ForUpdateRule()
   {
     super(ParseType.FOR_UPDATE, INCREMENT_PRODUCTION, DECREMENT_PRODUCTION, ASSIGNMENT_PRODUCTION, SHORTHAND_ASSIGN_PRODUCTION, FUNCTION_CALL_PRODUCTION, EMPTY_PRODUCTION);

@@ -23,7 +23,6 @@ public class ForInitRule extends Rule<ParseType>
   private static final Production<ParseType> SHORTHAND_ASSIGN_PRODUCTION = new Production<ParseType>(ParseType.SHORTHAND_ASSIGNMENT, ParseType.SEMICOLON);
   private static final Production<ParseType> BLANK_PRODUCTION = new Production<ParseType>(ParseType.SEMICOLON);
 
-  @SuppressWarnings("unchecked")
   public ForInitRule()
   {
     super(ParseType.FOR_INIT, ASSIGN_PRODUCTION, SHORTHAND_ASSIGN_PRODUCTION, BLANK_PRODUCTION);

@@ -21,7 +21,6 @@ public class ReturnTypeRule extends Rule<ParseType>
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.TYPE);
   private static final Production<ParseType> VOID_PRODUCTION = new Production<ParseType>(ParseType.VOID_KEYWORD);
 
-  @SuppressWarnings("unchecked")
   public ReturnTypeRule()
   {
     super(ParseType.RETURN_TYPE, PRODUCTION, VOID_PRODUCTION);

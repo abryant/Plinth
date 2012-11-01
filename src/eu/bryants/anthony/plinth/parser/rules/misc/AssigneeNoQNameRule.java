@@ -33,7 +33,6 @@ public class AssigneeNoQNameRule extends Rule<ParseType>
   private static final Production<ParseType> TYPE_FIELD_PRODUCTION = new Production<ParseType>(ParseType.TYPE, ParseType.DOUBLE_COLON, ParseType.NAME);
   private static final Production<ParseType> UNDERSCORE_PRODUCTION = new Production<ParseType>(ParseType.UNDERSCORE);
 
-  @SuppressWarnings("unchecked")
   public AssigneeNoQNameRule()
   {
     super(ParseType.ASSIGNEE_NO_QNAME, ARRAY_PRODUCTION, QNAME_ARRAY_PRODUCTION, NESTED_QNAME_LIST_ARRAY_PRODUCTION, FIELD_PRODUCTION, TYPE_FIELD_PRODUCTION, UNDERSCORE_PRODUCTION);

@@ -24,7 +24,6 @@ public class ImportsRule extends Rule<ParseType>
   private static final Production<ParseType> IMPORT_PRODUCTION   = new Production<ParseType>(ParseType.IMPORTS, ParseType.IMPORT_KEYWORD, ParseType.QNAME, ParseType.SEMICOLON);
   private static final Production<ParseType> WILDCARD_PRODUCTION = new Production<ParseType>(ParseType.IMPORTS, ParseType.IMPORT_KEYWORD, ParseType.QNAME, ParseType.DOT, ParseType.STAR, ParseType.SEMICOLON);
 
-  @SuppressWarnings("unchecked")
   public ImportsRule()
   {
     super(ParseType.IMPORTS, EMPTY_PRODUCTION, IMPORT_PRODUCTION, WILDCARD_PRODUCTION);

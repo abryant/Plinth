@@ -26,7 +26,6 @@ public class InitialiserRule extends Rule<ParseType>
   private static final Production<ParseType> STATIC_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.BLOCK);
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.BLOCK);
 
-  @SuppressWarnings("unchecked")
   public InitialiserRule()
   {
     super(ParseType.INITIALISER, STATIC_PRODUCTION, PRODUCTION);

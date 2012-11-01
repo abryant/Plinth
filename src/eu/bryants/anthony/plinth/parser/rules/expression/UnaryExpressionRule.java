@@ -33,7 +33,6 @@ public class UnaryExpressionRule extends Rule<ParseType>
   private static final Production<ParseType> BITWISE_NOT_PRODUCTION       = new Production<ParseType>(ParseType.TILDE, ParseType.UNARY_EXPRESSION);
   private static final Production<ParseType> BITWISE_NOT_QNAME_PRODUCTION = new Production<ParseType>(ParseType.TILDE, ParseType.QNAME_EXPRESSION);
 
-  @SuppressWarnings("unchecked")
   public UnaryExpressionRule()
   {
     super(ParseType.UNARY_EXPRESSION, PRIMARY_PRODUCTION,

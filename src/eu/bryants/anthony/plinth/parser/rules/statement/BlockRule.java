@@ -23,7 +23,6 @@ public class BlockRule extends Rule<ParseType>
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.LBRACE, ParseType.STATEMENTS, ParseType.RBRACE);
   private static final Production<ParseType> EMPTY_PRODUCTION = new Production<ParseType>(ParseType.LBRACE, ParseType.RBRACE);
 
-  @SuppressWarnings("unchecked")
   public BlockRule()
   {
     super(ParseType.BLOCK, PRODUCTION, EMPTY_PRODUCTION);

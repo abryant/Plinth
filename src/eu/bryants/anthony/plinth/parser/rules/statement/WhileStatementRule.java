@@ -22,7 +22,6 @@ public class WhileStatementRule extends Rule<ParseType>
 
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.WHILE_KEYWORD, ParseType.EXPRESSION, ParseType.BLOCK);
 
-  @SuppressWarnings("unchecked")
   public WhileStatementRule()
   {
     super(ParseType.WHILE_STATEMENT, PRODUCTION);

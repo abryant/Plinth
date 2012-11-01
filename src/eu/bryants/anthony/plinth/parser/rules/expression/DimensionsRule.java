@@ -22,7 +22,6 @@ public class DimensionsRule extends Rule<ParseType>
   private static final Production<ParseType> START_PRODUCTION = new Production<ParseType>(ParseType.LSQUARE, ParseType.EXPRESSION, ParseType.RSQUARE);
   private static final Production<ParseType> CONTINUATION_PRODUCTION = new Production<ParseType>(ParseType.DIMENSIONS, ParseType.LSQUARE, ParseType.EXPRESSION, ParseType.RSQUARE);
 
-  @SuppressWarnings("unchecked")
   public DimensionsRule()
   {
     super(ParseType.DIMENSIONS, START_PRODUCTION, CONTINUATION_PRODUCTION);

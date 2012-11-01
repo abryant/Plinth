@@ -23,7 +23,6 @@ public class TypeRule extends Rule<ParseType>
   private static final Production<ParseType> NESTED_QNAME_LIST_PRODUCTION = new Production<ParseType>(ParseType.NESTED_QNAME_LIST);
   private static final Production<ParseType> TYPE_NO_QNAME_PRODUCTION = new Production<ParseType>(ParseType.TYPE_NO_QNAME);
 
-  @SuppressWarnings("unchecked")
   public TypeRule()
   {
     super(ParseType.TYPE, QNAME_PRODUCTION, NESTED_QNAME_LIST_PRODUCTION, TYPE_NO_QNAME_PRODUCTION);

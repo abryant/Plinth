@@ -30,7 +30,6 @@ public class FieldRule extends Rule<ParseType>
   private static final Production<ParseType> MODIFIERS_PRODUCTION             = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE, ParseType.NAME, ParseType.SEMICOLON);
   private static final Production<ParseType> MODIFIERS_INITIALISER_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE, ParseType.NAME, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
 
-  @SuppressWarnings("unchecked")
   public FieldRule()
   {
     super(ParseType.FIELD, PRODUCTION, INITIALISER_PRODUCTION, MODIFIERS_PRODUCTION, MODIFIERS_INITIALISER_PRODUCTION);

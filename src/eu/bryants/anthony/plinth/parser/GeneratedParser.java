@@ -273,7 +273,6 @@ public class GeneratedParser
   {
     private static final long serialVersionUID = 1L;
 
-    @SuppressWarnings("unchecked") // this is unchecked because a generic array has to be created for the varargs
     public GeneratedStartRule()
     {
       super(GENERATED_START_RULE, new Production<ParseType>(COMPILATION_UNIT));

@@ -21,7 +21,6 @@ public class QNameExpressionRule extends Rule<ParseType>
   private static final Production<ParseType> QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME);
   private static final Production<ParseType> NESTED_PRODUCTION = new Production<ParseType>(ParseType.NESTED_QNAME_LIST);
 
-  @SuppressWarnings("unchecked")
   public QNameExpressionRule()
   {
     super(ParseType.QNAME_EXPRESSION, QNAME_PRODUCTION, NESTED_PRODUCTION);

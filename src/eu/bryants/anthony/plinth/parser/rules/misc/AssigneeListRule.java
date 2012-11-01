@@ -24,7 +24,6 @@ public class AssigneeListRule extends Rule<ParseType>
   private static final Production<ParseType> NO_QNAME_PRODUCTION = new Production<ParseType>(ParseType.ASSIGNEE_NO_QNAME, ParseType.COMMA, ParseType.ASSIGNEE_LIST);
   private static final Production<ParseType> END_PRODUCTION    = new Production<ParseType>(ParseType.ASSIGNEE);
 
-  @SuppressWarnings("unchecked")
   public AssigneeListRule()
   {
     super(ParseType.ASSIGNEE_LIST, QNAME_PRODUCTION, NO_QNAME_PRODUCTION, END_PRODUCTION);

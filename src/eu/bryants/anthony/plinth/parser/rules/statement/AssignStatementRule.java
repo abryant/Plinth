@@ -41,7 +41,6 @@ public class AssignStatementRule extends Rule<ParseType>
   private static final Production<ParseType> NESTED_QNAME_LIST_DEFINTION_PRODUCTION             = new Production<ParseType>(                     ParseType.NESTED_QNAME_LIST, ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
   private static final Production<ParseType> NESTED_QNAME_LIST_MODIFIERS_DEFINTION_PRODUCTION   = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NESTED_QNAME_LIST, ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
 
-  @SuppressWarnings("unchecked")
   public AssignStatementRule()
   {
     super(ParseType.ASSIGN_STATEMENT, ASSIGN_PRODUCTION,

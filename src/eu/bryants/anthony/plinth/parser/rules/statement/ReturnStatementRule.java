@@ -22,7 +22,6 @@ public class ReturnStatementRule extends Rule<ParseType>
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.RETURN_KEYWORD, ParseType.EXPRESSION, ParseType.SEMICOLON);
   private static final Production<ParseType> VOID_PRODUCTION = new Production<ParseType>(ParseType.RETURN_KEYWORD, ParseType.SEMICOLON);
 
-  @SuppressWarnings("unchecked")
   public ReturnStatementRule()
   {
     super(ParseType.RETURN_STATEMENT, PRODUCTION, VOID_PRODUCTION);

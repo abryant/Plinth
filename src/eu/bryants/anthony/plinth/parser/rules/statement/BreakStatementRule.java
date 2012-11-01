@@ -22,7 +22,6 @@ public class BreakStatementRule extends Rule<ParseType>
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.BREAK_KEYWORD, ParseType.SEMICOLON);
   private static final Production<ParseType> INTEGER_PRODUCTION = new Production<ParseType>(ParseType.BREAK_KEYWORD, ParseType.INTEGER_LITERAL, ParseType.SEMICOLON);
 
-  @SuppressWarnings("unchecked")
   public BreakStatementRule()
   {
     super(ParseType.BREAK_STATEMENT, PRODUCTION, INTEGER_PRODUCTION);

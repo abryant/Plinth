@@ -25,7 +25,6 @@ public class QNameListRule extends Rule<ParseType>
   private static final Production<ParseType> QNAME_CONTINUATION_PRODUCTION             = new Production<ParseType>(ParseType.QNAME, ParseType.COMMA, ParseType.QNAME_LIST);
   private static final Production<ParseType> NESTED_QNAME_LIST_CONTINUATION_PRODUCTION = new Production<ParseType>(ParseType.NESTED_QNAME_LIST, ParseType.COMMA, ParseType.QNAME_LIST);
 
-  @SuppressWarnings("unchecked")
   public QNameListRule()
   {
     super(ParseType.QNAME_LIST, QNAME_PRODUCTION, NESTED_QNAME_LIST_PRODUCTION,

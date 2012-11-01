@@ -22,7 +22,6 @@ public class StatementsRule extends Rule<ParseType>
   private static final Production<ParseType> START_PRODUCTION = new Production<ParseType>(ParseType.STATEMENT);
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.STATEMENTS, ParseType.STATEMENT);
 
-  @SuppressWarnings("unchecked")
   public StatementsRule()
   {
     super(ParseType.STATEMENTS, START_PRODUCTION, PRODUCTION);

@@ -34,7 +34,6 @@ public class ShorthandAssignmentRule extends Rule<ParseType>
   private static final Production<ParseType> OR_PRODUCTION          = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.PIPE_EQUALS,           ParseType.EXPRESSION);
   private static final Production<ParseType> XOR_PRODUCTION         = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.CARET_EQUALS,          ParseType.EXPRESSION);
 
-  @SuppressWarnings("unchecked")
   public ShorthandAssignmentRule()
   {
     super(ParseType.SHORTHAND_ASSIGNMENT, ADD_PRODUCTION,

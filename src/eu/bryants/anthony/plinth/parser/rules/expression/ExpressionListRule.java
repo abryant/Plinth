@@ -24,7 +24,6 @@ public class ExpressionListRule extends Rule<ParseType>
   private static final Production<ParseType> CONTINUATION_PRODUCTION = new Production<ParseType>(ParseType.EXPRESSION_LIST, ParseType.COMMA, ParseType.EXPRESSION_NO_TUPLE);
   private static final Production<ParseType> CONTINUATION_QNAME_PRODUCTION = new Production<ParseType>(ParseType.EXPRESSION_LIST, ParseType.COMMA, ParseType.QNAME_EXPRESSION);
 
-  @SuppressWarnings("unchecked")
   public ExpressionListRule()
   {
     super(ParseType.EXPRESSION_LIST, START_PRODUCTION, START_QNAME_PRODUCTION, CONTINUATION_PRODUCTION, CONTINUATION_QNAME_PRODUCTION);

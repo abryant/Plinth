@@ -28,7 +28,6 @@ public class ConstructorRule extends Rule<ParseType>
   private static final Production<ParseType> MODIFIERS_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.BLOCK);
   private static final Production<ParseType> PRODUCTION           = new Production<ParseType>(                     ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.BLOCK);
 
-  @SuppressWarnings("unchecked")
   public ConstructorRule()
   {
     super(ParseType.CONSTRUCTOR, MODIFIERS_PRODUCTION, PRODUCTION);

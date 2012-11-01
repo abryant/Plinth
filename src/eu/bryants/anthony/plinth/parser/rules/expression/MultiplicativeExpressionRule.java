@@ -5,8 +5,8 @@ import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression;
-import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression.ArithmeticOperator;
+import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.parser.ParseType;
 
 /*
@@ -38,7 +38,6 @@ public class MultiplicativeExpressionRule extends Rule<ParseType>
   private static final Production<ParseType> QNAME_MODULO_PRODUCTION          = new Production<ParseType>(ParseType.QNAME_EXPRESSION,          ParseType.DOUBLE_PERCENT, ParseType.SHIFT_EXPRESSION);
   private static final Production<ParseType> QNAME_MODULO_QNAME_PRODUCTION    = new Production<ParseType>(ParseType.QNAME_EXPRESSION,          ParseType.DOUBLE_PERCENT, ParseType.QNAME_EXPRESSION);
 
-  @SuppressWarnings("unchecked")
   public MultiplicativeExpressionRule()
   {
     super(ParseType.MULTIPLICATIVE_EXPRESSION, START_PRODUCTION,

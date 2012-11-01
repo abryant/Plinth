@@ -24,7 +24,6 @@ public class ClassCreationExpressionRule extends Rule<ParseType>
   private static final Production<ParseType> PRODUCTION                 = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.QNAME, ParseType.LPAREN,                            ParseType.RPAREN);
   private static final Production<ParseType> ARGUMENTS_PRODUCTION       = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.QNAME, ParseType.LPAREN, ParseType.EXPRESSION_LIST, ParseType.RPAREN);
 
-  @SuppressWarnings("unchecked")
   public ClassCreationExpressionRule()
   {
     super(ParseType.CLASS_CREATION_EXPRESSION, PRODUCTION, ARGUMENTS_PRODUCTION);

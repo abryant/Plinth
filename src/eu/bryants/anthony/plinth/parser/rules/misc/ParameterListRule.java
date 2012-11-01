@@ -22,7 +22,6 @@ public class ParameterListRule extends Rule<ParseType>
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.LPAREN, ParseType.PARAMETERS, ParseType.RPAREN);
   private static final Production<ParseType> EMPTY_PRODUCTION = new Production<ParseType>(ParseType.LPAREN, ParseType.RPAREN);
 
-  @SuppressWarnings("unchecked")
   public ParameterListRule()
   {
     super(ParseType.PARAMETER_LIST, PRODUCTION, EMPTY_PRODUCTION);

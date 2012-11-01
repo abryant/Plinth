@@ -28,7 +28,6 @@ public class CompilationUnitRule extends Rule<ParseType>
   private static Production<ParseType> CLASS_PRODUCTION = new Production<ParseType>(ParseType.COMPILATION_UNIT, ParseType.CLASS_DEFINITION);
   private static Production<ParseType> COMPOUND_PRODUCTION = new Production<ParseType>(ParseType.COMPILATION_UNIT, ParseType.COMPOUND_DEFINITION);
 
-  @SuppressWarnings("unchecked")
   public CompilationUnitRule()
   {
     super(ParseType.COMPILATION_UNIT, IMPORTS_PRODUCTION, PACKAGE_IMPORTS_PRODUCTION, CLASS_PRODUCTION, COMPOUND_PRODUCTION);

@@ -190,7 +190,6 @@ public class LALRParserCodeGenerator<T extends Enum<T>>
     out.println("{");
     out.println("  private static final long serialVersionUID = 1L;");
     out.println();
-    out.println("  @SuppressWarnings(\"unchecked\") // this is unchecked because a generic array has to be created for the varargs");
     out.println("  public GeneratedStartRule()");
     out.println("  {");
     out.println("    super(" + generatedStartRuleType + ", new Production<" + tokenType + ">(" + startRule.getType() + "));");

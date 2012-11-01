@@ -20,6 +20,7 @@ public final class Production<T extends Enum<T>> implements Serializable
    * Creates a new Production with the specified types
    * @param types - the types that this production requires
    */
+  @SafeVarargs
   public Production(T... types)
   {
     this.types = types;

@@ -25,7 +25,6 @@ public class PrimaryRule extends Rule<ParseType>
   private static final Production<ParseType> NO_TRAILING_TYPE_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY_NO_TRAILING_TYPE);
   private static Production<ParseType> ARRAY_CREATION_PRODUCTION = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.DIMENSIONS, ParseType.TYPE);
 
-  @SuppressWarnings("unchecked")
   public PrimaryRule()
   {
     super(ParseType.PRIMARY, NO_TRAILING_TYPE_PRODUCTION, ARRAY_CREATION_PRODUCTION);

@@ -57,7 +57,6 @@ public class PrimaryNoTrailingTypeRule extends Rule<ParseType>
   private static Production<ParseType> CLASS_CREATION_PRODUCTION = new Production<ParseType>(ParseType.CLASS_CREATION_EXPRESSION);
   private static Production<ParseType> STRING_LITERAL_PRODUCTION = new Production<ParseType>(ParseType.STRING_LITERAL);
 
-  @SuppressWarnings("unchecked")
   public PrimaryNoTrailingTypeRule()
   {
     super(ParseType.PRIMARY_NO_TRAILING_TYPE, INTEGER_PRODUCTION, FLOATING_PRODUCTION,
