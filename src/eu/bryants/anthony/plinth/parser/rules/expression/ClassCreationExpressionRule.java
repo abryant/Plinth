@@ -21,12 +21,11 @@ public class ClassCreationExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION                 = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.QNAME, ParseType.LPAREN,                            ParseType.RPAREN);
-  private static final Production<ParseType> ARGUMENTS_PRODUCTION       = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.QNAME, ParseType.LPAREN, ParseType.EXPRESSION_LIST, ParseType.RPAREN);
+  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.QNAME, ParseType.ARGUMENTS);
 
   public ClassCreationExpressionRule()
   {
-    super(ParseType.CLASS_CREATION_EXPRESSION, PRODUCTION, ARGUMENTS_PRODUCTION);
+    super(ParseType.CLASS_CREATION_EXPRESSION, PRODUCTION);
   }
 
   /**
@@ -38,15 +37,9 @@ public class ClassCreationExpressionRule extends Rule<ParseType>
     if (production == PRODUCTION)
     {
       QName qname = (QName) args[1];
-      return new ClassCreationExpression(qname, new Expression[0],
-                                         LexicalPhrase.combine((LexicalPhrase) args[0], qname.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3]));
-    }
-    if (production == ARGUMENTS_PRODUCTION)
-    {
-      QName qname = (QName) args[1];
       @SuppressWarnings("unchecked")
-      ParseList<Expression> arguments = (ParseList<Expression>) args[3];
-      return new ClassCreationExpression(qname, arguments.toArray(new Expression[arguments.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], qname.getLexicalPhrase(), (LexicalPhrase) args[2], arguments.getLexicalPhrase(), (LexicalPhrase) args[4]));
+      ParseList<Expression> arguments = (ParseList<Expression>) args[2];
+      return new ClassCreationExpression(qname, arguments.toArray(new Expression[arguments.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], qname.getLexicalPhrase(), arguments.getLexicalPhrase()));
     }
     throw badTypeList();
   }

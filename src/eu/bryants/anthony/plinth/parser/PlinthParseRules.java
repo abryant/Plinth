@@ -27,6 +27,7 @@ import eu.bryants.anthony.plinth.parser.rules.member.FieldRule;
 import eu.bryants.anthony.plinth.parser.rules.member.InitialiserRule;
 import eu.bryants.anthony.plinth.parser.rules.member.MemberListRule;
 import eu.bryants.anthony.plinth.parser.rules.member.MethodRule;
+import eu.bryants.anthony.plinth.parser.rules.misc.ArgumentsRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.AssigneeListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.AssigneeNoQNameRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.AssigneeRule;
@@ -99,6 +100,7 @@ public class PlinthParseRules
     new MethodRule(),
 
     // misc
+    new ArgumentsRule(),
     new AssigneeListRule(),
     new AssigneeNoQNameRule(),
     new AssigneeRule(),

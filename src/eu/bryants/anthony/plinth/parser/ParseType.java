@@ -28,6 +28,7 @@ public enum ParseType
   METHOD,                        // Method
 
   // Misc
+  ARGUMENTS,                     // ParseList<Expression>
   ASSIGNEE,                      // Assignee
   ASSIGNEE_NO_QNAME,             // Assignee
   ASSIGNEE_LIST,                 // ParseList<Assignee>

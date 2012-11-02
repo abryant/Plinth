@@ -165,11 +165,11 @@ PrimaryNoTrailingType = IntegerLiteral | FloatingLiteral |
                         LParen TupleExpression RParen |
                         ClassCreationExpression |
                         StringLiteral
-ClassCreationExpression = NewKeyword QName LParen ExpressionList RParen | NewKeyword QName LParen RParen
-FunctionCallExpression = Primary         LParen ExpressionList RParen | Primary         LParen RParen |
-                         QNameExpression LParen ExpressionList RParen | QNameExpression LParen RParen
+ClassCreationExpression = NewKeyword QName Arguments
+FunctionCallExpression = Primary Arguments | QNameExpression Arguments
 
 ExpressionList = QNameExpression | ExpressionNoTuple | ExpressionList Comma QNameExpression | ExpressionList Comma ExpressionNoTuple
+Arguments = LParen ExpressionList RParen | LParen RParen
 
 Dimensions = LSquare Expression RSquare | Dimensions LSquare Expression RSquare
 
@@ -180,6 +180,3 @@ QNameList = QName |
             NestedQNameList |
             QName Comma QNameList |
             NestedQNameList Comma QNameList
-
-
-
