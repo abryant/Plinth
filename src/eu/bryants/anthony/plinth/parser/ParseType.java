@@ -75,7 +75,9 @@ public enum ParseType
   TUPLE_INDEX_EXPRESSION,        // Expression
   UNARY_EXPRESSION,              // Expression
   PRIMARY,                       // Expression
+  PRIMARY_NO_THIS,               // Expression
   PRIMARY_NO_TRAILING_TYPE,      // Expression
+  BASIC_PRIMARY,                 // Expression
   CLASS_CREATION_EXPRESSION,     // ClassCreationExpression
   FUNCTION_CALL_EXPRESSION,      // FunctionCallExpression
   EXPRESSION_LIST,               // ParseList<Expression>

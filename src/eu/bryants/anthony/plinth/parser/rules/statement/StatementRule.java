@@ -5,9 +5,11 @@ import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
+import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.plinth.parser.ParseType;
+import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 
 /*
  * Created on 6 Apr 2012
@@ -35,10 +37,13 @@ public class StatementRule extends Rule<ParseType>
   private static final Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION, ParseType.SEMICOLON);
   private static final Production<ParseType> CLASS_CREATION_PRODUCTION = new Production<ParseType>(ParseType.CLASS_CREATION_EXPRESSION, ParseType.SEMICOLON);
 
+  private static final Production<ParseType> DELEGATE_CONSTRUCTOR_PRODUCTION = new Production<ParseType>(ParseType.THIS_KEYWORD, ParseType.ARGUMENTS, ParseType.SEMICOLON);
+
   public StatementRule()
   {
     super(ParseType.STATEMENT, ASSIGN_PRODUCTION, BLOCK_PRODUCTION, BREAK_PRODUCTION, CONTINUE_PRODUCTION, IF_PRODUCTION, FOR_PRODUCTION, INC_DEC_PRODUCTION,
-                               RETURN_PRODUCTION, WHILE_PRODUCTION, SHORTHAND_ASSIGN_PRODUCTION, FUNCTION_CALL_PRODUCTION, CLASS_CREATION_PRODUCTION);
+                               RETURN_PRODUCTION, WHILE_PRODUCTION, SHORTHAND_ASSIGN_PRODUCTION, FUNCTION_CALL_PRODUCTION, CLASS_CREATION_PRODUCTION,
+                               DELEGATE_CONSTRUCTOR_PRODUCTION);
   }
 
   /**
@@ -49,7 +54,7 @@ public class StatementRule extends Rule<ParseType>
   {
     if (production == ASSIGN_PRODUCTION   || production == BLOCK_PRODUCTION  || production == BREAK_PRODUCTION   ||
         production == CONTINUE_PRODUCTION || production == IF_PRODUCTION     || production == FOR_PRODUCTION     ||
-        production == INC_DEC_PRODUCTION  || production == RETURN_PRODUCTION   || production == WHILE_PRODUCTION)
+        production == INC_DEC_PRODUCTION  || production == RETURN_PRODUCTION || production == WHILE_PRODUCTION)
     {
       return args[0];
     }
@@ -69,6 +74,12 @@ public class StatementRule extends Rule<ParseType>
     {
       Expression expression = (Expression) args[0];
       return new ExpressionStatement(expression, LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1]));
+    }
+    if (production == DELEGATE_CONSTRUCTOR_PRODUCTION)
+    {
+      @SuppressWarnings("unchecked")
+      ParseList<Expression> arguments = (ParseList<Expression>) args[1];
+      return new DelegateConstructorStatement(arguments.toArray(new Expression[arguments.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], arguments.getLexicalPhrase(), (LexicalPhrase) args[2]));
     }
     throw badTypeList();
   }

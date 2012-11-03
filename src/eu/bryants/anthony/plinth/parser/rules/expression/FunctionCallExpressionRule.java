@@ -20,7 +20,7 @@ public class FunctionCallExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static Production<ParseType> FUNCTION_CALL_PRODUCTION       = new Production<ParseType>(ParseType.PRIMARY,          ParseType.ARGUMENTS);
+  private static Production<ParseType> FUNCTION_CALL_PRODUCTION       = new Production<ParseType>(ParseType.PRIMARY_NO_THIS,  ParseType.ARGUMENTS);
   private static Production<ParseType> QNAME_FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.QNAME_EXPRESSION, ParseType.ARGUMENTS);
 
   public FunctionCallExpressionRule()

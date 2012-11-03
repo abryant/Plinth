@@ -6,6 +6,7 @@ import eu.bryants.anthony.plinth.parser.rules.ClassDefinitionRule;
 import eu.bryants.anthony.plinth.parser.rules.CompilationUnitRule;
 import eu.bryants.anthony.plinth.parser.rules.CompoundDefinitionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.AdditiveExpressionRule;
+import eu.bryants.anthony.plinth.parser.rules.expression.BasicPrimaryRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.ClassCreationExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.ComparisonExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.DimensionsRule;
@@ -15,6 +16,7 @@ import eu.bryants.anthony.plinth.parser.rules.expression.ExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.FunctionCallExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.LogicalExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.MultiplicativeExpressionRule;
+import eu.bryants.anthony.plinth.parser.rules.expression.PrimaryNoThisRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.PrimaryNoTrailingTypeRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.PrimaryRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.QNameExpressionRule;
@@ -75,6 +77,7 @@ public class PlinthParseRules
   {
     // expression
     new AdditiveExpressionRule(),
+    new BasicPrimaryRule(),
     new ClassCreationExpressionRule(),
     new ComparisonExpressionRule(),
     new DimensionsRule(),
@@ -84,6 +87,7 @@ public class PlinthParseRules
     new FunctionCallExpressionRule(),
     new LogicalExpressionRule(),
     new MultiplicativeExpressionRule(),
+    new PrimaryNoThisRule(),
     new PrimaryNoTrailingTypeRule(),
     new PrimaryRule(),
     new QNameExpressionRule(),

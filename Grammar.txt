@@ -42,7 +42,8 @@ Statements = Statement | Statements Statement
 Statement = Assignment | Block | BreakStatement | ContinueStatement | ForStatement | IfStatement | PrefixIncDecStatement | ReturnStatement | WhileStatement |
             ShorthandAssignment Semicolon |
             FunctionCallExpression Semicolon |
-            ClassCreationExpression Semicolon
+            ClassCreationExpression Semicolon |
+            ThisKeyword Arguments Semicolon
 
 Assignee = AssigneeNoQName | QName
 AssigneeNoQName = Primary         LSquare Expression RSquare |
@@ -149,24 +150,26 @@ UnaryExpression = Primary |
                   Minus UnaryExpression | Minus QNameExpression |
                   Tilde UnaryExpression | Tilde QNameExpression |
                   ExclaimationMark UnaryExpression | ExclaimationMark QNameExpression
-Primary = PrimaryNoTrailingType | NewKeyword Dimensions Type
-PrimaryNoTrailingType = IntegerLiteral | FloatingLiteral |
-                        TrueKeyword | FalseKeyword | ThisKeyword | NullKeyword |
-                        Primary         LSquare Expression RSquare |
-                        QName           LSquare Expression RSquare |
-                        NestedQNameList LSquare Expression RSquare |
-                        NewKeyword LSquare RSquare Type LBrace RBrace |
-                        NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace |
-                        PrimaryNoTrailingType Dot Name |
-                        PrimaryNoTrailingType QuestionMarkDot Name |
-                        QNameExpression QuestionMarkDot Name |
-                        Type DoubleColon Name |
-                        FunctionCallExpression |
-                        LParen TupleExpression RParen |
-                        ClassCreationExpression |
-                        StringLiteral
+Primary = PrimaryNoThis | ThisKeyword
+PrimaryNoThis = BasicPrimary | NewKeyword Dimensions Type
+PrimaryNoTrailingType = BasicPrimary | ThisKeyword
+BasicPrimary = IntegerLiteral | FloatingLiteral |
+               TrueKeyword | FalseKeyword | ThisKeyword | NullKeyword |
+               Primary         LSquare Expression RSquare |
+               QName           LSquare Expression RSquare |
+               NestedQNameList LSquare Expression RSquare |
+               NewKeyword LSquare RSquare Type LBrace RBrace |
+               NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace |
+               PrimaryNoTrailingType Dot Name |
+               PrimaryNoTrailingType QuestionMarkDot Name |
+               QNameExpression QuestionMarkDot Name |
+               Type DoubleColon Name |
+               FunctionCallExpression |
+               LParen TupleExpression RParen |
+               ClassCreationExpression |
+               StringLiteral
 ClassCreationExpression = NewKeyword QName Arguments
-FunctionCallExpression = Primary Arguments | QNameExpression Arguments
+FunctionCallExpression = PrimaryNoThis Arguments | QNameExpression Arguments
 
 ExpressionList = QNameExpression | ExpressionNoTuple | ExpressionList Comma QNameExpression | ExpressionList Comma ExpressionNoTuple
 Arguments = LParen ExpressionList RParen | LParen RParen
