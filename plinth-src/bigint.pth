@@ -207,7 +207,7 @@ compound bigint
     []ulong newData = new [length]ulong;
     ulong carry = 0;
     uint high, low = cast<uint> (n >> 32), cast<uint> (n & 0xFFFFFFFF);
-    for (uint i = 0; i < data.length; ++i)
+    for (uint i = 0; i < (bitLength + 63) / 64; ++i)
     {
       ulong thisLow = data[i] & 0xFFFFFFFF;
       ulong thisHigh = data[i] >> 32;
@@ -221,7 +221,7 @@ compound bigint
     }
     if carry != 0
     {
-      newData[data.length] = carry;
+      newData[(bitLength + 63) / 64] = carry;
     }
     return bigint(negative, newData);
   }
@@ -246,7 +246,7 @@ compound bigint
     uint finalZeros = n % 64;
     if finalZeros == 0
     {
-      for (uint i = 0; i < data.length; ++i)
+      for (uint i = 0; i < (bitLength + 63) / 64; ++i)
       {
         newData[zeroElements + i] = data[i];
       }
@@ -254,15 +254,15 @@ compound bigint
     else
     {
       ulong carry = 0;
-      for (uint i = 0; i < data.length; ++i)
+      for (uint i = 0; i < (bitLength + 63) / 64; ++i)
       {
         ulong value = data[i];
         newData[zeroElements + i] = (value << finalZeros) | carry;
         carry = value >> (64 - finalZeros);
       }
-      if zeroElements + data.length < newData.length
+      if zeroElements + ((bitLength + 63) / 64) < newData.length
       {
-        newData[zeroElements + data.length] = carry;
+        newData[zeroElements + ((bitLength + 63) / 64)] = carry;
       }
     }
     return bigint(negative, newData);
