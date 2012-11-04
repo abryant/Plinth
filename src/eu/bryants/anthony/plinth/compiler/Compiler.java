@@ -185,9 +185,13 @@ public class Compiler
       }
       List<TypeDefinition> newDefinitions = loadImportedTypeDefinitions(module, filename, rootPackage);
       importedTypeDefinitions.addAll(newDefinitions);
-      if (linkedFiles.contains(filename))
+      if (outputFile != null && linkedFiles.contains(filename))
       {
         linkedModules.add(module);
+      }
+      else
+      {
+        LLVM.LLVMDisposeModule(module);
       }
     }
 
