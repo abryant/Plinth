@@ -147,7 +147,7 @@ public class ArgumentParser
                        "  -m <main-type>, --main-type <main-type>\n" +
                        "      Generates a low-level main method which calls the main() method in the type with the specified fully qualified name.\n" +
                        "      The correct signature for a main method is:\n" +
-                       "        static uint main([]string)" +
+                       "        static uint main([]string)\n" +
                        "  -o <binary>, --output <binary>\n" +
                        "      Specifies the name of the binary produced.\n" +
                        "  -d <output-dir>, --output-dir <output-dir>\n" +
