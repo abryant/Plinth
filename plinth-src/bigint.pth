@@ -22,10 +22,7 @@ compound bigint
 
   bigint(ulong value)
   {
-    bigint i = bigint(false, value);
-    negative = false;
-    bitLength = i.bitLength;
-    data = i.data;
+    this(false, value);
   }
 
   bigint(boolean negative, []ulong data)
