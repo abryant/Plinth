@@ -1052,6 +1052,17 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Cannot access the non-static method '" + method.getName() + "' from a static context", expression.getLexicalPhrase());
         }
+        if (inConstructor && !method.isStatic())
+        {
+          // non-static methods cannot be accessed as fields before 'this' has been initialised
+          for (Field field : method.getContainingTypeDefinition().getNonStaticFields())
+          {
+            if (!initialisedVariables.contains(field.getMemberVariable()))
+            {
+              throw new ConceptualException("Cannot access methods on 'this' here. Not all of the non-static fields of this '" + new NamedType(false, method.getContainingTypeDefinition()) + "' have been initialised (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to initialise them before they're used", expression.getLexicalPhrase());
+            }
+          }
+        }
       }
       else
       {
