@@ -241,9 +241,28 @@ public class Compiler
       {
         TypePropagator.propagateTypes(compilationUnit);
       }
+
+      NativeNameChecker nativeNameChecker = new NativeNameChecker(mainTypeName != null);
+      for (TypeDefinition imported : importedTypeDefinitions)
+      {
+        nativeNameChecker.checkNormalNativeNames(imported);
+        nativeNameChecker.checkSpecifiedNativeNames(imported);
+      }
       for (CompilationUnit compilationUnit : compilationUnits)
       {
-        NativeNameChecker.checkNativeNames(compilationUnit);
+        for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
+        {
+          nativeNameChecker.checkNormalNativeNames(typeDefinition);
+        }
+      }
+      // only check user-specified native names after everything else has been checked,
+      // so that they will be what is reported in the case of a duplicate
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
+        {
+          nativeNameChecker.checkSpecifiedNativeNames(typeDefinition);
+        }
       }
     }
     catch (ConceptualException e)
