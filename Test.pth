@@ -2,17 +2,29 @@ package foo.bar;
 
 class Test
 {
+  string constructor;
   Test(uint a)
   {
-    stderr::println("Test(uint)");
+    constructor = "Test(uint): " + a.toString();
   }
   Test(short c)
   {
-    stderr::println("Test(short)");
+    constructor = "Test(short): " + c.toString();
   }
   Test(?ubyte b)
   {
-    stderr::println("Test(?ubyte)");
+    stderr::println("Test(?ubyte) before delegate constructor");
+    if b == null
+    {
+      this(cast<uint> 12);
+    }
+    else
+    {
+      this(-8);
+    }
+    this.foo();
+    foo();
+    stderr::println(constructor);
   }
 
   static uint main([]string args)
@@ -29,7 +41,7 @@ class Test
 
     stdout::println("2.2250738585072011e-308 = " + 2.2250738585072011e-308.toString());
     stdout::println("maths::abs(-1) = " + maths::abs(-1).toString());
-    new Test(2);
+    new Test(args.length > 2 ? 2 : null);
     return args.length;
   }
 
@@ -46,5 +58,9 @@ class Test
   static string addSpace(string x)
   {
     return " " + x;
+  }
+
+  void foo()
+  {
   }
 }

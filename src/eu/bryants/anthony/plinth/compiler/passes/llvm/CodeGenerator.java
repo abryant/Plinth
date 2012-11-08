@@ -69,6 +69,7 @@ import eu.bryants.anthony.plinth.ast.statement.Block;
 import eu.bryants.anthony.plinth.ast.statement.BreakStatement;
 import eu.bryants.anthony.plinth.ast.statement.BreakableStatement;
 import eu.bryants.anthony.plinth.ast.statement.ContinueStatement;
+import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.plinth.ast.statement.ForStatement;
 import eu.bryants.anthony.plinth.ast.statement.IfStatement;
@@ -258,37 +259,24 @@ public class CodeGenerator
 
     Parameter[] parameters = constructor.getParameters();
     LLVMTypeRef[] types = null;
-    int startIndex = 0;
-    if (typeDefinition instanceof ClassDefinition)
-    {
-      // class constructors need an extra 'uninitialised this' parameter at the start, which is the newly allocated data to initialise
-      // the 'this' parameter always has a temporary type representation
-      types = new LLVMTypeRef[1 + parameters.length];
-      types[0] = typeHelper.findTemporaryType(new NamedType(false, typeDefinition));
-      startIndex = 1;
-    }
-    else if (typeDefinition instanceof CompoundDefinition)
-    {
-      types = new LLVMTypeRef[parameters.length];
-      startIndex = 0;
-    }
+    // constructors need an extra 'uninitialised this' parameter at the start, which is the newly allocated data to initialise
+    // the 'this' parameter always has a temporary type representation
+    types = new LLVMTypeRef[1 + parameters.length];
+    types[0] = typeHelper.findTemporaryType(new NamedType(false, typeDefinition));
     for (int i = 0; i < parameters.length; i++)
     {
-      types[i + startIndex] = typeHelper.findStandardType(parameters[i].getType());
+      types[1 + i] = typeHelper.findStandardType(parameters[i].getType());
     }
-    LLVMTypeRef resultType = typeHelper.findStandardType(new NamedType(false, typeDefinition));
+    LLVMTypeRef resultType = LLVM.LLVMVoidType();
 
     LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, C.toNativePointerArray(types, false, true), types.length, false);
     LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, mangledName, functionType);
     LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
 
-    if (typeDefinition instanceof ClassDefinition)
-    {
-      LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), "this");
-    }
+    LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), "this");
     for (int i = 0; i < parameters.length; i++)
     {
-      LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i + startIndex);
+      LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, 1 + i);
       LLVM.LLVMSetValueName(parameter, parameters[i].getName());
     }
     return llvmFunc;
@@ -590,67 +578,40 @@ public class CodeGenerator
         variables.put(v, allocaInst);
       }
 
-      final LLVMValueRef thisValue;
-      int startIndex = 0;
-      if (typeDefinition instanceof ClassDefinition)
-      {
-        // for a class, the first constructor parameter is always the newly allocated this pointer
-        thisValue = LLVM.LLVMGetParam(llvmFunction, 0);
-        startIndex = 1;
-      }
-      else if (typeDefinition instanceof CompoundDefinition)
-      {
-        // since the NamedType is not nullable, this makes thisValue equivalent to a temporary type representation of this NamedType
-        thisValue = LLVM.LLVMBuildAlloca(builder, typeHelper.findStandardType(new NamedType(false, typeDefinition)), "this");
-        startIndex = 0;
-      }
-      else
-      {
-        throw new IllegalArgumentException("Unknown type of TypeDefinition: " + typeDefinition);
-      }
+      // the first constructor parameter is always the newly allocated 'this' pointer
+      final LLVMValueRef thisValue = LLVM.LLVMGetParam(llvmFunction, 0);
 
       // store the parameter values to the LLVMValueRefs
       for (Parameter p : constructor.getParameters())
       {
-        LLVMValueRef llvmParameter = LLVM.LLVMGetParam(llvmFunction, p.getIndex() + startIndex);
+        LLVMValueRef llvmParameter = LLVM.LLVMGetParam(llvmFunction, 1 + p.getIndex());
         LLVMValueRef convertedParameter = typeHelper.convertStandardToTemporary(llvmParameter, p.getType(), llvmFunction);
         LLVM.LLVMBuildStore(builder, convertedParameter, variables.get(p.getVariable()));
       }
 
-      // call the non-static initialiser function, which runs all non-static initialisers and sets the initial values for all of the fields
-      LLVMValueRef initialiserFunction = getInitialiserFunction(false);
-      LLVMValueRef[] initialiserArgs = new LLVMValueRef[] {thisValue};
-      LLVM.LLVMBuildCall(builder, initialiserFunction, C.toNativePointerArray(initialiserArgs, false, true), initialiserArgs.length, "");
+      if (!constructor.getCallsDelegateConstructor())
+      {
+        // call the non-static initialiser function, which runs all non-static initialisers and sets the initial values for all of the fields
+        // if this constructor calls a delegate constructor then it will be called later on in the block
+        LLVMValueRef initialiserFunction = getInitialiserFunction(false);
+        LLVMValueRef[] initialiserArgs = new LLVMValueRef[] {thisValue};
+        LLVM.LLVMBuildCall(builder, initialiserFunction, C.toNativePointerArray(initialiserArgs, false, true), initialiserArgs.length, "");
+      }
 
       buildStatement(constructor.getBlock(), VoidType.VOID_TYPE, llvmFunction, thisValue, variables, new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new Runnable()
       {
         @Override
         public void run()
         {
-          // this will be called whenever a return void is found
-          // so return the created object
-          if (typeDefinition instanceof ClassDefinition)
-          {
-            LLVM.LLVMBuildRet(builder, thisValue);
-          }
-          else if (typeDefinition instanceof CompoundDefinition)
-          {
-            LLVMValueRef result = typeHelper.convertTemporaryToStandard(thisValue, new NamedType(false, typeDefinition), llvmFunction);
-            LLVM.LLVMBuildRet(builder, result);
-          }
+          // this will be run whenever a return void is found
+          // so return the result of the constructor, which is always void
+          LLVM.LLVMBuildRetVoid(builder);
         }
       });
+      // return if control reaches the end of the function
       if (!constructor.getBlock().stopsExecution())
       {
-        if (typeDefinition instanceof ClassDefinition)
-        {
-          LLVM.LLVMBuildRet(builder, thisValue);
-        }
-        else if (typeDefinition instanceof CompoundDefinition)
-        {
-          LLVMValueRef result = typeHelper.convertTemporaryToStandard(thisValue, new NamedType(false, typeDefinition), llvmFunction);
-          LLVM.LLVMBuildRet(builder, result);
-        }
+        LLVM.LLVMBuildRetVoid(builder);
       }
     }
   }
@@ -825,13 +786,12 @@ public class CodeGenerator
 
     // build the end of the string creation loop
     LLVM.LLVMPositionBuilderAtEnd(builder, argvLoopEndBlock);
-    LLVMValueRef[] stringCreationArgs = new LLVMValueRef[] {bytes};
-    LLVMValueRef string = LLVM.LLVMBuildCall(builder, getConstructorFunction(SpecialTypeHandler.stringArrayConstructor), C.toNativePointerArray(stringCreationArgs, false, true), stringCreationArgs.length, "");
     LLVMValueRef[] stringArrayIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                             LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
                                                             argvIndex};
     LLVMValueRef stringArrayElementPointer = LLVM.LLVMBuildGEP(builder, stringArray, C.toNativePointerArray(stringArrayIndices, false, true), stringArrayIndices.length, "");
-    LLVM.LLVMBuildStore(builder, string, stringArrayElementPointer);
+    LLVMValueRef[] stringCreationArgs = new LLVMValueRef[] {stringArrayElementPointer, bytes};
+    LLVM.LLVMBuildCall(builder, getConstructorFunction(SpecialTypeHandler.stringArrayConstructor), C.toNativePointerArray(stringCreationArgs, false, true), stringCreationArgs.length, "");
 
     // update the argv index, and branch
     LLVMValueRef incArgvIndex = LLVM.LLVMBuildAdd(builder, argvIndex, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false), "");
@@ -1003,6 +963,22 @@ public class CodeGenerator
         throw new IllegalStateException("Continue statement leads to a null block during code generation: " + statement);
       }
       LLVM.LLVMBuildBr(builder, block);
+    }
+    else if (statement instanceof DelegateConstructorStatement)
+    {
+      DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
+      Constructor delegatedConstructor = delegateConstructorStatement.getResolvedConstructor();
+      Parameter[] parameters = delegatedConstructor.getParameters();
+      Expression[] arguments = delegateConstructorStatement.getArguments();
+      LLVMValueRef llvmConstructor = getConstructorFunction(delegatedConstructor);
+      LLVMValueRef[] llvmArguments = new LLVMValueRef[1 + parameters.length];
+      llvmArguments[0] = thisValue;
+      for (int i = 0; i < parameters.length; ++i)
+      {
+        LLVMValueRef argument = buildExpression(arguments[i], llvmFunction, thisValue, variables);
+        llvmArguments[1 + i] = typeHelper.convertTemporaryToStandard(argument, arguments[i].getType(), parameters[i].getType(), llvmFunction);
+      }
+      LLVM.LLVMBuildCall(builder, llvmConstructor, C.toNativePointerArray(llvmArguments, false, true), llvmArguments.length, "");
     }
     else if (statement instanceof ExpressionStatement)
     {
@@ -1352,15 +1328,25 @@ public class CodeGenerator
         }
         LLVMValueRef rightValue = typeHelper.convertTemporary(resultValues[i], resultValueTypes[i], type);
         LLVMValueRef assigneeResult;
-        boolean resultIsStandard = false; // true only if the assigneeResult has a standard type representation
         if (shorthandAssignStatement.getOperator() == ShorthandAssignmentOperator.ADD && type.isEquivalent(SpecialTypeHandler.STRING_TYPE))
         {
           // concatenate the strings
-          LLVMValueRef[] arguments = new LLVMValueRef[] {typeHelper.convertTemporaryToStandard(leftValue, resultType, llvmFunction),
+          // build an alloca in the entry block for the result of the concatenation
+          LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+          LLVM.LLVMPositionBuilderAtStart(builder, LLVM.LLVMGetEntryBasicBlock(llvmFunction));
+          // find the type to alloca, which is the standard representation of a non-nullable version of this type
+          // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with any nullability)
+          LLVMTypeRef allocaBaseType = typeHelper.findStandardType(new NamedType(false, SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition()));
+          LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, allocaBaseType, "");
+          LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+
+          // call the string(string, string) constructor
+          LLVMValueRef[] arguments = new LLVMValueRef[] {alloca,
+                                                         typeHelper.convertTemporaryToStandard(leftValue, resultType, llvmFunction),
                                                          typeHelper.convertTemporaryToStandard(rightValue, resultType, llvmFunction)};
           LLVMValueRef concatenationConstructor = getConstructorFunction(SpecialTypeHandler.stringConcatenationConstructor);
-          assigneeResult = LLVM.LLVMBuildCall(builder, concatenationConstructor, C.toNativePointerArray(arguments, false, true), arguments.length, "");
-          resultIsStandard = true;
+          LLVM.LLVMBuildCall(builder, concatenationConstructor, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+          assigneeResult = alloca;
         }
         else if (type instanceof PrimitiveType)
         {
@@ -1426,13 +1412,9 @@ public class CodeGenerator
         {
           throw new IllegalStateException("Unknown shorthand assignment operation: " + shorthandAssignStatement);
         }
-        if (!resultIsStandard && standardTypeRepresentations[i])
+        if (standardTypeRepresentations[i])
         {
           assigneeResult = typeHelper.convertTemporaryToStandard(assigneeResult, type, llvmFunction);
-        }
-        if (resultIsStandard && !standardTypeRepresentations[i])
-        {
-          assigneeResult = typeHelper.convertStandardToTemporary(assigneeResult, type, llvmFunction);
         }
         LLVM.LLVMBuildStore(builder, assigneeResult, llvmAssigneePointers[i]);
       }
@@ -1892,11 +1874,21 @@ public class CodeGenerator
       if (arithmeticExpression.getOperator() == ArithmeticOperator.ADD && resultType.isEquivalent(SpecialTypeHandler.STRING_TYPE))
       {
         // concatenate the strings
-        LLVMValueRef[] arguments = new LLVMValueRef[] {typeHelper.convertTemporaryToStandard(left, resultType, llvmFunction),
+        // build an alloca in the entry block for the result of the concatenation
+        LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMPositionBuilderAtStart(builder, LLVM.LLVMGetEntryBasicBlock(llvmFunction));
+        // find the type to alloca, which is the standard representation of a non-nullable version of this type
+        // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with any nullability)
+        LLVMTypeRef allocaBaseType = typeHelper.findStandardType(new NamedType(false, SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition()));
+        LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, allocaBaseType, "");
+        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+
+        LLVMValueRef[] arguments = new LLVMValueRef[] {alloca,
+                                                       typeHelper.convertTemporaryToStandard(left, resultType, llvmFunction),
                                                        typeHelper.convertTemporaryToStandard(right, resultType, llvmFunction)};
         LLVMValueRef concatenationConstructor = getConstructorFunction(SpecialTypeHandler.stringConcatenationConstructor);
-        LLVMValueRef concatenated = LLVM.LLVMBuildCall(builder, concatenationConstructor, C.toNativePointerArray(arguments, false, true), arguments.length, "");
-        return typeHelper.convertStandardToTemporary(concatenated, new NamedType(false, SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition()), resultType, llvmFunction);
+        LLVM.LLVMBuildCall(builder, concatenationConstructor, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+        return typeHelper.convertTemporary(alloca, new NamedType(false, SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition()), resultType);
       }
       boolean floating = ((PrimitiveType) resultType).getPrimitiveTypeType().isFloating();
       boolean signed = ((PrimitiveType) resultType).getPrimitiveTypeType().isSigned();
@@ -2331,9 +2323,24 @@ public class CodeGenerator
       }
 
       LLVMValueRef result;
+      boolean resultIsTemporary = false; // true iff result has a temporary type representation
       if (resolvedConstructor != null)
       {
-        result = LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(values, false, true), values.length, "");
+        // build an alloca in the entry block for the result of the constructor call
+        LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMPositionBuilderAtStart(builder, LLVM.LLVMGetEntryBasicBlock(llvmFunction));
+        // find the type to alloca, which is the standard representation of a non-nullable type
+        // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with any nullability)
+        LLVMTypeRef allocaBaseType = typeHelper.findStandardType(returnType);
+        LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, allocaBaseType, "");
+        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+
+        LLVMValueRef[] realArguments = new LLVMValueRef[1 + values.length];
+        realArguments[0] = alloca;
+        System.arraycopy(values, 0, realArguments, 1, values.length);
+        LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(realArguments, false, true), realArguments.length, "");
+        result = alloca;
+        resultIsTemporary = true;
       }
       else if (resolvedMethod != null)
       {
@@ -2373,7 +2380,14 @@ public class CodeGenerator
           return null;
         }
 
-        result = typeHelper.convertStandardToTemporary(result, returnType, functionExpression.getType(), llvmFunction);
+        if (resultIsTemporary)
+        {
+          result = typeHelper.convertTemporary(result, returnType, functionExpression.getType());
+        }
+        else
+        {
+          result = typeHelper.convertStandardToTemporary(result, returnType, functionExpression.getType(), llvmFunction);
+        }
         LLVMBasicBlockRef callBlock = LLVM.LLVMGetInsertBlock(builder);
         LLVM.LLVMBuildBr(builder, continuationBlock);
 
@@ -2389,6 +2403,10 @@ public class CodeGenerator
       if (returnType instanceof VoidType)
       {
         return result;
+      }
+      if (resultIsTemporary)
+      {
+        return typeHelper.convertTemporary(result, returnType, functionExpression.getType());
       }
       return typeHelper.convertStandardToTemporary(result, returnType, functionExpression.getType(), llvmFunction);
     }
@@ -2638,9 +2656,19 @@ public class CodeGenerator
       Type arrayType = new ArrayType(false, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
       LLVMValueRef constructorFunction = getConstructorFunction(SpecialTypeHandler.stringArrayConstructor);
       LLVMValueRef bitcastedArray = LLVM.LLVMBuildBitCast(builder, globalVariable, typeHelper.findStandardType(arrayType), "");
-      LLVMValueRef[] arguments = new LLVMValueRef[] {bitcastedArray};
-      LLVMValueRef result = LLVM.LLVMBuildCall(builder, constructorFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
-      return typeHelper.convertStandardToTemporary(result, new NamedType(false, SpecialTypeHandler.stringArrayConstructor.getContainingTypeDefinition()), expression.getType(), llvmFunction);
+
+      // build an alloca in the entry block for the string value
+      LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMPositionBuilderAtStart(builder, LLVM.LLVMGetEntryBasicBlock(llvmFunction));
+      // find the type to alloca, which is the standard representation of a non-nullable version of this type
+      // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with any nullability)
+      LLVMTypeRef allocaBaseType = typeHelper.findStandardType(new NamedType(false, SpecialTypeHandler.stringArrayConstructor.getContainingTypeDefinition()));
+      LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, allocaBaseType, "");
+      LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+
+      LLVMValueRef[] arguments = new LLVMValueRef[] {alloca, bitcastedArray};
+      LLVM.LLVMBuildCall(builder, constructorFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+      return typeHelper.convertTemporary(alloca, new NamedType(false, SpecialTypeHandler.stringArrayConstructor.getContainingTypeDefinition()), expression.getType());
     }
     if (expression instanceof ThisExpression)
     {

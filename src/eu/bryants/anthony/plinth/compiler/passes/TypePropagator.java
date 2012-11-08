@@ -45,6 +45,7 @@ import eu.bryants.anthony.plinth.ast.statement.AssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Block;
 import eu.bryants.anthony.plinth.ast.statement.BreakStatement;
 import eu.bryants.anthony.plinth.ast.statement.ContinueStatement;
+import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.plinth.ast.statement.ForStatement;
 import eu.bryants.anthony.plinth.ast.statement.IfStatement;
@@ -160,6 +161,17 @@ public class TypePropagator
     else if (statement instanceof ContinueStatement)
     {
       // do nothing
+    }
+    else if (statement instanceof DelegateConstructorStatement)
+    {
+      DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
+      Parameter[] parameters = delegateConstructorStatement.getResolvedConstructor().getParameters();
+      Expression[] arguments = delegateConstructorStatement.getArguments();
+      // propagate the parameter types to the arguments
+      for (int i = 0; i < parameters.length; ++i)
+      {
+        propagateTypes(arguments[i], parameters[i].getType());
+      }
     }
     else if (statement instanceof ExpressionStatement)
     {

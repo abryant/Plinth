@@ -222,7 +222,11 @@ public class Compiler
       }
       for (CompilationUnit compilationUnit : compilationUnits)
       {
-        CycleChecker.checkCycles(compilationUnit);
+        CycleChecker.checkCompoundTypeCycles(compilationUnit);
+      }
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        CycleChecker.checkConstructorDelegateCycles(compilationUnit);
       }
       SpecialTypeHandler.verifySpecialTypes();
       for (CompilationUnit compilationUnit : compilationUnits)

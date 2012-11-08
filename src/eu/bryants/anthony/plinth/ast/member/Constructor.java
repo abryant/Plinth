@@ -19,6 +19,7 @@ public class Constructor extends Member
   private Block block;
 
   private TypeDefinition containingTypeDefinition;
+  private boolean callsDelegateConstructor;
 
   public Constructor(String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
   {
@@ -70,6 +71,22 @@ public class Constructor extends Member
   public void setContainingTypeDefinition(TypeDefinition containingTypeDefinition)
   {
     this.containingTypeDefinition = containingTypeDefinition;
+  }
+
+  /**
+   * @return true if this Constructor calls a delegate constructor at any point in its block, false otherwise
+   */
+  public boolean getCallsDelegateConstructor()
+  {
+    return callsDelegateConstructor;
+  }
+
+  /**
+   * @param callsDelegateConstructor - true if this Constructor calls a delegate constructor at any point in its block, false otherwise
+   */
+  public void setCallsDelegateConstructor(boolean callsDelegateConstructor)
+  {
+    this.callsDelegateConstructor = callsDelegateConstructor;
   }
 
   /**

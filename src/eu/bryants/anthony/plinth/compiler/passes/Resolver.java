@@ -14,6 +14,7 @@ import java.util.Stack;
 
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
+import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.plinth.ast.expression.ArrayAccessExpression;
@@ -63,6 +64,7 @@ import eu.bryants.anthony.plinth.ast.statement.AssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Block;
 import eu.bryants.anthony.plinth.ast.statement.BreakStatement;
 import eu.bryants.anthony.plinth.ast.statement.ContinueStatement;
+import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.plinth.ast.statement.ForStatement;
 import eu.bryants.anthony.plinth.ast.statement.IfStatement;
@@ -615,6 +617,21 @@ public class Resolver
     {
       // do nothing
     }
+    else if (statement instanceof DelegateConstructorStatement)
+    {
+      DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
+      Expression[] arguments = delegateConstructorStatement.getArguments();
+      for (Expression argument : arguments)
+      {
+        resolve(argument, enclosingBlock, enclosingDefinition, compilationUnit);
+      }
+      Constructor resolvedConstructor = resolveConstructor(enclosingDefinition, arguments, delegateConstructorStatement.getLexicalPhrase());
+      delegateConstructorStatement.setResolvedConstructor(resolvedConstructor);
+      // if there was no matching constructor, the resolved constructor call may not type check
+      // in this case, we should point out this error before we run the cycle checker, because the cycle checker could find that the constructor is recursive
+      // so run the type checker on this statement now
+      TypeChecker.checkTypes(statement, null); // give a null return type here, since the type checker will not need to use it
+    }
     else if (statement instanceof ExpressionStatement)
     {
       resolve(((ExpressionStatement) statement).getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
@@ -841,85 +858,12 @@ public class Resolver
       resolve(type, compilationUnit);
       classCreationExpression.setType(type);
       Expression[] arguments = classCreationExpression.getArguments();
-      Type[] argumentTypes = new Type[arguments.length];
-      for (int i = 0; i < arguments.length; ++i)
+      for (Expression argument : arguments)
       {
-        resolve(arguments[i], block, enclosingDefinition, compilationUnit);
-
-        // find the type of the sub-expression, by calling the type checker
-        // this is fine as long as we resolve the sub-expression first
-        argumentTypes[i] = TypeChecker.checkTypes(arguments[i]);
+        resolve(argument, block, enclosingDefinition, compilationUnit);
       }
-      // resolve the constructor being called
-      Collection<Constructor> constructors = type.getResolvedTypeDefinition().getConstructors();
-      Map<Parameter[], Constructor> parameterLists = new HashMap<Parameter[], Constructor>();
-      for (Constructor constructor : constructors)
-      {
-        parameterLists.put(constructor.getParameters(), constructor);
-      }
-      filterParameterLists(parameterLists.entrySet(), arguments, false, false);
-
-      // if there are multiple parameter lists, try to narrow it down to one that is equivalent to the argument list
-      if (parameterLists.size() > 1)
-      {
-        Map<Parameter[], Constructor> backupParamLists = new HashMap<Parameter[], Constructor>(parameterLists);
-
-        filterParameterLists(parameterLists.entrySet(), arguments, true, false);
-
-        // if we have filtered out all of the parameter lists, try to narrow it down again, but this time allow nullable versions of argument types for parameters
-        if (parameterLists.isEmpty())
-        {
-          // revert back to the unfiltered one, and refilter with a broader condition
-          parameterLists = backupParamLists;
-          filterParameterLists(parameterLists.entrySet(), arguments, true, true);
-        }
-      }
-
-      if (parameterLists.size() > 1)
-      {
-        throw new ConceptualException("Ambiguous constructor call, there are at least two applicable constructors which take these arguments", classCreationExpression.getLexicalPhrase());
-      }
-      if (parameterLists.isEmpty())
-      {
-        // since we failed to resolve the constructor, pick the most relevant one so that the type checker can point out exactly why it failed to match
-        Constructor mostRelevantConstructor = null;
-        int mostRelevantArgCount = -1;
-        for (Constructor constructor : constructors)
-        {
-          Parameter[] parameters = constructor.getParameters();
-          if (parameters.length == arguments.length)
-          {
-            for (int i = 0; i < parameters.length; ++i)
-            {
-              if (!parameters[i].getType().canAssign(argumentTypes[i]))
-              {
-                if (i + 1 > mostRelevantArgCount)
-                {
-                  mostRelevantConstructor = constructor;
-                  mostRelevantArgCount = i + 1;
-                }
-                break;
-              }
-            }
-          }
-        }
-        if (mostRelevantConstructor != null)
-        {
-          classCreationExpression.setResolvedConstructor(mostRelevantConstructor);
-        }
-        else if (constructors.size() >= 1)
-        {
-          classCreationExpression.setResolvedConstructor(constructors.iterator().next());
-        }
-        else
-        {
-          throw new ConceptualException("Cannot create a '" + type + "' because it has no constructors", classCreationExpression.getLexicalPhrase());
-        }
-      }
-      else // if !parameterLists.isEmpty()
-      {
-        classCreationExpression.setResolvedConstructor(parameterLists.entrySet().iterator().next().getValue());
-      }
+      Constructor resolvedConstructor = resolveConstructor(type.getResolvedTypeDefinition(), arguments, classCreationExpression.getLexicalPhrase());
+      classCreationExpression.setResolvedConstructor(resolvedConstructor);
     }
     else if (expression instanceof EqualityExpression)
     {
@@ -1375,6 +1319,88 @@ public class Resolver
         it.remove();
       }
     }
+  }
+
+  /**
+   * Resolves a constructor call from the specified target type and argument list.
+   * This method runs the type checker on each of the arguments in order to determine their types.
+   * @param typeDefinition - the type which contains the constructor being called
+   * @param arguments - the arguments being passed to the constructor
+   * @param callerLexicalPhrase - the LexicalPhrase of the caller, to be used in any errors generated
+   * @return the Constructor resolved
+   * @throws ConceptualException - if there was a conceptual problem resolving the Constructor
+   */
+  private Constructor resolveConstructor(TypeDefinition typeDefinition, Expression[] arguments, LexicalPhrase callerLexicalPhrase) throws ConceptualException
+  {
+    Type[] argumentTypes = new Type[arguments.length];
+    for (int i = 0; i < arguments.length; ++i)
+    {
+      argumentTypes[i] = TypeChecker.checkTypes(arguments[i]);
+    }
+    // resolve the constructor being called
+    Collection<Constructor> constructors = typeDefinition.getConstructors();
+    Map<Parameter[], Constructor> parameterLists = new HashMap<Parameter[], Constructor>();
+    for (Constructor constructor : constructors)
+    {
+      parameterLists.put(constructor.getParameters(), constructor);
+    }
+    filterParameterLists(parameterLists.entrySet(), arguments, false, false);
+
+    // if there are multiple parameter lists, try to narrow it down to one that is equivalent to the argument list
+    if (parameterLists.size() > 1)
+    {
+      Map<Parameter[], Constructor> backupParamLists = new HashMap<Parameter[], Constructor>(parameterLists);
+
+      filterParameterLists(parameterLists.entrySet(), arguments, true, false);
+
+      // if we have filtered out all of the parameter lists, try to narrow it down again, but this time allow nullable versions of argument types for parameters
+      if (parameterLists.isEmpty())
+      {
+        // revert back to the unfiltered one, and refilter with a broader condition
+        parameterLists = backupParamLists;
+        filterParameterLists(parameterLists.entrySet(), arguments, true, true);
+      }
+    }
+
+    if (parameterLists.size() > 1)
+    {
+      throw new ConceptualException("Ambiguous constructor call, there are at least two applicable constructors which take these arguments", callerLexicalPhrase);
+    }
+    if (!parameterLists.isEmpty())
+    {
+      return parameterLists.entrySet().iterator().next().getValue();
+    }
+    // since we failed to resolve the constructor, pick the most relevant one so that the type checker can point out exactly why it failed to match
+    Constructor mostRelevantConstructor = null;
+    int mostRelevantArgCount = -1;
+    for (Constructor constructor : constructors)
+    {
+      Parameter[] parameters = constructor.getParameters();
+      if (parameters.length == arguments.length)
+      {
+        for (int i = 0; i < parameters.length; ++i)
+        {
+          if (!parameters[i].getType().canAssign(argumentTypes[i]))
+          {
+            if (i + 1 > mostRelevantArgCount)
+            {
+              mostRelevantConstructor = constructor;
+              mostRelevantArgCount = i + 1;
+            }
+            break;
+          }
+        }
+      }
+    }
+    if (mostRelevantConstructor != null)
+    {
+      return mostRelevantConstructor;
+    }
+    if (constructors.size() >= 1)
+    {
+      return constructors.iterator().next();
+    }
+    throw new ConceptualException("Cannot create a '" + typeDefinition.getQualifiedName() + "' - it has no constructors", callerLexicalPhrase);
   }
 
   /**

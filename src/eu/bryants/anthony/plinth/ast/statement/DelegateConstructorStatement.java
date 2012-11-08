@@ -2,6 +2,7 @@ package eu.bryants.anthony.plinth.ast.statement;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
+import eu.bryants.anthony.plinth.ast.member.Constructor;
 
 /*
  * Created on 2 Nov 2012
@@ -13,6 +14,8 @@ import eu.bryants.anthony.plinth.ast.expression.Expression;
 public class DelegateConstructorStatement extends Statement
 {
   private Expression[] arguments;
+
+  private Constructor resolvedConstructor;
 
   public DelegateConstructorStatement(Expression[] arguments, LexicalPhrase lexicalPhrase)
   {
@@ -26,6 +29,22 @@ public class DelegateConstructorStatement extends Statement
   public Expression[] getArguments()
   {
     return arguments;
+  }
+
+  /**
+   * @return the resolvedConstructor
+   */
+  public Constructor getResolvedConstructor()
+  {
+    return resolvedConstructor;
+  }
+
+  /**
+   * @param resolvedConstructor - the resolvedConstructor to set
+   */
+  public void setResolvedConstructor(Constructor resolvedConstructor)
+  {
+    this.resolvedConstructor = resolvedConstructor;
   }
 
   /**

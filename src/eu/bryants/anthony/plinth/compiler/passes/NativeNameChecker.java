@@ -30,6 +30,9 @@ public class NativeNameChecker
     FORBIDDEN_NAMES.add("free");
   }
 
+  // TODO: make this an object rather than a set of static methods, and make it check all linked TypeDefinitions, not just the CompilationUnits
+  // TODO: check for duplicate "main" methods, in case someone specifies a main class and declares a native method called "main"
+
   /**
    * Checks that the compilation unit does not have any bad (e.g. duplicated) native names.
    * This ensures that the names do not collide during code generation.

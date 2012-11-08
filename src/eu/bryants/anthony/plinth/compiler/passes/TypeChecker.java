@@ -58,6 +58,7 @@ import eu.bryants.anthony.plinth.ast.statement.AssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Block;
 import eu.bryants.anthony.plinth.ast.statement.BreakStatement;
 import eu.bryants.anthony.plinth.ast.statement.ContinueStatement;
+import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.plinth.ast.statement.ForStatement;
 import eu.bryants.anthony.plinth.ast.statement.IfStatement;
@@ -145,7 +146,14 @@ public class TypeChecker
     }
   }
 
-  private static void checkTypes(Statement statement, Type returnType) throws ConceptualException
+  /**
+   * Checks the types on a Statement recursively.
+   * This method should only be called on a Statement after the resolver has been run over that Statement
+   * @param statement - the Statement to check the types on
+   * @param returnType - the return type of the function containing this statement
+   * @throws ConceptualException - if a conceptual problem is encountered while checking the types
+   */
+  public static void checkTypes(Statement statement, Type returnType) throws ConceptualException
   {
     if (statement instanceof AssignStatement)
     {
@@ -346,6 +354,42 @@ public class TypeChecker
     else if (statement instanceof ContinueStatement)
     {
       // do nothing
+    }
+    else if (statement instanceof DelegateConstructorStatement)
+    {
+      DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
+      Constructor constructor = delegateConstructorStatement.getResolvedConstructor();
+
+      Parameter[] parameters = constructor.getParameters();
+      Type[] parameterTypes = new Type[parameters.length];
+      for (int i = 0; i < parameters.length; ++i)
+      {
+        parameterTypes[i] = parameters[i].getType();
+      }
+      Expression[] arguments = delegateConstructorStatement.getArguments();
+
+      if (arguments.length != parameterTypes.length)
+      {
+        StringBuffer buffer = new StringBuffer();
+        for (int i = 0; i < parameterTypes.length; i++)
+        {
+          buffer.append(parameterTypes[i]);
+          if (i != parameterTypes.length - 1)
+          {
+            buffer.append(", ");
+          }
+        }
+        throw new ConceptualException("The constructor '" + constructor.getName() + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", delegateConstructorStatement.getLexicalPhrase());
+      }
+
+      for (int i = 0; i < arguments.length; i++)
+      {
+        Type type = checkTypes(arguments[i]);
+        if (!parameterTypes[i].canAssign(type))
+        {
+          throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", arguments[i].getLexicalPhrase());
+        }
+      }
     }
     else if (statement instanceof ExpressionStatement)
     {
