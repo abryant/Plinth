@@ -54,6 +54,7 @@ import eu.bryants.anthony.plinth.ast.statement.ReturnStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
+import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
@@ -332,7 +333,7 @@ public class TypePropagator
       {
         for (Expression e : arrayCreationExpression.getValueExpressions())
         {
-          propagateTypes(e, arrayCreationExpression.getType().getBaseType());
+          propagateTypes(e, ((ArrayType) arrayCreationExpression.getType()).getBaseType());
         }
       }
     }

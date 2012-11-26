@@ -120,7 +120,7 @@ public class BasicPrimaryRule extends Rule<ParseType>
     if (production == ARRAY_CREATION_EMPTY_LIST_PRODUCTION)
     {
       Type type = (Type) args[3];
-      ArrayType arrayType = new ArrayType(false, type, null);
+      ArrayType arrayType = new ArrayType(false, false, type, null);
       return new ArrayCreationExpression(arrayType, null, new Expression[0], LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], type.getLexicalPhrase(), (LexicalPhrase) args[4], (LexicalPhrase) args[5]));
     }
     if (production == ARRAY_CREATION_LIST_PRODUCTION)
@@ -128,7 +128,7 @@ public class BasicPrimaryRule extends Rule<ParseType>
       Type type = (Type) args[3];
       @SuppressWarnings("unchecked")
       ParseList<Expression> valueExpressions = (ParseList<Expression>) args[5];
-      ArrayType arrayType = new ArrayType(false, type, null);
+      ArrayType arrayType = new ArrayType(false, false, type, null);
       return new ArrayCreationExpression(arrayType, null, valueExpressions.toArray(new Expression[valueExpressions.size()]),
                                          LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], type.getLexicalPhrase(), (LexicalPhrase) args[4], valueExpressions.getLexicalPhrase(), (LexicalPhrase) args[6]));
     }

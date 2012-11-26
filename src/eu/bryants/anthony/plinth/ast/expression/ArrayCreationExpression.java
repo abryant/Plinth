@@ -13,25 +13,24 @@ import eu.bryants.anthony.plinth.ast.type.Type;
  */
 public class ArrayCreationExpression extends Expression
 {
-  private ArrayType type;
+  private ArrayType declaredType;
   private Expression[] dimensionExpressions;
   private Expression[] valueExpressions;
 
   public ArrayCreationExpression(ArrayType type, Expression[] dimensionExpressions, Expression[] valueExpressions, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
-    this.type = type;
+    this.declaredType = type;
     this.dimensionExpressions = dimensionExpressions;
     this.valueExpressions = valueExpressions;
   }
 
   /**
-   * @return the type
+   * @return the declaredType
    */
-  @Override
-  public ArrayType getType()
+  public ArrayType getDeclaredType()
   {
-    return type;
+    return declaredType;
   }
 
   /**
@@ -57,11 +56,11 @@ public class ArrayCreationExpression extends Expression
   public String toString()
   {
     StringBuffer buffer = new StringBuffer("new ");
-    Type baseType = type;
+    Type baseType = declaredType;
     if (dimensionExpressions == null)
     {
       buffer.append("[]");
-      baseType = type.getBaseType();
+      baseType = declaredType.getBaseType();
     }
     else
     {

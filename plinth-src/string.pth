@@ -4,13 +4,13 @@
  */
 compound string
 {
-  []ubyte bytes;
-  ?[]uint chars;
+  #[]ubyte bytes;
+  ?#[]uint chars;
 
   /**
    * Creates an empty string.
    */
-  string()
+  immutable string()
   {
     bytes = new [0]ubyte;
   }
@@ -19,7 +19,7 @@ compound string
    * Creates a string containing the specified UTF-8 bytes.
    * @param bytes - the UTF-8 bytes
    */
-  string([]ubyte bytes)
+  immutable string(#[]ubyte bytes)
   {
     this.bytes = bytes;
   }
@@ -28,7 +28,7 @@ compound string
    * Creates a string containing the specified unicode (UTF-32) characters.
    * @param chars - the unicode characters
    */
-  string([]uint chars)
+  immutable string([]uint chars)
   {
     bytes = convertUTF32ToUTF8(chars);
     this.chars = chars;
@@ -39,9 +39,9 @@ compound string
    * @param str1 - the first string
    * @param str2 - the second string
    */
-  string(string str1, string str2)
+  immutable string(#string str1, #string str2)
   {
-    bytes = new [str1.bytes.length + str2.bytes.length]ubyte;
+    []ubyte bytes = new [str1.bytes.length + str2.bytes.length]ubyte;
     for (uint i = 0; i < str1.bytes.length; ++i)
     {
       bytes[i] = str1.bytes[i];
@@ -50,11 +50,12 @@ compound string
     {
       bytes[str1.bytes.length + i] = str2.bytes[i];
     }
+    this.bytes = bytes;
     if (str1.chars != null & str2.chars != null)
     {
-      []uint chars1 = cast<[]uint> str1.chars;
-      []uint chars2 = cast<[]uint> str2.chars;
-      chars = new [chars1.length + chars2.length]uint;
+      #[]uint chars1 = cast<#[]uint> str1.chars;
+      #[]uint chars2 = cast<#[]uint> str2.chars;
+      []uint chars = new [chars1.length + chars2.length]uint;
       for (uint i = 0; i < chars1.length; ++i)
       {
         chars[i] = chars1[i];
@@ -63,6 +64,7 @@ compound string
       {
         chars[chars1.length + i] = chars2[i];
       }
+      this.chars = chars;
     }
   }
 
@@ -79,7 +81,7 @@ compound string
   /**
    * @return the number of bytes in the UTF-8 representation of this string.
    */
-  uint byteLength()
+  immutable uint byteLength()
   {
     return bytes.length;
   }
@@ -122,7 +124,7 @@ compound string
   {
     // TODO: make assertions about arguments
     uint len = end - start;
-    []uint chars = getUnicodeChars();
+    #[]uint chars = getUnicodeChars();
     []uint subChars = new [len]uint;
     for (uint i = 0; i < len; ++i)
     {
@@ -138,8 +140,8 @@ compound string
    */
   ?uint indexOf(string s)
   {
-    []uint chars = getUnicodeChars();
-    []uint otherChars = getUnicodeChars();
+    #[]uint chars = getUnicodeChars();
+    #[]uint otherChars = getUnicodeChars();
     for (uint i = 0; i < chars.length - otherChars.length; ++i)
     {
       if chars[i] == otherChars[0]
@@ -161,9 +163,9 @@ compound string
   /**
    * @return the UTF-32 code points of the characters of this string.
    */
-  []uint getUnicodeChars()
+  #[]uint getUnicodeChars()
   {
-    []uint chars = this.chars ?: convertUTF8ToUTF32(bytes);
+    #[]uint chars = this.chars ?: convertUTF8ToUTF32(bytes);
     this.chars = chars;
     return chars;
   }
@@ -172,7 +174,7 @@ compound string
    * @param bytes - an array of UTF-8 bytes to the find the character length of
    * @return the number of characters represented by the specified UTF-8 bytes.
    */
-  static uint findUTF8Length([]ubyte bytes)
+  static immutable uint findUTF8Length(#[]ubyte bytes)
   {
     uint len = 0;
     for (uint i = 0; i < bytes.length; ++i)
@@ -197,7 +199,7 @@ compound string
    * @param str - the string to compare this one to
    * @return true iff the string objects represent the same sequence of characters
    */
-  boolean equals(string str)
+  immutable boolean equals(string str)
   {
     if (bytes.length != str.bytes.length)
     {
@@ -218,7 +220,7 @@ compound string
    * @param value - the boolean value to find the string representation of
    * @return a string representation of value
    */
-  static string valueOf(boolean value)
+  static immutable string valueOf(boolean value)
   {
     return value ? "true" : "false";
   }
@@ -228,7 +230,7 @@ compound string
    * @param value - the signed value to find the string representation of
    * @return a string representation of value in base 10
    */
-  static string valueOf(long value)
+  static immutable string valueOf(long value)
   {
     return valueOf(value, 10);
   }
@@ -238,7 +240,7 @@ compound string
    * @param value - the unsigned value to find the string representation of
    * @return a string representation of value in base 10
    */
-  static string valueOf(ulong value)
+  static immutable string valueOf(ulong value)
   {
     return valueOf(value, 10);
   }
@@ -249,9 +251,9 @@ compound string
    * @param radix - the radix to encode the value with
    * @return a string representation of value in radix
    */
-  static string valueOf(long value, uint radix)
+  static immutable string valueOf(long value, uint radix)
   {
-    []ubyte numerals = "0123456789abcdefghijklmnopqrstuvwxyz".bytes;
+    #[]ubyte numerals = "0123456789abcdefghijklmnopqrstuvwxyz".bytes;
     if radix < 2 | radix > numerals.length
     {
       return "#RadixError";
@@ -299,9 +301,9 @@ compound string
    * @param radix - the radix to encode the value with
    * @return a string representation of value in radix
    */
-  static string valueOf(ulong value, uint radix)
+  static immutable string valueOf(ulong value, uint radix)
   {
-    []ubyte numerals = "0123456789abcdefghijklmnopqrstuvwxyz".bytes;
+    #[]ubyte numerals = "0123456789abcdefghijklmnopqrstuvwxyz".bytes;
     if radix < 2 | radix > numerals.length
     {
       return "#RadixError";
@@ -332,7 +334,7 @@ compound string
    * @param value - the float value to find the string representation of
    * @return a string representation of value
    */
-  static string valueOf(float value)
+  static immutable string valueOf(float value)
   {
     uint binaryValue = maths::convertFloatBitsToUint(value);
     boolean negative = (binaryValue & 0b10000000000000000000000000000000) != 0;
@@ -375,7 +377,7 @@ compound string
    * @param value - the double value to find the string representation of
    * @return a string representation of value
    */
-  static string valueOf(double value)
+  static immutable string valueOf(double value)
   {
     ulong binaryValue = maths::convertDoubleBitsToUlong(value);
     boolean negative =  (binaryValue & 0b1000000000000000000000000000000000000000000000000000000000000000) != 0;
@@ -421,7 +423,7 @@ compound string
    * @param startWithOne - true iff the digits array begins with a 10, implying that the number before the decimal point is a 1 instead of a 0
    * @return the string representation of the specified floating point digits
    */
-  static string formatFloatingDigits(boolean negative, int decimalExponent, []ubyte digits, boolean startWithOne)
+  static immutable string formatFloatingDigits(boolean negative, int decimalExponent, []ubyte digits, boolean startWithOne)
   {
     ubyte zero = "0".bytes[0];
     if decimalExponent > 9 | decimalExponent < -6
@@ -511,7 +513,7 @@ compound string
    * @param bytes - an array of UTF-8 bytes to the find the UTF-32 representation of
    * @return the UTF-32 representation of the specified UTF-8 characters
    */
-  static []uint convertUTF8ToUTF32([]ubyte bytes)
+  static immutable []uint convertUTF8ToUTF32(#[]ubyte bytes)
   {
     uint len = findUTF8Length(bytes);
     []uint result = new [len]uint;
@@ -589,7 +591,7 @@ compound string
    * @param chars - an array of UTF-32 character codes to the find the UTF-8 representation of
    * @return the UTF-8 representation of the specified UTF-32 character codes
    */
-  static []ubyte convertUTF32ToUTF8([]uint chars)
+  static immutable []ubyte convertUTF32ToUTF8(#[]uint chars)
   {
     uint len = 0;
     for (uint i = 0; i < chars.length; ++i)

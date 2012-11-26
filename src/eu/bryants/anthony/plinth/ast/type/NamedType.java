@@ -24,19 +24,52 @@ public class NamedType extends Type
 
   private QName qname;
 
+  // a type is explicitly immutable if it has been declared as immutable explicitly,
+  // whereas a type is contextually immutable if it is just accessed in an immutable context
+  // if a type is explicitly immutable, then it is always also contextually immutable
+  private boolean explicitlyImmutable;
+  private boolean contextuallyImmutable;
+
   private TypeDefinition resolvedTypeDefinition;
 
-  public NamedType(boolean nullable, QName qname, LexicalPhrase lexicalPhrase)
+  public NamedType(boolean nullable, boolean explicitlyImmutable, boolean contextuallyImmutable, QName qname, LexicalPhrase lexicalPhrase)
   {
     super(nullable, lexicalPhrase);
+    this.explicitlyImmutable = explicitlyImmutable;
+    this.contextuallyImmutable = explicitlyImmutable | contextuallyImmutable;
     this.qname = qname;
   }
 
-  public NamedType(boolean nullable, TypeDefinition typeDefinition)
+  public NamedType(boolean nullable, boolean explicitlyImmutable, boolean contextuallyImmutable, TypeDefinition typeDefinition)
   {
-    super(nullable, null);
-    this.qname = typeDefinition.getQualifiedName();
+    this(nullable, explicitlyImmutable, contextuallyImmutable, typeDefinition.getQualifiedName(), null);
     this.resolvedTypeDefinition = typeDefinition;
+  }
+
+  public NamedType(boolean nullable, boolean explicitlyImmutable, QName qname, LexicalPhrase lexicalPhrase)
+  {
+    this(nullable, explicitlyImmutable, false, qname, lexicalPhrase);
+  }
+
+  public NamedType(boolean nullable, boolean explicitlyImmutable, TypeDefinition typeDefinition)
+  {
+    this(nullable, explicitlyImmutable, false, typeDefinition);
+  }
+
+  /**
+   * @return the explicitlyImmutable
+   */
+  public boolean isExplicitlyImmutable()
+  {
+    return explicitlyImmutable;
+  }
+
+  /**
+   * @return the contextuallyImmutable
+   */
+  public boolean isContextuallyImmutable()
+  {
+    return contextuallyImmutable;
   }
 
   /**
@@ -83,10 +116,21 @@ public class NamedType extends Type
     {
       return false;
     }
+    NamedType otherNamedType = (NamedType) type;
+    // an explicitly-immutable named type cannot be assigned to a non-explicitly-immutable named type
+    if (!isExplicitlyImmutable() && otherNamedType.isExplicitlyImmutable())
+    {
+      return false;
+    }
+    // a contextually-immutable named type cannot be assigned to a non-immutable named type
+    if (!isContextuallyImmutable() && otherNamedType.isContextuallyImmutable())
+    {
+      return false;
+    }
     // TODO: when we add inheritance, make this more general
     if (resolvedTypeDefinition != null)
     {
-      return resolvedTypeDefinition.equals(((NamedType) type).getResolvedTypeDefinition());
+      return resolvedTypeDefinition.equals(otherNamedType.getResolvedTypeDefinition());
     }
     throw new IllegalStateException("Cannot check whether two types are assign-compatible before they are resolved");
   }
@@ -99,7 +143,11 @@ public class NamedType extends Type
   {
     if (resolvedTypeDefinition != null)
     {
-      return type instanceof NamedType && isNullable() == type.isNullable() && resolvedTypeDefinition.equals(((NamedType) type).getResolvedTypeDefinition());
+      return type instanceof NamedType &&
+             isNullable() == type.isNullable() &&
+             isExplicitlyImmutable() == ((NamedType) type).isExplicitlyImmutable() &&
+             isContextuallyImmutable() == ((NamedType) type).isContextuallyImmutable() &&
+             resolvedTypeDefinition.equals(((NamedType) type).getResolvedTypeDefinition());
     }
     throw new IllegalStateException("Cannot check for type equivalence before the named type is resolved");
   }
@@ -136,11 +184,11 @@ public class NamedType extends Type
   {
     if (resolvedTypeDefinition != null && resolvedTypeDefinition instanceof ClassDefinition)
     {
-      return (isNullable() ? "x" : "") + "C" + resolvedTypeDefinition.getQualifiedName().getMangledName() + "E";
+      return (isNullable() ? "x" : "") + (isContextuallyImmutable() ? "c" : "") + "C" + resolvedTypeDefinition.getQualifiedName().getMangledName() + "E";
     }
     else if (resolvedTypeDefinition != null && resolvedTypeDefinition instanceof CompoundDefinition)
     {
-      return (isNullable() ? "x" : "") + "V" + resolvedTypeDefinition.getQualifiedName().getMangledName() + "E";
+      return (isNullable() ? "x" : "") + (isContextuallyImmutable() ? "c" : "") + "V" + resolvedTypeDefinition.getQualifiedName().getMangledName() + "E";
     }
     throw new IllegalStateException("Cannot get a mangled name before the NamedType is resolved");
   }
@@ -160,6 +208,6 @@ public class NamedType extends Type
   @Override
   public String toString()
   {
-    return (isNullable() ? "?" : "") + qname;
+    return (isNullable() ? "?" : "") + (isContextuallyImmutable() ? "#" : "") + qname;
   }
 }

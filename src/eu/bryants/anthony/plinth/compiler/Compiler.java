@@ -231,15 +231,15 @@ public class Compiler
       SpecialTypeHandler.verifySpecialTypes();
       for (CompilationUnit compilationUnit : compilationUnits)
       {
-        ControlFlowChecker.checkControlFlow(compilationUnit);
-      }
-      for (CompilationUnit compilationUnit : compilationUnits)
-      {
         TypeChecker.checkTypes(compilationUnit);
       }
       for (CompilationUnit compilationUnit : compilationUnits)
       {
         TypePropagator.propagateTypes(compilationUnit);
+      }
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        ControlFlowChecker.checkControlFlow(compilationUnit);
       }
 
       NativeNameChecker nativeNameChecker = new NativeNameChecker(mainTypeName != null);

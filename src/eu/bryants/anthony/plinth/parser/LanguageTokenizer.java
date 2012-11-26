@@ -30,38 +30,39 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
   private static final Map<String, ParseType> KEYWORDS = new HashMap<String, ParseType>();
   static
   {
-    KEYWORDS.put("boolean",  ParseType.BOOLEAN_KEYWORD);
-    KEYWORDS.put("break",    ParseType.BREAK_KEYWORD);
-    KEYWORDS.put("byte",     ParseType.BYTE_KEYWORD);
-    KEYWORDS.put("cast",     ParseType.CAST_KEYWORD);
-    KEYWORDS.put("class",    ParseType.CLASS_KEYWORD);
-    KEYWORDS.put("compound", ParseType.COMPOUND_KEYWORD);
-    KEYWORDS.put("continue", ParseType.CONTINUE_KEYWORD);
-    KEYWORDS.put("double",   ParseType.DOUBLE_KEYWORD);
-    KEYWORDS.put("else",     ParseType.ELSE_KEYWORD);
-    KEYWORDS.put("false",    ParseType.FALSE_KEYWORD);
-    KEYWORDS.put("final",    ParseType.FINAL_KEYWORD);
-    KEYWORDS.put("float",    ParseType.FLOAT_KEYWORD);
-    KEYWORDS.put("for",      ParseType.FOR_KEYWORD);
-    KEYWORDS.put("if",       ParseType.IF_KEYWORD);
-    KEYWORDS.put("import",   ParseType.IMPORT_KEYWORD);
-    KEYWORDS.put("int",      ParseType.INT_KEYWORD);
-    KEYWORDS.put("long",     ParseType.LONG_KEYWORD);
-    KEYWORDS.put("native",   ParseType.NATIVE_KEYWORD);
-    KEYWORDS.put("new",      ParseType.NEW_KEYWORD);
-    KEYWORDS.put("null",     ParseType.NULL_KEYWORD);
-    KEYWORDS.put("package",  ParseType.PACKAGE_KEYWORD);
-    KEYWORDS.put("return",   ParseType.RETURN_KEYWORD);
-    KEYWORDS.put("short",    ParseType.SHORT_KEYWORD);
-    KEYWORDS.put("static",   ParseType.STATIC_KEYWORD);
-    KEYWORDS.put("this",     ParseType.THIS_KEYWORD);
-    KEYWORDS.put("true",     ParseType.TRUE_KEYWORD);
-    KEYWORDS.put("ubyte",    ParseType.UBYTE_KEYWORD);
-    KEYWORDS.put("uint",     ParseType.UINT_KEYWORD);
-    KEYWORDS.put("ulong",    ParseType.ULONG_KEYWORD);
-    KEYWORDS.put("ushort",   ParseType.USHORT_KEYWORD);
-    KEYWORDS.put("void",     ParseType.VOID_KEYWORD);
-    KEYWORDS.put("while",    ParseType.WHILE_KEYWORD);
+    KEYWORDS.put("boolean",   ParseType.BOOLEAN_KEYWORD);
+    KEYWORDS.put("break",     ParseType.BREAK_KEYWORD);
+    KEYWORDS.put("byte",      ParseType.BYTE_KEYWORD);
+    KEYWORDS.put("cast",      ParseType.CAST_KEYWORD);
+    KEYWORDS.put("class",     ParseType.CLASS_KEYWORD);
+    KEYWORDS.put("compound",  ParseType.COMPOUND_KEYWORD);
+    KEYWORDS.put("continue",  ParseType.CONTINUE_KEYWORD);
+    KEYWORDS.put("double",    ParseType.DOUBLE_KEYWORD);
+    KEYWORDS.put("else",      ParseType.ELSE_KEYWORD);
+    KEYWORDS.put("false",     ParseType.FALSE_KEYWORD);
+    KEYWORDS.put("final",     ParseType.FINAL_KEYWORD);
+    KEYWORDS.put("float",     ParseType.FLOAT_KEYWORD);
+    KEYWORDS.put("for",       ParseType.FOR_KEYWORD);
+    KEYWORDS.put("if",        ParseType.IF_KEYWORD);
+    KEYWORDS.put("immutable", ParseType.IMMUTABLE_KEYWORD);
+    KEYWORDS.put("import",    ParseType.IMPORT_KEYWORD);
+    KEYWORDS.put("int",       ParseType.INT_KEYWORD);
+    KEYWORDS.put("long",      ParseType.LONG_KEYWORD);
+    KEYWORDS.put("native",    ParseType.NATIVE_KEYWORD);
+    KEYWORDS.put("new",       ParseType.NEW_KEYWORD);
+    KEYWORDS.put("null",      ParseType.NULL_KEYWORD);
+    KEYWORDS.put("package",   ParseType.PACKAGE_KEYWORD);
+    KEYWORDS.put("return",    ParseType.RETURN_KEYWORD);
+    KEYWORDS.put("short",     ParseType.SHORT_KEYWORD);
+    KEYWORDS.put("static",    ParseType.STATIC_KEYWORD);
+    KEYWORDS.put("this",      ParseType.THIS_KEYWORD);
+    KEYWORDS.put("true",      ParseType.TRUE_KEYWORD);
+    KEYWORDS.put("ubyte",     ParseType.UBYTE_KEYWORD);
+    KEYWORDS.put("uint",      ParseType.UINT_KEYWORD);
+    KEYWORDS.put("ulong",     ParseType.ULONG_KEYWORD);
+    KEYWORDS.put("ushort",    ParseType.USHORT_KEYWORD);
+    KEYWORDS.put("void",      ParseType.VOID_KEYWORD);
+    KEYWORDS.put("while",     ParseType.WHILE_KEYWORD);
   }
 
   private RandomAccessReader reader;
@@ -751,6 +752,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
         return makeSymbolToken(ParseType.FORWARD_SLASH_EQUALS, 2);
       }
       return makeSymbolToken(ParseType.FORWARD_SLASH, 1);
+    }
+    if (nextChar == '#')
+    {
+      return makeSymbolToken(ParseType.HASH, 1);
     }
     if (nextChar == '<')
     {

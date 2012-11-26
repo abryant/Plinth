@@ -5,19 +5,19 @@ compound maths
    * @param value - the value to convert
    * @return the ulong representation of the specified double
    */
-  static native "plinth_maths_bitcast_double_to_ulong" ulong convertDoubleBitsToUlong(double value);
+  static immutable native "plinth_maths_bitcast_double_to_ulong" ulong convertDoubleBitsToUlong(double value);
 
   /**
    * Converts the binary representation of the specified float into a uint, without changing any bits.
    * @param value - the value to convert
    * @return the uint representation of the specified float
    */
-  static native "plinth_maths_bitcast_float_to_uint" uint convertFloatBitsToUint(float value);
+  static immutable native "plinth_maths_bitcast_float_to_uint" uint convertFloatBitsToUint(float value);
 
   /**
    * @return the absolute value of the specified long, as a ulong
    */
-  static ulong abs(long value)
+  static immutable ulong abs(long value)
   {
     return value < 0 ? cast<ulong> -value : cast<ulong> value;
   }
@@ -25,7 +25,7 @@ compound maths
   /**
    * @return the absolute value of the specified int, as a uint
    */
-  static uint abs(int value)
+  static immutable uint abs(int value)
   {
     return value < 0 ? cast<uint> -value : cast<uint> value;
   }
@@ -33,7 +33,7 @@ compound maths
   /**
    * @return the absolute value of the specified short, as a ushort
    */
-  static ushort abs(short value)
+  static immutable ushort abs(short value)
   {
     return value < 0 ? cast<ushort> -value : cast<ushort> value;
   }
@@ -41,7 +41,7 @@ compound maths
   /**
    * @return the absolute value of the specified byte, as a ubyte
    */
-  static ubyte abs(byte value)
+  static immutable ubyte abs(byte value)
   {
     return value < 0 ? cast<ubyte> -value : cast<ubyte> value;
   }
@@ -49,12 +49,12 @@ compound maths
   /**
    * @return the absolute value of the specified double
    */
-  static native "fabs" double abs(double value);
+  static immutable native "fabs" double abs(double value);
 
   /**
    * @return the maximum of a and b
    */
-  static uint max(uint a, uint b)
+  static immutable uint max(uint a, uint b)
   {
     return a < b ? b : a;
   }
@@ -62,7 +62,7 @@ compound maths
   /**
    * @return the minimum of a and b
    */
-  static uint min(uint a, uint b)
+  static immutable uint min(uint a, uint b)
   {
     return a < b ? a : b;
   }
@@ -70,44 +70,44 @@ compound maths
   /**
    * @return the smallest integer value that is greater than or equal to x
    */
-  static native "ceil" double ceiling(double x);
+  static immutable native "ceil" double ceiling(double x);
 
   /**
    * @return the largest integer value that is less than or equal to x
    */
-  static native "floor" double floor(double x);
+  static immutable native "floor" double floor(double x);
 
 
 
   /**
    * @return the sine of an angle of x radians
    */
-  static native "sin" double sin(double x);
+  static immutable native "sin" double sin(double x);
 
   /**
    * @return the cosine of an angle of x radians
    */
-  static native "cos" double cos(double x);
+  static immutable native "cos" double cos(double x);
 
   /**
    * @return the tangent of an angle of x radians
    */
-  static native "tan" double tan(double x);
+  static immutable native "tan" double tan(double x);
 
   /**
    * @return the principal value (between -PI/2 and PI/2) of the arc sine of x, in radians
    */
-  static native "asin" double asin(double x);
+  static immutable native "asin" double asin(double x);
 
   /**
    * @return the principal value (between 0 and PI) of the arc cosine of x, in radians
    */
-  static native "acos" double acos(double x);
+  static immutable native "acos" double acos(double x);
 
   /**
    * @return the principal value (between -PI/2 and PI/2) of the arc tangent of x, in radians
    */
-  static native "atan" double atan(double x);
+  static immutable native "atan" double atan(double x);
 
   /**
    * Computes the arc-tangent of the specified x, y coordinate in radians.
@@ -117,44 +117,44 @@ compound maths
    * @param x - the value representing an x coordinate
    * @return the principal value (between -PI and PI) of the arc tangent of y/x, in radians
    */
-  static native "atan2" double atan2(double y, double x);
+  static immutable native "atan2" double atan2(double y, double x);
 
   /**
    * @return the hyperbolic sine of x
    */
-  static native "sinh" double sinh(double x);
+  static immutable native "sinh" double sinh(double x);
 
   /**
    * @return the hyperbolic cosine of x
    */
-  static native "cosh" double cosh(double x);
+  static immutable native "cosh" double cosh(double x);
 
   /**
    * @return the hyperbolic tangent of x
    */
-  static native "tanh" double tanh(double x);
+  static immutable native "tanh" double tanh(double x);
 
 
 
   /**
    * @return e raised to the power of x
    */
-  static native "exp" double exp(double x);
+  static immutable native "exp" double exp(double x);
 
   /**
    * @return the natural (base e) logarithm of x
    */
-  static native "log" double ln(double x);
+  static immutable native "log" double ln(double x);
 
   /**
    * @return the base 10 logarithm of x
    */
-  static native "log10" double log(double x);
+  static immutable native "log10" double log(double x);
 
   /**
    * @return the logarithm of x in the specified base
    */
-  static double log(double x, double base)
+  static immutable double log(double x, double base)
   {
     return ln(x) / ln(base);
   }
@@ -162,12 +162,12 @@ compound maths
   /**
    * @return base raised to the power of exponent
    */
-  static native "pow" double pow(double base, double exponent);
+  static immutable native "pow" double pow(double base, double exponent);
 
   /**
    * @return the square root of x
    */
-  static native "sqrt" double sqrt(double x);
+  static immutable native "sqrt" double sqrt(double x);
 
   /**
    * Finds the decimal digits of the floating point number with the specified mantissa and exponent.
@@ -183,7 +183,7 @@ compound maths
    * @param maxDigits - the maximum number of digits to return
    * @return a tuple of the decimal exponent, and the digits representing the decimal mantissa, in the format 0.[d0][d1][d2][d3][d4]...
    */
-  static (int, []ubyte) findFloatingPointDigits(ulong mantissa, uint mantissaBitLength, int exponent, int minimumExponent, uint maxDigits)
+  static immutable (int, []ubyte) findFloatingPointDigits(ulong mantissa, uint mantissaBitLength, int exponent, int minimumExponent, uint maxDigits)
   {
     boolean even = (mantissa & 0b1) == 0;
 

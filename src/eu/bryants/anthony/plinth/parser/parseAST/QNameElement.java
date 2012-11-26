@@ -68,7 +68,7 @@ public class QNameElement
   {
     if (qname != null)
     {
-      return new NamedType(false, qname, lexicalPhrase);
+      return new NamedType(false, false, qname, lexicalPhrase);
     }
     QNameElement[] elementArray = elements.toArray(new QNameElement[elements.size()]);
     Type[] types = new Type[elementArray.length];

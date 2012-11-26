@@ -5,9 +5,9 @@ compound bigint
   uint bitLength;
   // data is a little endian array, so the first element is the least significant
   // so for a bigint with two ulongs, the binary value would be: data[0] | data[1] << 64
-  []ulong data;
+  #[]ulong data;
 
-  bigint(boolean negative, ulong value)
+  immutable bigint(boolean negative, ulong value)
   {
     this.negative = negative;
     if value == 0
@@ -20,12 +20,12 @@ compound bigint
     data = new []ulong {value};
   }
 
-  bigint(ulong value)
+  immutable bigint(ulong value)
   {
     this(false, value);
   }
 
-  bigint(boolean negative, []ulong data)
+  immutable bigint(boolean negative, #[]ulong data)
   {
     this.negative = negative;
     this.bitLength = findBitLength(data);
@@ -36,7 +36,7 @@ compound bigint
    * Copies the data from this bigint so that it can be modified elsewhere.
    * @return a copy of the internal data array of this bigint
    */
-  []ulong copyData()
+  immutable []ulong copyData()
   {
     []ulong copy = new [data.length]ulong;
     for (uint i = 0; i < data.length; ++i)
@@ -51,7 +51,7 @@ compound bigint
    * If this bigint is negative, the result is based on its absolute value.
    * @return the least significant 32 bits of this bigint, as a uint
    */
-  uint toUint()
+  immutable uint toUint()
   {
     if data.length == 0
     {
@@ -65,7 +65,7 @@ compound bigint
    * If this bigint is negative, the result is based on its absolute value.
    * @return the least significant 64 bits of this bigint, as a ulong
    */
-  ulong toUlong()
+  immutable ulong toUlong()
   {
     if data.length == 0
     {
@@ -77,7 +77,7 @@ compound bigint
   /**
    * @return the negation of this bigint
    */
-  bigint negate()
+  immutable bigint negate()
   {
     return bigint(!negative, data);
   }
@@ -88,7 +88,7 @@ compound bigint
    * @param x - the bigint to add to this one
    * @return the result of the addition
    */
-  bigint add(bigint x)
+  immutable bigint add(bigint x)
   {
     if !negative & x.negative
     {
@@ -103,8 +103,8 @@ compound bigint
     {
       resultNegative = true;
     }
-    bigint larger  = bitLength < x.bitLength ? x : this;
-    bigint smaller = bitLength < x.bitLength ? this : x;
+    #bigint larger  = bitLength < x.bitLength ? x : this;
+    #bigint smaller = bitLength < x.bitLength ? this : x;
     // find the number of ulongs in the new bigint - we add 1 bit in case we have to carry
     // (the +63 is to find the ceiling of it after dividing by 64)
     uint length = (larger.bitLength + 1 + 63) / 64;
@@ -146,14 +146,14 @@ compound bigint
    * @param x - the bigint to subtract from this one
    * @return the result of the subtraction
    */
-  bigint sub(bigint x)
+  immutable bigint sub(bigint x)
   {
     if negative != x.negative
     {
       return add(x.negate());
     }
-    bigint larger  = bitLength < x.bitLength ? x : this;
-    bigint smaller = bitLength < x.bitLength ? this : x;
+    #bigint larger  = bitLength < x.bitLength ? x : this;
+    #bigint smaller = bitLength < x.bitLength ? this : x;
     boolean thisLarger = bitLength >= x.bitLength;
     []ulong newData = new [(larger.bitLength + 63) / 64]ulong;
     boolean borrow = false;
@@ -196,7 +196,7 @@ compound bigint
    * @param n - the ulong to multiply by
    * @return the result of the multiplication
    */
-  bigint mult(ulong n)
+  immutable bigint mult(ulong n)
   {
     // find the number of ulongs in the new bigint - we add 64 bits in case we have to carry
     // (the +63 is to find the ceiling of it after dividing by 64)
@@ -229,7 +229,7 @@ compound bigint
    * @param n - the number of bits to shift the value left.
    * @return the result of the bit shift
    */
-  bigint shiftLeft(uint n)
+  immutable bigint shiftLeft(uint n)
   {
     // find the number of ulongs in the new bigint
     // (the +63 is to find the ceiling of it after dividing by 64)
@@ -270,7 +270,7 @@ compound bigint
    * @param other - the bigint to compare this one to
    * @return a value less than zero if this is less than other, greater than zero if this is greater than other, or zero if the values are the same
    */
-  int compareTo(bigint other)
+  immutable int compareTo(bigint other)
   {
     if negative & !other.negative
     {
@@ -305,9 +305,9 @@ compound bigint
    * Converts this bigint into a hexadecimal string.
    * @return the hexadecimal string representation of this bigint
    */
-  string toHexString()
+  immutable string toHexString()
   {
-    []ubyte numerals = "0123456789abcdef".bytes;
+    #[]ubyte numerals = "0123456789abcdef".bytes;
     []ubyte hexChars = new [(bitLength + 3) / 4]ubyte;
     for (uint i = 0; i < hexChars.length; ++i)
     {
@@ -323,7 +323,7 @@ compound bigint
    * @param n - the number to raise to the power of two
    * @return a bigint representing the nth power of two
    */
-  static bigint getPowerOfTwo(uint n)
+  static immutable bigint getPowerOfTwo(uint n)
   {
     uint zeroElements = n / 64;
     uint finalZeros = n % 64;
@@ -340,7 +340,7 @@ compound bigint
    * Finds the bit length of a ulong.
    * Adapted from http://www-graphics.stanford.edu/~seander/bithacks.html#IntegerLog
    */
-  static uint findBitLength(ulong value)
+  static immutable uint findBitLength(ulong value)
   {
     if value == 0
     {
@@ -358,7 +358,7 @@ compound bigint
   /**
    * Finds the bit length of a bigint's data array.
    */
-  static uint findBitLength([]ulong data)
+  static immutable uint findBitLength(#[]ulong data)
   {
     uint bitLength = 0;
     for (uint i = data.length - 1; i > 0; --i)

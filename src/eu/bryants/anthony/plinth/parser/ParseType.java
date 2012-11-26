@@ -62,6 +62,7 @@ public enum ParseType
   TYPE,                          // Type
   TYPE_NO_QNAME,                 // Type
   TYPE_LIST_NO_QNAME,            // ParseList<Type>
+  OPTIONAL_TYPE_LIST,            // ParseList<Type>
 
   // Expressions
   EXPRESSION,                    // Expression
@@ -118,6 +119,7 @@ public enum ParseType
   EXCLAIMATION_MARK_EQUALS,
   FORWARD_SLASH,
   FORWARD_SLASH_EQUALS,
+  HASH,
   LANGLE,
   LANGLE_EQUALS,
   LBRACE,
@@ -160,6 +162,7 @@ public enum ParseType
   FLOAT_KEYWORD,
   FOR_KEYWORD,
   IF_KEYWORD,
+  IMMUTABLE_KEYWORD,
   IMPORT_KEYWORD,
   INT_KEYWORD,
   LONG_KEYWORD,

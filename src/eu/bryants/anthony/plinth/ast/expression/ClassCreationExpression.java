@@ -3,6 +3,7 @@ package eu.bryants.anthony.plinth.ast.expression;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.misc.QName;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
 
 /*
  * Created on 13 Sep 2012
@@ -17,6 +18,7 @@ public class ClassCreationExpression extends Expression
   private QName qname;
   private Expression[] arguments;
 
+  private NamedType resolvedType;
   private Constructor resolvedConstructor;
 
   public ClassCreationExpression(QName qname, Expression[] arguments, LexicalPhrase lexicalPhrase)
@@ -40,6 +42,22 @@ public class ClassCreationExpression extends Expression
   public Expression[] getArguments()
   {
     return arguments;
+  }
+
+  /**
+   * @return the resolvedType
+   */
+  public NamedType getResolvedType()
+  {
+    return resolvedType;
+  }
+
+  /**
+   * @param resolvedType - the resolvedType to set
+   */
+  public void setResolvedType(NamedType resolvedType)
+  {
+    this.resolvedType = resolvedType;
   }
 
   /**

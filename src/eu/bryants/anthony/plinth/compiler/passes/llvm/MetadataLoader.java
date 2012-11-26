@@ -191,12 +191,21 @@ public class MetadataLoader
       throw new MalformedMetadataException("A constructor must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 1)
+    if (values.length != 2)
     {
       throw new MalformedMetadataException("A constructor's metadata node must have the correct number of sub-nodes");
     }
-    Parameter[] parameters = loadParameters(values[0]);
-    return new Constructor(name, parameters, null, null);
+
+    String isImmutableStr = readMDString(values[0]);
+    if (isImmutableStr == null)
+    {
+      throw new MalformedMetadataException("A constructor must have a valid immutability property in its metadata node");
+    }
+    boolean isImmutable = isImmutableStr.equals("immutable");
+
+    Parameter[] parameters = loadParameters(values[1]);
+
+    return new Constructor(isImmutable, name, parameters, null, null);
   }
 
   private static Method loadMethod(LLVMValueRef metadataNode) throws MalformedMetadataException
@@ -206,7 +215,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A method must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 5)
+    if (values.length != 6)
     {
       throw new MalformedMetadataException("A method's metadata node must have the correct number of sub-nodes");
     }
@@ -224,7 +233,14 @@ public class MetadataLoader
     }
     boolean isStatic = isStaticStr.equals("static");
 
-    String nativeName = readMDString(values[2]);
+    String isImmutableStr = readMDString(values[2]);
+    if (isImmutableStr == null)
+    {
+      throw new MalformedMetadataException("A method must have a valid immutability property in its metadata node");
+    }
+    boolean isImmutable = isImmutableStr.equals("immutable");
+
+    String nativeName = readMDString(values[3]);
     if (nativeName == null)
     {
       throw new MalformedMetadataException("A method must have a valid native name (or an empty string in its place) in its metadata node");
@@ -235,9 +251,9 @@ public class MetadataLoader
       nativeName = null;
     }
 
-    Type returnType = loadType(values[3]);
-    Parameter[] parameters = loadParameters(values[4]);
-    return new Method(returnType, name, isStatic, nativeName, parameters, null, null);
+    Type returnType = loadType(values[4]);
+    Parameter[] parameters = loadParameters(values[5]);
+    return new Method(returnType, name, isStatic, isImmutable, nativeName, parameters, null, null);
   }
 
   private static Parameter[] loadParameters(LLVMValueRef metadataNode) throws MalformedMetadataException
@@ -289,7 +305,7 @@ public class MetadataLoader
     }
     if (sortOfType.equals("array"))
     {
-      if (values.length != 3)
+      if (values.length != 4)
       {
         throw new MalformedMetadataException("An array type's metadata node must have the correct number of sub-nodes");
       }
@@ -299,12 +315,20 @@ public class MetadataLoader
         throw new MalformedMetadataException("An array type must have a valid nullability in its metadata node");
       }
       boolean nullable = nullabilityStr.equals("nullable");
-      Type baseType = loadType(values[2]);
-      return new ArrayType(nullable, baseType, null);
+
+      String immutabilityStr = readMDString(values[2]);
+      if (immutabilityStr == null)
+      {
+        throw new MalformedMetadataException("An array type must have a valid immutability in its metadata node");
+      }
+      boolean immutable = nullabilityStr.equals("immutable");
+
+      Type baseType = loadType(values[3]);
+      return new ArrayType(nullable, immutable, baseType, null);
     }
     if (sortOfType.equals("function"))
     {
-      if (values.length != 4)
+      if (values.length != 5)
       {
         throw new MalformedMetadataException("A function type's metadata node must have the correct number of sub-nodes");
       }
@@ -314,9 +338,17 @@ public class MetadataLoader
         throw new MalformedMetadataException("A function type must have a valid nullability in its metadata node");
       }
       boolean nullable = nullabilityStr.equals("nullable");
-      Type returnType = loadType(values[2]);
 
-      if (LLVM.LLVMIsAMDNode(values[3]) == null)
+      String immutabilityStr = readMDString(values[2]);
+      if (immutabilityStr == null)
+      {
+        throw new MalformedMetadataException("A function type must have a valid immutability in its metadata node");
+      }
+      boolean immutable = nullabilityStr.equals("immutable");
+
+      Type returnType = loadType(values[3]);
+
+      if (LLVM.LLVMIsAMDNode(values[4]) == null)
       {
         throw new MalformedMetadataException("A functions type's parameter type list must be represented by a metadata node");
       }
@@ -326,11 +358,11 @@ public class MetadataLoader
       {
         parameterTypes[i] = loadType(parameterTypeNodes[i]);
       }
-      return new FunctionType(nullable, returnType, parameterTypes, null);
+      return new FunctionType(nullable, immutable, returnType, parameterTypes, null);
     }
     if (sortOfType.equals("named"))
     {
-      if (values.length != 3)
+      if (values.length != 4)
       {
         throw new MalformedMetadataException("A named type's metadata node must have the correct number of sub-nodes");
       }
@@ -341,7 +373,14 @@ public class MetadataLoader
       }
       boolean nullable = nullabilityStr.equals("nullable");
 
-      String qualifiedNameStr = readMDString(values[2]);
+      String immutabilityStr = readMDString(values[2]);
+      if (immutabilityStr == null)
+      {
+        throw new MalformedMetadataException("A named type must have a valid immutability in its metadata node");
+      }
+      boolean immutable = nullabilityStr.equals("immutable");
+
+      String qualifiedNameStr = readMDString(values[3]);
       if (qualifiedNameStr == null)
       {
         throw new MalformedMetadataException("A function type must have a valid qualified name in its metadata node");
@@ -349,7 +388,7 @@ public class MetadataLoader
       try
       {
         QName qname = new QName(qualifiedNameStr);
-        return new NamedType(nullable, qname, null);
+        return new NamedType(nullable, immutable, qname, null);
       }
       catch (ConceptualException e)
       {

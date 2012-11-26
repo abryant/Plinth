@@ -16,14 +16,24 @@ import eu.bryants.anthony.plinth.ast.member.Member;
 public class FunctionType extends Type
 {
 
+  private boolean isImmutable;
   private Type returnType;
   private Type[] parameterTypes;
 
-  public FunctionType(boolean nullable, Type returnType, Type[] parameterTypes, LexicalPhrase lexicalPhrase)
+  public FunctionType(boolean nullable, boolean isImmutable, Type returnType, Type[] parameterTypes, LexicalPhrase lexicalPhrase)
   {
     super(nullable, lexicalPhrase);
+    this.isImmutable = isImmutable;
     this.returnType = returnType;
     this.parameterTypes = parameterTypes;
+  }
+
+  /**
+   * @return the isImmutable
+   */
+  public boolean isImmutable()
+  {
+    return isImmutable;
   }
 
   /**
@@ -62,8 +72,14 @@ public class FunctionType extends Type
       // a nullable type cannot be assigned to a non-nullable type
       return false;
     }
-    // to be assign-compatible, both of the FunctionTypes must have equivalent parameter and return types
+    // a non-immutable function cannot be assigned to an immutable function type
+    // NOTE: this is the opposite condition to the one for arrays and named types
     FunctionType otherFunction = (FunctionType) type;
+    if (isImmutable() && !otherFunction.isImmutable())
+    {
+      return false;
+    }
+    // to be assign-compatible, both of the FunctionTypes must have equivalent parameter and return types
     if (!returnType.isEquivalent(otherFunction.getReturnType()))
     {
       return false;
@@ -95,6 +111,10 @@ public class FunctionType extends Type
     }
     FunctionType otherFunction = (FunctionType) type;
     if (isNullable() != otherFunction.isNullable())
+    {
+      return false;
+    }
+    if (isImmutable() != otherFunction.isImmutable())
     {
       return false;
     }
@@ -137,6 +157,10 @@ public class FunctionType extends Type
     {
       buffer.append('x');
     }
+    if (isImmutable())
+    {
+      buffer.append('c');
+    }
     buffer.append('F');
     buffer.append(returnType.getMangledName());
     buffer.append('_');
@@ -167,6 +191,10 @@ public class FunctionType extends Type
     if (isNullable())
     {
       buffer.append('?');
+    }
+    if (isImmutable())
+    {
+      buffer.append('#');
     }
     buffer.append('{');
     for (int i = 0; i < parameterTypes.length; i++)

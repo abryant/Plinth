@@ -12,9 +12,10 @@ MemberList = epsilon |
              MemberList Field |
              MemberList Constructor |
              MemberList Method
-Modifiers = StaticKeyword               | Modifiers StaticKeyword |
-            FinalKeyword                | Modifiers FinalKeyword |
-            NativeKeyword               | Modifiers NativeKeyword |
+Modifiers = FinalKeyword                | Modifiers FinalKeyword     |
+            ImmutableKeyword            | Modifiers ImmutableKeyword |
+            NativeKeyword               | Modifiers NativeKeyword    |
+            StaticKeyword               | Modifiers StaticKeyword    |
             NativeKeyword StringLiteral | Modifiers NativeKeyword StringLiteral
 OptionalModifiers = epsilon | Modifiers
 Initialiser = Block | Modifiers Block
@@ -95,12 +96,12 @@ TypeNoQName = BooleanKeyword |                 QuestionMark BooleanKeyword |
               UIntKeyword    | IntKeyword    | QuestionMark UIntKeyword    | QuestionMark IntKeyword    |
               UShortKeyword  | ShortKeyword  | QuestionMark UShortKeyword  | QuestionMark ShortKeyword  |
               UByteKeyword   | ByteKeyword   | QuestionMark UByteKeyword   | QuestionMark ByteKeyword   |
-              QuestionMark QName |
-              LSquare RSquare Type   | QuestionMark LSquare RSquare Type |
+              QuestionMark QName | QuestionMark Hash QName | Hash QName |
+              LSquare RSquare Type   | QuestionMark LSquare RSquare Type | Hash LSquare RSquare Type   | QuestionMark Hash LSquare RSquare Type |
               LParen TypeListNoQName RParen | QuestionMark LParen TypeListNoQName RParen | QuestionMark NestedQNameList |
-              LBrace TypeListNoQName Arrow ReturnType RBrace |
-              LBrace QNameList Arrow ReturnType RBrace |
-              LBrace Arrow ReturnType RBrace
+                   LBrace OptionalTypeList Arrow ReturnType RBrace | QuestionMark      LBrace OptionalTypeList Arrow ReturnType RBrace |
+              Hash LBrace OptionalTypeList Arrow ReturnType RBrace | QuestionMark Hash LBrace OptionalTypeList Arrow ReturnType RBrace
+OptionalTypeList = TypeListNoQName | QNameList | epsilon
 Type = TypeNoQName | QName | NestedQNameList
 ReturnType = Type | VoidKeyword
 TypeListNoQName = QName           Comma TypeListNoQName |

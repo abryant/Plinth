@@ -22,7 +22,7 @@ import eu.bryants.anthony.plinth.compiler.ConceptualException;
  */
 public class SpecialTypeHandler
 {
-  public static final NamedType STRING_TYPE = new NamedType(false, new QName("string", null), null);
+  public static final NamedType STRING_TYPE = new NamedType(false, false, new QName("string", null), null);
   private static final String STRING_VALUEOF_NAME = "valueOf";
   public static Constructor stringArrayConstructor;
   public static Constructor stringConcatenationConstructor;
@@ -60,7 +60,8 @@ public class SpecialTypeHandler
     {
       throw new ConceptualException("The string type must be a compound definition!", typeDefinition.getLexicalPhrase());
     }
-    Type arrayType = new ArrayType(false, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
+    Type arrayType = new ArrayType(false, true, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
+    Type immutableStringType = new NamedType(STRING_TYPE.isNullable(), true, STRING_TYPE.getResolvedTypeDefinition());
     for (Constructor constructor : typeDefinition.getConstructors())
     {
       Parameter[] parameters = constructor.getParameters();
@@ -68,7 +69,7 @@ public class SpecialTypeHandler
       {
         stringArrayConstructor = constructor;
       }
-      if (parameters.length == 2 && parameters[0].getType().isEquivalent(STRING_TYPE) && parameters[1].getType().isEquivalent(STRING_TYPE))
+      if (parameters.length == 2 && parameters[0].getType().isEquivalent(immutableStringType) && parameters[1].getType().isEquivalent(immutableStringType))
       {
         stringConcatenationConstructor = constructor;
       }
@@ -135,14 +136,16 @@ public class SpecialTypeHandler
    */
   public static void checkMainMethod(TypeDefinition typeDefinition) throws ConceptualException
   {
-    Type argsType = new ArrayType(false, STRING_TYPE, null);
+    Type argsType = new ArrayType(false, false, STRING_TYPE, null);
+    Type immutableArgsType = new ArrayType(false, true, STRING_TYPE, null);
     Method mainMethod = null;
     for (Method method : typeDefinition.getAllMethods())
     {
       if (method.isStatic() && method.getName().equals(MAIN_METHOD_NAME) && method.getReturnType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.UINT, null)))
       {
         Parameter[] parameters = method.getParameters();
-        if (parameters.length == 1 && parameters[0].getType().isEquivalent(argsType))
+        if (parameters.length == 1 && (parameters[0].getType().isEquivalent(argsType) ||
+                                       parameters[0].getType().isEquivalent(immutableArgsType)))
         {
           mainMethod = method;
           break;

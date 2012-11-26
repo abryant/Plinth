@@ -44,7 +44,7 @@ public class TypeListNoQNameRule extends Rule<ParseType>
       QName qname = (QName) args[0];
       @SuppressWarnings("unchecked")
       ParseList<Type> list = (ParseList<Type>) args[2];
-      list.addFirst(new NamedType(false, qname, qname.getLexicalPhrase()), LexicalPhrase.combine(qname.getLexicalPhrase(), (LexicalPhrase) args[1], list.getLexicalPhrase()));
+      list.addFirst(new NamedType(false, false, qname, qname.getLexicalPhrase()), LexicalPhrase.combine(qname.getLexicalPhrase(), (LexicalPhrase) args[1], list.getLexicalPhrase()));
       return list;
     }
     if (production == NESTED_QNAME_LIST_PRODUCTION)

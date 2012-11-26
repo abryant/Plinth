@@ -37,7 +37,7 @@ public class TypeRule extends Rule<ParseType>
     if (production == QNAME_PRODUCTION)
     {
       QName qname = (QName) args[0];
-      return new NamedType(false, qname, qname.getLexicalPhrase());
+      return new NamedType(false, false, qname, qname.getLexicalPhrase());
     }
     if (production == NESTED_QNAME_LIST_PRODUCTION)
     {

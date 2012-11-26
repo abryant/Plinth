@@ -20,12 +20,25 @@ public class ArrayType extends Type
   private static final String LENGTH_FIELD_NAME = "length";
   private static final ArrayLengthMember LENGTH_MEMBER = new ArrayLengthMember();
 
+  // a type is explicitly immutable if it has been declared as immutable explicitly,
+  // whereas a type is contextually immutable if it is just accessed in an immutable context
+  // if a type is explicitly immutable, then it is always also contextually immutable
+  private boolean explicitlyImmutable;
+  private boolean contextuallyImmutable;
+
   private Type baseType;
 
-  public ArrayType(boolean nullable, Type baseType, LexicalPhrase lexicalPhrase)
+  public ArrayType(boolean nullable, boolean explicitlyImmutable, boolean contextuallyImmutable, Type baseType, LexicalPhrase lexicalPhrase)
   {
     super(nullable, lexicalPhrase);
+    this.explicitlyImmutable = explicitlyImmutable;
+    this.contextuallyImmutable = explicitlyImmutable | contextuallyImmutable;
     this.baseType = baseType;
+  }
+
+  public ArrayType(boolean nullable, boolean isImmutable, Type baseType, LexicalPhrase lexicalPhrase)
+  {
+    this(nullable, isImmutable, false, baseType, lexicalPhrase);
   }
 
   /**
@@ -62,7 +75,18 @@ public class ArrayType extends Type
     {
       return false;
     }
-    Type otherBaseType = ((ArrayType) type).getBaseType();
+    ArrayType otherArrayType = (ArrayType) type;
+    // an explicitly-immutable array cannot be assigned to a non-explicitly-immutable array type
+    if (!isExplicitlyImmutable() && otherArrayType.isExplicitlyImmutable())
+    {
+      return false;
+    }
+    // a contextually-immutable array cannot be assigned to a non-immutable array type
+    if (!isContextuallyImmutable() && otherArrayType.isContextuallyImmutable())
+    {
+      return false;
+    }
+    Type otherBaseType = otherArrayType.getBaseType();
     return baseType.canAssign(otherBaseType) && otherBaseType.canAssign(baseType);
   }
 
@@ -72,7 +96,27 @@ public class ArrayType extends Type
   @Override
   public boolean isEquivalent(Type type)
   {
-    return type instanceof ArrayType && isNullable() == type.isNullable() && baseType.isEquivalent(((ArrayType) type).getBaseType());
+    return type instanceof ArrayType &&
+           isNullable() == type.isNullable() &&
+           isExplicitlyImmutable() == ((ArrayType) type).isExplicitlyImmutable() &&
+           isContextuallyImmutable() == ((ArrayType) type).isContextuallyImmutable() &&
+           baseType.isEquivalent(((ArrayType) type).getBaseType());
+  }
+
+  /**
+   * @return true iff this ArrayType is explicitly immutable
+   */
+  public boolean isExplicitlyImmutable()
+  {
+    return explicitlyImmutable;
+  }
+
+  /**
+   * @return true iff this ArrayType is contextually immutable or explicitly immutable
+   */
+  public boolean isContextuallyImmutable()
+  {
+    return contextuallyImmutable;
   }
 
   /**
@@ -103,7 +147,7 @@ public class ArrayType extends Type
   @Override
   public String getMangledName()
   {
-    return (isNullable() ? "x" : "") + "A" + baseType.getMangledName();
+    return (isNullable() ? "x" : "") + (isContextuallyImmutable() ? "c" : "") + "A" + baseType.getMangledName();
   }
 
   /**
@@ -121,6 +165,6 @@ public class ArrayType extends Type
   @Override
   public String toString()
   {
-    return (isNullable() ? "?" : "") + "[]" + baseType;
+    return (isNullable() ? "?" : "") + (isContextuallyImmutable() ? "#" : "") + "[]" + baseType;
   }
 }

@@ -14,6 +14,8 @@ public class ReturnStatement extends Statement
 {
   private Expression expression;
 
+  private boolean canReturnAgainstContextualImmutability;
+
   public ReturnStatement(Expression expression, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
@@ -26,6 +28,22 @@ public class ReturnStatement extends Statement
   public Expression getExpression()
   {
     return expression;
+  }
+
+  /**
+   * @return true if this return statement can return contextually immutable types even if the return type is not immutable, false otherwise
+   */
+  public boolean getCanReturnAgainstContextualImmutability()
+  {
+    return canReturnAgainstContextualImmutability;
+  }
+
+  /**
+   * @param canReturnAgainstContextualImmutability - true iff this return statement should be able to return contextually immutable types even if the return type is not immutable
+   */
+  public void setCanReturnAgainstContextualImmutability(boolean canReturnAgainstContextualImmutability)
+  {
+    this.canReturnAgainstContextualImmutability = canReturnAgainstContextualImmutability;
   }
 
   /**

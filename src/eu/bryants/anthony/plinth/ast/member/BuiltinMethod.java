@@ -18,24 +18,26 @@ public class BuiltinMethod extends Method
 
   public static enum BuiltinMethodType
   {
-    BOOLEAN_TO_STRING       (SpecialTypeHandler.STRING_TYPE, "toString", false, null, new Parameter[0]),
-    SIGNED_TO_STRING        (SpecialTypeHandler.STRING_TYPE, "toString", false, null, new Parameter[0]),
-    SIGNED_TO_STRING_RADIX  (SpecialTypeHandler.STRING_TYPE, "toString", false, null, new Parameter[] {new Parameter(false, new PrimitiveType(false, PrimitiveTypeType.UINT, null), "radix", null)}),
-    UNSIGNED_TO_STRING      (SpecialTypeHandler.STRING_TYPE, "toString", false, null, new Parameter[0]),
-    UNSIGNED_TO_STRING_RADIX(SpecialTypeHandler.STRING_TYPE, "toString", false, null, new Parameter[] {new Parameter(false, new PrimitiveType(false, PrimitiveTypeType.UINT, null), "radix", null)}),
-    FLOATING_TO_STRING      (SpecialTypeHandler.STRING_TYPE, "toString", false, null, new Parameter[0]),
+    BOOLEAN_TO_STRING       (SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[0]),
+    SIGNED_TO_STRING        (SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[0]),
+    SIGNED_TO_STRING_RADIX  (SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[] {new Parameter(false, new PrimitiveType(false, PrimitiveTypeType.UINT, null), "radix", null)}),
+    UNSIGNED_TO_STRING      (SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[0]),
+    UNSIGNED_TO_STRING_RADIX(SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[] {new Parameter(false, new PrimitiveType(false, PrimitiveTypeType.UINT, null), "radix", null)}),
+    FLOATING_TO_STRING      (SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[0]),
     ;
     public final Type returnType;
     public final String methodName;
     public final boolean isStatic;
+    public final boolean isImmutable;
     public final String nativeName;
     public final Parameter[] parameters;
 
-    private BuiltinMethodType(Type returnType, String methodName, boolean isStatic, String nativeName, Parameter[] parameters)
+    private BuiltinMethodType(Type returnType, String methodName, boolean isStatic, boolean isImmutable, String nativeName, Parameter[] parameters)
     {
       this.returnType = returnType;
       this.methodName = methodName;
       this.isStatic = isStatic;
+      this.isImmutable = isImmutable;
       this.nativeName = nativeName;
       this.parameters = parameters;
     }
@@ -51,7 +53,7 @@ public class BuiltinMethod extends Method
    */
   public BuiltinMethod(Type baseType, BuiltinMethodType builtinType)
   {
-    super(builtinType.returnType, builtinType.methodName, builtinType.isStatic, builtinType.nativeName, builtinType.parameters, null, null);
+    super(builtinType.returnType, builtinType.methodName, builtinType.isStatic, builtinType.isImmutable, builtinType.nativeName, builtinType.parameters, null, null);
     this.baseType = baseType;
     this.builtinType = builtinType;
     if (baseType.isNullable())

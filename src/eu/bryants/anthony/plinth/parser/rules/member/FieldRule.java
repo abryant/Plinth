@@ -90,6 +90,10 @@ public class FieldRule extends Rule<ParseType>
         }
         isFinal = true;
       }
+      else if (modifier.getModifierType() == ModifierType.IMMUTABLE)
+      {
+        throw new LanguageParseException("Unexpected modifier: The 'immutable' modifier does not apply to local variables (try using #Type instead)", modifier.getLexicalPhrase());
+      }
       else if (modifier.getModifierType() == ModifierType.NATIVE)
       {
         throw new LanguageParseException("Unexpected modifier: Fields cannot be native", modifier.getLexicalPhrase());

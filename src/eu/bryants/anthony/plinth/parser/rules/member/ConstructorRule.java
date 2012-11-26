@@ -56,7 +56,7 @@ public class ConstructorRule extends Rule<ParseType>
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[1];
       Block block = (Block) args[2];
-      return new Constructor(name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
+      return new Constructor(false, name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
                              LexicalPhrase.combine(name.getLexicalPhrase(), parameters.getLexicalPhrase(), block.getLexicalPhrase()));
     }
     throw badTypeList();
@@ -64,11 +64,20 @@ public class ConstructorRule extends Rule<ParseType>
 
   private Constructor processModifiers(ParseList<Modifier> modifiers, String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
+    boolean isImmutable = false;
     for (Modifier modifier : modifiers)
     {
       if (modifier.getModifierType() == ModifierType.FINAL)
       {
         throw new LanguageParseException("Unexpected modifier: Constructors cannot be final", modifier.getLexicalPhrase());
+      }
+      else if (modifier.getModifierType() == ModifierType.IMMUTABLE)
+      {
+        if (isImmutable)
+        {
+          throw new LanguageParseException("Duplicate 'immutable' modifier", modifier.getLexicalPhrase());
+        }
+        isImmutable = true;
       }
       else if (modifier.getModifierType() == ModifierType.NATIVE)
       {
@@ -83,6 +92,6 @@ public class ConstructorRule extends Rule<ParseType>
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }
-    return new Constructor(name, parameters, block, lexicalPhrase);
+    return new Constructor(isImmutable, name, parameters, block, lexicalPhrase);
   }
 }

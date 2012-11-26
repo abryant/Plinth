@@ -19,6 +19,9 @@ public class FieldAccessExpression extends Expression
   private String fieldName;
 
   private Member resolvedMember;
+  // whether or not this expression is in an immutable context
+  // this is used by the TypeChecker to make static variables implicitly immutable when in an immutable context
+  private boolean resolvedContextImmutability;
 
   /**
    * Creates a new FieldAccessExpression to access the specified field of the specified base expression.
@@ -73,6 +76,14 @@ public class FieldAccessExpression extends Expression
   }
 
   /**
+   * @return the fieldName
+   */
+  public String getFieldName()
+  {
+    return fieldName;
+  }
+
+  /**
    * @return the resolvedMember
    */
   public Member getResolvedMember()
@@ -89,11 +100,19 @@ public class FieldAccessExpression extends Expression
   }
 
   /**
-   * @return the fieldName
+   * @return the resolvedContextImmutability
    */
-  public String getFieldName()
+  public boolean getResolvedContextImmutability()
   {
-    return fieldName;
+    return resolvedContextImmutability;
+  }
+
+  /**
+   * @param resolvedContextImmutability - the resolvedContextImmutability to set
+   */
+  public void setResolvedContextImmutability(boolean resolvedContextImmutability)
+  {
+    this.resolvedContextImmutability = resolvedContextImmutability;
   }
 
   /**

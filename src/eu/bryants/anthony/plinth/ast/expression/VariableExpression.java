@@ -17,6 +17,9 @@ public class VariableExpression extends Expression
 
   private Variable resolvedVariable;
   private Method resolvedMethod;
+  // whether or not this expression is in an immutable context
+  // this is used by the TypeChecker to make variables implicitly immutable when in an immutable context
+  private boolean resolvedContextImmutability;
 
   public VariableExpression(String name, LexicalPhrase lexicalPhrase)
   {
@@ -62,6 +65,22 @@ public class VariableExpression extends Expression
   public void setResolvedMethod(Method resolvedMethod)
   {
     this.resolvedMethod = resolvedMethod;
+  }
+
+  /**
+   * @return the resolvedContextImmutability
+   */
+  public boolean getResolvedContextImmutability()
+  {
+    return resolvedContextImmutability;
+  }
+
+  /**
+   * @param resolvedContextImmutability - the resolvedContextImmutability to set
+   */
+  public void setResolvedContextImmutability(boolean resolvedContextImmutability)
+  {
+    this.resolvedContextImmutability = resolvedContextImmutability;
   }
 
   @Override

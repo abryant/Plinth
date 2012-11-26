@@ -19,6 +19,7 @@ public class Method extends Member
   private Type returnType;
   private String name;
   private boolean isStatic;
+  private boolean isImmutable;
   private String nativeName;
   private Parameter[] parameters;
   private Block block;
@@ -30,17 +31,19 @@ public class Method extends Member
    * @param returnType - the return type of the method
    * @param name - the name of the method
    * @param isStatic - true if the method should be static, false otherwise
+   * @param isImmutable - true if the method should be immutable, false otherwise
    * @param nativeName - the native name of the method, or null if no native name is specified
    * @param parameters - the parameters for the method
    * @param block - the block that the method should run, or null if no block is specified
    * @param lexicalPhrase - the LexicalPhrase of this method
    */
-  public Method(Type returnType, String name, boolean isStatic, String nativeName, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
+  public Method(Type returnType, String name, boolean isStatic, boolean isImmutable, String nativeName, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.returnType = returnType;
     this.name = name;
     this.isStatic = isStatic;
+    this.isImmutable = isImmutable;
     this.nativeName = nativeName;
     this.parameters = parameters;
     for (int i = 0; i < parameters.length; i++)
@@ -72,6 +75,14 @@ public class Method extends Member
   public boolean isStatic()
   {
     return isStatic;
+  }
+
+  /**
+   * @return the isImmutable
+   */
+  public boolean isImmutable()
+  {
+    return isImmutable;
   }
 
   /**
@@ -151,6 +162,10 @@ public class Method extends Member
     if (isStatic)
     {
       buffer.append("static ");
+    }
+    if (isImmutable)
+    {
+      buffer.append("immutable ");
     }
     if (nativeName != null)
     {

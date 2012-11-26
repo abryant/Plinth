@@ -17,10 +17,10 @@ import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
+import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
-import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 
 /*
  * Created on 28 Aug 2012
@@ -109,7 +109,8 @@ public class MetadataGenerator
   private static LLVMValueRef generateConstructor(Constructor constructor)
   {
     LLVMValueRef parametersNode = generateParameters(constructor.getParameters());
-    LLVMValueRef[] values = new LLVMValueRef[] {parametersNode};
+    LLVMValueRef immutabilityNode = createMDString(constructor.isImmutable() ? "immutable" : "not-immutable");
+    LLVMValueRef[] values = new LLVMValueRef[] {immutabilityNode, parametersNode};
     return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
   }
 
@@ -117,10 +118,11 @@ public class MetadataGenerator
   {
     LLVMValueRef nameNode = createMDString(method.getName());
     LLVMValueRef isStaticNode = createMDString(method.isStatic() ? "static" : "not-static");
+    LLVMValueRef isImmutableNode = createMDString(method.isStatic() ? "immutable" : "not-immutable");
     LLVMValueRef nativeNameNode = createMDString(method.getNativeName() == null ? "" : method.getNativeName());
     LLVMValueRef returnTypeNode = generateType(method.getReturnType());
     LLVMValueRef parametersNode = generateParameters(method.getParameters());
-    LLVMValueRef[] values = new LLVMValueRef[] {nameNode, isStaticNode, nativeNameNode, returnTypeNode, parametersNode};
+    LLVMValueRef[] values = new LLVMValueRef[] {nameNode, isStaticNode, isImmutableNode, nativeNameNode, returnTypeNode, parametersNode};
     return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
   }
 
@@ -142,15 +144,18 @@ public class MetadataGenerator
     LLVMValueRef nullableNode = createMDString(type.isNullable() ? "nullable" : "not-nullable");
     if (type instanceof ArrayType)
     {
+      ArrayType arrayType = (ArrayType) type;
       LLVMValueRef sortNode = createMDString("array");
-      LLVMValueRef baseTypeNode = generateType(((ArrayType) type).getBaseType());
-      LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, baseTypeNode};
+      LLVMValueRef immutableNode = createMDString(arrayType.isExplicitlyImmutable() ? "immutable" : "not-immutable");
+      LLVMValueRef baseTypeNode = generateType(arrayType.getBaseType());
+      LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, immutableNode, baseTypeNode};
       return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
     }
     if (type instanceof FunctionType)
     {
       FunctionType functionType = (FunctionType) type;
       LLVMValueRef sortNode = createMDString("function");
+      LLVMValueRef immutableNode = createMDString(functionType.isImmutable() ? "immutable" : "not-immutable");
       LLVMValueRef returnTypeNode = generateType(functionType.getReturnType());
       Type[] parameterTypes = functionType.getParameterTypes();
       LLVMValueRef[] parameterTypeNodes = new LLVMValueRef[parameterTypes.length];
@@ -159,16 +164,17 @@ public class MetadataGenerator
         parameterTypeNodes[i] = generateType(parameterTypes[i]);
       }
       LLVMValueRef parameterTypesNode = LLVM.LLVMMDNode(C.toNativePointerArray(parameterTypeNodes, false, true), parameterTypeNodes.length);
-      LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, returnTypeNode, parameterTypesNode};
+      LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, immutableNode, returnTypeNode, parameterTypesNode};
       return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
     }
     if (type instanceof NamedType)
     {
       NamedType namedType = (NamedType) type;
       LLVMValueRef sortNode = createMDString("named");
+      LLVMValueRef immutableNode = createMDString(namedType.isExplicitlyImmutable() ? "immutable" : "not-immutable");
       String qualifiedName = namedType.getResolvedTypeDefinition().getQualifiedName().toString();
       LLVMValueRef qualifiedNameNode = createMDString(qualifiedName);
-      LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, qualifiedNameNode};
+      LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, immutableNode, qualifiedNameNode};
       return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
     }
     if (type instanceof PrimitiveType)

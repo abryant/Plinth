@@ -7,7 +7,7 @@ compound stderr
    * Writes the specified character array to the underlying standard error stream.
    * @param bytes - the bytes to write
    */
-  static native "plinth_stderr_write" void write([]ubyte bytes);
+  static native "plinth_stderr_write" void write(#[]ubyte bytes);
 
   /**
    * Prints the specified string, followed by a newline, to the standard error stream.

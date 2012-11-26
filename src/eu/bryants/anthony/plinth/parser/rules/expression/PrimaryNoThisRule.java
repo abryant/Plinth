@@ -48,7 +48,7 @@ public class PrimaryNoThisRule extends Rule<ParseType>
       ArrayType arrayType = null;
       for (int i = 0; i < dimensions.size(); i++)
       {
-        arrayType = new ArrayType(false, arrayType == null ? originalType : arrayType, null);
+        arrayType = new ArrayType(false, false, arrayType == null ? originalType : arrayType, null);
       }
       return new ArrayCreationExpression(arrayType, dimensions.toArray(new Expression[dimensions.size()]), null, LexicalPhrase.combine((LexicalPhrase) args[0], dimensions.getLexicalPhrase(), originalType.getLexicalPhrase()));
     }

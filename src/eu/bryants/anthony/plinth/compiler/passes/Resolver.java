@@ -308,35 +308,42 @@ public class Resolver
    */
   public TypeDefinition resolveTypeDefinition(QName qname) throws NameNotResolvedException, ConceptualException
   {
-    NamedType namedType = new NamedType(false, qname, null);
+    NamedType namedType = new NamedType(false, false, qname, null);
     resolve(namedType, null);
     return namedType.getResolvedTypeDefinition();
   }
 
   private void resolve(TypeDefinition typeDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
+    // a non-static initialiser is an immutable context if there is at least one immutable constructor
+    // so we need to check whether there are any immutable constructors here
+    boolean hasImmutableConstructors = false;
+    for (Constructor constructor : typeDefinition.getConstructors())
+    {
+      if (constructor.isImmutable())
+      {
+        hasImmutableConstructors = true;
+      }
+      Block mainBlock = constructor.getBlock();
+      for (Statement s : mainBlock.getStatements())
+      {
+        resolve(s, mainBlock, typeDefinition, compilationUnit, constructor.isImmutable());
+      }
+    }
     for (Initialiser initialiser : typeDefinition.getInitialisers())
     {
       if (initialiser instanceof FieldInitialiser)
       {
         Field field = ((FieldInitialiser) initialiser).getField();
-        resolve(field.getInitialiserExpression(), initialiser.getBlock(), typeDefinition, compilationUnit);
+        resolve(field.getInitialiserExpression(), initialiser.getBlock(), typeDefinition, compilationUnit, !initialiser.isStatic() & hasImmutableConstructors);
       }
       else
       {
         Block block = initialiser.getBlock();
         for (Statement statement : block.getStatements())
         {
-          resolve(statement, initialiser.getBlock(), typeDefinition, compilationUnit);
+          resolve(statement, initialiser.getBlock(), typeDefinition, compilationUnit, !initialiser.isStatic() & hasImmutableConstructors);
         }
-      }
-    }
-    for (Constructor constructor : typeDefinition.getConstructors())
-    {
-      Block mainBlock = constructor.getBlock();
-      for (Statement s : mainBlock.getStatements())
-      {
-        resolve(s, mainBlock, typeDefinition, compilationUnit);
       }
     }
     for (Method method : typeDefinition.getAllMethods())
@@ -346,7 +353,7 @@ public class Resolver
       {
         for (Statement s : mainBlock.getStatements())
         {
-          resolve(s, mainBlock, typeDefinition, compilationUnit);
+          resolve(s, mainBlock, typeDefinition, compilationUnit, method.isImmutable());
         }
       }
     }
@@ -487,7 +494,7 @@ public class Resolver
     }
   }
 
-  private void resolve(Statement statement, Block enclosingBlock, TypeDefinition enclosingDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private void resolve(Statement statement, Block enclosingBlock, TypeDefinition enclosingDefinition, CompilationUnit compilationUnit, boolean inImmutableContext) throws NameNotResolvedException, ConceptualException
   {
     if (statement instanceof AssignStatement)
     {
@@ -551,14 +558,14 @@ public class Resolver
         else if (assignees[i] instanceof ArrayElementAssignee)
         {
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
-          resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
-          resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+          resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
+          resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
         }
         else if (assignees[i] instanceof FieldAssignee)
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
           // use the expression resolver to resolve the contained field access expression
-          resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+          resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
         }
         else if (assignees[i] instanceof BlankAssignee)
         {
@@ -594,7 +601,7 @@ public class Resolver
       }
       if (assignStatement.getExpression() != null)
       {
-        resolve(assignStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+        resolve(assignStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
       }
     }
     else if (statement instanceof Block)
@@ -606,7 +613,7 @@ public class Resolver
       }
       for (Statement s : subBlock.getStatements())
       {
-        resolve(s, subBlock, enclosingDefinition, compilationUnit);
+        resolve(s, subBlock, enclosingDefinition, compilationUnit, inImmutableContext);
       }
     }
     else if (statement instanceof BreakStatement)
@@ -623,7 +630,7 @@ public class Resolver
       Expression[] arguments = delegateConstructorStatement.getArguments();
       for (Expression argument : arguments)
       {
-        resolve(argument, enclosingBlock, enclosingDefinition, compilationUnit);
+        resolve(argument, enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       Constructor resolvedConstructor = resolveConstructor(enclosingDefinition, arguments, delegateConstructorStatement.getLexicalPhrase());
       delegateConstructorStatement.setResolvedConstructor(resolvedConstructor);
@@ -634,7 +641,7 @@ public class Resolver
     }
     else if (statement instanceof ExpressionStatement)
     {
-      resolve(((ExpressionStatement) statement).getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+      resolve(((ExpressionStatement) statement).getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (statement instanceof ForStatement)
     {
@@ -650,29 +657,29 @@ public class Resolver
       }
       if (init != null)
       {
-        resolve(init, block, enclosingDefinition, compilationUnit);
+        resolve(init, block, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       if (condition != null)
       {
-        resolve(condition, block, enclosingDefinition, compilationUnit);
+        resolve(condition, block, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       if (update != null)
       {
-        resolve(update, block, enclosingDefinition, compilationUnit);
+        resolve(update, block, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       for (Statement s : block.getStatements())
       {
-        resolve(s, block, enclosingDefinition, compilationUnit);
+        resolve(s, block, enclosingDefinition, compilationUnit, inImmutableContext);
       }
     }
     else if (statement instanceof IfStatement)
     {
       IfStatement ifStatement = (IfStatement) statement;
-      resolve(ifStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
-      resolve(ifStatement.getThenClause(), enclosingBlock, enclosingDefinition, compilationUnit);
+      resolve(ifStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
+      resolve(ifStatement.getThenClause(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
       if (ifStatement.getElseClause() != null)
       {
-        resolve(ifStatement.getElseClause(), enclosingBlock, enclosingDefinition, compilationUnit);
+        resolve(ifStatement.getElseClause(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
       }
     }
     else if (statement instanceof PrefixIncDecStatement)
@@ -707,8 +714,8 @@ public class Resolver
       else if (assignee instanceof ArrayElementAssignee)
       {
         ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
-        resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
-        resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+        resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
+        resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       else if (assignee instanceof BlankAssignee)
       {
@@ -718,7 +725,7 @@ public class Resolver
       {
         FieldAssignee fieldAssignee = (FieldAssignee) assignee;
         // use the expression resolver to resolve the contained field access expression
-        resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+        resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       else
       {
@@ -727,10 +734,14 @@ public class Resolver
     }
     else if (statement instanceof ReturnStatement)
     {
-      Expression returnedExpression = ((ReturnStatement) statement).getExpression();
+      ReturnStatement returnStatement = (ReturnStatement) statement;
+      // currently, nothing can return against contextual immutability.
+      // however, once properties exist, their getters will be able to
+      returnStatement.setCanReturnAgainstContextualImmutability(false);
+      Expression returnedExpression = returnStatement.getExpression();
       if (returnedExpression != null)
       {
-        resolve(returnedExpression, enclosingBlock, enclosingDefinition, compilationUnit);
+        resolve(returnedExpression, enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
       }
     }
     else if (statement instanceof ShorthandAssignStatement)
@@ -766,14 +777,14 @@ public class Resolver
         else if (assignee instanceof ArrayElementAssignee)
         {
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
-          resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
-          resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+          resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
+          resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
         }
         else if (assignee instanceof FieldAssignee)
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignee;
           // use the expression resolver to resolve the contained field access expression
-          resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+          resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
         }
         else if (assignee instanceof BlankAssignee)
         {
@@ -784,13 +795,13 @@ public class Resolver
           throw new IllegalStateException("Unknown Assignee type: " + assignee);
         }
       }
-      resolve(shorthandAssignStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
+      resolve(shorthandAssignStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (statement instanceof WhileStatement)
     {
       WhileStatement whileStatement = (WhileStatement) statement;
-      resolve(whileStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit);
-      resolve(whileStatement.getStatement(), enclosingBlock, enclosingDefinition, compilationUnit);
+      resolve(whileStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
+      resolve(whileStatement.getStatement(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else
     {
@@ -798,41 +809,41 @@ public class Resolver
     }
   }
 
-  private void resolve(Expression expression, Block block, TypeDefinition enclosingDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private void resolve(Expression expression, Block block, TypeDefinition enclosingDefinition, CompilationUnit compilationUnit, boolean inImmutableContext) throws NameNotResolvedException, ConceptualException
   {
     if (expression instanceof ArithmeticExpression)
     {
-      resolve(((ArithmeticExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit);
-      resolve(((ArithmeticExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((ArithmeticExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
+      resolve(((ArithmeticExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof ArrayAccessExpression)
     {
       ArrayAccessExpression arrayAccessExpression = (ArrayAccessExpression) expression;
-      resolve(arrayAccessExpression.getArrayExpression(), block, enclosingDefinition, compilationUnit);
-      resolve(arrayAccessExpression.getDimensionExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(arrayAccessExpression.getArrayExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
+      resolve(arrayAccessExpression.getDimensionExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof ArrayCreationExpression)
     {
       ArrayCreationExpression creationExpression = (ArrayCreationExpression) expression;
-      resolve(creationExpression.getType(), compilationUnit);
+      resolve(creationExpression.getDeclaredType(), compilationUnit);
       if (creationExpression.getDimensionExpressions() != null)
       {
         for (Expression e : creationExpression.getDimensionExpressions())
         {
-          resolve(e, block, enclosingDefinition, compilationUnit);
+          resolve(e, block, enclosingDefinition, compilationUnit, inImmutableContext);
         }
       }
       if (creationExpression.getValueExpressions() != null)
       {
         for (Expression e : creationExpression.getValueExpressions())
         {
-          resolve(e, block, enclosingDefinition, compilationUnit);
+          resolve(e, block, enclosingDefinition, compilationUnit, inImmutableContext);
         }
       }
     }
     else if (expression instanceof BitwiseNotExpression)
     {
-      resolve(((BitwiseNotExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((BitwiseNotExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof BooleanLiteralExpression)
     {
@@ -840,46 +851,47 @@ public class Resolver
     }
     else if (expression instanceof BooleanNotExpression)
     {
-      resolve(((BooleanNotExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((BooleanNotExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof BracketedExpression)
     {
-      resolve(((BracketedExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((BracketedExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof CastExpression)
     {
       resolve(expression.getType(), compilationUnit);
-      resolve(((CastExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((CastExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof ClassCreationExpression)
     {
       ClassCreationExpression classCreationExpression = (ClassCreationExpression) expression;
-      NamedType type = new NamedType(false, classCreationExpression.getQualifiedName(), null);
+      NamedType type = new NamedType(false, false, classCreationExpression.getQualifiedName(), null);
       resolve(type, compilationUnit);
-      classCreationExpression.setType(type);
+      classCreationExpression.setResolvedType(type);
       Expression[] arguments = classCreationExpression.getArguments();
       for (Expression argument : arguments)
       {
-        resolve(argument, block, enclosingDefinition, compilationUnit);
+        resolve(argument, block, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       Constructor resolvedConstructor = resolveConstructor(type.getResolvedTypeDefinition(), arguments, classCreationExpression.getLexicalPhrase());
       classCreationExpression.setResolvedConstructor(resolvedConstructor);
     }
     else if (expression instanceof EqualityExpression)
     {
-      resolve(((EqualityExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit);
-      resolve(((EqualityExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((EqualityExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
+      resolve(((EqualityExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof FieldAccessExpression)
     {
       FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
+      fieldAccessExpression.setResolvedContextImmutability(inImmutableContext);
       String fieldName = fieldAccessExpression.getFieldName();
 
       Type baseType;
       boolean baseIsStatic;
       if (fieldAccessExpression.getBaseExpression() != null)
       {
-        resolve(fieldAccessExpression.getBaseExpression(), block, enclosingDefinition, compilationUnit);
+        resolve(fieldAccessExpression.getBaseExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
 
         // find the type of the sub-expression, by calling the type checker
         // this is fine as long as we resolve all of the sub-expression first
@@ -949,7 +961,7 @@ public class Resolver
       // resolve all of the sub-expressions
       for (Expression e : expr.getArguments())
       {
-        resolve(e, block, enclosingDefinition, compilationUnit);
+        resolve(e, block, enclosingDefinition, compilationUnit, inImmutableContext);
         TypeChecker.checkTypes(e);
       }
 
@@ -960,7 +972,7 @@ public class Resolver
       // this MUST be done first, so that local variables with function types are considered before outside methods
       try
       {
-        resolve(functionExpression, block, enclosingDefinition, compilationUnit);
+        resolve(functionExpression, block, enclosingDefinition, compilationUnit, inImmutableContext);
         expressionType = TypeChecker.checkTypes(functionExpression);
       }
       catch (NameNotResolvedException e)
@@ -1014,7 +1026,7 @@ public class Resolver
         // try resolving it as a constructor call for a CompoundDefinition, by calling resolve() on it as a NamedType
         try
         {
-          NamedType type = new NamedType(false, new QName(name, null), null);
+          NamedType type = new NamedType(false, false, new QName(name, null), null);
           resolve(type, compilationUnit);
           TypeDefinition typeDefinition = type.getResolvedTypeDefinition();
           if (typeDefinition != null && typeDefinition instanceof CompoundDefinition)
@@ -1045,7 +1057,7 @@ public class Resolver
         {
           try
           {
-            NamedType type = new NamedType(false, qname, null);
+            NamedType type = new NamedType(false, false, qname, null);
             resolve(type, compilationUnit);
             TypeDefinition typeDefinition = type.getResolvedTypeDefinition();
             if (typeDefinition != null && typeDefinition instanceof CompoundDefinition)
@@ -1076,7 +1088,7 @@ public class Resolver
           boolean baseIsStatic;
           if (baseExpression != null)
           {
-            resolve(baseExpression, block, enclosingDefinition, compilationUnit);
+            resolve(baseExpression, block, enclosingDefinition, compilationUnit, inImmutableContext);
 
             // find the type of the sub-expression, by calling the type checker
             // this is fine as long as we resolve all of the sub-expression first
@@ -1168,9 +1180,9 @@ public class Resolver
     else if (expression instanceof InlineIfExpression)
     {
       InlineIfExpression inlineIfExpression = (InlineIfExpression) expression;
-      resolve(inlineIfExpression.getCondition(), block, enclosingDefinition, compilationUnit);
-      resolve(inlineIfExpression.getThenExpression(), block, enclosingDefinition, compilationUnit);
-      resolve(inlineIfExpression.getElseExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(inlineIfExpression.getCondition(), block, enclosingDefinition, compilationUnit, inImmutableContext);
+      resolve(inlineIfExpression.getThenExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
+      resolve(inlineIfExpression.getElseExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof IntegerLiteralExpression)
     {
@@ -1178,17 +1190,17 @@ public class Resolver
     }
     else if (expression instanceof LogicalExpression)
     {
-      resolve(((LogicalExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit);
-      resolve(((LogicalExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((LogicalExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
+      resolve(((LogicalExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof MinusExpression)
     {
-      resolve(((MinusExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((MinusExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof NullCoalescingExpression)
     {
-      resolve(((NullCoalescingExpression) expression).getNullableExpression(), block, enclosingDefinition, compilationUnit);
-      resolve(((NullCoalescingExpression) expression).getAlternativeExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((NullCoalescingExpression) expression).getNullableExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
+      resolve(((NullCoalescingExpression) expression).getAlternativeExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof NullLiteralExpression)
     {
@@ -1196,13 +1208,13 @@ public class Resolver
     }
     else if (expression instanceof RelationalExpression)
     {
-      resolve(((RelationalExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit);
-      resolve(((RelationalExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((RelationalExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
+      resolve(((RelationalExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof ShiftExpression)
     {
-      resolve(((ShiftExpression) expression).getLeftExpression(), block, enclosingDefinition, compilationUnit);
-      resolve(((ShiftExpression) expression).getRightExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(((ShiftExpression) expression).getLeftExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
+      resolve(((ShiftExpression) expression).getRightExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof StringLiteralExpression)
     {
@@ -1216,7 +1228,7 @@ public class Resolver
       {
         throw new ConceptualException("'this' does not refer to anything in this context", thisExpression.getLexicalPhrase());
       }
-      thisExpression.setType(new NamedType(false, enclosingDefinition));
+      thisExpression.setType(new NamedType(false, false, inImmutableContext, enclosingDefinition));
     }
     else if (expression instanceof TupleExpression)
     {
@@ -1224,17 +1236,18 @@ public class Resolver
       Expression[] subExpressions = tupleExpression.getSubExpressions();
       for (int i = 0; i < subExpressions.length; i++)
       {
-        resolve(subExpressions[i], block, enclosingDefinition, compilationUnit);
+        resolve(subExpressions[i], block, enclosingDefinition, compilationUnit, inImmutableContext);
       }
     }
     else if (expression instanceof TupleIndexExpression)
     {
       TupleIndexExpression indexExpression = (TupleIndexExpression) expression;
-      resolve(indexExpression.getExpression(), block, enclosingDefinition, compilationUnit);
+      resolve(indexExpression.getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof VariableExpression)
     {
       VariableExpression expr = (VariableExpression) expression;
+      expr.setResolvedContextImmutability(inImmutableContext);
       Variable var = block.getVariable(expr.getName());
       if (var != null)
       {

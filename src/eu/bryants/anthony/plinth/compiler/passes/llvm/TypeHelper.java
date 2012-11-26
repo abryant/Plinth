@@ -20,10 +20,10 @@ import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.NullType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
+import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
-import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.compiler.passes.TypeChecker;
 
 /*
@@ -275,7 +275,7 @@ public class TypeHelper
     if (from instanceof ArrayType && to instanceof ArrayType)
     {
       // array casts are illegal unless the base types are the same, so they must have the same basic type
-      // nullability will be checked by the type checker, but has no effect on the native type, so we do not need to do anything special here
+      // nullability and immutability will be checked by the type checker, but have no effect on the native type, so we do not need to do anything special here
 
       // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined
       // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
@@ -284,7 +284,7 @@ public class TypeHelper
     if (from instanceof FunctionType && to instanceof FunctionType)
     {
       // function casts are illegal unless the parameter and return types are the same, so they must have the same basic type
-      // nullability will be checked by the type checker, but has no effect on the native type, so we do not need to do anything special here
+      // nullability and immutability will be checked by the type checker, but have no effect on the native type, so we do not need to do anything special here
 
       // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined
       // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
@@ -296,7 +296,7 @@ public class TypeHelper
     {
       // TODO: this will need changing when we add inheritance
       // class type casts are illegal unless the type definitions are the same, so they must have the same basic type
-      // nullability will be checked by the type checker, but has no effect on the temporary type, so we do not need to do anything special here
+      // nullability and immutability will be checked by the type checker, but have no effect on the temporary type, so we do not need to do anything special here
 
       // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined
       // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
@@ -307,7 +307,7 @@ public class TypeHelper
         ((NamedType) to).getResolvedTypeDefinition() instanceof CompoundDefinition)
     {
       // compound type casts are illegal unless the type definitions are the same, so they must have the same type
-      // nullability will be checked by the type checker, but has no effect on the temporary type, so we do not need to do anything special here
+      // nullability and immutability will be checked by the type checker, but have no effect on the temporary type, so we do not need to do anything special here
 
       // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined
       // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
