@@ -57,19 +57,21 @@ public class NamedType extends Type
   }
 
   /**
-   * @return the explicitlyImmutable
+   * Note: this method should not be called until this type has been resolved
+   * @return true if this type is explicitly immutable, false otherwise
    */
   public boolean isExplicitlyImmutable()
   {
-    return explicitlyImmutable;
+    return explicitlyImmutable || resolvedTypeDefinition.isImmutable();
   }
 
   /**
-   * @return the contextuallyImmutable
+   * Note: this method should not be called until this type has been resolved
+   * @return true if this type is contextually immutable, false otherwise
    */
   public boolean isContextuallyImmutable()
   {
-    return contextuallyImmutable;
+    return contextuallyImmutable || resolvedTypeDefinition.isImmutable();
   }
 
   /**
@@ -116,23 +118,31 @@ public class NamedType extends Type
     {
       return false;
     }
+    if (resolvedTypeDefinition == null)
+    {
+      throw new IllegalStateException("Cannot check whether two types are assign-compatible before they are resolved");
+    }
     NamedType otherNamedType = (NamedType) type;
-    // an explicitly-immutable named type cannot be assigned to a non-explicitly-immutable named type
-    if (!isExplicitlyImmutable() && otherNamedType.isExplicitlyImmutable())
-    {
-      return false;
-    }
-    // a contextually-immutable named type cannot be assigned to a non-immutable named type
-    if (!isContextuallyImmutable() && otherNamedType.isContextuallyImmutable())
-    {
-      return false;
-    }
     // TODO: when we add inheritance, make this more general
-    if (resolvedTypeDefinition != null)
+    if (!resolvedTypeDefinition.equals(otherNamedType.getResolvedTypeDefinition()))
     {
-      return resolvedTypeDefinition.equals(otherNamedType.getResolvedTypeDefinition());
+      return false;
     }
-    throw new IllegalStateException("Cannot check whether two types are assign-compatible before they are resolved");
+    // an immutable type definition means the type is always immutable, so it must be equivalent regardless of immutability
+    if (!resolvedTypeDefinition.isImmutable())
+    {
+      // an explicitly-immutable named type cannot be assigned to a non-explicitly-immutable named type
+      if (!isExplicitlyImmutable() && otherNamedType.isExplicitlyImmutable())
+      {
+        return false;
+      }
+      // a contextually-immutable named type cannot be assigned to a non-immutable named type
+      if (!isContextuallyImmutable() && otherNamedType.isContextuallyImmutable())
+      {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -145,9 +155,11 @@ public class NamedType extends Type
     {
       return type instanceof NamedType &&
              isNullable() == type.isNullable() &&
-             isExplicitlyImmutable() == ((NamedType) type).isExplicitlyImmutable() &&
-             isContextuallyImmutable() == ((NamedType) type).isContextuallyImmutable() &&
-             resolvedTypeDefinition.equals(((NamedType) type).getResolvedTypeDefinition());
+             resolvedTypeDefinition.equals(((NamedType) type).getResolvedTypeDefinition()) &&
+             // an immutable type definition means the type is always immutable, so it must be equivalent regardless of immutability
+             (resolvedTypeDefinition.isImmutable() ||
+              (isExplicitlyImmutable() == ((NamedType) type).isExplicitlyImmutable() &&
+               isContextuallyImmutable() == ((NamedType) type).isContextuallyImmutable()));
     }
     throw new IllegalStateException("Cannot check for type equivalence before the named type is resolved");
   }
@@ -208,6 +220,6 @@ public class NamedType extends Type
   @Override
   public String toString()
   {
-    return (isNullable() ? "?" : "") + (isContextuallyImmutable() ? "#" : "") + qname;
+    return (isNullable() ? "?" : "") + (contextuallyImmutable ? "#" : "") + qname;
   }
 }

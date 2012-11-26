@@ -41,6 +41,8 @@ public class MetadataGenerator
     String qualifiedName = typeDefinition.getQualifiedName().toString();
     LLVMValueRef nameNode = createMDString(qualifiedName);
 
+    LLVMValueRef immutabilityNode = createMDString(typeDefinition.isImmutable() ? "immutable" : "not-immutable");
+
     Field[] nonStaticFields = typeDefinition.getNonStaticFields();
     LLVMValueRef[] nonStaticFieldNodes = new LLVMValueRef[nonStaticFields.length];
     for (int i = 0; i < nonStaticFields.length; ++i)
@@ -85,7 +87,7 @@ public class MetadataGenerator
     }
     LLVMValueRef methodsNode = LLVM.LLVMMDNode(C.toNativePointerArray(methodNodes, false, true), methodNodes.length);
 
-    LLVMValueRef[] values = new LLVMValueRef[] {nameNode, nonStaticFieldsNode, staticFieldsNode, constructorsNode, methodsNode};
+    LLVMValueRef[] values = new LLVMValueRef[] {nameNode, immutabilityNode, nonStaticFieldsNode, staticFieldsNode, constructorsNode, methodsNode};
     LLVMValueRef resultNode = LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
     if (typeDefinition instanceof ClassDefinition)
     {

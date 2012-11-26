@@ -61,7 +61,6 @@ public class SpecialTypeHandler
       throw new ConceptualException("The string type must be a compound definition!", typeDefinition.getLexicalPhrase());
     }
     Type arrayType = new ArrayType(false, true, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
-    Type immutableStringType = new NamedType(STRING_TYPE.isNullable(), true, STRING_TYPE.getResolvedTypeDefinition());
     for (Constructor constructor : typeDefinition.getConstructors())
     {
       Parameter[] parameters = constructor.getParameters();
@@ -69,7 +68,7 @@ public class SpecialTypeHandler
       {
         stringArrayConstructor = constructor;
       }
-      if (parameters.length == 2 && parameters[0].getType().isEquivalent(immutableStringType) && parameters[1].getType().isEquivalent(immutableStringType))
+      if (parameters.length == 2 && parameters[0].getType().isEquivalent(STRING_TYPE) && parameters[1].getType().isEquivalent(STRING_TYPE))
       {
         stringConcatenationConstructor = constructor;
       }

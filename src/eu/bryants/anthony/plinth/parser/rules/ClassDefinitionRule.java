@@ -7,7 +7,10 @@ import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
+import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
+import eu.bryants.anthony.plinth.parser.parseAST.Modifier;
+import eu.bryants.anthony.plinth.parser.parseAST.ModifierType;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 
 /*
@@ -21,7 +24,7 @@ public class ClassDefinitionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.CLASS_KEYWORD, ParseType.NAME, ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
+  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CLASS_KEYWORD, ParseType.NAME, ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
 
   public ClassDefinitionRule()
   {
@@ -36,13 +39,47 @@ public class ClassDefinitionRule extends Rule<ParseType>
   {
     if (production == PRODUCTION)
     {
-      Name name = (Name) args[1];
       @SuppressWarnings("unchecked")
-      ParseList<Member> members = (ParseList<Member>) args[3];
-      return new ClassDefinition(name.getName(), members.toArray(new Member[members.size()]),
-                                 LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase(), (LexicalPhrase) args[2], members.getLexicalPhrase(), (LexicalPhrase) args[4]));
+      ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
+      Name name = (Name) args[2];
+      @SuppressWarnings("unchecked")
+      ParseList<Member> members = (ParseList<Member>) args[4];
+      return processModifiers(modifiers, name.getName(), members.toArray(new Member[members.size()]),
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), (LexicalPhrase) args[3], members.getLexicalPhrase(), (LexicalPhrase) args[5]));
     }
     throw badTypeList();
   }
 
+  private ClassDefinition processModifiers(ParseList<Modifier> modifiers, String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  {
+    boolean isImmutable = false;
+    for (Modifier modifier : modifiers)
+    {
+      if (modifier.getModifierType() == ModifierType.FINAL)
+      {
+        throw new LanguageParseException("Unexpected modifier: Class definitions cannot be final", modifier.getLexicalPhrase());
+      }
+      else if (modifier.getModifierType() == ModifierType.IMMUTABLE)
+      {
+        if (isImmutable)
+        {
+          throw new LanguageParseException("Duplicate 'immutable' modifier", modifier.getLexicalPhrase());
+        }
+        isImmutable = true;
+      }
+      else if (modifier.getModifierType() == ModifierType.NATIVE)
+      {
+        throw new LanguageParseException("Unexpected modifier: Class definitions cannot be native", modifier.getLexicalPhrase());
+      }
+      else if (modifier.getModifierType() == ModifierType.STATIC)
+      {
+        throw new LanguageParseException("Unexpected modifier: Class definitions cannot be native", modifier.getLexicalPhrase());
+      }
+      else
+      {
+        throw new IllegalStateException("Unknown modifier: " + modifier);
+      }
+    }
+    return new ClassDefinition(isImmutable, name, members, lexicalPhrase);
+  }
 }

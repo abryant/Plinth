@@ -39,9 +39,9 @@ public class ClassDefinition extends TypeDefinition
 
   private Field[] nonStaticFields;
 
-  public ClassDefinition(String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  public ClassDefinition(boolean isImmutable, String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
-    super(name, lexicalPhrase);
+    super(isImmutable, name, lexicalPhrase);
     // add all of the members by name
     int fieldIndex = 0;
     List<Field> nonStaticFieldList = new LinkedList<Field>();
@@ -111,6 +111,7 @@ public class ClassDefinition extends TypeDefinition
 
   /**
    * Creates a new ClassDefinition with the specified members.
+   * @param isImmutable - true if this class definition should be immutable, false otherwise
    * @param qname - the qualified name of the class definition
    * @param nonStaticFields - the non static fields, with their indexes already filled in
    * @param staticFields - the static fields
@@ -118,9 +119,9 @@ public class ClassDefinition extends TypeDefinition
    * @param newMethods - the methods
    * @throws LanguageParseException - if there is a name collision between any of the methods, or a Constructor's name is wrong
    */
-  public ClassDefinition(QName qname, Field[] nonStaticFields, Field[] staticFields, Constructor[] newConstructors, Method[] newMethods) throws LanguageParseException
+  public ClassDefinition(boolean isImmutable, QName qname, Field[] nonStaticFields, Field[] staticFields, Constructor[] newConstructors, Method[] newMethods) throws LanguageParseException
   {
-    super(qname.getLastName(), null);
+    super(isImmutable, qname.getLastName(), null);
     setQualifiedName(qname);
     for (Field f : nonStaticFields)
     {
@@ -270,6 +271,6 @@ public class ClassDefinition extends TypeDefinition
   @Override
   public String toString()
   {
-    return "class " + getName() + "\n" + getBodyString() + "\n";
+    return (isImmutable() ? "immutable " : "") + "class " + getName() + "\n" + getBodyString() + "\n";
   }
 }

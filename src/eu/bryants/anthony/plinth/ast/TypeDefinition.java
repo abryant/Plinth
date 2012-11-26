@@ -19,6 +19,7 @@ import eu.bryants.anthony.plinth.ast.misc.QName;
  */
 public abstract class TypeDefinition
 {
+  private boolean isImmutable;
 
   private String name;
   private QName qname;
@@ -27,13 +28,23 @@ public abstract class TypeDefinition
 
   /**
    * Creates a new TypeDefinition with the specified name.
+   * @param isImmutable - true if this TypeDefinition should be immutable, false otherwise
    * @param name - the name of the type defintion
    * @param lexicalPhrase - the LexicalPhrase of this TypeDefinition
    */
-  public TypeDefinition(String name, LexicalPhrase lexicalPhrase)
+  public TypeDefinition(boolean isImmutable, String name, LexicalPhrase lexicalPhrase)
   {
+    this.isImmutable = isImmutable;
     this.name = name;
     this.lexicalPhrase = lexicalPhrase;
+  }
+
+  /**
+   * @return the isImmutable
+   */
+  public boolean isImmutable()
+  {
+    return isImmutable;
   }
 
   /**

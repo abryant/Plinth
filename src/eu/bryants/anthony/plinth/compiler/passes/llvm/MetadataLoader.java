@@ -79,7 +79,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A type definition must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 5)
+    if (values.length != 6)
     {
       throw new MalformedMetadataException("A type definition's metadata node must have the correct number of sub-nodes");
     }
@@ -99,33 +99,40 @@ public class MetadataLoader
       throw new MalformedMetadataException(e.getMessage(), e);
     }
 
-    if (LLVM.LLVMIsAMDNode(values[1]) == null || LLVM.LLVMIsAMDNode(values[2]) == null || LLVM.LLVMIsAMDNode(values[3]) == null || LLVM.LLVMIsAMDNode(values[4]) == null)
+    String immutabilityStr = readMDString(values[1]);
+    if (immutabilityStr == null)
+    {
+      throw new MalformedMetadataException("A type definition must specify an immutability");
+    }
+    boolean isImmutable = immutabilityStr.equals("immutable");
+
+    if (LLVM.LLVMIsAMDNode(values[2]) == null || LLVM.LLVMIsAMDNode(values[3]) == null || LLVM.LLVMIsAMDNode(values[4]) == null || LLVM.LLVMIsAMDNode(values[5]) == null)
     {
       throw new MalformedMetadataException("The member nodes of a type definition must be metadata nodes");
     }
 
-    LLVMValueRef[] nonStaticFieldNodes = readOperands(values[1]);
+    LLVMValueRef[] nonStaticFieldNodes = readOperands(values[2]);
     Field[] nonStaticFields = new Field[nonStaticFieldNodes.length];
     for (int i = 0; i < nonStaticFieldNodes.length; ++i)
     {
       nonStaticFields[i] = loadField(nonStaticFieldNodes[i], false, i);
     }
 
-    LLVMValueRef[] staticFieldNodes = readOperands(values[2]);
+    LLVMValueRef[] staticFieldNodes = readOperands(values[3]);
     Field[] staticFields = new Field[staticFieldNodes.length];
     for (int i = 0; i < staticFieldNodes.length; ++i)
     {
       staticFields[i] = loadField(staticFieldNodes[i], true, i);
     }
 
-    LLVMValueRef[] constructorNodes = readOperands(values[3]);
+    LLVMValueRef[] constructorNodes = readOperands(values[4]);
     Constructor[] constructors = new Constructor[constructorNodes.length];
     for (int i = 0; i < constructorNodes.length; ++i)
     {
       constructors[i] = loadConstructor(constructorNodes[i], qname.getLastName());
     }
 
-    LLVMValueRef[] methodNodes = readOperands(values[4]);
+    LLVMValueRef[] methodNodes = readOperands(values[5]);
     Method[] methods = new Method[methodNodes.length];
     for (int i = 0; i < methodNodes.length; ++i)
     {
@@ -137,11 +144,11 @@ public class MetadataLoader
     {
       if (classDefinition)
       {
-        typeDefinition = new ClassDefinition(qname, nonStaticFields, staticFields, constructors, methods);
+        typeDefinition = new ClassDefinition(isImmutable, qname, nonStaticFields, staticFields, constructors, methods);
       }
       else
       {
-        typeDefinition = new CompoundDefinition(qname, nonStaticFields, staticFields, constructors, methods);
+        typeDefinition = new CompoundDefinition(isImmutable, qname, nonStaticFields, staticFields, constructors, methods);
       }
     }
     catch (LanguageParseException e)

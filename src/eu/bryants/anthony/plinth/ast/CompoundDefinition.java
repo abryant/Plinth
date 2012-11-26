@@ -41,14 +41,15 @@ public class CompoundDefinition extends TypeDefinition
 
   /**
    * Creates a new CompoundDefinition with the specified members.
+   * @param isImmutable - true if this CompoundDefinition should be immutable, false otherwise
    * @param name - the name of the CompoundDefinition
    * @param members - the array of all of the members
    * @param lexicalPhrase - the LexicalPhrase of this CompoundDefinition
    * @throws LanguageParseException - if there is a name collision between any of the methods, or a Constructor's name is wrong
    */
-  public CompoundDefinition(String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  public CompoundDefinition(boolean isImmutable, String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
-    super(name, lexicalPhrase);
+    super(isImmutable, name, lexicalPhrase);
     // add all of the members by name
     int fieldIndex = 0;
     List<Field> nonStaticFieldList = new LinkedList<Field>();
@@ -118,6 +119,7 @@ public class CompoundDefinition extends TypeDefinition
 
   /**
    * Creates a new CompoundDefinition with the specified members.
+   * @param isImmutable - true if this CompoundDefinition should be immutable, false otherwise
    * @param qname - the qualified name of the compound definition
    * @param nonStaticFields - the non static fields, with their indexes already filled in
    * @param staticFields - the static fields
@@ -125,9 +127,9 @@ public class CompoundDefinition extends TypeDefinition
    * @param newMethods - the methods
    * @throws LanguageParseException - if there is a name collision between any of the methods, or a Constructor's name is wrong
    */
-  public CompoundDefinition(QName qname, Field[] nonStaticFields, Field[] staticFields, Constructor[] newConstructors, Method[] newMethods) throws LanguageParseException
+  public CompoundDefinition(boolean isImmutable, QName qname, Field[] nonStaticFields, Field[] staticFields, Constructor[] newConstructors, Method[] newMethods) throws LanguageParseException
   {
-    super(qname.getLastName(), null);
+    super(isImmutable, qname.getLastName(), null);
     setQualifiedName(qname);
     for (Field f : nonStaticFields)
     {
@@ -277,6 +279,6 @@ public class CompoundDefinition extends TypeDefinition
   @Override
   public String toString()
   {
-    return "compound " + getName() + "\n" + getBodyString() + "\n";
+    return (isImmutable() ? "immutable " : "") + "compound " + getName() + "\n" + getBodyString() + "\n";
   }
 }

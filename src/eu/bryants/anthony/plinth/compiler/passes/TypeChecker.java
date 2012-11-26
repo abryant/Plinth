@@ -619,7 +619,7 @@ public class TypeChecker
           types[i] = left;
           assignees[i].setResolvedType(left);
         }
-        if (operator == ShorthandAssignmentOperator.ADD && isStringType(left) && isStringType(right))
+        if (operator == ShorthandAssignmentOperator.ADD && left.isEquivalent(SpecialTypeHandler.STRING_TYPE) && right.isEquivalent(SpecialTypeHandler.STRING_TYPE))
         {
           // do nothing, this is a shorthand string concatenation, which is allowed
         }
@@ -708,7 +708,7 @@ public class TypeChecker
           // the type will now only be null if no conversion can be done, e.g. if leftType is UINT and rightType is INT
         }
       }
-      if (arithmeticExpression.getOperator() == ArithmeticOperator.ADD && isStringType(leftType) && isStringType(rightType))
+      if (arithmeticExpression.getOperator() == ArithmeticOperator.ADD && leftType.isEquivalent(SpecialTypeHandler.STRING_TYPE) && rightType.isEquivalent(SpecialTypeHandler.STRING_TYPE))
       {
         Type resultType = findCommonSuperType(leftType, rightType);
         arithmeticExpression.setType(resultType);
@@ -1492,18 +1492,6 @@ public class TypeChecker
       }
     }
     throw new ConceptualException("Internal type checking error: Unknown expression type", expression.getLexicalPhrase());
-  }
-
-  /**
-   * Finds whether the specified type is a string type.
-   * @param type - the Type to check
-   * @return true iff the specified type is a string type for the purposes of type checking
-   */
-  private static boolean isStringType(Type type)
-  {
-    return type.isEquivalent(SpecialTypeHandler.STRING_TYPE) ||
-           type.isEquivalent(findTypeWithImmutability(SpecialTypeHandler.STRING_TYPE, false, true)) ||
-           type.isEquivalent(findTypeWithImmutability(SpecialTypeHandler.STRING_TYPE, true, true));
   }
 
   /**

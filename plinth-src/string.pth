@@ -2,7 +2,7 @@
  * Represents a string of unicode characters.
  * Internally, this uses UTF-8, which is lazily converted to UTF-32 whenever the string needs to be processed using characters instead of bytes.
  */
-compound string
+immutable compound string
 {
   #[]ubyte bytes;
   ?#[]uint chars;
@@ -73,7 +73,7 @@ compound string
    * This may not be equal to the number of bytes that represent this string, since in UTF-8 several bytes can represent a single character.
    * @return the number of unicode characters in this string
    */
-  uint characterLength()
+  immutable uint characterLength()
   {
     return getUnicodeChars().length;
   }
@@ -91,7 +91,7 @@ compound string
    * The result is equivalent to that of characterLength().
    * @return the character length of this string.
    */
-  uint length()
+  immutable uint length()
   {
     return characterLength();
   }
@@ -100,7 +100,7 @@ compound string
    * Finds the character at the specified position in this string, as a string.
    * @return the string representing the character at the specified index
    */
-  string charAt(uint pos)
+  immutable string charAt(uint pos)
   {
     return substring(pos, pos + 1);
   }
@@ -109,7 +109,7 @@ compound string
    * Finds the character code at the specified position in this string, as a uint.
    * @return the uint code of the character at the specified position in this string
    */
-  uint charCodeAt(uint pos)
+  immutable uint charCodeAt(uint pos)
   {
     return getUnicodeChars()[pos];
   }
@@ -120,7 +120,7 @@ compound string
    * @param len - the length of the substring
    * @return the substring of this string with the specified offset and length
    */
-  string substring(uint start, uint end)
+  immutable string substring(uint start, uint end)
   {
     // TODO: make assertions about arguments
     uint len = end - start;
@@ -138,7 +138,7 @@ compound string
    * @param s - the string to find the index of
    * @return the index of the specified string inside this string, or null if it does not occur
    */
-  ?uint indexOf(string s)
+  immutable ?uint indexOf(string s)
   {
     #[]uint chars = getUnicodeChars();
     #[]uint otherChars = getUnicodeChars();
@@ -163,10 +163,10 @@ compound string
   /**
    * @return the UTF-32 code points of the characters of this string.
    */
-  #[]uint getUnicodeChars()
+  immutable #[]uint getUnicodeChars()
   {
     #[]uint chars = this.chars ?: convertUTF8ToUTF32(bytes);
-    this.chars = chars;
+    //this.chars = chars; TODO: add this back in when we get mutable variables
     return chars;
   }
 
