@@ -78,6 +78,15 @@ public class Method extends Member
   }
 
   /**
+   * This methods sets the immutability of this Method. It should only be used when adding the Method to an immutable type.
+   * @param isImmutable - true if this Method should be immutable, false otherwise
+   */
+  public void setImmutable(boolean isImmutable)
+  {
+    this.isImmutable = isImmutable;
+  }
+
+  /**
    * @return the isImmutable
    */
   public boolean isImmutable()

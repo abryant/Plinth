@@ -87,6 +87,10 @@ public class ClassDefinition extends TypeDefinition
           throw new LanguageParseException("The constructor '" + constructor.getName() + "' should be named '" + name + "' after the class type it is defined in", constructor.getLexicalPhrase());
         }
         constructor.setContainingTypeDefinition(this);
+        if (isImmutable)
+        {
+          constructor.setImmutable(true);
+        }
         constructors.add(constructor);
       }
       if (member instanceof Method)
@@ -103,6 +107,10 @@ public class ClassDefinition extends TypeDefinition
           methods.put(method.getName(), methodSet);
         }
         method.setContainingTypeDefinition(this);
+        if (isImmutable && !method.isStatic())
+        {
+          method.setImmutable(true);
+        }
         methodSet.add(method);
       }
     }

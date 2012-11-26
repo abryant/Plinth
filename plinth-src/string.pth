@@ -10,7 +10,7 @@ immutable compound string
   /**
    * Creates an empty string.
    */
-  immutable string()
+  string()
   {
     bytes = new [0]ubyte;
   }
@@ -19,7 +19,7 @@ immutable compound string
    * Creates a string containing the specified UTF-8 bytes.
    * @param bytes - the UTF-8 bytes
    */
-  immutable string(#[]ubyte bytes)
+  string(#[]ubyte bytes)
   {
     this.bytes = bytes;
   }
@@ -28,7 +28,7 @@ immutable compound string
    * Creates a string containing the specified unicode (UTF-32) characters.
    * @param chars - the unicode characters
    */
-  immutable string([]uint chars)
+  string([]uint chars)
   {
     bytes = convertUTF32ToUTF8(chars);
     this.chars = chars;
@@ -39,7 +39,7 @@ immutable compound string
    * @param str1 - the first string
    * @param str2 - the second string
    */
-  immutable string(#string str1, #string str2)
+  string(#string str1, #string str2)
   {
     []ubyte bytes = new [str1.bytes.length + str2.bytes.length]ubyte;
     for (uint i = 0; i < str1.bytes.length; ++i)
@@ -73,7 +73,7 @@ immutable compound string
    * This may not be equal to the number of bytes that represent this string, since in UTF-8 several bytes can represent a single character.
    * @return the number of unicode characters in this string
    */
-  immutable uint characterLength()
+  uint characterLength()
   {
     return getUnicodeChars().length;
   }
@@ -81,7 +81,7 @@ immutable compound string
   /**
    * @return the number of bytes in the UTF-8 representation of this string.
    */
-  immutable uint byteLength()
+  uint byteLength()
   {
     return bytes.length;
   }
@@ -91,7 +91,7 @@ immutable compound string
    * The result is equivalent to that of characterLength().
    * @return the character length of this string.
    */
-  immutable uint length()
+  uint length()
   {
     return characterLength();
   }
@@ -100,7 +100,7 @@ immutable compound string
    * Finds the character at the specified position in this string, as a string.
    * @return the string representing the character at the specified index
    */
-  immutable string charAt(uint pos)
+  string charAt(uint pos)
   {
     return substring(pos, pos + 1);
   }
@@ -109,7 +109,7 @@ immutable compound string
    * Finds the character code at the specified position in this string, as a uint.
    * @return the uint code of the character at the specified position in this string
    */
-  immutable uint charCodeAt(uint pos)
+  uint charCodeAt(uint pos)
   {
     return getUnicodeChars()[pos];
   }
@@ -120,7 +120,7 @@ immutable compound string
    * @param len - the length of the substring
    * @return the substring of this string with the specified offset and length
    */
-  immutable string substring(uint start, uint end)
+  string substring(uint start, uint end)
   {
     // TODO: make assertions about arguments
     uint len = end - start;
@@ -138,7 +138,7 @@ immutable compound string
    * @param s - the string to find the index of
    * @return the index of the specified string inside this string, or null if it does not occur
    */
-  immutable ?uint indexOf(string s)
+  ?uint indexOf(string s)
   {
     #[]uint chars = getUnicodeChars();
     #[]uint otherChars = getUnicodeChars();
@@ -163,7 +163,7 @@ immutable compound string
   /**
    * @return the UTF-32 code points of the characters of this string.
    */
-  immutable #[]uint getUnicodeChars()
+  #[]uint getUnicodeChars()
   {
     #[]uint chars = this.chars ?: convertUTF8ToUTF32(bytes);
     //this.chars = chars; TODO: add this back in when we get mutable variables
@@ -171,35 +171,11 @@ immutable compound string
   }
 
   /**
-   * @param bytes - an array of UTF-8 bytes to the find the character length of
-   * @return the number of characters represented by the specified UTF-8 bytes.
-   */
-  static immutable uint findUTF8Length(#[]ubyte bytes)
-  {
-    uint len = 0;
-    for (uint i = 0; i < bytes.length; ++i)
-    {
-      if (bytes[i] >> 7) != 0
-      {
-        ubyte b = bytes[i];
-        // skip the extra bytes
-             if b >> 5 ==     0b110 { i += 1; }
-        else if b >> 4 ==    0b1110 { i += 2; }
-        else if b >> 3 ==   0b11110 { i += 3; }
-        else if b >> 2 ==  0b111110 { i += 4; }
-        else if b >> 1 == 0b1111110 { i += 5; }
-      }
-      ++len;
-    }
-    return len;
-  }
-
-  /**
    * Checks whether the specified string is equal to this one.
    * @param str - the string to compare this one to
    * @return true iff the string objects represent the same sequence of characters
    */
-  immutable boolean equals(string str)
+  boolean equals(string str)
   {
     if (bytes.length != str.bytes.length)
     {
@@ -507,6 +483,30 @@ immutable compound string
       bytes[offset + i] = zero + digits[i];
     }
     return (negative ? "-" : "") + string(bytes);
+  }
+
+  /**
+   * @param bytes - an array of UTF-8 bytes to the find the character length of
+   * @return the number of characters represented by the specified UTF-8 bytes.
+   */
+  static immutable uint findUTF8Length(#[]ubyte bytes)
+  {
+    uint len = 0;
+    for (uint i = 0; i < bytes.length; ++i)
+    {
+      if (bytes[i] >> 7) != 0
+      {
+        ubyte b = bytes[i];
+        // skip the extra bytes
+             if b >> 5 ==     0b110 { i += 1; }
+        else if b >> 4 ==    0b1110 { i += 2; }
+        else if b >> 3 ==   0b11110 { i += 3; }
+        else if b >> 2 ==  0b111110 { i += 4; }
+        else if b >> 1 == 0b1111110 { i += 5; }
+      }
+      ++len;
+    }
+    return len;
   }
 
   /**

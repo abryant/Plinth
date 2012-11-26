@@ -1,4 +1,4 @@
-compound maths
+immutable compound maths
 {
   /**
    * Converts the binary representation of the specified double into a ulong, without changing any bits.

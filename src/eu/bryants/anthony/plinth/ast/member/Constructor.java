@@ -36,6 +36,15 @@ public class Constructor extends Member
   }
 
   /**
+   * This methods sets the immutability of this Constructor. It should only be used when adding the Constructor to an immutable type.
+   * @param isImmutable - true if this Constructor should be immutable, false otherwise
+   */
+  public void setImmutable(boolean isImmutable)
+  {
+    this.isImmutable = isImmutable;
+  }
+
+  /**
    * @return the isImmutable
    */
   public boolean isImmutable()
