@@ -20,19 +20,21 @@ public class Field extends Member
   private String name;
   private boolean isStatic;
   private boolean isFinal;
+  private boolean isMutable;
   private Expression initialiserExpression;
 
   private MemberVariable memberVariable;
   private GlobalVariable globalVariable;
   private int memberIndex;
 
-  public Field(Type type, String name, boolean isStatic, boolean isFinal, Expression initialiserExpression, LexicalPhrase lexicalPhrase)
+  public Field(Type type, String name, boolean isStatic, boolean isFinal, boolean isMutable, Expression initialiserExpression, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.type = type;
     this.name = name;
     this.isStatic = isStatic;
     this.isFinal = isFinal;
+    this.isMutable = isMutable;
     this.initialiserExpression = initialiserExpression;
   }
 
@@ -66,6 +68,14 @@ public class Field extends Member
   public boolean isStatic()
   {
     return isStatic;
+  }
+
+  /**
+   * @return the isMutable
+   */
+  public boolean isMutable()
+  {
+    return isMutable;
   }
 
   /**
@@ -130,6 +140,6 @@ public class Field extends Member
   @Override
   public String toString()
   {
-    return (isStatic ? "static " : "") + (isFinal ? "final " : "") + type + " " + name + (initialiserExpression == null ? "" : " = " + initialiserExpression) + ";";
+    return (isStatic ? "static " : "") + (isFinal ? "final " : "") + (isMutable ? "mutable " : "") + type + " " + name + (initialiserExpression == null ? "" : " = " + initialiserExpression) + ";";
   }
 }

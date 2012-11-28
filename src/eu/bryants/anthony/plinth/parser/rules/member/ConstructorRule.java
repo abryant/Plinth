@@ -79,6 +79,10 @@ public class ConstructorRule extends Rule<ParseType>
         }
         isImmutable = true;
       }
+      else if (modifier.getModifierType() == ModifierType.MUTABLE)
+      {
+        throw new LanguageParseException("Unexpected modifier: Constructors cannot be mutable", modifier.getLexicalPhrase());
+      }
       else if (modifier.getModifierType() == ModifierType.NATIVE)
       {
         throw new LanguageParseException("Unexpected modifier: Constructors cannot be native functions", modifier.getLexicalPhrase());

@@ -67,6 +67,10 @@ public class CompoundDefinitionRule extends Rule<ParseType>
         }
         isImmutable = true;
       }
+      else if (modifier.getModifierType() == ModifierType.MUTABLE)
+      {
+        throw new LanguageParseException("Unexpected modifier: Compound type definitions cannot be mutable", modifier.getLexicalPhrase());
+      }
       else if (modifier.getModifierType() == ModifierType.NATIVE)
       {
         throw new LanguageParseException("Unexpected modifier: Compound type definitions cannot be native", modifier.getLexicalPhrase());

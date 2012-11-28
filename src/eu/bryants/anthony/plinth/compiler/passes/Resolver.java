@@ -210,7 +210,22 @@ public class Resolver
   {
     for (Field field : typeDefinition.getFields())
     {
-      resolve(field.getType(), compilationUnit);
+      // resolve the field's type
+      Type type = field.getType();
+      resolve(type, compilationUnit);
+
+      // make sure the field is not both mutable and final/immutable
+      if (field.isMutable())
+      {
+        // check whether the internals of the field can be altered
+        boolean isAlterable = (type instanceof ArrayType && !((ArrayType) type).isContextuallyImmutable()) ||
+                              (type instanceof NamedType && !((NamedType) type).isContextuallyImmutable());
+        if (field.isFinal() && !isAlterable)
+        {
+          // the field is both final and not alterable (e.g. a final uint, or a final #Object), so it cannot be mutable
+          throw new ConceptualException("A final, immutably-typed field cannot be mutable", field.getLexicalPhrase());
+        }
+      }
     }
     for (Constructor constructor : typeDefinition.getConstructors())
     {

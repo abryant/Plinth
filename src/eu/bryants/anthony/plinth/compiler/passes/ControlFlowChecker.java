@@ -370,15 +370,16 @@ public class ControlFlowChecker
           }
           else
           {
+            boolean isMutableField = resolvedMember instanceof Field && ((Field) resolvedMember).isMutable();
             if (fieldAccessExpression.getBaseExpression() != null)
             {
               // if we aren't in a constructor, or the base expression isn't 'this', but we do have a base expression, then check the uninitialised variables for the base expression normally
               checkControlFlow(fieldAccessExpression.getBaseExpression(), variables.initialised, variables.initialiserState, inConstructor, inStaticContext, inImmutableContext);
 
               Type baseType = fieldAccessExpression.getBaseExpression().getType();
-              if (baseType instanceof NamedType && ((NamedType) baseType).isContextuallyImmutable())
+              if (baseType instanceof NamedType && ((NamedType) baseType).isContextuallyImmutable() && !isMutableField)
               {
-                throw new ConceptualException("Cannot assign to a field of an immutable type", fieldAccessExpression.getLexicalPhrase());
+                throw new ConceptualException("Cannot assign to a non-mutable field of an immutable type", fieldAccessExpression.getLexicalPhrase());
               }
             }
             else
@@ -386,9 +387,9 @@ public class ControlFlowChecker
               // we do not have a base expression, so we must have a base type, so the field must be static
               // in this case, since static variables must always be initialised to a default value, the control flow checker does not need to check that it is initialised
 
-              if (inImmutableContext)
+              if (inImmutableContext & !isMutableField)
               {
-                throw new ConceptualException("Cannot assign to a static field in an immutable context", fieldAccessExpression.getLexicalPhrase());
+                throw new ConceptualException("Cannot assign to a static non-mutable field in an immutable context", fieldAccessExpression.getLexicalPhrase());
               }
             }
             if (resolvedMember instanceof Field)
@@ -750,25 +751,27 @@ public class ControlFlowChecker
       {
         FieldAssignee fieldAssignee = (FieldAssignee) assignee;
         FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
+        Member resolvedMember = fieldAccessExpression.getResolvedMember();
         // treat this as a field access, and check for uninitialised variables as normal
         checkControlFlow(fieldAccessExpression, variables.initialised, variables.initialiserState, inConstructor, inStaticContext, inImmutableContext);
+
+        boolean isMutableField = resolvedMember instanceof Field && ((Field) resolvedMember).isMutable();
         if (fieldAccessExpression.getBaseExpression() != null)
         {
           Type baseType = fieldAccessExpression.getBaseExpression().getType();
-          if (baseType instanceof NamedType && ((NamedType) baseType).isContextuallyImmutable())
+          if (baseType instanceof NamedType && ((NamedType) baseType).isContextuallyImmutable() && !isMutableField)
           {
-            throw new ConceptualException("Cannot modify a field of an immutable type", assignee.getLexicalPhrase());
+            throw new ConceptualException("Cannot modify a non-mutable field of an immutable type", assignee.getLexicalPhrase());
           }
         }
         else
         {
-          if (inImmutableContext)
+          if (inImmutableContext & !isMutableField)
           {
-            throw new ConceptualException("Cannot modify a static variable in an immutable context", assignee.getLexicalPhrase());
+            throw new ConceptualException("Cannot modify a static non-mutable field in an immutable context", assignee.getLexicalPhrase());
           }
         }
         // make sure we don't modify any final variables
-        Member resolvedMember = fieldAccessExpression.getResolvedMember();
         if (resolvedMember instanceof Field)
         {
           if (((Field) resolvedMember).isStatic())
@@ -856,25 +859,27 @@ public class ControlFlowChecker
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignee;
           FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
+          Member resolvedMember = fieldAccessExpression.getResolvedMember();
           // treat this as a field access, and check for uninitialised variables as normal
           checkControlFlow(fieldAccessExpression, variables.initialised, variables.initialiserState, inConstructor, inStaticContext, inImmutableContext);
+
+          boolean isMutableField = resolvedMember instanceof Field && ((Field) resolvedMember).isMutable();
           if (fieldAccessExpression.getBaseExpression() != null)
           {
             Type baseType = fieldAccessExpression.getBaseExpression().getType();
-            if (baseType instanceof NamedType && ((NamedType) baseType).isContextuallyImmutable())
+            if (baseType instanceof NamedType && ((NamedType) baseType).isContextuallyImmutable() && !isMutableField)
             {
-              throw new ConceptualException("Cannot modify a field of an immutable type", assignee.getLexicalPhrase());
+              throw new ConceptualException("Cannot modify a non-mutable field of an immutable type", assignee.getLexicalPhrase());
             }
           }
           else
           {
-            if (inImmutableContext)
+            if (inImmutableContext & !isMutableField)
             {
-              throw new ConceptualException("Cannot modify a static variable in an immutable context", assignee.getLexicalPhrase());
+              throw new ConceptualException("Cannot modify a static non-mutable field in an immutable context", assignee.getLexicalPhrase());
             }
           }
           // make sure we don't modify any final variables
-          Member resolvedMember = fieldAccessExpression.getResolvedMember();
           if (resolvedMember instanceof Field)
           {
             if (((Field) resolvedMember).isStatic())

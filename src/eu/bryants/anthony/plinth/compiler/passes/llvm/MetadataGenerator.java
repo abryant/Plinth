@@ -102,9 +102,10 @@ public class MetadataGenerator
   private static LLVMValueRef generateField(Field field)
   {
     LLVMValueRef finalityNode = createMDString(field.isFinal() ? "final" : "not-final");
+    LLVMValueRef mutabilityNode = createMDString(field.isMutable() ? "mutable" : "not-mutable");
     LLVMValueRef typeNode = generateType(field.getType());
     LLVMValueRef nameNode = createMDString(field.getName());
-    LLVMValueRef[] values = new LLVMValueRef[] {finalityNode, typeNode, nameNode};
+    LLVMValueRef[] values = new LLVMValueRef[] {finalityNode, mutabilityNode, typeNode, nameNode};
     return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
   }
 

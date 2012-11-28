@@ -5,7 +5,7 @@
 immutable compound string
 {
   #[]ubyte bytes;
-  ?#[]uint chars;
+  mutable ?#[]uint chars;
 
   /**
    * Creates an empty string.
@@ -166,7 +166,7 @@ immutable compound string
   #[]uint getUnicodeChars()
   {
     #[]uint chars = this.chars ?: convertUTF8ToUTF32(bytes);
-    //this.chars = chars; TODO: add this back in when we get mutable variables
+    this.chars = chars;
     return chars;
   }
 

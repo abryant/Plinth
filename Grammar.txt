@@ -14,6 +14,7 @@ MemberList = epsilon |
              MemberList Method
 Modifiers = FinalKeyword                | Modifiers FinalKeyword     |
             ImmutableKeyword            | Modifiers ImmutableKeyword |
+            MutableKeyword              | Modifiers MutableKeyword   |
             NativeKeyword               | Modifiers NativeKeyword    |
             StaticKeyword               | Modifiers StaticKeyword    |
             NativeKeyword StringLiteral | Modifiers NativeKeyword StringLiteral

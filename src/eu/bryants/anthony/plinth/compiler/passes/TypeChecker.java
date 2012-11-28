@@ -998,8 +998,9 @@ public class TypeChecker
       Type type;
       if (member instanceof Field)
       {
-        type = ((Field) member).getType();
-        if (receiverIsImmutable)
+        Field field = (Field) member;
+        type = field.getType();
+        if (receiverIsImmutable && !field.isMutable())
         {
           type = findTypeWithDeepContextualImmutability(type, true);
         }
@@ -1464,10 +1465,14 @@ public class TypeChecker
       if (resolvedVariable != null)
       {
         Type type = resolvedVariable.getType();
-        if ((resolvedVariable instanceof GlobalVariable || resolvedVariable instanceof MemberVariable) &&
-            variableExpression.getResolvedContextImmutability())
+
+        if (variableExpression.getResolvedContextImmutability())
         {
-          type = findTypeWithDeepContextualImmutability(type, true);
+          if ((resolvedVariable instanceof GlobalVariable && !((GlobalVariable) resolvedVariable).getField().isMutable()) ||
+              (resolvedVariable instanceof MemberVariable && !((MemberVariable) resolvedVariable).getField().isMutable()))
+          {
+            type = findTypeWithDeepContextualImmutability(type, true);
+          }
         }
         expression.setType(type);
         return type;

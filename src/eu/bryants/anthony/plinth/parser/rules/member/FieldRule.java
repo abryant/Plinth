@@ -45,14 +45,14 @@ public class FieldRule extends Rule<ParseType>
     {
       Type type = (Type) args[0];
       Name name = (Name) args[1];
-      return new Field(type, name.getName(), false, false, null, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2]));
+      return new Field(type, name.getName(), false, false, false, null, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2]));
     }
     if (production == INITIALISER_PRODUCTION)
     {
       Type type = (Type) args[0];
       Name name = (Name) args[1];
       Expression initialiserExpression = (Expression) args[3];
-      return new Field(type, name.getName(), false, false, initialiserExpression, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], initialiserExpression.getLexicalPhrase(), (LexicalPhrase) args[4]));
+      return new Field(type, name.getName(), false, false, false, initialiserExpression, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], initialiserExpression.getLexicalPhrase(), (LexicalPhrase) args[4]));
     }
     if (production == MODIFIERS_PRODUCTION)
     {
@@ -80,6 +80,7 @@ public class FieldRule extends Rule<ParseType>
   {
     boolean isStatic = false;
     boolean isFinal = false;
+    boolean isMutable = false;
     for (Modifier modifier : modifiers)
     {
       if (modifier.getModifierType() == ModifierType.FINAL)
@@ -89,6 +90,14 @@ public class FieldRule extends Rule<ParseType>
           throw new LanguageParseException("Duplicate 'final' modifier", modifier.getLexicalPhrase());
         }
         isFinal = true;
+      }
+      else if (modifier.getModifierType() == ModifierType.MUTABLE)
+      {
+        if (isMutable)
+        {
+          throw new LanguageParseException("Duplicate 'mutable' modifier", modifier.getLexicalPhrase());
+        }
+        isMutable = true;
       }
       else if (modifier.getModifierType() == ModifierType.IMMUTABLE)
       {
@@ -111,6 +120,6 @@ public class FieldRule extends Rule<ParseType>
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }
-    return new Field(type, name, isStatic, isFinal, initialiserExpression, lexicalPhrase);
+    return new Field(type, name, isStatic, isFinal, isMutable, initialiserExpression, lexicalPhrase);
   }
 }

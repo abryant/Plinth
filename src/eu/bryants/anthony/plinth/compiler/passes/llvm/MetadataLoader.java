@@ -165,7 +165,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A field must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 3)
+    if (values.length != 4)
     {
       throw new MalformedMetadataException("A field's metadata node must have the correct number of sub-nodes");
     }
@@ -177,13 +177,20 @@ public class MetadataLoader
     }
     boolean isFinal = isFinalStr.equals("final");
 
-    Type type = loadType(values[1]);
-    String name = readMDString(values[2]);
+    String isMutableStr = readMDString(values[0]);
+    if (isMutableStr == null)
+    {
+      throw new MalformedMetadataException("A field must have a valid mutability property in its metadata node");
+    }
+    boolean isMutable = isFinalStr.equals("mutable");
+
+    Type type = loadType(values[2]);
+    String name = readMDString(values[3]);
     if (name == null)
     {
       throw new MalformedMetadataException("A field must have a valid name in its metadata node");
     }
-    Field field = new Field(type, name, isStatic, isFinal, null, null);
+    Field field = new Field(type, name, isStatic, isFinal, isMutable, null, null);
     if (!isStatic)
     {
       field.setMemberIndex(index);
