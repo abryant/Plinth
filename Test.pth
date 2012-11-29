@@ -3,15 +3,15 @@ package foo.bar;
 class Test
 {
   string constructor;
-  Test(uint a)
+  this(uint a)
   {
     constructor = "Test(uint): " + a.toString();
   }
-  Test(short c)
+  this(short c)
   {
     constructor = "Test(short): " + c.toString();
   }
-  Test(?ubyte b)
+  this(?ubyte b)
   {
     stderr::println("Test(?ubyte) before delegate constructor");
     if b == null

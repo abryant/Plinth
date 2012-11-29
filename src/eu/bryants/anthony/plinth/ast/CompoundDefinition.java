@@ -90,10 +90,6 @@ public class CompoundDefinition extends TypeDefinition
       if (member instanceof Constructor)
       {
         Constructor constructor = (Constructor) member;
-        if (!constructor.getName().equals(name))
-        {
-          throw new LanguageParseException("The constructor '" + constructor.getName() + "' should be named '" + name + "' after the compound type it is defined in", constructor.getLexicalPhrase());
-        }
         constructor.setContainingTypeDefinition(this);
         if (isImmutable)
         {
@@ -169,10 +165,6 @@ public class CompoundDefinition extends TypeDefinition
     }
     for (Constructor constructor : newConstructors)
     {
-      if (!constructor.getName().equals(getName()))
-      {
-        throw new LanguageParseException("The constructor '" + constructor.getName() + "' should be called '" + getName() + "' after the compound type it is defined in", constructor.getLexicalPhrase());
-      }
       constructor.setContainingTypeDefinition(this);
       constructors.add(constructor);
     }

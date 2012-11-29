@@ -381,7 +381,7 @@ public class TypeChecker
             buffer.append(", ");
           }
         }
-        throw new ConceptualException("The constructor '" + constructor.getName() + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", delegateConstructorStatement.getLexicalPhrase());
+        throw new ConceptualException("The constructor '" + constructor.getContainingTypeDefinition().getQualifiedName() + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", delegateConstructorStatement.getLexicalPhrase());
       }
 
       for (int i = 0; i < arguments.length; i++)
@@ -883,7 +883,7 @@ public class TypeChecker
             buffer.append(", ");
           }
         }
-        throw new ConceptualException("The constructor '" + constructor.getName() + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", classCreationExpression.getLexicalPhrase());
+        throw new ConceptualException("The constructor '" + constructor.getContainingTypeDefinition().getQualifiedName() + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", classCreationExpression.getLexicalPhrase());
       }
       for (int i = 0; i < arguments.length; ++i)
       {
@@ -1092,7 +1092,7 @@ public class TypeChecker
       {
         parameters = functionCallExpression.getResolvedConstructor().getParameters();
         resultType = new NamedType(false, false, false, functionCallExpression.getResolvedConstructor().getContainingTypeDefinition());
-        name = functionCallExpression.getResolvedConstructor().getName();
+        name = functionCallExpression.getResolvedConstructor().getContainingTypeDefinition().getQualifiedName().toString();
       }
       else if (functionCallExpression.getResolvedBaseExpression() != null)
       {

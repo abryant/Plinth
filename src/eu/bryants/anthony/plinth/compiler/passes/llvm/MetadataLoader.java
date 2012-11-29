@@ -129,7 +129,7 @@ public class MetadataLoader
     Constructor[] constructors = new Constructor[constructorNodes.length];
     for (int i = 0; i < constructorNodes.length; ++i)
     {
-      constructors[i] = loadConstructor(constructorNodes[i], qname.getLastName());
+      constructors[i] = loadConstructor(constructorNodes[i]);
     }
 
     LLVMValueRef[] methodNodes = readOperands(values[5]);
@@ -198,7 +198,7 @@ public class MetadataLoader
     return field;
   }
 
-  private static Constructor loadConstructor(LLVMValueRef metadataNode, String name) throws MalformedMetadataException
+  private static Constructor loadConstructor(LLVMValueRef metadataNode) throws MalformedMetadataException
   {
     if (LLVM.LLVMIsAMDNode(metadataNode) == null)
     {
@@ -219,7 +219,7 @@ public class MetadataLoader
 
     Parameter[] parameters = loadParameters(values[1]);
 
-    return new Constructor(isImmutable, name, parameters, null, null);
+    return new Constructor(isImmutable, parameters, null, null);
   }
 
   private static Method loadMethod(LLVMValueRef metadataNode) throws MalformedMetadataException

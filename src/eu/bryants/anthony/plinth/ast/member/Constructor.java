@@ -15,18 +15,16 @@ import eu.bryants.anthony.plinth.ast.statement.Block;
 public class Constructor extends Member
 {
   private boolean isImmutable;
-  private String name;
   private Parameter[] parameters;
   private Block block;
 
   private TypeDefinition containingTypeDefinition;
   private boolean callsDelegateConstructor;
 
-  public Constructor(boolean isImmutable, String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
+  public Constructor(boolean isImmutable, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.isImmutable = isImmutable;
-    this.name = name;
     this.parameters = parameters;
     for (int i = 0; i < parameters.length; i++)
     {
@@ -50,14 +48,6 @@ public class Constructor extends Member
   public boolean isImmutable()
   {
     return isImmutable;
-  }
-
-  /**
-   * @return the name
-   */
-  public String getName()
-  {
-    return name;
   }
 
   /**
@@ -135,8 +125,7 @@ public class Constructor extends Member
     {
       buffer.append("immutable ");
     }
-    buffer.append(name);
-    buffer.append("(");
+    buffer.append("this(");
     for (int i = 0; i < parameters.length; i++)
     {
       buffer.append(parameters[i]);

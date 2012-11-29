@@ -82,10 +82,6 @@ public class ClassDefinition extends TypeDefinition
       if (member instanceof Constructor)
       {
         Constructor constructor = (Constructor) member;
-        if (!constructor.getName().equals(name))
-        {
-          throw new LanguageParseException("The constructor '" + constructor.getName() + "' should be named '" + name + "' after the class type it is defined in", constructor.getLexicalPhrase());
-        }
         constructor.setContainingTypeDefinition(this);
         if (isImmutable)
         {
@@ -161,10 +157,6 @@ public class ClassDefinition extends TypeDefinition
     }
     for (Constructor constructor : newConstructors)
     {
-      if (!constructor.getName().equals(getName()))
-      {
-        throw new LanguageParseException("The constructor '" + constructor.getName() + "' should be called '" + getName() + "' after the class it is defined in", constructor.getLexicalPhrase());
-      }
       constructor.setContainingTypeDefinition(this);
       constructors.add(constructor);
     }

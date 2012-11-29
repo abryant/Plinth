@@ -7,7 +7,6 @@ import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
-import eu.bryants.anthony.plinth.ast.terminal.Name;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.Modifier;
@@ -25,8 +24,8 @@ public class ConstructorRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> MODIFIERS_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.BLOCK);
-  private static final Production<ParseType> PRODUCTION           = new Production<ParseType>(                     ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.THIS_KEYWORD, ParseType.PARAMETER_LIST, ParseType.BLOCK);
+  private static final Production<ParseType> PRODUCTION           = new Production<ParseType>(                     ParseType.THIS_KEYWORD, ParseType.PARAMETER_LIST, ParseType.BLOCK);
 
   public ConstructorRule()
   {
@@ -43,26 +42,24 @@ public class ConstructorRule extends Rule<ParseType>
     {
       @SuppressWarnings("unchecked")
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
-      Name name = (Name) args[1];
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[2];
       Block block = (Block) args[3];
-      return processModifiers(modifiers, name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
-                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), name.getLexicalPhrase(), parameters.getLexicalPhrase(), block.getLexicalPhrase()));
+      return processModifiers(modifiers, parameters.toArray(new Parameter[parameters.size()]), block,
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], parameters.getLexicalPhrase(), block.getLexicalPhrase()));
     }
     if (production == PRODUCTION)
     {
-      Name name = (Name) args[0];
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[1];
       Block block = (Block) args[2];
-      return new Constructor(false, name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
-                             LexicalPhrase.combine(name.getLexicalPhrase(), parameters.getLexicalPhrase(), block.getLexicalPhrase()));
+      return new Constructor(false, parameters.toArray(new Parameter[parameters.size()]), block,
+                             LexicalPhrase.combine((LexicalPhrase) args[0], parameters.getLexicalPhrase(), block.getLexicalPhrase()));
     }
     throw badTypeList();
   }
 
-  private Constructor processModifiers(ParseList<Modifier> modifiers, String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  private Constructor processModifiers(ParseList<Modifier> modifiers, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     boolean isImmutable = false;
     for (Modifier modifier : modifiers)
@@ -96,6 +93,6 @@ public class ConstructorRule extends Rule<ParseType>
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }
-    return new Constructor(isImmutable, name, parameters, block, lexicalPhrase);
+    return new Constructor(isImmutable, parameters, block, lexicalPhrase);
   }
 }
