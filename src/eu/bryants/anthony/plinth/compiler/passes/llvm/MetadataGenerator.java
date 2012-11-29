@@ -121,7 +121,7 @@ public class MetadataGenerator
   {
     LLVMValueRef nameNode = createMDString(method.getName());
     LLVMValueRef isStaticNode = createMDString(method.isStatic() ? "static" : "not-static");
-    LLVMValueRef isImmutableNode = createMDString(method.isStatic() ? "immutable" : "not-immutable");
+    LLVMValueRef isImmutableNode = createMDString(method.isImmutable() ? "immutable" : "not-immutable");
     LLVMValueRef nativeNameNode = createMDString(method.getNativeName() == null ? "" : method.getNativeName());
     LLVMValueRef returnTypeNode = generateType(method.getReturnType());
     LLVMValueRef parametersNode = generateParameters(method.getParameters());

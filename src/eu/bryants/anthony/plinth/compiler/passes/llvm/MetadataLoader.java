@@ -335,7 +335,7 @@ public class MetadataLoader
       {
         throw new MalformedMetadataException("An array type must have a valid immutability in its metadata node");
       }
-      boolean immutable = nullabilityStr.equals("immutable");
+      boolean immutable = immutabilityStr.equals("immutable");
 
       Type baseType = loadType(values[3]);
       return new ArrayType(nullable, immutable, baseType, null);

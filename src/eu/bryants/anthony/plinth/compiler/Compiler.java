@@ -87,7 +87,7 @@ public class Compiler
       outputDirFile = new File(outputDir);
       if (!outputDirFile.isDirectory())
       {
-        ArgumentParser.usage();
+        System.err.println("Output directory does not exist: " + outputDirFile.getAbsolutePath());
         System.exit(3);
       }
     }
@@ -428,10 +428,13 @@ public class Compiler
     {
       TypeDefinition typeDefinition = it.next();
       QName qualifiedName = typeDefinition.getQualifiedName();
-      QName containingPackageName = new QName(qualifiedName.getAllNamesButLast());
       try
       {
-        PackageNode containingPackage = rootPackage.addPackageTree(containingPackageName);
+        PackageNode containingPackage = rootPackage;
+        if (qualifiedName.getNames().length > 1)
+        {
+          containingPackage = rootPackage.addPackageTree(new QName(qualifiedName.getAllNamesButLast()));
+        }
         containingPackage.addTypeDefinition(typeDefinition);
       }
       catch (ConceptualException e)
