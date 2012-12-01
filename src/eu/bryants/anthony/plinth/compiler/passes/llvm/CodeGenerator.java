@@ -471,21 +471,6 @@ public class CodeGenerator
     LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(initialiserFunc, "entry");
     LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
 
-    if (!isStatic)
-    {
-      // initialise all of the fields which have default values to zero/null
-      for (Field field : typeDefinition.getNonStaticFields())
-      {
-        if (field.getType().hasDefaultValue())
-        {
-          LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                       LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getMemberIndex(), false)};
-          LLVMValueRef pointer = LLVM.LLVMBuildGEP(builder, thisValue, C.toNativePointerArray(indices, false, true), indices.length, "");
-          LLVM.LLVMBuildStore(builder, LLVM.LLVMConstNull(typeHelper.findStandardType(field.getType())), pointer);
-        }
-      }
-    }
-
     // build all of the static/non-static initialisers in one LLVM function
     for (Initialiser initialiser : typeDefinition.getInitialisers())
     {
@@ -790,6 +775,7 @@ public class CodeGenerator
                                                             LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
                                                             argvIndex};
     LLVMValueRef stringArrayElementPointer = LLVM.LLVMBuildGEP(builder, stringArray, C.toNativePointerArray(stringArrayIndices, false, true), stringArrayIndices.length, "");
+    typeHelper.initialiseCompoundType((CompoundDefinition) SpecialTypeHandler.STRING_TYPE.getResolvedTypeDefinition(), stringArrayElementPointer);
     LLVMValueRef[] stringCreationArgs = new LLVMValueRef[] {stringArrayElementPointer, bytes};
     LLVM.LLVMBuildCall(builder, getConstructorFunction(SpecialTypeHandler.stringArrayConstructor), C.toNativePointerArray(stringCreationArgs, false, true), stringCreationArgs.length, "");
 
@@ -1339,6 +1325,7 @@ public class CodeGenerator
           LLVMTypeRef allocaBaseType = typeHelper.findStandardType(new NamedType(false, false, SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition()));
           LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, allocaBaseType, "");
           LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+          typeHelper.initialiseCompoundType((CompoundDefinition) SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition(), alloca);
 
           // call the string(string, string) constructor
           LLVMValueRef[] arguments = new LLVMValueRef[] {alloca,
@@ -1882,6 +1869,7 @@ public class CodeGenerator
         LLVMTypeRef allocaBaseType = typeHelper.findStandardType(new NamedType(false, false, SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition()));
         LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, allocaBaseType, "");
         LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+        typeHelper.initialiseCompoundType((CompoundDefinition) SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition(), alloca);
 
         LLVMValueRef[] arguments = new LLVMValueRef[] {alloca,
                                                        typeHelper.convertTemporaryToStandard(left, resultType, llvmFunction),
@@ -2335,6 +2323,7 @@ public class CodeGenerator
         LLVMTypeRef allocaBaseType = typeHelper.findStandardType(returnType);
         LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, allocaBaseType, "");
         LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+        typeHelper.initialiseCompoundType((CompoundDefinition) ((NamedType) returnType).getResolvedTypeDefinition(), alloca);
 
         LLVMValueRef[] realArguments = new LLVMValueRef[1 + values.length];
         realArguments[0] = alloca;
@@ -2666,6 +2655,7 @@ public class CodeGenerator
       LLVMTypeRef allocaBaseType = typeHelper.findStandardType(new NamedType(false, false, SpecialTypeHandler.stringArrayConstructor.getContainingTypeDefinition()));
       LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, allocaBaseType, "");
       LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+      typeHelper.initialiseCompoundType((CompoundDefinition) SpecialTypeHandler.stringArrayConstructor.getContainingTypeDefinition(), alloca);
 
       LLVMValueRef[] arguments = new LLVMValueRef[] {alloca, bitcastedArray};
       LLVM.LLVMBuildCall(builder, constructorFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");

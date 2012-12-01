@@ -255,6 +255,27 @@ public class TypeHelper
   }
 
   /**
+   * Initialises the specified value as a compound definition of the specified type.
+   * This method performs any initialisation which must happen before the constructor is called, such as zeroing fields which have default values.
+   * @param compoundDefinition - the CompoundDefinition to initialise the value as
+   * @param compoundValue - the value to initialise, which is a temporary type representation of the specified CompoundDefinition
+   */
+  void initialiseCompoundType(CompoundDefinition compoundDefinition, LLVMValueRef compoundValue)
+  {
+    // initialise all of the fields which have default values to zero/null
+    for (Field field : compoundDefinition.getNonStaticFields())
+    {
+      if (field.getType().hasDefaultValue())
+      {
+        LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                     LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getMemberIndex(), false)};
+        LLVMValueRef pointer = LLVM.LLVMBuildGEP(builder, compoundValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+        LLVM.LLVMBuildStore(builder, LLVM.LLVMConstNull(findStandardType(field.getType())), pointer);
+      }
+    }
+  }
+
+  /**
    * Converts the specified value from the specified 'from' type to the specified 'to' type, as a temporary.
    * This method assumes that the incoming value has a temporary native type, and produces a result with a temporary native type.
    * @param value - the value to convert
