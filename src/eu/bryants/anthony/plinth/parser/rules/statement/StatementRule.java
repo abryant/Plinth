@@ -37,13 +37,14 @@ public class StatementRule extends Rule<ParseType>
   private static final Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION, ParseType.SEMICOLON);
   private static final Production<ParseType> CLASS_CREATION_PRODUCTION = new Production<ParseType>(ParseType.CLASS_CREATION_EXPRESSION, ParseType.SEMICOLON);
 
-  private static final Production<ParseType> DELEGATE_CONSTRUCTOR_PRODUCTION = new Production<ParseType>(ParseType.THIS_KEYWORD, ParseType.ARGUMENTS, ParseType.SEMICOLON);
+  private static final Production<ParseType> DELEGATE_THIS_CONSTRUCTOR_PRODUCTION = new Production<ParseType>(ParseType.THIS_KEYWORD, ParseType.ARGUMENTS, ParseType.SEMICOLON);
+  private static final Production<ParseType> DELEGATE_SUPER_CONSTRUCTOR_PRODUCTION = new Production<ParseType>(ParseType.SUPER_KEYWORD, ParseType.ARGUMENTS, ParseType.SEMICOLON);
 
   public StatementRule()
   {
     super(ParseType.STATEMENT, ASSIGN_PRODUCTION, BLOCK_PRODUCTION, BREAK_PRODUCTION, CONTINUE_PRODUCTION, IF_PRODUCTION, FOR_PRODUCTION, INC_DEC_PRODUCTION,
                                RETURN_PRODUCTION, WHILE_PRODUCTION, SHORTHAND_ASSIGN_PRODUCTION, FUNCTION_CALL_PRODUCTION, CLASS_CREATION_PRODUCTION,
-                               DELEGATE_CONSTRUCTOR_PRODUCTION);
+                               DELEGATE_THIS_CONSTRUCTOR_PRODUCTION, DELEGATE_SUPER_CONSTRUCTOR_PRODUCTION);
   }
 
   /**
@@ -75,11 +76,12 @@ public class StatementRule extends Rule<ParseType>
       Expression expression = (Expression) args[0];
       return new ExpressionStatement(expression, LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1]));
     }
-    if (production == DELEGATE_CONSTRUCTOR_PRODUCTION)
+    if (production == DELEGATE_THIS_CONSTRUCTOR_PRODUCTION | production == DELEGATE_SUPER_CONSTRUCTOR_PRODUCTION)
     {
+      boolean isSuperConstructor = production == DELEGATE_SUPER_CONSTRUCTOR_PRODUCTION;
       @SuppressWarnings("unchecked")
       ParseList<Expression> arguments = (ParseList<Expression>) args[1];
-      return new DelegateConstructorStatement(arguments.toArray(new Expression[arguments.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], arguments.getLexicalPhrase(), (LexicalPhrase) args[2]));
+      return new DelegateConstructorStatement(isSuperConstructor, arguments.toArray(new Expression[arguments.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], arguments.getLexicalPhrase(), (LexicalPhrase) args[2]));
     }
     throw badTypeList();
   }

@@ -12,6 +12,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.Stack;
 
+import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
@@ -208,6 +209,26 @@ public class Resolver
    */
   public void resolveTypes(TypeDefinition typeDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
+    if (typeDefinition instanceof ClassDefinition)
+    {
+      QName superQName = ((ClassDefinition) typeDefinition).getSuperClassQName();
+      if (superQName != null)
+      {
+        NamedType type = new NamedType(false, false, superQName, superQName.getLexicalPhrase());
+        resolve(type, compilationUnit);
+        TypeDefinition superTypeDefinition = type.getResolvedTypeDefinition();
+        if (superTypeDefinition instanceof CompoundDefinition)
+        {
+          throw new ConceptualException("A class may not extend a compound type", typeDefinition.getLexicalPhrase());
+        }
+        else if (!(superTypeDefinition instanceof ClassDefinition))
+        {
+          throw new ConceptualException("A class may only extend another class", typeDefinition.getLexicalPhrase());
+        }
+        ((ClassDefinition) typeDefinition).setSuperClassDefinition((ClassDefinition) superTypeDefinition);
+      }
+    }
+
     for (Field field : typeDefinition.getFields())
     {
       // resolve the field's type
@@ -246,45 +267,7 @@ public class Resolver
       }
     }
     // resolve all method return and parameter types, and check for duplicate methods
-    class MethodDisambiguator
-    {
-      Type returnType;
-      Type[] parameterTypes;
-      String name;
-      public MethodDisambiguator(Type returnType, Type[] parameterTypes, String name)
-      {
-        this.returnType = returnType;
-        this.parameterTypes = parameterTypes;
-        this.name = name;
-      }
-      @Override
-      public boolean equals(Object o)
-      {
-        if (!(o instanceof MethodDisambiguator))
-        {
-          return false;
-        }
-        MethodDisambiguator other = (MethodDisambiguator) o;
-        if (!returnType.isEquivalent(other.returnType) || !name.equals(other.name) || parameterTypes.length != other.parameterTypes.length)
-        {
-          return false;
-        }
-        for (int i = 0; i < parameterTypes.length; ++i)
-        {
-          if (!parameterTypes[i].isEquivalent(other.parameterTypes[i]))
-          {
-            return false;
-          }
-        }
-        return true;
-      }
-      @Override
-      public int hashCode()
-      {
-        return name.hashCode(); // don't bother to work out a way of finding hashCodes for the types, this is sufficient
-      }
-    }
-    Map<MethodDisambiguator, Method> allMethods = new HashMap<MethodDisambiguator, Method>();
+    Map<Object, Method> allMethods = new HashMap<Object, Method>();
     for (Method method : typeDefinition.getAllMethods())
     {
       resolve(method.getReturnType(), compilationUnit);
@@ -306,7 +289,7 @@ public class Resolver
         resolve(parameters[i].getType(), compilationUnit);
         parameterTypes[i] = parameters[i].getType();
       }
-      Method oldMethod = allMethods.put(new MethodDisambiguator(method.getReturnType(), parameterTypes, method.getName()), method);
+      Method oldMethod = allMethods.put(method.getDisambiguator(), method);
       if (oldMethod != null)
       {
         throw new ConceptualException("Duplicate method: " + method.getName(), method.getLexicalPhrase());
@@ -551,7 +534,27 @@ public class Resolver
           if (variable == null && enclosingDefinition != null)
           {
             // we haven't got a declared variable, so try to resolve it outside the block
-            Field field = enclosingDefinition.getField(variableAssignee.getVariableName());
+            Field field;
+            if (enclosingDefinition instanceof ClassDefinition)
+            {
+              ClassDefinition current = (ClassDefinition) enclosingDefinition;
+              field = null;
+              // check the base class and then each of the super-classes in turn
+              // note: this allows static fields from the superclass to be resolved, which is possible inside the class itself, but not by specifying an explicit type
+              while (field == null & current != null)
+              {
+                field = current.getField(variableAssignee.getVariableName());
+                current = current.getSuperClassDefinition();
+              }
+            }
+            else if (enclosingDefinition instanceof CompoundDefinition)
+            {
+              field = enclosingDefinition.getField(variableAssignee.getVariableName());
+            }
+            else
+            {
+              throw new IllegalArgumentException("Unknown enclosing definition type: " + enclosingDefinition);
+            }
             if (field != null)
             {
               if (field.isStatic())
@@ -647,7 +650,30 @@ public class Resolver
       {
         resolve(argument, enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
       }
-      Constructor resolvedConstructor = resolveConstructor(enclosingDefinition, arguments, delegateConstructorStatement.getLexicalPhrase());
+      TypeDefinition constructorTypeDefinition;
+      if (delegateConstructorStatement.isSuperConstructor())
+      {
+        if (enclosingDefinition instanceof CompoundDefinition)
+        {
+          throw new ConceptualException("Cannot call a super(...) constructor from a compound type", delegateConstructorStatement.getLexicalPhrase());
+        }
+        else if (!(enclosingDefinition instanceof ClassDefinition))
+        {
+          throw new ConceptualException("A super(...) constructor can only be called from inside a class definition", delegateConstructorStatement.getLexicalPhrase());
+        }
+        ClassDefinition superClassDefinition = ((ClassDefinition) enclosingDefinition).getSuperClassDefinition();
+        if (superClassDefinition == null)
+        {
+          // TODO: once the type system has been unified under a single common super-type, remove this restriction, and allow super() to mean just calling the object() constructor and running the initialisers
+          throw new ConceptualException("Cannot call a super(...) constructor from a class with no superclass", delegateConstructorStatement.getLexicalPhrase());
+        }
+        constructorTypeDefinition = superClassDefinition;
+      }
+      else
+      {
+        constructorTypeDefinition = enclosingDefinition;
+      }
+      Constructor resolvedConstructor = resolveConstructor(constructorTypeDefinition, arguments, delegateConstructorStatement.getLexicalPhrase());
       delegateConstructorStatement.setResolvedConstructor(resolvedConstructor);
       // if there was no matching constructor, the resolved constructor call may not type check
       // in this case, we should point out this error before we run the cycle checker, because the cycle checker could find that the constructor is recursive
@@ -707,7 +733,27 @@ public class Resolver
         Variable variable = enclosingBlock.getVariable(variableAssignee.getVariableName());
         if (variable == null && enclosingDefinition != null)
         {
-          Field field = enclosingDefinition.getField(variableAssignee.getVariableName());
+          Field field;
+          if (enclosingDefinition instanceof ClassDefinition)
+          {
+            ClassDefinition current = (ClassDefinition) enclosingDefinition;
+            field = null;
+            // check the base class and then each of the super-classes in turn
+            // note: this allows static fields from the superclass to be resolved, which is possible inside the class itself, but not by specifying an explicit type
+            while (field == null & current != null)
+            {
+              field = current.getField(variableAssignee.getVariableName());
+              current = current.getSuperClassDefinition();
+            }
+          }
+          else if (enclosingDefinition instanceof CompoundDefinition)
+          {
+            field = enclosingDefinition.getField(variableAssignee.getVariableName());
+          }
+          else
+          {
+            throw new IllegalArgumentException("Unknown enclosing definition type: " + enclosingDefinition);
+          }
           if (field != null)
           {
             if (field.isStatic())
@@ -770,7 +816,27 @@ public class Resolver
           Variable variable = enclosingBlock.getVariable(variableAssignee.getVariableName());
           if (variable == null && enclosingDefinition != null)
           {
-            Field field = enclosingDefinition.getField(variableAssignee.getVariableName());
+            Field field;
+            if (enclosingDefinition instanceof ClassDefinition)
+            {
+              ClassDefinition current = (ClassDefinition) enclosingDefinition;
+              field = null;
+              // check the base class and then each of the super-classes in turn
+              // note: this allows static fields from the superclass to be resolved, which is possible inside the class itself, but not by specifying an explicit type
+              while (field == null & current != null)
+              {
+                field = current.getField(variableAssignee.getVariableName());
+                current = current.getSuperClassDefinition();
+              }
+            }
+            else if (enclosingDefinition instanceof CompoundDefinition)
+            {
+              field = enclosingDefinition.getField(variableAssignee.getVariableName());
+            }
+            else
+            {
+              throw new IllegalArgumentException("Unknown enclosing definition type: " + enclosingDefinition);
+            }
             if (field != null)
             {
               if (field.isStatic())
@@ -1271,7 +1337,27 @@ public class Resolver
       }
       if (enclosingDefinition != null)
       {
-        Field field = enclosingDefinition.getField(expr.getName());
+        Field field;
+        if (enclosingDefinition instanceof ClassDefinition)
+        {
+          ClassDefinition current = (ClassDefinition) enclosingDefinition;
+          field = null;
+          // check the base class and then each of the super-classes in turn
+          // note: this allows static fields from the superclass to be resolved, which is possible inside the class itself, but not by specifying an explicit type
+          while (field == null & current != null)
+          {
+            field = current.getField(expr.getName());
+            current = current.getSuperClassDefinition();
+          }
+        }
+        else if (enclosingDefinition instanceof CompoundDefinition)
+        {
+          field = enclosingDefinition.getField(expr.getName());
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown enclosing definition type: " + enclosingDefinition);
+        }
         if (field != null)
         {
           if (field.isStatic())

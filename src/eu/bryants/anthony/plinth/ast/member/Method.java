@@ -26,6 +26,8 @@ public class Method extends Member
 
   private TypeDefinition containingTypeDefinition;
 
+  private Disambiguator disambiguator = new Disambiguator();
+
   /**
    * Creates a new Method with the specified parameters
    * @param returnType - the return type of the method
@@ -51,6 +53,14 @@ public class Method extends Member
       parameters[i].setIndex(i);
     }
     this.block = block;
+  }
+
+  /**
+   * @return the disambiguator for this Method
+   */
+  public Disambiguator getDisambiguator()
+  {
+    return disambiguator;
   }
 
   /**
@@ -205,5 +215,55 @@ public class Method extends Member
       buffer.append(block);
     }
     return buffer.toString();
+  }
+
+  /**
+   * A disambiguator for method calls, which allows methods which are semantically equivalent (i.e. have the same name and types) can be easily distinguished.
+   * @author Anthony Bryant
+   */
+  private class Disambiguator
+  {
+    /**
+     * @return the enclosing Method, for use only in equals()
+     */
+    private Method getMethod()
+    {
+      return Method.this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(Object o)
+    {
+      if (!(o instanceof Disambiguator))
+      {
+        return false;
+      }
+      Disambiguator other = (Disambiguator) o;
+      Method otherMethod = other.getMethod();
+      if (!returnType.isEquivalent(otherMethod.returnType) || !name.equals(otherMethod.name) || parameters.length != otherMethod.parameters.length)
+      {
+        return false;
+      }
+      for (int i = 0; i < parameters.length; ++i)
+      {
+        if (!parameters[i].getType().isEquivalent(otherMethod.parameters[i].getType()))
+        {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode()
+    {
+      return name.hashCode();
+    }
   }
 }

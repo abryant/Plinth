@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
@@ -39,6 +40,44 @@ import eu.bryants.anthony.plinth.compiler.ConceptualException;
  */
 public class CycleChecker
 {
+
+  /**
+   * Checks for cycles in the class hierarchies each of the class definitions in the specified CompilationUnit.
+   * @param compilationUnit - the CompilationUnit to check
+   * @throws ConceptualException - if a cyclic class hierarchy is detected
+   */
+  public static void checkInheritanceCycles(CompilationUnit compilationUnit) throws ConceptualException
+  {
+    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
+    {
+      if (!(typeDefinition instanceof ClassDefinition))
+      {
+        continue;
+      }
+      ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
+      checkInheritanceCycles(classDefinition);
+    }
+  }
+
+  /**
+   * Checks for cycles in the specified ClassDefinition's class hierarchy.
+   * @param classDefinition - the ClassDefinition to check for inheritance cycles
+   * @throws ConceptualException - if a cyclic class hierarchy is detected
+   */
+  public static void checkInheritanceCycles(ClassDefinition classDefinition) throws ConceptualException
+  {
+    Set<ClassDefinition> visited = new HashSet<ClassDefinition>();
+    ClassDefinition current = classDefinition;
+    while (current != null)
+    {
+      if (visited.contains(current))
+      {
+        throw new ConceptualException("Cyclic inheritance hierarchy detected: " + current.getQualifiedName() + " extends itself (perhaps indirectly).", current.getLexicalPhrase());
+      }
+      visited.add(current);
+      current = current.getSuperClassDefinition();
+    }
+  }
 
   /**
    * Checks for any cycles in the non-static fields of compound types, where one of its fields recursively contains a value of the initial type.
@@ -128,6 +167,8 @@ public class CycleChecker
     {
       List<Constructor> delegateConstructors = new LinkedList<Constructor>();
       findDelegateConstructors(constructor.getBlock(), delegateConstructors);
+      // some of delegateConstructors may be super(...) constructors, which is allowed, and will not affect the cycle detection
+      // in fact, they must be in the list so that setCallsDelegateConstructor() gets the correct value
       if (!delegateConstructors.isEmpty())
       {
         constructorDelegates.put(constructor, delegateConstructors);

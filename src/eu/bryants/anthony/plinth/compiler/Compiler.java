@@ -15,6 +15,7 @@ import nativelib.llvm.LLVM.LLVMModuleRef;
 import parser.BadTokenException;
 import parser.ParseException;
 import parser.Token;
+import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
@@ -210,6 +211,17 @@ public class Compiler
       for (CompilationUnit compilationUnit : compilationUnits)
       {
         resolver.resolveTopLevelTypes(compilationUnit);
+      }
+      for (TypeDefinition typeDefinition : importedTypeDefinitions)
+      {
+        if (typeDefinition instanceof ClassDefinition)
+        {
+          CycleChecker.checkInheritanceCycles((ClassDefinition) typeDefinition);
+        }
+      }
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        CycleChecker.checkInheritanceCycles(compilationUnit);
       }
       if (mainTypeName != null)
       {

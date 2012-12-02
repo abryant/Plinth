@@ -31,6 +31,8 @@ import eu.bryants.anthony.plinth.parser.LanguageParseException;
 public class ClassDefinition extends TypeDefinition
 {
 
+  private QName superQName;
+
   private List<Initialiser> initialisers = new LinkedList<Initialiser>();
   // fields need a guaranteed order, so use a LinkedHashMap to store them
   private Map<String, Field> fields = new LinkedHashMap<String, Field>();
@@ -39,9 +41,12 @@ public class ClassDefinition extends TypeDefinition
 
   private Field[] nonStaticFields;
 
-  public ClassDefinition(boolean isImmutable, String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  private ClassDefinition superClassDefinition;
+
+  public ClassDefinition(boolean isImmutable, String name, QName superQName, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     super(isImmutable, name, lexicalPhrase);
+    this.superQName = superQName;
     // add all of the members by name
     int fieldIndex = 0;
     List<Field> nonStaticFieldList = new LinkedList<Field>();
@@ -117,16 +122,18 @@ public class ClassDefinition extends TypeDefinition
    * Creates a new ClassDefinition with the specified members.
    * @param isImmutable - true if this class definition should be immutable, false otherwise
    * @param qname - the qualified name of the class definition
+   * @param superQName - the qualified name of the superclass, or null if there is no superclass
    * @param nonStaticFields - the non static fields, with their indexes already filled in
    * @param staticFields - the static fields
    * @param newConstructors - the constructors
    * @param newMethods - the methods
    * @throws LanguageParseException - if there is a name collision between any of the methods, or a Constructor's name is wrong
    */
-  public ClassDefinition(boolean isImmutable, QName qname, Field[] nonStaticFields, Field[] staticFields, Constructor[] newConstructors, Method[] newMethods) throws LanguageParseException
+  public ClassDefinition(boolean isImmutable, QName qname, QName superQName, Field[] nonStaticFields, Field[] staticFields, Constructor[] newConstructors, Method[] newMethods) throws LanguageParseException
   {
     super(isImmutable, qname.getLastName(), null);
     setQualifiedName(qname);
+    this.superQName = superQName;
     for (Field f : nonStaticFields)
     {
       if (fields.containsKey(f.getName()))
@@ -175,6 +182,14 @@ public class ClassDefinition extends TypeDefinition
       method.setContainingTypeDefinition(this);
       methodSet.add(method);
     }
+  }
+
+  /**
+   * @return the superQName
+   */
+  public QName getSuperClassQName()
+  {
+    return superQName;
   }
 
   /**
@@ -266,11 +281,27 @@ public class ClassDefinition extends TypeDefinition
   }
 
   /**
+   * @return the superClassDefinition
+   */
+  public ClassDefinition getSuperClassDefinition()
+  {
+    return superClassDefinition;
+  }
+
+  /**
+   * @param superClassDefinition - the superClassDefinition to set
+   */
+  public void setSuperClassDefinition(ClassDefinition superClassDefinition)
+  {
+    this.superClassDefinition = superClassDefinition;
+  }
+
+  /**
    * {@inheritDoc}
    */
   @Override
   public String toString()
   {
-    return (isImmutable() ? "immutable " : "") + "class " + getName() + "\n" + getBodyString() + "\n";
+    return (isImmutable() ? "immutable " : "") + "class " + getName() + (superQName == null ? "" : " extends " + superQName) + "\n" + getBodyString() + "\n";
   }
 }

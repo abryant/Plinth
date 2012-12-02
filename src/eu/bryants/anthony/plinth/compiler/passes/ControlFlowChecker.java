@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression;
@@ -93,6 +94,21 @@ public class ControlFlowChecker
   {
     for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
+      // build the set of variables from superclasses
+      Set<Variable> superClassVariables = new HashSet<Variable>();
+      if (typeDefinition instanceof ClassDefinition)
+      {
+        ClassDefinition currentClassDefinition = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
+        while (currentClassDefinition != null)
+        {
+          for (Field field : currentClassDefinition.getNonStaticFields())
+          {
+            superClassVariables.add(field.getMemberVariable());
+          }
+          currentClassDefinition = currentClassDefinition.getSuperClassDefinition();
+        }
+      }
+
       // check the initialisers
 
       // note: while we check the initialiser, we tell the checker that the initialiser has been run
@@ -101,6 +117,13 @@ public class ControlFlowChecker
       // also, since initialisers cannot call delegate constructors, this cannot do any harm
       ControlFlowVariables instanceVariables = new ControlFlowVariables(true);
       ControlFlowVariables staticVariables   = new ControlFlowVariables(true);
+
+      // the super-class's constructor has always been run by the time we get to the initialiser, so add the superClassVariables to the initialiser's variable set now
+      for (Variable var : superClassVariables)
+      {
+        instanceVariables.initialised.add(var);
+        instanceVariables.possiblyInitialised.add(var);
+      }
 
       for (Field field : typeDefinition.getNonStaticFields())
       {
@@ -161,9 +184,13 @@ public class ControlFlowChecker
         }
       }
 
+      DelegateConstructorVariables delegateConstructorVariables = new DelegateConstructorVariables();
+      delegateConstructorVariables.initialiserDefinitelyInitialised = instanceVariables.initialised;
+      delegateConstructorVariables.initialiserPossiblyInitialised = instanceVariables.possiblyInitialised;
+      delegateConstructorVariables.superClassVariables = superClassVariables;
       for (Constructor constructor : typeDefinition.getConstructors())
       {
-        checkControlFlow(constructor, instanceVariables);
+        checkControlFlow(constructor, delegateConstructorVariables);
       }
       for (Method method : typeDefinition.getAllMethods())
       {
@@ -175,24 +202,26 @@ public class ControlFlowChecker
   /**
    * Checks that the control flow of the specified constructor is well defined.
    * @param constructor - the constructor to check
-   * @param initialiserVariables - the sets of variables which indicate which variables the initialiser initialises
+   * @param delegateConstructorVariables - the sets of variables which are needed to calculate which variables have been initialised after a delegate constructor call
    * @throws ConceptualException - if any control flow related errors are detected
    */
-  private static void checkControlFlow(Constructor constructor, ControlFlowVariables initialiserVariables) throws ConceptualException
+  private static void checkControlFlow(Constructor constructor, DelegateConstructorVariables delegateConstructorVariables) throws ConceptualException
   {
     boolean initialiserAlreadyRun = !constructor.getCallsDelegateConstructor();
     ControlFlowVariables variables = new ControlFlowVariables(initialiserAlreadyRun);
     if (initialiserAlreadyRun)
     {
-      variables.initialised = new HashSet<Variable>(initialiserVariables.initialised);
-      variables.possiblyInitialised = new HashSet<Variable>(initialiserVariables.possiblyInitialised);
+      // this should behave exactly as if we are running the no-args super() constructor
+      // since initialiserVariables already contains all superclass member variables, just copy it to this Constructor's ControlFlowVariables
+      variables.initialised = new HashSet<Variable>(delegateConstructorVariables.initialiserDefinitelyInitialised);
+      variables.possiblyInitialised = new HashSet<Variable>(delegateConstructorVariables.initialiserPossiblyInitialised);
     }
     for (Parameter p : constructor.getParameters())
     {
       variables.initialised.add(p.getVariable());
       variables.possiblyInitialised.add(p.getVariable());
     }
-    checkControlFlow(constructor.getBlock(), constructor.getContainingTypeDefinition(), variables, initialiserVariables, new LinkedList<BreakableStatement>(), true, false, constructor.isImmutable(), false);
+    checkControlFlow(constructor.getBlock(), constructor.getContainingTypeDefinition(), variables, delegateConstructorVariables, new LinkedList<BreakableStatement>(), true, false, constructor.isImmutable(), false);
     if (variables.initialiserState != InitialiserState.DEFINITELY_RUN)
     {
       throw new ConceptualException("Constructor does not always call a delegate constructor, i.e. this(...) or super(...), or otherwise implicitly run the initialiser", constructor.getLexicalPhrase());
@@ -248,7 +277,7 @@ public class ControlFlowChecker
    * @param statement - the statement to check
    * @param enclosingTypeDefinition - the TypeDefinition that the specified Statement is enclosed inside
    * @param variables - the state of the variables before this statement, to be updated to the after-statement state
-   * @param initialiserVariables - the sets of variables which indicate which variables the initialiser initialises
+   * @param delegateConstructorVariables - the sets of variables which indicate which variables the initialiser initialises
    * @param enclosingBreakableStack - the stack of statements that can be broken out of that enclose this statement
    * @param inConstructor - true if the statement is part of a constructor call
    * @param inStaticContext - true if the statement is in a static context
@@ -257,7 +286,7 @@ public class ControlFlowChecker
    * @return true if the statement returns from its enclosing function or control cannot reach statements after it, false if control flow continues after it
    * @throws ConceptualException - if any unreachable code is detected
    */
-  private static boolean checkControlFlow(Statement statement, TypeDefinition enclosingTypeDefinition, ControlFlowVariables variables, ControlFlowVariables initialiserVariables, LinkedList<BreakableStatement> enclosingBreakableStack,
+  private static boolean checkControlFlow(Statement statement, TypeDefinition enclosingTypeDefinition, ControlFlowVariables variables, DelegateConstructorVariables delegateConstructorVariables, LinkedList<BreakableStatement> enclosingBreakableStack,
                                           boolean inConstructor, boolean inStaticContext, boolean inImmutableContext, boolean inInitialiser) throws ConceptualException
   {
     if (statement instanceof AssignStatement)
@@ -451,7 +480,7 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Unreachable code", s.getLexicalPhrase());
         }
-        returned = checkControlFlow(s, enclosingTypeDefinition, variables, initialiserVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
+        returned = checkControlFlow(s, enclosingTypeDefinition, variables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
       }
       return returned;
     }
@@ -535,32 +564,45 @@ public class ControlFlowChecker
 
       variables.initialiserState = InitialiserState.DEFINITELY_RUN;
 
-      // a this() constructor has been run, so all of the member variables have now been initialised
-      for (Field field : enclosingTypeDefinition.getNonStaticFields())
+      if (delegateConstructorStatement.isSuperConstructor())
       {
-        MemberVariable var = field.getMemberVariable();
-        if (field.isFinal() && variables.possiblyInitialised.contains(var))
+        // a super() constructor has been run, so all variables that are set by the initialiser have now been initialised
+        for (Variable var : delegateConstructorVariables.initialiserPossiblyInitialised)
         {
-          throw new ConceptualException("Cannot call a this() constructor here, since it would overwrite the value of '" + field.getName() + "', which may already have been initialised", delegateConstructorStatement.getLexicalPhrase());
+          if (var instanceof MemberVariable && var.isFinal() && variables.possiblyInitialised.contains(var))
+          {
+            throw new ConceptualException("Cannot call a super() constructor here, since either it or an initialiser could overwrite the value of '" + var.getName() + "', which may already have been initialised", delegateConstructorStatement.getLexicalPhrase());
+          }
+          variables.possiblyInitialised.add(var);
         }
-        variables.initialised.add(var);
-        variables.possiblyInitialised.add(var);
+        for (Variable var : delegateConstructorVariables.initialiserDefinitelyInitialised)
+        {
+          variables.initialised.add(var);
+        }
       }
-
-      // TODO: for super() constructors, we should use this code instead of iterating through all of the non-static fields above
-      //for (Variable var : initialiserVariables.initialised)
-      //{
-      //  variables.initialised.add(var);
-      //  variables.possiblyInitialised.add(var);
-      //}
-      //for (Variable var : initialiserVariables.possiblyInitialised)
-      //{
-      //  if (var instanceof MemberVariable && var.isFinal() && variables.possiblyInitialised.contains(var))
-      //  {
-      //    throw new ConceptualException("Cannot call a super() constructor here, since it would also run the initialiser, which could overwrite the value of '" + var.getName() + "', which may already have been initialised here", delegateConstructorStatement.getLexicalPhrase());
-      //  }
-      //  variables.possiblyInitialised.add(var);
-      //}
+      else
+      {
+        // a this() constructor has been run, so all of the member variables (including superclass member variables) have now been initialised
+        for (Variable var : delegateConstructorVariables.superClassVariables)
+        {
+          if (var instanceof MemberVariable && var.isFinal() && variables.possiblyInitialised.contains(var))
+          {
+            throw new ConceptualException("Cannot call a this() constructor here, since it would overwrite the value of '" + var.getName() + "' (in: " + ((MemberVariable) var).getEnclosingTypeDefinition().getQualifiedName() + "), which may already have been initialised", delegateConstructorStatement.getLexicalPhrase());
+          }
+          variables.initialised.add(var);
+          variables.possiblyInitialised.add(var);
+        }
+        for (Field field : enclosingTypeDefinition.getNonStaticFields())
+        {
+          MemberVariable var = field.getMemberVariable();
+          if (field.isFinal() && variables.possiblyInitialised.contains(var))
+          {
+            throw new ConceptualException("Cannot call a this() constructor here, since it would overwrite the value of '" + field.getName() + "', which may already have been initialised", delegateConstructorStatement.getLexicalPhrase());
+          }
+          variables.initialised.add(var);
+          variables.possiblyInitialised.add(var);
+        }
+      }
       return false;
     }
     else if (statement instanceof ExpressionStatement)
@@ -581,7 +623,7 @@ public class ControlFlowChecker
       if (init != null)
       {
         // check the loop initialisation variable in the block outside the loop, because it may add new variables which have now been initialised
-        boolean returned = checkControlFlow(init, enclosingTypeDefinition, variables, initialiserVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
+        boolean returned = checkControlFlow(init, enclosingTypeDefinition, variables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
         if (returned)
         {
           throw new IllegalStateException("Reached a state where a for loop initialisation statement returned");
@@ -592,7 +634,7 @@ public class ControlFlowChecker
       {
         checkControlFlow(condition, loopVariables.initialised, variables.initialiserState, inConstructor, inStaticContext, inImmutableContext);
       }
-      boolean returned = checkControlFlow(block, enclosingTypeDefinition, loopVariables, initialiserVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
+      boolean returned = checkControlFlow(block, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
       if (returned)
       {
         loopVariables.overwriteWithContinueVariables(forStatement);
@@ -608,7 +650,7 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Unreachable code", update.getLexicalPhrase());
         }
-        boolean updateReturned = checkControlFlow(update, enclosingTypeDefinition, loopVariables, initialiserVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
+        boolean updateReturned = checkControlFlow(update, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
         if (updateReturned)
         {
           throw new IllegalStateException("Reached a state where a for loop update statement returned");
@@ -621,7 +663,7 @@ public class ControlFlowChecker
       {
         checkControlFlow(condition, loopVariables.initialised, variables.initialiserState, inConstructor, inStaticContext, inImmutableContext);
       }
-      boolean secondReturned = checkControlFlow(block, enclosingTypeDefinition, loopVariables, initialiserVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
+      boolean secondReturned = checkControlFlow(block, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
       if (secondReturned)
       {
         loopVariables.overwriteWithContinueVariables(forStatement);
@@ -632,7 +674,7 @@ public class ControlFlowChecker
       }
       if (update != null)
       {
-        checkControlFlow(update, enclosingTypeDefinition, loopVariables, initialiserVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
+        checkControlFlow(update, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
       }
 
       if (returned)
@@ -669,7 +711,7 @@ public class ControlFlowChecker
       if (elseClause == null)
       {
         ControlFlowVariables thenClauseVariables = variables.copy();
-        boolean thenReturned = checkControlFlow(thenClause, enclosingTypeDefinition, thenClauseVariables, initialiserVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
+        boolean thenReturned = checkControlFlow(thenClause, enclosingTypeDefinition, thenClauseVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
         if (thenReturned)
         {
           variables.combineReturned(thenClauseVariables);
@@ -682,8 +724,8 @@ public class ControlFlowChecker
       }
       ControlFlowVariables thenClauseVariables = variables.copy();
       ControlFlowVariables elseClauseVariables = variables.copy();
-      boolean thenReturned = checkControlFlow(thenClause, enclosingTypeDefinition, thenClauseVariables, initialiserVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
-      boolean elseReturned = checkControlFlow(elseClause, enclosingTypeDefinition, elseClauseVariables, initialiserVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
+      boolean thenReturned = checkControlFlow(thenClause, enclosingTypeDefinition, thenClauseVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
+      boolean elseReturned = checkControlFlow(elseClause, enclosingTypeDefinition, elseClauseVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
       if (!thenReturned & !elseReturned)
       {
         variables.overwrite(thenClauseVariables);
@@ -922,7 +964,7 @@ public class ControlFlowChecker
 
       // we don't care about the result of this, as the loop could execute zero times
       enclosingBreakableStack.push(whileStatement);
-      boolean whileReturned = checkControlFlow(whileStatement.getStatement(), enclosingTypeDefinition, loopVariables, initialiserVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
+      boolean whileReturned = checkControlFlow(whileStatement.getStatement(), enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
       if (whileReturned)
       {
         loopVariables.overwriteWithContinueVariables(whileStatement);
@@ -934,7 +976,7 @@ public class ControlFlowChecker
 
       // run through the conditional and loop block again, so that we catch any final variables that are initialised in the loop
       checkControlFlow(whileStatement.getExpression(), loopVariables.initialised, variables.initialiserState, inConstructor, inStaticContext, inImmutableContext);
-      boolean secondReturned = checkControlFlow(whileStatement.getStatement(), enclosingTypeDefinition, loopVariables, initialiserVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
+      boolean secondReturned = checkControlFlow(whileStatement.getStatement(), enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inStaticContext, inImmutableContext, inInitialiser);
       if (secondReturned)
       {
         loopVariables.overwriteWithContinueVariables(whileStatement);
@@ -1297,6 +1339,19 @@ public class ControlFlowChecker
     DEFINITELY_RUN,
     POSSIBLY_RUN,
     NOT_RUN;
+  }
+
+  /**
+   * Keeps track of sets of variables which will be initialised when a delegate constructor is run.
+   * The initialiserDefinitelyInitialised and initialiserPossiblyInitialised sets contain variables which will/may be initialised by the non-static initialiser.
+   * The superClassVariables set keeps track of variables which will definitely be initialised by a super(...) constructor.
+   * @author Anthony Bryant
+   */
+  private static final class DelegateConstructorVariables
+  {
+    private Set<Variable> initialiserDefinitelyInitialised;
+    private Set<Variable> initialiserPossiblyInitialised;
+    private Set<Variable> superClassVariables;
   }
 
   /**

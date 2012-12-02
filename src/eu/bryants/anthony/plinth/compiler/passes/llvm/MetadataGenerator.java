@@ -13,6 +13,7 @@ import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
+import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
@@ -87,14 +88,19 @@ public class MetadataGenerator
     }
     LLVMValueRef methodsNode = LLVM.LLVMMDNode(C.toNativePointerArray(methodNodes, false, true), methodNodes.length);
 
-    LLVMValueRef[] values = new LLVMValueRef[] {nameNode, immutabilityNode, nonStaticFieldsNode, staticFieldsNode, constructorsNode, methodsNode};
-    LLVMValueRef resultNode = LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
     if (typeDefinition instanceof ClassDefinition)
     {
+      QName superClassQName = ((ClassDefinition) typeDefinition).getSuperClassQName();
+      LLVMValueRef superClassNode = createMDString(superClassQName == null ? "" : superClassQName.toString());
+
+      LLVMValueRef[] values = new LLVMValueRef[] {nameNode, immutabilityNode, superClassNode, nonStaticFieldsNode, staticFieldsNode, constructorsNode, methodsNode};
+      LLVMValueRef resultNode = LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
       LLVM.LLVMAddNamedMetadataOperand(module, "ClassDefinitions", resultNode);
     }
     else if (typeDefinition instanceof CompoundDefinition)
     {
+      LLVMValueRef[] values = new LLVMValueRef[] {nameNode, immutabilityNode, nonStaticFieldsNode, staticFieldsNode, constructorsNode, methodsNode};
+      LLVMValueRef resultNode = LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
       LLVM.LLVMAddNamedMetadataOperand(module, "CompoundDefinitions", resultNode);
     }
   }

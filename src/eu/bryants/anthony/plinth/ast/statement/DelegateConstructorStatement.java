@@ -13,14 +13,24 @@ import eu.bryants.anthony.plinth.ast.member.Constructor;
  */
 public class DelegateConstructorStatement extends Statement
 {
+  private boolean isSuperConstructor;
   private Expression[] arguments;
 
   private Constructor resolvedConstructor;
 
-  public DelegateConstructorStatement(Expression[] arguments, LexicalPhrase lexicalPhrase)
+  public DelegateConstructorStatement(boolean isSuperConstructor, Expression[] arguments, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
+    this.isSuperConstructor = isSuperConstructor;
     this.arguments = arguments;
+  }
+
+  /**
+   * @return the isSuperConstructor
+   */
+  public boolean isSuperConstructor()
+  {
+    return isSuperConstructor;
   }
 
   /**
@@ -60,7 +70,8 @@ public class DelegateConstructorStatement extends Statement
   public String toString()
   {
     StringBuffer buffer = new StringBuffer();
-    buffer.append("this(");
+    buffer.append(isSuperConstructor ? "super" : "this");
+    buffer.append("(");
     for (int i = 0; i < arguments.length; ++i)
     {
       buffer.append(arguments[i]);

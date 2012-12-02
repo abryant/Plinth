@@ -183,13 +183,8 @@ public class TypeHelper
         LLVMTypeRef pointerToStruct = LLVM.LLVMPointerType(structType, 0);
         nativeNamedTypes.put(typeDefinition, pointerToStruct);
 
-        // add the fields to the struct type recursively
-        Field[] fields = typeDefinition.getNonStaticFields();
-        LLVMTypeRef[] llvmSubTypes = new LLVMTypeRef[fields.length];
-        for (int i = 0; i < fields.length; ++i)
-        {
-          llvmSubTypes[i] = findNativeType(fields[i].getType(), false);
-        }
+        // add the fields to the struct type (findClassSubTypes() will call findNativeType() recursively)
+        LLVMTypeRef[] llvmSubTypes = findClassSubTypes((ClassDefinition) typeDefinition);
         LLVM.LLVMStructSetBody(structType, C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
         return pointerToStruct;
       }
@@ -255,6 +250,64 @@ public class TypeHelper
   }
 
   /**
+   * Finds the sub-types of the native representation of the specified ClassDefinition, including fields and virtual function table pointers.
+   * @param classDefinition - the class definition to find the sub-types of
+   * @return the sub-types of the specified ClassDefinition
+   */
+  private LLVMTypeRef[] findClassSubTypes(ClassDefinition classDefinition)
+  {
+    ClassDefinition superClassDefinition = classDefinition.getSuperClassDefinition();
+    LLVMTypeRef[] subTypes;
+    Field[] nonStaticFields = classDefinition.getNonStaticFields();
+    int offset = 0;
+    if (superClassDefinition == null)
+    {
+      subTypes = new LLVMTypeRef[nonStaticFields.length];
+    }
+    else
+    {
+      LLVMTypeRef[] superClassSubTypes = findClassSubTypes(superClassDefinition);
+      subTypes = new LLVMTypeRef[superClassSubTypes.length + nonStaticFields.length];
+      System.arraycopy(superClassSubTypes, 0, subTypes, 0, superClassSubTypes.length);
+      offset = superClassSubTypes.length;
+    }
+    for (int i = 0; i < nonStaticFields.length; ++i)
+    {
+      subTypes[offset + i] = findNativeType(nonStaticFields[i].getType(), false);
+    }
+    return subTypes;
+  }
+
+  /**
+   * Finds the pointer to the specified field inside the specified value.
+   * The value should be a NamedType in a temporary type representation, and should be for the type which contains the specified field, or a subtype thereof.
+   * @param baseValue - the base value to get the field of
+   * @param field - the Field to extract
+   * @return a pointer to the specified field inside baseValue
+   */
+  public LLVMValueRef getFieldPointer(LLVMValueRef baseValue, Field field)
+  {
+    if (field.isStatic())
+    {
+      throw new IllegalArgumentException("Cannot get a field pointer for a static field");
+    }
+    TypeDefinition typeDefinition = field.getMemberVariable().getEnclosingTypeDefinition();
+    int index = field.getMemberIndex();
+    if (typeDefinition instanceof ClassDefinition)
+    {
+      ClassDefinition superClassDefinition = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
+      while (superClassDefinition != null)
+      {
+        index += superClassDefinition.getNonStaticFields().length;
+        superClassDefinition = superClassDefinition.getSuperClassDefinition();
+      }
+    }
+    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), index, false)};
+    return LLVM.LLVMBuildGEP(builder, baseValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+  }
+
+  /**
    * Initialises the specified value as a compound definition of the specified type.
    * This method performs any initialisation which must happen before the constructor is called, such as zeroing fields which have default values.
    * @param compoundDefinition - the CompoundDefinition to initialise the value as
@@ -267,9 +320,7 @@ public class TypeHelper
     {
       if (field.getType().hasDefaultValue())
       {
-        LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                     LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), field.getMemberIndex(), false)};
-        LLVMValueRef pointer = LLVM.LLVMBuildGEP(builder, compoundValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+        LLVMValueRef pointer = getFieldPointer(compoundValue, field);
         LLVM.LLVMBuildStore(builder, LLVM.LLVMConstNull(findStandardType(field.getType())), pointer);
       }
     }
@@ -315,8 +366,13 @@ public class TypeHelper
         ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition &&
         ((NamedType) to).getResolvedTypeDefinition() instanceof ClassDefinition)
     {
-      // TODO: this will need changing when we add inheritance
-      // class type casts are illegal unless the type definitions are the same, so they must have the same basic type
+      if (!((NamedType) from).getResolvedTypeDefinition().equals(((NamedType) to).getResolvedTypeDefinition()))
+      {
+        // both from and to are class types, and the type checker has made sure that we can convert between them
+        // so bitcast value to the new type
+        value = LLVM.LLVMBuildBitCast(builder, value, findTemporaryType(to), "");
+        // TODO: if value is not actually an instance of the class that 'to' represents, throw an exception here instead of having undefined behaviour
+      }
       // nullability and immutability will be checked by the type checker, but have no effect on the temporary type, so we do not need to do anything special here
 
       // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined

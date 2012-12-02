@@ -95,24 +95,60 @@ public class TypeChecker
   {
     for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
-      for (Initialiser initialiser : typeDefinition.getInitialisers())
+      checkTypes(typeDefinition);
+    }
+  }
+
+  public static void checkTypes(TypeDefinition typeDefinition) throws ConceptualException
+  {
+    if (typeDefinition instanceof ClassDefinition)
+    {
+      ClassDefinition superClassDefinition = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
+      if (superClassDefinition != null)
       {
-        checkTypes(initialiser);
-      }
-      for (Constructor constructor : typeDefinition.getConstructors())
-      {
-        checkTypes(constructor.getBlock(), VoidType.VOID_TYPE);
-      }
-      for (Field field : typeDefinition.getFields())
-      {
-        checkTypes(field);
-      }
-      for (Method method : typeDefinition.getAllMethods())
-      {
-        if (method.getBlock() != null)
+        if (superClassDefinition.isImmutable() && !typeDefinition.isImmutable())
         {
-          checkTypes(method.getBlock(), method.getReturnType());
+          throw new ConceptualException("Cannot define a non-immutable class to be a subclass of an immutable class", typeDefinition.getLexicalPhrase());
         }
+      }
+    }
+    for (Initialiser initialiser : typeDefinition.getInitialisers())
+    {
+      checkTypes(initialiser);
+    }
+    for (Constructor constructor : typeDefinition.getConstructors())
+    {
+      if (!constructor.getCallsDelegateConstructor() && typeDefinition instanceof ClassDefinition)
+      {
+        // this constructor does not call a delegate constructor, so we must make sure that if there is a superclass, it has a no-args constructor
+        ClassDefinition superClassDefinition = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
+        if (superClassDefinition != null)
+        {
+          boolean hasNoArgsSuper = false;
+          for (Constructor test : superClassDefinition.getConstructors())
+          {
+            if (test.getParameters().length == 0)
+            {
+              hasNoArgsSuper = true;
+            }
+          }
+          if (!hasNoArgsSuper)
+          {
+            throw new ConceptualException("This constructor needs to explicitly call a super(...) constructor (as there are no super() constructors which take zero arguments)", constructor.getLexicalPhrase());
+          }
+        }
+      }
+      checkTypes(constructor.getBlock(), VoidType.VOID_TYPE);
+    }
+    for (Field field : typeDefinition.getFields())
+    {
+      checkTypes(field);
+    }
+    for (Method method : typeDefinition.getAllMethods())
+    {
+      if (method.getBlock() != null)
+      {
+        checkTypes(method.getBlock(), method.getReturnType());
       }
     }
   }
@@ -840,7 +876,7 @@ public class TypeChecker
       if (exprType.canAssign(castedType) || castedType.canAssign(exprType))
       {
         // if the assignment works in reverse (i.e. the casted type can be assigned to the expression) then it can be casted back
-        // (also allow it if the assignment works forwards, although really that should be a warning about an unnecessary cast)
+        // (also allow it if the assignment works forwards, although usually that should be a warning about an unnecessary cast, unless the cast allows access to a hidden field)
 
         // return the type of the cast expression (it has already been set during parsing)
         return expression.getType();
@@ -1014,6 +1050,12 @@ public class TypeChecker
       {
         // create a function type for this method
         Method method = (Method) member;
+        // TODO: when we unify the type system under a single common parent type, remove these restrictions
+        // TODO: but also, when that happens, make sure normal method calls are preferred over ones which make a heap allocation by converting the type to Object
+        if (!method.isStatic() && method instanceof BuiltinMethod && ((BuiltinMethod) method).getBaseType() instanceof FunctionType)
+        {
+          throw new ConceptualException("Cannot convert a non-static method on a function type to a function type, as there is nowhere to store the function value of 'this' to call the method on", fieldAccessExpression.getLexicalPhrase());
+        }
         if (!method.isStatic() && method.getContainingTypeDefinition() instanceof CompoundDefinition)
         {
           throw new ConceptualException("Cannot convert a non-static method on a compound type to a function type, as there is nowhere to store the compound value of 'this' to call the method on", fieldAccessExpression.getLexicalPhrase());
@@ -1021,6 +1063,10 @@ public class TypeChecker
         if (!method.isStatic() && method instanceof BuiltinMethod && ((BuiltinMethod) method).getBaseType() instanceof PrimitiveType)
         {
           throw new ConceptualException("Cannot convert a non-static method on a primitive type to a function type, as there is nowhere to store the primitive value of 'this' to call the method on", fieldAccessExpression.getLexicalPhrase());
+        }
+        if (!method.isStatic() && method instanceof BuiltinMethod && ((BuiltinMethod) method).getBaseType() instanceof TupleType)
+        {
+          throw new ConceptualException("Cannot convert a non-static method on a tuple type to a function type, as there is nowhere to store the tuple value of 'this' to call the method on", fieldAccessExpression.getLexicalPhrase());
         }
         Parameter[] parameters = method.getParameters();
         Type[] parameterTypes = new Type[parameters.length];
@@ -1613,8 +1659,8 @@ public class TypeChecker
       ArrayType arrayA = (ArrayType) a;
       ArrayType arrayB = (ArrayType) b;
       boolean nullability = a.isNullable() | b.isNullable();
-      boolean explicitImmutability   = arrayA.isExplicitlyImmutable()   | arrayB.isExplicitlyImmutable();
-      boolean contextualImmutability = arrayA.isContextuallyImmutable() | arrayB.isContextuallyImmutable();
+      boolean explicitImmutability   = arrayA.isExplicitlyImmutable()   || arrayB.isExplicitlyImmutable();
+      boolean contextualImmutability = arrayA.isContextuallyImmutable() || arrayB.isContextuallyImmutable();
       // alter one of the types to have the minimum nullability, explicit immutability, and contextual immutability that we need
       // if the altered type cannot assign the other one, then altering the other type would not help,
       // since the only other variable in array.canAssign() is the base type, and the checking for it is symmetric
@@ -1651,16 +1697,22 @@ public class TypeChecker
       NamedType namedA = (NamedType) a;
       NamedType namedB = (NamedType) b;
       boolean nullability = a.isNullable() | b.isNullable();
-      boolean explicitImmutability   = namedA.isExplicitlyImmutable()   | namedB.isExplicitlyImmutable();
-      boolean contextualImmutability = namedA.isContextuallyImmutable() | namedB.isContextuallyImmutable();
-      // alter one of the types to have the minimum nullability, explicit immutability, and contextual immutability that we need
-      // if the altered type cannot assign the other one, then altering the other type would not help,
-      // since the only other variable in NamedType.canAssign() is the type definition, and checking for it is symmetric because we do not have inheritance yet
+      boolean explicitImmutability   = namedA.isExplicitlyImmutable()   || namedB.isExplicitlyImmutable();
+      boolean contextualImmutability = namedA.isContextuallyImmutable() || namedB.isContextuallyImmutable();
+      // alter the types to have the minimum nullability, explicit immutability, and contextual immutability that we need
+      // if neither of the altered types can assign the unaltered other type, then we cannot do anything else,
+      // since either the types are the same, or one of them is a supertype of the other, because we do not yet have a concept of multiple inheritance (e.g. interfaces)
       Type alteredA = findTypeWithNullability(namedA, nullability);
       alteredA = findTypeWithImmutability(alteredA, explicitImmutability, contextualImmutability);
       if (alteredA.canAssign(b))
       {
         return alteredA;
+      }
+      Type alteredB = findTypeWithNullability(namedB, nullability);
+      alteredB = findTypeWithImmutability(alteredB, explicitImmutability, contextualImmutability);
+      if (alteredB.canAssign(a))
+      {
+        return alteredB;
       }
       return null;
     }
@@ -1730,11 +1782,11 @@ public class TypeChecker
   {
     if (type instanceof ArrayType)
     {
-      return ((ArrayType) type).isExplicitlyImmutable() | ((ArrayType) type).isContextuallyImmutable();
+      return ((ArrayType) type).isExplicitlyImmutable() || ((ArrayType) type).isContextuallyImmutable();
     }
     if (type instanceof NamedType)
     {
-      return ((NamedType) type).isExplicitlyImmutable() | ((NamedType) type).isContextuallyImmutable();
+      return ((NamedType) type).isExplicitlyImmutable() || ((NamedType) type).isContextuallyImmutable();
     }
     if (type instanceof FunctionType || type instanceof NullType || type instanceof PrimitiveType || type instanceof TupleType)
     {

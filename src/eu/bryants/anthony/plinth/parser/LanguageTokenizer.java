@@ -39,6 +39,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("continue",  ParseType.CONTINUE_KEYWORD);
     KEYWORDS.put("double",    ParseType.DOUBLE_KEYWORD);
     KEYWORDS.put("else",      ParseType.ELSE_KEYWORD);
+    KEYWORDS.put("extends",   ParseType.EXTENDS_KEYWORD);
     KEYWORDS.put("false",     ParseType.FALSE_KEYWORD);
     KEYWORDS.put("final",     ParseType.FINAL_KEYWORD);
     KEYWORDS.put("float",     ParseType.FLOAT_KEYWORD);
@@ -56,6 +57,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("return",    ParseType.RETURN_KEYWORD);
     KEYWORDS.put("short",     ParseType.SHORT_KEYWORD);
     KEYWORDS.put("static",    ParseType.STATIC_KEYWORD);
+    KEYWORDS.put("super",     ParseType.SUPER_KEYWORD);
     KEYWORDS.put("this",      ParseType.THIS_KEYWORD);
     KEYWORDS.put("true",      ParseType.TRUE_KEYWORD);
     KEYWORDS.put("ubyte",     ParseType.UBYTE_KEYWORD);

@@ -4,7 +4,8 @@ Imports = epsilon | Imports ImportKeyword QName Semicolon | Imports ImportKeywor
 
 QName = Name | QName Dot Name
 
-ClassTypeDef = OptionalModifiers ClassKeyword Name LBrace MemberList RBrace
+ClassTypeDef = OptionalModifiers ClassKeyword Name LBrace MemberList RBrace |
+               OptionalModifiers ClassKeyword Name ExtendsKeyword QName LBrace MemberList RBrace
 CompoundTypeDef = OptionalModifiers CompoundKeyword Name LBrace MemberList RBrace
 
 MemberList = epsilon |
@@ -45,7 +46,7 @@ Statement = Assignment | Block | BreakStatement | ContinueStatement | ForStateme
             ShorthandAssignment Semicolon |
             FunctionCallExpression Semicolon |
             ClassCreationExpression Semicolon |
-            ThisKeyword Arguments Semicolon
+            ThisKeyword Arguments Semicolon | SuperKeyword Arguments Semicolon
 
 Assignee = AssigneeNoQName | QName
 AssigneeNoQName = Primary         LSquare Expression RSquare |

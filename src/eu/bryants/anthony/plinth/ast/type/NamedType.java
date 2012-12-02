@@ -123,12 +123,42 @@ public class NamedType extends Type
       throw new IllegalStateException("Cannot check whether two types are assign-compatible before they are resolved");
     }
     NamedType otherNamedType = (NamedType) type;
-    // TODO: when we add inheritance, make this more general
-    if (!resolvedTypeDefinition.equals(otherNamedType.getResolvedTypeDefinition()))
+    if (resolvedTypeDefinition instanceof ClassDefinition)
     {
-      return false;
+      if (!(otherNamedType.getResolvedTypeDefinition() instanceof ClassDefinition))
+      {
+        // cannot convert a non-ClassDefinition NamedType into a ClassDefinition one, since it can never be a subtype
+        return false;
+      }
+      ClassDefinition current = (ClassDefinition) otherNamedType.getResolvedTypeDefinition();
+      while (current != null)
+      {
+        if (current.equals(resolvedTypeDefinition))
+        {
+          break;
+        }
+        current = current.getSuperClassDefinition();
+      }
+      if (current == null)
+      {
+        // we couldn't find this type's ClassDefinition in the parent hierarchy of the other type's ClassDefinition
+        // so this is not a superclass of the other type, so it is not assign-compatible
+        return false;
+      }
+    }
+    else if (resolvedTypeDefinition instanceof CompoundDefinition)
+    {
+      if (!resolvedTypeDefinition.equals(otherNamedType.getResolvedTypeDefinition()))
+      {
+        return false;
+      }
+    }
+    else
+    {
+      throw new IllegalStateException("Unknown type of TypeDefinition: " + resolvedTypeDefinition);
     }
     // an immutable type definition means the type is always immutable, so it must be equivalent regardless of immutability
+    // this works with inheritance, since an immutable parent class can only have immutable subclasses
     if (!resolvedTypeDefinition.isImmutable())
     {
       // an explicitly-immutable named type cannot be assigned to a non-explicitly-immutable named type
@@ -170,22 +200,59 @@ public class NamedType extends Type
   @Override
   public Set<Member> getMembers(String name)
   {
-    if (resolvedTypeDefinition != null)
+    if (resolvedTypeDefinition == null)
     {
-      HashSet<Member> set = new HashSet<Member>();
-      Field field = resolvedTypeDefinition.getField(name);
-      if (field != null)
-      {
-        set.add(field);
-      }
-      Set<Method> methodSet = resolvedTypeDefinition.getMethodsByName(name);
-      if (methodSet != null)
-      {
-        set.addAll(methodSet);
-      }
-      return set;
+      throw new IllegalStateException("Cannot get the members of a NamedType before it is resolved");
     }
-    throw new IllegalStateException("Cannot get the members of a NamedType before it is resolved");
+    HashSet<Member> set = new HashSet<Member>();
+    // maintain a set of disambiguators as well as the members, so that we can keep track of
+    // whether we have added e.g. a function with type {uint -> void}
+    Set<Object> disambiguators = new HashSet<Object>();
+    Field field = resolvedTypeDefinition.getField(name);
+    if (field != null)
+    {
+      set.add(field);
+      disambiguators.add(field.getName());
+    }
+    Set<Method> methodSet = resolvedTypeDefinition.getMethodsByName(name);
+    if (methodSet != null)
+    {
+      for (Method method : methodSet)
+      {
+        set.add(method);
+        disambiguators.add(method.getDisambiguator());
+      }
+    }
+    if (resolvedTypeDefinition instanceof ClassDefinition)
+    {
+      // try to add members from the parent classes, but be careful not to add
+      // members which cannot be disambiguated from those we have already added
+      ClassDefinition currentDefinition = ((ClassDefinition) resolvedTypeDefinition).getSuperClassDefinition();
+      while (currentDefinition != null)
+      {
+        Field currentField = currentDefinition.getField(name);
+        // exclude static fields from being inherited
+        if (currentField != null && !currentField.isStatic() && !disambiguators.contains(currentField.getName()))
+        {
+          set.add(currentField);
+          disambiguators.add(currentField.getName());
+        }
+        Set<Method> currentMethodSet = currentDefinition.getMethodsByName(name);
+        if (currentMethodSet != null)
+        {
+          for (Method method : currentMethodSet)
+          {
+            if (!disambiguators.contains(method.getDisambiguator()))
+            {
+              set.add(method);
+              disambiguators.add(method.getDisambiguator());
+            }
+          }
+        }
+        currentDefinition = currentDefinition.getSuperClassDefinition();
+      }
+    }
+    return set;
   }
 
   /**

@@ -1,15 +1,20 @@
 package foo.bar;
 
-class Test
+class Test extends Foo
 {
-  string constructor;
+  {
+    stderr::println("Test initialiser");
+  }
+  string field;
   this(uint a)
   {
-    constructor = "Test(uint): " + a.toString();
+    stderr::println("Test(uint): " + a.toString());
+    field = "uint";
   }
   this(short c)
   {
-    constructor = "Test(short): " + c.toString();
+    stderr::println("Test(short): " + c.toString());
+    field = "short";
   }
   this(?ubyte b)
   {
@@ -24,7 +29,7 @@ class Test
     }
     this.foo();
     foo();
-    stderr::println(constructor);
+    stderr::println("Test(?ubyte) after delegate constructor, field = " + field);
   }
 
   static uint main([]string args)
@@ -41,7 +46,10 @@ class Test
 
     stdout::println("2.2250738585072011e-308 = " + 2.2250738585072011e-308.toString());
     stdout::println("maths::abs(-1) = " + maths::abs(-1).toString());
-    new Test(args.length > 2 ? 2 : null);
+    Foo test = new Test(args.length > 2 ? 2 : null);
+    test.argh();
+    Test t = cast<Test> test;
+    t.argh();
     return args.length;
   }
 
@@ -62,5 +70,27 @@ class Test
 
   void foo()
   {
+  }
+
+  void argh()
+  {
+    stderr::println("Test::argh()");
+  }
+}
+
+class Foo
+{
+  {
+    stderr::println("Foo initialiser");
+  }
+  string field;
+  this()
+  {
+    stderr::println("super constructor!");
+    field = "Foo::argh()";
+  }
+  void argh()
+  {
+    stderr::println(field);
   }
 }
