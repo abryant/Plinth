@@ -2008,8 +2008,8 @@ public class CodeGenerator
       llvmArguments[0] = pointer;
       // get the constructor and call it
       LLVMValueRef llvmFunc = getConstructorFunction(constructor);
-      LLVMValueRef result = LLVM.LLVMBuildCall(builder, llvmFunc, C.toNativePointerArray(llvmArguments, false, true), llvmArguments.length, "");
-      return result;
+      LLVM.LLVMBuildCall(builder, llvmFunc, C.toNativePointerArray(llvmArguments, false, true), llvmArguments.length, "");
+      return pointer;
     }
     if (expression instanceof EqualityExpression)
     {
