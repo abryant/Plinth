@@ -1,6 +1,10 @@
 package eu.bryants.anthony.plinth.ast;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.member.Constructor;
@@ -80,6 +84,68 @@ public abstract class TypeDefinition
   }
 
   /**
+   * Builds the array of non-static fields and sets the fields' indices.
+   * The field order is based on the lexicographical ordering of their names.
+   */
+  protected static Field[] buildNonStaticFieldList(Collection<Field> allFields)
+  {
+    // filter out static fields, and sort the non-static fields by name
+    List<Field> list = new LinkedList<Field>();
+    for (Field field : allFields)
+    {
+      if (!field.isStatic())
+      {
+        list.add(field);
+      }
+    }
+    Collections.sort(list, new Comparator<Field>()
+    {
+      @Override
+      public int compare(Field o1, Field o2)
+      {
+        return o1.getName().compareTo(o2.getName());
+      }
+    });
+    Field[] nonStaticFields = list.toArray(new Field[list.size()]);
+    for (int i = 0; i < nonStaticFields.length; ++i)
+    {
+      nonStaticFields[i].setMemberIndex(i);
+    }
+    return nonStaticFields;
+  }
+
+  /**
+   * Builds the array of non-static fields and sets the fields' indices.
+   * The field order is based on the lexicographical ordering of their names.
+   */
+  protected static Method[] buildNonStaticMethodList(Collection<Method> allMethods)
+  {
+    // filter out static fields, and sort the non-static fields by name
+    List<Method> list = new LinkedList<Method>();
+    for (Method method : allMethods)
+    {
+      if (!method.isStatic())
+      {
+        list.add(method);
+      }
+    }
+    Collections.sort(list, new Comparator<Method>()
+    {
+      @Override
+      public int compare(Method o1, Method o2)
+      {
+        return ((Comparable<Object>) o1.getDisambiguator()).compareTo(o2.getDisambiguator());
+      }
+    });
+    Method[] nonStaticMethods = list.toArray(new Method[list.size()]);
+    for (int i = 0; i < nonStaticMethods.length; ++i)
+    {
+      nonStaticMethods[i].setMethodIndex(i);
+    }
+    return nonStaticMethods;
+  }
+
+  /**
    * @return the Initialisers, in declaration order
    */
   public abstract Initialiser[] getInitialisers();
@@ -109,6 +175,11 @@ public abstract class TypeDefinition
    * @return an array containing all of the methods in this TypeDefinition
    */
   public abstract Method[] getAllMethods();
+
+  /**
+   * @return the non-static methods, in order of their indices
+   */
+  public abstract Method[] getNonStaticMethods();
 
   /**
    * @param name - the name to get the methods with

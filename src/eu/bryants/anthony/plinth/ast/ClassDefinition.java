@@ -40,6 +40,7 @@ public class ClassDefinition extends TypeDefinition
   private Map<String, Set<Method>> methods = new HashMap<String, Set<Method>>();
 
   private Field[] nonStaticFields;
+  private Method[] nonStaticMethods;
 
   private ClassDefinition superClassDefinition;
 
@@ -48,8 +49,7 @@ public class ClassDefinition extends TypeDefinition
     super(isImmutable, name, lexicalPhrase);
     this.superQName = superQName;
     // add all of the members by name
-    int fieldIndex = 0;
-    List<Field> nonStaticFieldList = new LinkedList<Field>();
+    Set<Method> allMethods = new HashSet<Method>();
     for (Member member : members)
     {
       if (member instanceof Initialiser)
@@ -73,10 +73,7 @@ public class ClassDefinition extends TypeDefinition
         }
         else
         {
-          field.setMemberIndex(fieldIndex);
           field.setMemberVariable(new MemberVariable(field, this));
-          fieldIndex++;
-          nonStaticFieldList.add(field);
         }
         fields.put(field.getName(), field);
         if (field.getInitialiserExpression() != null)
@@ -113,9 +110,11 @@ public class ClassDefinition extends TypeDefinition
           method.setImmutable(true);
         }
         methodSet.add(method);
+        allMethods.add(method);
       }
     }
-    nonStaticFields = nonStaticFieldList.toArray(new Field[nonStaticFieldList.size()]);
+    nonStaticFields = buildNonStaticFieldList(fields.values());
+    nonStaticMethods = buildNonStaticMethodList(allMethods);
   }
 
   /**
@@ -126,10 +125,11 @@ public class ClassDefinition extends TypeDefinition
    * @param nonStaticFields - the non static fields, with their indexes already filled in
    * @param staticFields - the static fields
    * @param newConstructors - the constructors
-   * @param newMethods - the methods
+   * @param nonStaticMethods - the non-static methods, with their indexes already filled in
+   * @param staticMethods - the static methods
    * @throws LanguageParseException - if there is a name collision between any of the methods, or a Constructor's name is wrong
    */
-  public ClassDefinition(boolean isImmutable, QName qname, QName superQName, Field[] nonStaticFields, Field[] staticFields, Constructor[] newConstructors, Method[] newMethods) throws LanguageParseException
+  public ClassDefinition(boolean isImmutable, QName qname, QName superQName, Field[] nonStaticFields, Field[] staticFields, Constructor[] newConstructors, Method[] nonStaticMethods, Method[] staticMethods) throws LanguageParseException
   {
     super(isImmutable, qname.getLastName(), null);
     setQualifiedName(qname);
@@ -167,7 +167,23 @@ public class ClassDefinition extends TypeDefinition
       constructor.setContainingTypeDefinition(this);
       constructors.add(constructor);
     }
-    for (Method method : newMethods)
+    for (Method method : nonStaticMethods)
+    {
+      if (fields.containsKey(method.getName()))
+      {
+        throw new LanguageParseException("A field with the name '" + method.getName() + "' already exists in '" + getName() + "', so a method cannot be defined with the same name", method.getLexicalPhrase());
+      }
+      Set<Method> methodSet = methods.get(method.getName());
+      if (methodSet == null)
+      {
+        methodSet = new HashSet<Method>();
+        methods.put(method.getName(), methodSet);
+      }
+      method.setContainingTypeDefinition(this);
+      methodSet.add(method);
+    }
+    this.nonStaticMethods = nonStaticMethods;
+    for (Method method : staticMethods)
     {
       if (fields.containsKey(method.getName()))
       {
@@ -281,6 +297,15 @@ public class ClassDefinition extends TypeDefinition
   }
 
   /**
+   * @return the sorted array of all of the non-static methods in this ClassDefinition
+   */
+  @Override
+  public Method[] getNonStaticMethods()
+  {
+    return nonStaticMethods;
+  }
+
+  /**
    * @return the superClassDefinition
    */
   public ClassDefinition getSuperClassDefinition()
@@ -294,6 +319,14 @@ public class ClassDefinition extends TypeDefinition
   public void setSuperClassDefinition(ClassDefinition superClassDefinition)
   {
     this.superClassDefinition = superClassDefinition;
+  }
+
+  /**
+   * @return the mangled name of the allocator of this type definition
+   */
+  public String getAllocatorMangledName()
+  {
+    return "_A" + getQualifiedName().getMangledName();
   }
 
   /**

@@ -25,6 +25,7 @@ public class Method extends Member
   private Block block;
 
   private TypeDefinition containingTypeDefinition;
+  private int methodIndex;
 
   private Disambiguator disambiguator = new Disambiguator();
 
@@ -145,6 +146,22 @@ public class Method extends Member
   }
 
   /**
+   * @return the methodIndex
+   */
+  public int getMethodIndex()
+  {
+    return methodIndex;
+  }
+
+  /**
+   * @param methodIndex - the methodIndex to set
+   */
+  public void setMethodIndex(int methodIndex)
+  {
+    this.methodIndex = methodIndex;
+  }
+
+  /**
    * @return the mangled name for this Method
    */
   public String getMangledName()
@@ -219,12 +236,67 @@ public class Method extends Member
 
   /**
    * A disambiguator for method calls, which allows methods which are semantically equivalent (i.e. have the same name and types) can be easily distinguished.
+   * It also allows methods to be sorted into a predictable order, by implementing comparable.
    * @author Anthony Bryant
    */
-  private class Disambiguator
+  private class Disambiguator implements Comparable<Object>
   {
+
     /**
-     * @return the enclosing Method, for use only in equals()
+     * {@inheritDoc}
+     */
+    @Override
+    public int compareTo(Object other)
+    {
+      if (!(other instanceof Disambiguator))
+      {
+        throw new IllegalArgumentException("A method Disambiguator should not be compared to an object which is not a method Disambiguator");
+      }
+      Method otherMethod = ((Disambiguator) other).getMethod();
+      // compare name, then mangled return type, then each mangled parameter in turn, using lexicographic ordering
+      // if they are equal except that one parameter list is a prefix of the other, then the comparison makes the longer parameter list larger
+      int nameComparison = name.compareTo(otherMethod.name);
+      if (nameComparison != 0)
+      {
+        return nameComparison;
+      }
+      int returnTypeComparison = returnType.getMangledName().compareTo(otherMethod.returnType.getMangledName());
+      if (returnTypeComparison != 0)
+      {
+        return returnTypeComparison;
+      }
+
+      for (int i = 0; i < parameters.length & i < otherMethod.parameters.length; ++i)
+      {
+        int paramComparison = parameters[i].getType().getMangledName().compareTo(otherMethod.parameters[i].getType().getMangledName());
+        if (paramComparison != 0)
+        {
+          return paramComparison;
+        }
+      }
+      return parameters.length - otherMethod.parameters.length;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String toString()
+    {
+      StringBuffer buffer = new StringBuffer();
+      buffer.append(name);
+      buffer.append('_');
+      buffer.append(returnType.getMangledName());
+      buffer.append('_');
+      for (int i = 0; i < parameters.length; ++i)
+      {
+        buffer.append(parameters[i].getType().getMangledName());
+      }
+      return buffer.toString();
+    }
+
+    /**
+     * @return the enclosing Method, for use only in equals() and compareTo()
      */
     private Method getMethod()
     {

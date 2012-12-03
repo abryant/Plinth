@@ -80,7 +80,7 @@ public class MetadataLoader
     }
     LLVMValueRef[] values = readOperands(metadataNode);
     int offset = classDefinition ? 1 : 0;
-    if (values.length != 6 + offset)
+    if (values.length != 7 + offset)
     {
       throw new MalformedMetadataException("A type definition's metadata node must have the correct number of sub-nodes");
     }
@@ -107,7 +107,8 @@ public class MetadataLoader
     }
     boolean isImmutable = immutabilityStr.equals("immutable");
 
-    if (LLVM.LLVMIsAMDNode(values[2 + offset]) == null || LLVM.LLVMIsAMDNode(values[3 + offset]) == null || LLVM.LLVMIsAMDNode(values[4 + offset]) == null || LLVM.LLVMIsAMDNode(values[5 + offset]) == null)
+    if (LLVM.LLVMIsAMDNode(values[2 + offset]) == null || LLVM.LLVMIsAMDNode(values[3 + offset]) == null || LLVM.LLVMIsAMDNode(values[4 + offset]) == null ||
+        LLVM.LLVMIsAMDNode(values[5 + offset]) == null || LLVM.LLVMIsAMDNode(values[6 + offset]) == null)
     {
       throw new MalformedMetadataException("The member nodes of a type definition must be metadata nodes");
     }
@@ -133,11 +134,18 @@ public class MetadataLoader
       constructors[i] = loadConstructor(constructorNodes[i]);
     }
 
-    LLVMValueRef[] methodNodes = readOperands(values[5 + offset]);
-    Method[] methods = new Method[methodNodes.length];
-    for (int i = 0; i < methodNodes.length; ++i)
+    LLVMValueRef[] nonStaticMethodNodes = readOperands(values[5 + offset]);
+    Method[] nonStaticMethods = new Method[nonStaticMethodNodes.length];
+    for (int i = 0; i < nonStaticMethodNodes.length; ++i)
     {
-      methods[i] = loadMethod(methodNodes[i]);
+      nonStaticMethods[i] = loadMethod(nonStaticMethodNodes[i]);
+    }
+
+    LLVMValueRef[] staticMethodNodes = readOperands(values[6 + offset]);
+    Method[] staticMethods = new Method[staticMethodNodes.length];
+    for (int i = 0; i < staticMethodNodes.length; ++i)
+    {
+      staticMethods[i] = loadMethod(staticMethodNodes[i]);
     }
 
     TypeDefinition typeDefinition;
@@ -160,11 +168,11 @@ public class MetadataLoader
           throw new MalformedMetadataException(e.getMessage(), e);
         }
 
-        typeDefinition = new ClassDefinition(isImmutable, qname, superClassQName, nonStaticFields, staticFields, constructors, methods);
+        typeDefinition = new ClassDefinition(isImmutable, qname, superClassQName, nonStaticFields, staticFields, constructors, nonStaticMethods, staticMethods);
       }
       else
       {
-        typeDefinition = new CompoundDefinition(isImmutable, qname, nonStaticFields, staticFields, constructors, methods);
+        typeDefinition = new CompoundDefinition(isImmutable, qname, nonStaticFields, staticFields, constructors, nonStaticMethods, staticMethods);
       }
     }
     catch (LanguageParseException e)
