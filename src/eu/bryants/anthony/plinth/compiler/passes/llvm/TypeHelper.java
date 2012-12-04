@@ -38,18 +38,21 @@ import eu.bryants.anthony.plinth.compiler.passes.TypeChecker;
  */
 public class TypeHelper
 {
+  private VirtualFunctionHandler virtualFunctionHandler;
+
   private LLVMBuilderRef builder;
 
   private LLVMTypeRef opaqueType;
   private Map<TypeDefinition, LLVMTypeRef> nativeNamedTypes = new HashMap<TypeDefinition, LLVMTypeRef>();
-  private Map<ClassDefinition, LLVMTypeRef> nativeVirtualTableTypes = new HashMap<ClassDefinition, LLVMTypeRef>();
 
   /**
    * Creates a new TypeHelper to build type conversions with the specified builder.
+   * @param virtualFunctionHandler - the VirtualFunctionHandler to handle building the types of virtual function tables
    * @param builder - the LLVMBuilderRef to build type conversions with
    */
-  public TypeHelper(LLVMBuilderRef builder)
+  public TypeHelper(VirtualFunctionHandler virtualFunctionHandler, LLVMBuilderRef builder)
   {
+    this.virtualFunctionHandler = virtualFunctionHandler;
     this.builder = builder;
     opaqueType = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), "opaque");
   }
@@ -308,60 +311,13 @@ public class TypeHelper
       System.arraycopy(superClassSubTypes, 0, subTypes, 0, superClassSubTypes.length);
       offset = superClassSubTypes.length;
     }
-    subTypes[offset] = LLVM.LLVMPointerType(findVirtualFunctionTableType(classDefinition), 0);
+    subTypes[offset] = LLVM.LLVMPointerType(virtualFunctionHandler.getVFTType(classDefinition), 0);
     ++offset;
     for (int i = 0; i < nonStaticFields.length; ++i)
     {
       subTypes[offset + i] = findNativeType(nonStaticFields[i].getType(), false);
     }
     return subTypes;
-  }
-
-  /**
-   * Finds the native type for a pointer to the virtual function table for the specified ClassDefinition.
-   * @param classDefinition - the ClassDefinition to find the VFT type for
-   * @return the native type of a pointer to the virtual function table for the specified ClassDefinition
-   */
-  public LLVMTypeRef findVirtualFunctionTableType(ClassDefinition classDefinition)
-  {
-    LLVMTypeRef cachedResult = nativeVirtualTableTypes.get(classDefinition);
-    if (cachedResult != null)
-    {
-      return cachedResult;
-    }
-    LLVMTypeRef result = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), classDefinition.getQualifiedName().toString() + "_VFT");
-    // cache the LLVM type before we call findMethodType(), so that once we call it, everything will be able to use this type instead of recreating it and possibly recursing infinitely
-    // later on, we add the fields using LLVMStructSetBody
-    nativeVirtualTableTypes.put(classDefinition, result);
-
-    Method[] methods = classDefinition.getNonStaticMethods();
-    LLVMTypeRef[] methodTypes = new LLVMTypeRef[methods.length];
-    for (int i = 0; i < methods.length; ++i)
-    {
-      methodTypes[i] = LLVM.LLVMPointerType(findMethodType(methods[i]), 0);
-    }
-    LLVM.LLVMStructSetBody(result, C.toNativePointerArray(methodTypes, false, true), methodTypes.length, false);
-    return result;
-  }
-
-  /**
-   * Finds a pointer to the virtual function table pointer inside the specified base value.
-   * @param baseValue - the base value to find the virtual function table pointer inside
-   * @param classDefinition - the ClassDefinition to find the virtual function table of
-   * @return a pointer to the virtual function table pointer inside the specified base value
-   */
-  public LLVMValueRef getObjectVirtualFunctionTablePointer(LLVMValueRef baseValue, ClassDefinition classDefinition)
-  {
-    int index = 0;
-    ClassDefinition superClassDefinition = classDefinition.getSuperClassDefinition();
-    while (superClassDefinition != null)
-    {
-      index += 1 + superClassDefinition.getNonStaticFields().length;
-      superClassDefinition = superClassDefinition.getSuperClassDefinition();
-    }
-    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), index, false)};
-    return LLVM.LLVMBuildGEP(builder, baseValue, C.toNativePointerArray(indices, false, true), indices.length, "");
   }
 
   /**
@@ -392,33 +348,6 @@ public class TypeHelper
     LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                  LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), index, false)};
     return LLVM.LLVMBuildGEP(builder, baseValue, C.toNativePointerArray(indices, false, true), indices.length, "");
-  }
-
-  /**
-   * Finds the pointer to the specified Method inside the specified base value
-   * @param baseValue - the base value to look up the method in one of the virtual function tables of
-   * @param method - the Method to look up in a virtual function table
-   * @return a pointer to the native function representing the specified method
-   */
-  public LLVMValueRef getMethodPointer(LLVMValueRef baseValue, Method method)
-  {
-    if (method.isStatic())
-    {
-      throw new IllegalArgumentException("Cannot get a method pointer for a static method");
-    }
-    TypeDefinition typeDefinition = method.getContainingTypeDefinition();
-    if (!(typeDefinition instanceof ClassDefinition))
-    {
-      throw new IllegalArgumentException("Cannot get a method pointer for a method from something other than a ClassDefinition");
-    }
-    ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
-    LLVMValueRef vftPoiner = getObjectVirtualFunctionTablePointer(baseValue, classDefinition);
-    LLVMValueRef vft = LLVM.LLVMBuildLoad(builder, vftPoiner, "");
-    int index = method.getMethodIndex();
-    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), index, false)};
-    LLVMValueRef vftElement = LLVM.LLVMBuildGEP(builder, vft, C.toNativePointerArray(indices, false, true), indices.length, "");
-    return LLVM.LLVMBuildLoad(builder, vftElement, "");
   }
 
   /**

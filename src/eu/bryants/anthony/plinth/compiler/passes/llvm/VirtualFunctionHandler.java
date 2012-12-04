@@ -1,0 +1,372 @@
+package eu.bryants.anthony.plinth.compiler.passes.llvm;
+
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+
+import nativelib.c.C;
+import nativelib.llvm.LLVM;
+import nativelib.llvm.LLVM.LLVMBuilderRef;
+import nativelib.llvm.LLVM.LLVMModuleRef;
+import nativelib.llvm.LLVM.LLVMTypeRef;
+import nativelib.llvm.LLVM.LLVMValueRef;
+import eu.bryants.anthony.plinth.ast.ClassDefinition;
+import eu.bryants.anthony.plinth.ast.TypeDefinition;
+import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
+
+/*
+ * Created on 4 Dec 2012
+ */
+
+/**
+ * @author Anthony Bryant
+ */
+public class VirtualFunctionHandler
+{
+  private static final String SUPERCLASS_VFT_GENERATOR_NAME = "plinth_core_generate_superclass_vft";
+
+  private CodeGenerator codeGenerator;
+  private TypeDefinition typeDefinition;
+  private TypeHelper typeHelper;
+
+  private LLVMModuleRef module;
+  private LLVMBuilderRef builder;
+
+  private LLVMTypeRef vftDescriptorType;
+  private LLVMTypeRef vftType;
+  private LLVMTypeRef functionSearchListType;
+
+  private Map<ClassDefinition, LLVMTypeRef> nativeVirtualTableTypes = new HashMap<ClassDefinition, LLVMTypeRef>();
+
+  public VirtualFunctionHandler(CodeGenerator codeGenerator, TypeDefinition typeDefinition, LLVMModuleRef module, LLVMBuilderRef builder)
+  {
+    this.codeGenerator = codeGenerator;
+    this.typeDefinition = typeDefinition;
+    this.module = module;
+    this.builder = builder;
+  }
+
+  /**
+   * Sets the TypeHelper on this VirtualFunctionHandler, so that it can be used.
+   * @param typeHelper - the TypeHelper to set
+   */
+  public void setTypeHelper(TypeHelper typeHelper)
+  {
+    this.typeHelper = typeHelper;
+  }
+
+  /**
+   * Finds the VFT pointer for the specified ClassDefinition
+   * @param classDefinition - the ClassDefinition to get the virtual function table pointer for
+   * @return the virtual function table pointer for the specified ClassDefinition
+   */
+  public LLVMValueRef getVirtualFunctionTablePointer(ClassDefinition classDefinition)
+  {
+    String mangledName = classDefinition.getVirtualFunctionTableMangledName();
+    LLVMValueRef existingVFT = LLVM.LLVMGetNamedGlobal(module, mangledName);
+    if (existingVFT != null)
+    {
+      return existingVFT;
+    }
+    LLVMValueRef result = LLVM.LLVMAddGlobal(module, getVFTType(classDefinition), mangledName);
+    return result;
+  }
+
+  /**
+   * Finds a virtual function table descriptor pointer for the specified ClassDefinition
+   * @param classDefinition - the ClassDefinition to get the virtual function table descriptor pointer for
+   * @return the VFT descriptor pointer for the specified ClassDefinition
+   */
+  public LLVMValueRef getVirtualFunctionTableDescriptorPointer(ClassDefinition classDefinition)
+  {
+    String mangledName = classDefinition.getVirtualFunctionTableDescriptorMangledName();
+    LLVMValueRef existingDesc = LLVM.LLVMGetNamedGlobal(module, mangledName);
+    if (existingDesc != null)
+    {
+      return existingDesc;
+    }
+    LLVMValueRef result = LLVM.LLVMAddGlobal(module, getDescriptorType(classDefinition), mangledName);
+    return result;
+  }
+
+
+  /**
+   * Adds the class's virtual function table, and stores it in the global variable that has been allocated for this VFT.
+   */
+  public void addVirtualFunctionTable()
+  {
+    if (!(typeDefinition instanceof ClassDefinition))
+    {
+      throw new IllegalStateException("Cannot add a virtual function table for any type but a ClassDefinition");
+    }
+    ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
+    LLVMValueRef vftPointer = getVirtualFunctionTablePointer(classDefinition);
+    Method[] methods = classDefinition.getNonStaticMethods();
+    LLVMValueRef[] llvmMethods = new LLVMValueRef[methods.length];
+    for (int i = 0; i < methods.length; ++i)
+    {
+      llvmMethods[i] = codeGenerator.getMethodFunction(null, methods[i]);
+    }
+    LLVMTypeRef vftType = getVFTType(classDefinition);
+    LLVM.LLVMSetInitializer(vftPointer, LLVM.LLVMConstNamedStruct(vftType, C.toNativePointerArray(llvmMethods, false, true), llvmMethods.length));
+  }
+
+  /**
+   * Adds the class's virtual function table descriptor, and stores it in the global variable that has been allocated for this VFT descriptor.
+   */
+  public void addVirtualFunctionTableDescriptor()
+  {
+    if (!(typeDefinition instanceof ClassDefinition))
+    {
+      throw new IllegalStateException("Cannot add a virtual function table descriptor for any type but a ClassDefinition");
+    }
+    ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
+    LLVMValueRef vftDescriptorGlobalVar = getVirtualFunctionTableDescriptorPointer(classDefinition);
+    Method[] methods = classDefinition.getNonStaticMethods();
+    LLVMValueRef[] llvmStrings = new LLVMValueRef[methods.length];
+
+    LLVMTypeRef byteArrayType = LLVM.LLVMArrayType(LLVM.LLVMInt8Type(), 0);
+    LLVMTypeRef[] stringSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), byteArrayType};
+    LLVMTypeRef stringType = LLVM.LLVMStructType(C.toNativePointerArray(stringSubTypes, false, true), stringSubTypes.length, false);
+    LLVMTypeRef stringPointerType = LLVM.LLVMPointerType(stringType, 0);
+
+    for (int i = 0; i < methods.length; ++i)
+    {
+      String disambiguator = ((Object) methods[i].getDisambiguator()).toString();
+      LLVMValueRef stringConstant = codeGenerator.addStringConstant(disambiguator);
+      llvmStrings[i] = LLVM.LLVMConstBitCast(stringConstant, stringPointerType);
+    }
+    LLVMValueRef disambiguatorArray = LLVM.LLVMConstArray(stringPointerType, C.toNativePointerArray(llvmStrings, false, true), llvmStrings.length);
+    LLVMValueRef[] descriptorSubValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), llvmStrings.length, false),
+                                                             disambiguatorArray};
+    LLVMValueRef descriptorValue = LLVM.LLVMConstStruct(C.toNativePointerArray(descriptorSubValues, false, true), descriptorSubValues.length, false);
+    LLVM.LLVMSetInitializer(vftDescriptorGlobalVar, descriptorValue);
+  }
+
+  /**
+   * Finds a pointer to the virtual function table pointer inside the specified base value.
+   * @param baseValue - the base value to find the virtual function table pointer inside
+   * @param classDefinition - the ClassDefinition to find the virtual function table of
+   * @return a pointer to the virtual function table pointer inside the specified base value
+   */
+  public LLVMValueRef getObjectVirtualFunctionTablePointer(LLVMValueRef baseValue, ClassDefinition classDefinition)
+  {
+    int index = 0;
+    ClassDefinition superClassDefinition = classDefinition.getSuperClassDefinition();
+    while (superClassDefinition != null)
+    {
+      index += 1 + superClassDefinition.getNonStaticFields().length;
+      superClassDefinition = superClassDefinition.getSuperClassDefinition();
+    }
+    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), index, false)};
+    return LLVM.LLVMBuildGEP(builder, baseValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+  }
+
+  /**
+   * Finds the pointer to the specified Method inside the specified base value
+   * @param baseValue - the base value to look up the method in one of the virtual function tables of
+   * @param method - the Method to look up in a virtual function table
+   * @return a pointer to the native function representing the specified method
+   */
+  public LLVMValueRef getMethodPointer(LLVMValueRef baseValue, Method method)
+  {
+    if (method.isStatic())
+    {
+      throw new IllegalArgumentException("Cannot get a method pointer for a static method");
+    }
+    TypeDefinition typeDefinition = method.getContainingTypeDefinition();
+    if (!(typeDefinition instanceof ClassDefinition))
+    {
+      throw new IllegalArgumentException("Cannot get a method pointer for a method from something other than a ClassDefinition");
+    }
+    ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
+    LLVMValueRef vftPoiner = getObjectVirtualFunctionTablePointer(baseValue, classDefinition);
+    LLVMValueRef vft = LLVM.LLVMBuildLoad(builder, vftPoiner, "");
+    int index = method.getMethodIndex();
+    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), index, false)};
+    LLVMValueRef vftElement = LLVM.LLVMBuildGEP(builder, vft, C.toNativePointerArray(indices, false, true), indices.length, "");
+    return LLVM.LLVMBuildLoad(builder, vftElement, "");
+  }
+
+  /**
+   * Builds the VFT descriptor type for the specified ClassDefinition, and returns it
+   * @param classDefinition - the ClassDefinition to find the descriptor type for
+   * @return the type of a VFT descriptor for the specified ClassDefinition
+   */
+  public LLVMTypeRef getDescriptorType(ClassDefinition classDefinition)
+  {
+    int numMethods = classDefinition.getNonStaticMethods().length;
+    LLVMTypeRef byteArrayType = LLVM.LLVMArrayType(LLVM.LLVMInt8Type(), 0);
+    LLVMTypeRef[] stringSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), byteArrayType};
+    LLVMTypeRef stringType = LLVM.LLVMStructType(C.toNativePointerArray(stringSubTypes, false, true), stringSubTypes.length, false);
+    LLVMTypeRef stringPointerType = LLVM.LLVMPointerType(stringType, 0);
+    LLVMTypeRef arrayType = LLVM.LLVMArrayType(stringPointerType, numMethods);
+    LLVMTypeRef[] descriptorSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), arrayType};
+    return LLVM.LLVMStructType(C.toNativePointerArray(descriptorSubTypes, false, true), descriptorSubTypes.length, false);
+  }
+
+  /**
+   * Builds a VFT descriptor type and returns it
+   * @return the type of a virtual function table descriptor
+   */
+  public LLVMTypeRef getGenericDescriptorType()
+  {
+    if (vftDescriptorType != null)
+    {
+      return vftDescriptorType;
+    }
+    LLVMTypeRef byteArrayType = LLVM.LLVMArrayType(LLVM.LLVMInt8Type(), 0);
+    LLVMTypeRef[] stringSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), byteArrayType};
+    LLVMTypeRef stringValueType = LLVM.LLVMStructType(C.toNativePointerArray(stringSubTypes, false, true), stringSubTypes.length, false);
+    LLVMTypeRef stringType = LLVM.LLVMPointerType(stringValueType, 0);
+    LLVMTypeRef stringArrayType = LLVM.LLVMArrayType(stringType, 0);
+    LLVMTypeRef[] vftDescriptorSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), stringArrayType};
+    vftDescriptorType = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), "VFT_Descriptor");
+    LLVM.LLVMStructSetBody(vftDescriptorType, C.toNativePointerArray(vftDescriptorSubTypes, false, true), vftDescriptorSubTypes.length, false);
+    return vftDescriptorType;
+  }
+
+  /**
+   * Finds the native type for a pointer to the virtual function table for the specified ClassDefinition.
+   * @param classDefinition - the ClassDefinition to find the VFT type for
+   * @return the native type of a pointer to the virtual function table for the specified ClassDefinition
+   */
+  public LLVMTypeRef getVFTType(ClassDefinition classDefinition)
+  {
+    LLVMTypeRef cachedResult = nativeVirtualTableTypes.get(classDefinition);
+    if (cachedResult != null)
+    {
+      return cachedResult;
+    }
+    LLVMTypeRef result = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), classDefinition.getQualifiedName().toString() + "_VFT");
+    // cache the LLVM type before we call findMethodType(), so that once we call it, everything will be able to use this type instead of recreating it and possibly recursing infinitely
+    // later on, we add the fields using LLVMStructSetBody
+    nativeVirtualTableTypes.put(classDefinition, result);
+
+    Method[] methods = classDefinition.getNonStaticMethods();
+    LLVMTypeRef[] methodTypes = new LLVMTypeRef[methods.length];
+    for (int i = 0; i < methods.length; ++i)
+    {
+      methodTypes[i] = LLVM.LLVMPointerType(typeHelper.findMethodType(methods[i]), 0);
+    }
+    LLVM.LLVMStructSetBody(result, C.toNativePointerArray(methodTypes, false, true), methodTypes.length, false);
+    return result;
+  }
+
+  /**
+   * @return the type of a generic virtual function table
+   */
+  private LLVMTypeRef getGenericVFTType()
+  {
+    if (vftType != null)
+    {
+      return vftType;
+    }
+    LLVMTypeRef element = typeHelper.getOpaquePointer();
+    vftType = LLVM.LLVMArrayType(element, 0);
+    return vftType;
+  }
+
+  /**
+   * @return the type that is used to store a list of (Descriptor, VFT) pairs to search through for functions
+   */
+  private LLVMTypeRef getFunctionSearchListType(int arrayElements)
+  {
+    if (functionSearchListType != null)
+    {
+      return functionSearchListType;
+    }
+    LLVMTypeRef descriptorPointer = LLVM.LLVMPointerType(getGenericDescriptorType(), 0);
+    LLVMTypeRef vftPointer = LLVM.LLVMPointerType(getGenericVFTType(), 0);
+    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {descriptorPointer, vftPointer};
+    LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
+    LLVMTypeRef arrayType = LLVM.LLVMArrayType(elementType, arrayElements);
+    LLVMTypeRef[] searchListSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), arrayType};
+    functionSearchListType = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), "FunctionSearchList");
+    LLVM.LLVMStructSetBody(functionSearchListType, C.toNativePointerArray(searchListSubTypes, false, true), searchListSubTypes.length, false);
+    return functionSearchListType;
+  }
+
+  /**
+   * @return the superclass VFT generator function
+   */
+  private LLVMValueRef getSuperclassVirtualFunctionTableGenerator()
+  {
+    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, SUPERCLASS_VFT_GENERATOR_NAME);
+    if (existingFunction != null)
+    {
+      return existingFunction;
+    }
+    LLVMTypeRef[] parameterTypes = new LLVMTypeRef[] {LLVM.LLVMPointerType(getGenericDescriptorType(), 0),
+                                                      LLVM.LLVMPointerType(getGenericVFTType(), 0),
+                                                      LLVM.LLVMPointerType(getFunctionSearchListType(0), 0)};
+    LLVMTypeRef resultType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
+    LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, C.toNativePointerArray(parameterTypes, false, true), parameterTypes.length, false);
+    LLVMValueRef function = LLVM.LLVMAddFunction(module, SUPERCLASS_VFT_GENERATOR_NAME, functionType);
+    return function;
+  }
+
+  /**
+   * Generates code to generate a superclass's virtual function table, by searching through the specified descriptors in order for overridden functions.
+   * @param valueClass - the class that the VFT will be stored in, i.e. the most specialised class that the object is based on
+   * @param superClass - the superclass that the VFT will be based on
+   * @return the VFT generated
+   */
+  public LLVMValueRef generateSuperClassVFT(ClassDefinition valueClass, ClassDefinition superClass)
+  {
+    List<ClassDefinition> searchClassesList = new LinkedList<ClassDefinition>();
+    ClassDefinition current = valueClass;
+    while (current != superClass)
+    {
+      searchClassesList.add(current);
+      current = current.getSuperClassDefinition();
+      if (current == null)
+      {
+        throw new IllegalArgumentException("The superClass parameter must actually be a superclass of valueClass");
+      }
+    }
+    ClassDefinition[] searchClasses = searchClassesList.toArray(new ClassDefinition[searchClassesList.size()]);
+    LLVMValueRef[] searchDescriptors = new LLVMValueRef[searchClasses.length];
+    LLVMValueRef[] searchVFTs = new LLVMValueRef[searchClasses.length];
+    for (int i = 0; i < searchClasses.length; ++i)
+    {
+      LLVMValueRef descriptor = getVirtualFunctionTableDescriptorPointer(searchClasses[i]);
+      searchDescriptors[i] = LLVM.LLVMConstBitCast(descriptor, LLVM.LLVMPointerType(getGenericDescriptorType(), 0));
+      LLVMValueRef vft = getVirtualFunctionTablePointer(searchClasses[i]);
+      searchVFTs[i] = LLVM.LLVMConstBitCast(vft, LLVM.LLVMPointerType(getGenericVFTType(), 0));
+    }
+
+    LLVMValueRef descriptor = getVirtualFunctionTableDescriptorPointer(superClass);
+    descriptor = LLVM.LLVMConstBitCast(descriptor, LLVM.LLVMPointerType(getGenericDescriptorType(), 0));
+    LLVMValueRef vft = getVirtualFunctionTablePointer(superClass);
+    vft = LLVM.LLVMConstBitCast(vft, LLVM.LLVMPointerType(getGenericVFTType(), 0));
+
+    LLVMValueRef[] elements = new LLVMValueRef[searchClasses.length];
+    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {LLVM.LLVMPointerType(getGenericDescriptorType(), 0),
+                                                       LLVM.LLVMPointerType(getGenericVFTType(), 0)};
+    LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
+    for (int i = 0; i < searchDescriptors.length; ++i)
+    {
+      LLVMValueRef[] structElements = new LLVMValueRef[] {searchDescriptors[i], searchVFTs[i]};
+      elements[i] = LLVM.LLVMConstStruct(C.toNativePointerArray(structElements, false, true), structElements.length, false);
+    }
+    LLVMValueRef array = LLVM.LLVMConstArray(elementType, C.toNativePointerArray(elements, false, true), elements.length);
+    LLVMValueRef[] searchListValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), searchClasses.length, false), array};
+    LLVMValueRef searchList = LLVM.LLVMConstNamedStruct(getFunctionSearchListType(searchClasses.length), C.toNativePointerArray(searchListValues, false, true), searchListValues.length);
+
+    LLVMValueRef searchListGlobal = LLVM.LLVMAddGlobal(module,
+                                                       getFunctionSearchListType(searchClasses.length),
+                                                       "FunctionSearchList_" + valueClass.getQualifiedName().getMangledName() + "_" + superClass.getQualifiedName().getMangledName());
+    LLVM.LLVMSetLinkage(searchListGlobal, LLVM.LLVMLinkage.LLVMPrivateLinkage);
+    LLVM.LLVMSetGlobalConstant(searchListGlobal, true);
+    LLVM.LLVMSetInitializer(searchListGlobal, searchList);
+
+    LLVMValueRef function = getSuperclassVirtualFunctionTableGenerator();
+    LLVMValueRef[] arguments = new LLVMValueRef[] {descriptor, vft, searchListGlobal};
+    return LLVM.LLVMBuildCall(builder, function, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+  }
+}

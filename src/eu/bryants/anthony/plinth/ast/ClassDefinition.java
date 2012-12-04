@@ -338,6 +338,14 @@ public class ClassDefinition extends TypeDefinition
   }
 
   /**
+   * @return the mangled name of the virtual function table descriptor of this ClassDefinition
+   */
+  public String getVirtualFunctionTableDescriptorMangledName()
+  {
+    return "_VFT_DESC" + getQualifiedName().getMangledName();
+  }
+
+  /**
    * {@inheritDoc}
    */
   @Override

@@ -182,6 +182,7 @@ public class LLVM
   public static native LLVMValueRef LLVMConstNamedStruct(LLVMTypeRef structType, Pointer constantValues, int constantValueCount);
   public static native LLVMValueRef LLVMGetUndef(LLVMTypeRef type);
   public static native LLVMValueRef LLVMConstString(byte[] stringBytes, int length, boolean dontNullTerminate);
+  public static native LLVMValueRef LLVMConstBitCast(LLVMValueRef constantVal, LLVMTypeRef toType);
 
   public static native LLVMValueRef LLVMMDString(String str, int length);
   public static native LLVMValueRef LLVMMDNode(Pointer values, int count);

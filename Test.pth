@@ -28,7 +28,7 @@ class Test extends Foo
       this(-8);
     }
     this.foo();
-    foo();
+    foo(1);
     stderr::println("Test(?ubyte) after delegate constructor, field = " + field);
   }
 
@@ -48,8 +48,10 @@ class Test extends Foo
     stdout::println("maths::abs(-1) = " + maths::abs(-1).toString());
     Foo test = new Test(args.length > 2 ? 2 : null);
     test.argh();
+    test.foo();
     Test t = cast<Test> test;
     t.argh();
+    t.foo();
     return args.length;
   }
 
@@ -68,8 +70,9 @@ class Test extends Foo
     return " " + x;
   }
 
-  void foo()
+  void foo(uint x)
   {
+    stderr::println("Test::foo(" + x.toString() + ")");
   }
 
   void argh()
@@ -92,5 +95,9 @@ class Foo
   void argh()
   {
     stderr::println(field);
+  }
+  void foo()
+  {
+    stderr::println("Foo::foo()");
   }
 }

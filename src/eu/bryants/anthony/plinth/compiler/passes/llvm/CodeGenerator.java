@@ -111,6 +111,7 @@ public class CodeGenerator
   private Map<GlobalVariable, LLVMValueRef> globalVariables = new HashMap<GlobalVariable, LLVMValueRef>();
 
   private TypeHelper typeHelper;
+  private VirtualFunctionHandler virtualFunctionHandler;
   private BuiltinCodeGenerator builtinGenerator;
 
   public CodeGenerator(TypeDefinition typeDefinition)
@@ -128,7 +129,9 @@ public class CodeGenerator
     module = LLVM.LLVMModuleCreateWithName(typeDefinition.getQualifiedName().toString());
     builder = LLVM.LLVMCreateBuilder();
 
-    typeHelper = new TypeHelper(builder);
+    virtualFunctionHandler = new VirtualFunctionHandler(this, typeDefinition, module, builder);
+    typeHelper = new TypeHelper(virtualFunctionHandler, builder);
+    virtualFunctionHandler.setTypeHelper(typeHelper);
     builtinGenerator = new BuiltinCodeGenerator(builder, module, this, typeHelper);
 
     // add all of the global (static) variables
@@ -138,7 +141,8 @@ public class CodeGenerator
 
     if (typeDefinition instanceof ClassDefinition)
     {
-      addVirtualFunctionTable();
+      virtualFunctionHandler.addVirtualFunctionTable();
+      virtualFunctionHandler.addVirtualFunctionTableDescriptor();
       addAllocatorFunction();
     }
     addInitialiserBody(true);  // add the static initialisers
@@ -171,6 +175,12 @@ public class CodeGenerator
         globalVariables.put(globalVariable, value);
       }
     }
+
+    if (typeDefinition instanceof ClassDefinition)
+    {
+      virtualFunctionHandler.getVirtualFunctionTablePointer((ClassDefinition) typeDefinition);
+      virtualFunctionHandler.getVirtualFunctionTableDescriptorPointer((ClassDefinition) typeDefinition);
+    }
   }
 
   private LLVMValueRef getGlobal(GlobalVariable globalVariable)
@@ -198,7 +208,6 @@ public class CodeGenerator
     // create the static and non-static initialiser functions
     if (typeDefinition instanceof ClassDefinition)
     {
-      getVirtualFunctionTablePointer((ClassDefinition) typeDefinition);
       getAllocatorFunction((ClassDefinition) typeDefinition);
     }
     getInitialiserFunction(true);
@@ -213,23 +222,6 @@ public class CodeGenerator
     {
       getMethodFunction(null, method);
     }
-  }
-
-  /**
-   * Finds the VFT pointer for the specified ClassDefinition
-   * @param classDefinition - the ClassDefinition to get the virtual function table pointer for
-   * @return the virtual function table pointer for the specified ClassDefinition
-   */
-  private LLVMValueRef getVirtualFunctionTablePointer(ClassDefinition classDefinition)
-  {
-    String mangledName = classDefinition.getVirtualFunctionTableMangledName();
-    LLVMValueRef existingVFT = LLVM.LLVMGetNamedGlobal(module, mangledName);
-    if (existingVFT != null)
-    {
-      return existingVFT;
-    }
-    LLVMValueRef result = LLVM.LLVMAddGlobal(module, typeHelper.findVirtualFunctionTableType(classDefinition), mangledName);
-    return result;
   }
 
   /**
@@ -343,7 +335,7 @@ public class CodeGenerator
     if (callee != null && !method.isStatic() && method.getContainingTypeDefinition() instanceof ClassDefinition)
     {
       // generate a virtual function table lookup
-      return typeHelper.getMethodPointer(callee, method);
+      return virtualFunctionHandler.getMethodPointer(callee, method);
     }
     String mangledName = method.getMangledName();
     LLVMValueRef existingFunc = LLVM.LLVMGetNamedFunction(module, mangledName);
@@ -368,27 +360,6 @@ public class CodeGenerator
       LLVM.LLVMSetValueName(parameter, parameters[i].getName());
     }
     return llvmFunc;
-  }
-
-  /**
-   * Adds the class's virtual function table, and stores it in the global variable that has been allocated for this VFT.
-   */
-  private void addVirtualFunctionTable()
-  {
-    if (!(typeDefinition instanceof ClassDefinition))
-    {
-      throw new IllegalStateException("Cannot add a virtual function table for any type but a ClassDefinition");
-    }
-    ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
-    LLVMValueRef vftPointer = getVirtualFunctionTablePointer(classDefinition);
-    Method[] methods = classDefinition.getNonStaticMethods();
-    LLVMValueRef[] llvmMethods = new LLVMValueRef[methods.length];
-    for (int i = 0; i < methods.length; ++i)
-    {
-      llvmMethods[i] = getMethodFunction(null, methods[i]);
-    }
-    LLVMTypeRef vftType = typeHelper.findVirtualFunctionTableType(classDefinition);
-    LLVM.LLVMSetInitializer(vftPointer, LLVM.LLVMConstNamedStruct(vftType, C.toNativePointerArray(llvmMethods, false, true), llvmMethods.length));
   }
 
   /**
@@ -518,12 +489,23 @@ public class CodeGenerator
     LLVMValueRef memory = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(callocArguments, false, true), callocArguments.length, "");
     LLVMValueRef pointer = LLVM.LLVMBuildBitCast(builder, memory, nativeType, "");
 
-    // set up the virtual function tables
+    // set up the most-derived class's virtual function table
     ClassDefinition current = (ClassDefinition) typeDefinition;
+
+    // set up the virtual function tables
     while (current != null)
     {
-      LLVMValueRef currentVFT = getVirtualFunctionTablePointer(current);
-      LLVMValueRef objectVFTPointer = typeHelper.getObjectVirtualFunctionTablePointer(pointer, current);
+      LLVMValueRef currentVFT;
+      if (current == typeDefinition)
+      {
+        currentVFT = virtualFunctionHandler.getVirtualFunctionTablePointer(current);
+      }
+      else
+      {
+        currentVFT = virtualFunctionHandler.generateSuperClassVFT((ClassDefinition) typeDefinition, current);
+        currentVFT = LLVM.LLVMBuildBitCast(builder, currentVFT, LLVM.LLVMPointerType(virtualFunctionHandler.getVFTType(current), 0), "");
+      }
+      LLVMValueRef objectVFTPointer = virtualFunctionHandler.getObjectVirtualFunctionTablePointer(pointer, current);
       LLVM.LLVMBuildStore(builder, currentVFT, objectVFTPointer);
       current = current.getSuperClassDefinition();
     }
@@ -751,6 +733,38 @@ public class CodeGenerator
         LLVM.LLVMBuildRetVoid(builder);
       }
     }
+  }
+
+  /**
+   * Adds a string constant with the specified value, with the LLVM type: {i32, [n x i8]}
+   * @param value - the value to store in the constant
+   * @return the global variable created (a pointer to the constant value)
+   */
+  public LLVMValueRef addStringConstant(String value)
+  {
+    byte[] bytes;
+    try
+    {
+      bytes = value.getBytes("UTF-8");
+    }
+    catch (UnsupportedEncodingException e)
+    {
+      throw new IllegalStateException("UTF-8 encoding not supported!", e);
+    }
+    // build the []ubyte up from the string value, and store it as a global variable
+    LLVMValueRef lengthValue = LLVM.LLVMConstInt(typeHelper.findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE), bytes.length, false);
+    LLVMValueRef constString = LLVM.LLVMConstString(bytes, bytes.length, true);
+    LLVMValueRef[] arrayValues = new LLVMValueRef[] {lengthValue, constString};
+    LLVMValueRef byteArrayStruct = LLVM.LLVMConstStruct(C.toNativePointerArray(arrayValues, false, true), arrayValues.length, false);
+
+    LLVMTypeRef stringType = LLVM.LLVMArrayType(LLVM.LLVMInt8Type(), bytes.length);
+    LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {typeHelper.findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE), stringType};
+    LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
+    LLVMValueRef globalVariable = LLVM.LLVMAddGlobal(module, structType, "str");
+    LLVM.LLVMSetInitializer(globalVariable, byteArrayStruct);
+    LLVM.LLVMSetLinkage(globalVariable, LLVM.LLVMLinkage.LLVMPrivateLinkage);
+    LLVM.LLVMSetGlobalConstant(globalVariable, true);
+    return globalVariable;
   }
 
   /**
@@ -2722,28 +2736,7 @@ public class CodeGenerator
     {
       StringLiteralExpression stringLiteralExpression = (StringLiteralExpression) expression;
       String value = stringLiteralExpression.getLiteral().getLiteralValue();
-      byte[] bytes;
-      try
-      {
-        bytes = value.getBytes("UTF-8");
-      }
-      catch (UnsupportedEncodingException e)
-      {
-        throw new IllegalStateException("UTF-8 encoding not supported!", e);
-      }
-      // build the []ubyte up from the string value, and store it as a global variable
-      LLVMValueRef lengthValue = LLVM.LLVMConstInt(typeHelper.findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE), bytes.length, false);
-      LLVMValueRef constString = LLVM.LLVMConstString(bytes, bytes.length, true);
-      LLVMValueRef[] arrayValues = new LLVMValueRef[] {lengthValue, constString};
-      LLVMValueRef byteArrayStruct = LLVM.LLVMConstStruct(C.toNativePointerArray(arrayValues, false, true), arrayValues.length, false);
-
-      LLVMTypeRef stringType = LLVM.LLVMArrayType(LLVM.LLVMInt8Type(), bytes.length);
-      LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {typeHelper.findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE), stringType};
-      LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
-      LLVMValueRef globalVariable = LLVM.LLVMAddGlobal(module, structType, "str");
-      LLVM.LLVMSetInitializer(globalVariable, byteArrayStruct);
-      LLVM.LLVMSetLinkage(globalVariable, LLVM.LLVMLinkage.LLVMPrivateLinkage);
-      LLVM.LLVMSetGlobalConstant(globalVariable, true);
+      LLVMValueRef globalVariable = addStringConstant(value);
 
       // extract the string([]ubyte) constructor from the type of this expression
       Type arrayType = new ArrayType(false, true, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
