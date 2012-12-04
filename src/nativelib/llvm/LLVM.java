@@ -179,6 +179,7 @@ public class LLVM
   public static native LLVMValueRef LLVMConstNull(LLVMTypeRef type);
   public static native LLVMValueRef LLVMConstArray(LLVMTypeRef elementType, Pointer constantValues, int constantValueCount);
   public static native LLVMValueRef LLVMConstStruct(Pointer constantValues, int constantValueCount, boolean packed);
+  public static native LLVMValueRef LLVMConstNamedStruct(LLVMTypeRef structType, Pointer constantValues, int constantValueCount);
   public static native LLVMValueRef LLVMGetUndef(LLVMTypeRef type);
   public static native LLVMValueRef LLVMConstString(byte[] stringBytes, int length, boolean dontNullTerminate);
 
@@ -206,6 +207,7 @@ public class LLVM
   public static native LLVMValueRef LLVMGetParam(LLVMValueRef function, int index);
 
   public static native LLVMValueRef LLVMAddGlobal(LLVMModuleRef module, LLVMTypeRef type, String name);
+  public static native LLVMValueRef LLVMGetNamedGlobal(LLVMModuleRef module, String name);
   public static native void LLVMSetInitializer(LLVMValueRef globalVariable, LLVMValueRef constantValue);
   public static native void LLVMSetLinkage(LLVMValueRef global, int linkage);
   public static native void LLVMSetGlobalConstant(LLVMValueRef global, boolean constant);

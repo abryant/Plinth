@@ -122,7 +122,7 @@ public class BuiltinCodeGenerator
     }
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
-    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(SpecialTypeHandler.stringValueOfBoolean);
+    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(null, SpecialTypeHandler.stringValueOfBoolean);
 
     LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "entry");
     LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
@@ -146,7 +146,7 @@ public class BuiltinCodeGenerator
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
     Method valueOfMethod = radix ? SpecialTypeHandler.stringValueOfLongRadix : SpecialTypeHandler.stringValueOfLong;
-    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(valueOfMethod);
+    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(null, valueOfMethod);
 
     LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "entry");
     LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
@@ -183,7 +183,7 @@ public class BuiltinCodeGenerator
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
     Method valueOfMethod = radix ? SpecialTypeHandler.stringValueOfUlongRadix : SpecialTypeHandler.stringValueOfUlong;
-    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(valueOfMethod);
+    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(null, valueOfMethod);
 
     LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "entry");
     LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
@@ -218,7 +218,7 @@ public class BuiltinCodeGenerator
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
     Method valueOfMethod = baseType.getPrimitiveTypeType() == PrimitiveTypeType.FLOAT ? SpecialTypeHandler.stringValueOfFloat : SpecialTypeHandler.stringValueOfDouble;
-    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(valueOfMethod);
+    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(null, valueOfMethod);
 
     LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "entry");
     LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);

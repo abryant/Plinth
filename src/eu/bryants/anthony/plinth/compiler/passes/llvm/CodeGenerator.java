@@ -136,6 +136,11 @@ public class CodeGenerator
     // add all of the LLVM functions, including initialisers, constructors, and methods
     addFunctions();
 
+    if (typeDefinition instanceof ClassDefinition)
+    {
+      addVirtualFunctionTable();
+      addAllocatorFunction();
+    }
     addInitialiserBody(true);  // add the static initialisers
     setGlobalConstructor(getInitialiserFunction(true));
     addInitialiserBody(false); // add the non-static initialisers
@@ -191,6 +196,11 @@ public class CodeGenerator
     callocFunction = LLVM.LLVMAddFunction(module, "calloc", LLVM.LLVMFunctionType(callocReturnType, C.toNativePointerArray(callocParamTypes, false, true), callocParamTypes.length, false));
 
     // create the static and non-static initialiser functions
+    if (typeDefinition instanceof ClassDefinition)
+    {
+      getVirtualFunctionTablePointer((ClassDefinition) typeDefinition);
+      getAllocatorFunction((ClassDefinition) typeDefinition);
+    }
     getInitialiserFunction(true);
     getInitialiserFunction(false);
 
@@ -201,8 +211,47 @@ public class CodeGenerator
     }
     for (Method method : typeDefinition.getAllMethods())
     {
-      getMethodFunction(method);
+      getMethodFunction(null, method);
     }
+  }
+
+  /**
+   * Finds the VFT pointer for the specified ClassDefinition
+   * @param classDefinition - the ClassDefinition to get the virtual function table pointer for
+   * @return the virtual function table pointer for the specified ClassDefinition
+   */
+  private LLVMValueRef getVirtualFunctionTablePointer(ClassDefinition classDefinition)
+  {
+    String mangledName = classDefinition.getVirtualFunctionTableMangledName();
+    LLVMValueRef existingVFT = LLVM.LLVMGetNamedGlobal(module, mangledName);
+    if (existingVFT != null)
+    {
+      return existingVFT;
+    }
+    LLVMValueRef result = LLVM.LLVMAddGlobal(module, typeHelper.findVirtualFunctionTableType(classDefinition), mangledName);
+    return result;
+  }
+
+  /**
+   * Gets the allocator function for the specified ClassDefinition.
+   * @param classDefinition - the class definition to get the allocator for
+   * @return the function declaration for the allocator of the specified ClassDefinition
+   */
+  private LLVMValueRef getAllocatorFunction(ClassDefinition classDefinition)
+  {
+    String mangledName = classDefinition.getAllocatorMangledName();
+    LLVMValueRef existingFunc = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunc != null)
+    {
+      return existingFunc;
+    }
+
+    LLVMTypeRef[] types = new LLVMTypeRef[0];
+    LLVMTypeRef returnType = typeHelper.findTemporaryType(new NamedType(false, false, classDefinition));
+    LLVMTypeRef functionType = LLVM.LLVMFunctionType(returnType, C.toNativePointerArray(types, false, true), types.length, false);
+    LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, mangledName, functionType);
+    LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
+    return llvmFunc;
   }
 
   /**
@@ -284,11 +333,18 @@ public class CodeGenerator
 
   /**
    * Gets the function definition for the specified Method. If necessary, it is added first.
+   * If a callee is provided, this function may generate a lookup into a virtual function table on the callee rather than looking up the method directly.
+   * @param callee - the callee of the method, to look up the virtual method on if the Method is part of a virtual function table
    * @param method - the Method to find the declaration of (or to declare)
    * @return the function declaration for the specified Method
    */
-  LLVMValueRef getMethodFunction(Method method)
+  LLVMValueRef getMethodFunction(LLVMValueRef callee, Method method)
   {
+    if (callee != null && !method.isStatic() && method.getContainingTypeDefinition() instanceof ClassDefinition)
+    {
+      // generate a virtual function table lookup
+      return typeHelper.getMethodPointer(callee, method);
+    }
     String mangledName = method.getMangledName();
     LLVMValueRef existingFunc = LLVM.LLVMGetNamedFunction(module, mangledName);
     if (existingFunc != null)
@@ -299,46 +355,40 @@ public class CodeGenerator
     {
       return builtinGenerator.generateMethod((BuiltinMethod) method);
     }
-    TypeDefinition typeDefinition = method.getContainingTypeDefinition();
 
-    Parameter[] parameters = method.getParameters();
-    LLVMTypeRef[] types = new LLVMTypeRef[1 + parameters.length];
-    // add the 'this' type to the function - 'this' always has a temporary type representation
-    if (method.isStatic())
-    {
-      // for static methods, we add an unused opaque*, so that the static method can be easily converted to a function type
-      types[0] = typeHelper.getOpaquePointer();
-    }
-    else if (typeDefinition instanceof ClassDefinition)
-    {
-      types[0] = typeHelper.findTemporaryType(new NamedType(false, method.isImmutable(), typeDefinition));
-    }
-    else if (typeDefinition instanceof CompoundDefinition)
-    {
-      types[0] = typeHelper.findTemporaryType(new NamedType(false, method.isImmutable(), typeDefinition));
-    }
-    for (int i = 0; i < parameters.length; ++i)
-    {
-      types[i + 1] = typeHelper.findStandardType(parameters[i].getType());
-    }
-    LLVMTypeRef resultType = typeHelper.findStandardType(method.getReturnType());
-
-    LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, C.toNativePointerArray(types, false, true), types.length, false);
+    LLVMTypeRef functionType = typeHelper.findMethodType(method);
     LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, mangledName, functionType);
     LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
 
-    int paramCount = LLVM.LLVMCountParams(llvmFunc);
-    if (paramCount != types.length)
-    {
-      throw new IllegalStateException("LLVM returned wrong number of parameters");
-    }
     LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), method.isStatic() ? "unused" : "this");
+    Parameter[] parameters = method.getParameters();
     for (int i = 0; i < parameters.length; ++i)
     {
       LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i + 1);
       LLVM.LLVMSetValueName(parameter, parameters[i].getName());
     }
     return llvmFunc;
+  }
+
+  /**
+   * Adds the class's virtual function table, and stores it in the global variable that has been allocated for this VFT.
+   */
+  private void addVirtualFunctionTable()
+  {
+    if (!(typeDefinition instanceof ClassDefinition))
+    {
+      throw new IllegalStateException("Cannot add a virtual function table for any type but a ClassDefinition");
+    }
+    ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
+    LLVMValueRef vftPointer = getVirtualFunctionTablePointer(classDefinition);
+    Method[] methods = classDefinition.getNonStaticMethods();
+    LLVMValueRef[] llvmMethods = new LLVMValueRef[methods.length];
+    for (int i = 0; i < methods.length; ++i)
+    {
+      llvmMethods[i] = getMethodFunction(null, methods[i]);
+    }
+    LLVMTypeRef vftType = typeHelper.findVirtualFunctionTableType(classDefinition);
+    LLVM.LLVMSetInitializer(vftPointer, LLVM.LLVMConstNamedStruct(vftType, C.toNativePointerArray(llvmMethods, false, true), llvmMethods.length));
   }
 
   /**
@@ -447,6 +497,38 @@ public class CodeGenerator
     {
       LLVM.LLVMBuildRet(builder, result);
     }
+  }
+
+  private void addAllocatorFunction()
+  {
+    if (!(typeDefinition instanceof ClassDefinition))
+    {
+      throw new UnsupportedOperationException("Allocators cannot be created for anything but class definitions");
+    }
+    LLVMValueRef llvmFunction = getAllocatorFunction((ClassDefinition) typeDefinition);
+    LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "entry");
+    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+
+    // allocate memory for the object
+    LLVMTypeRef nativeType = typeHelper.findTemporaryType(new NamedType(false, false, typeDefinition));
+    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
+    LLVMValueRef llvmStructSize = LLVM.LLVMBuildGEP(builder, LLVM.LLVMConstNull(nativeType), C.toNativePointerArray(indices, false, true), indices.length, "");
+    LLVMValueRef llvmSize = LLVM.LLVMBuildPtrToInt(builder, llvmStructSize, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
+    LLVMValueRef[] callocArguments = new LLVMValueRef[] {llvmSize, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
+    LLVMValueRef memory = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(callocArguments, false, true), callocArguments.length, "");
+    LLVMValueRef pointer = LLVM.LLVMBuildBitCast(builder, memory, nativeType, "");
+
+    // set up the virtual function tables
+    ClassDefinition current = (ClassDefinition) typeDefinition;
+    while (current != null)
+    {
+      LLVMValueRef currentVFT = getVirtualFunctionTablePointer(current);
+      LLVMValueRef objectVFTPointer = typeHelper.getObjectVirtualFunctionTablePointer(pointer, current);
+      LLVM.LLVMBuildStore(builder, currentVFT, objectVFTPointer);
+      current = current.getSuperClassDefinition();
+    }
+
+    LLVM.LLVMBuildRet(builder, pointer);
   }
 
   private void addInitialiserBody(boolean isStatic)
@@ -612,7 +694,7 @@ public class CodeGenerator
   {
     for (Method method : typeDefinition.getAllMethods())
     {
-      LLVMValueRef llvmFunction = getMethodFunction(method);
+      LLVMValueRef llvmFunction = getMethodFunction(null, method);
 
       // add the native function if the programmer specified one
       if (method.getNativeName() != null)
@@ -694,7 +776,7 @@ public class CodeGenerator
     {
       throw new IllegalArgumentException("Could not find main method in " + typeDefinition.getQualifiedName());
     }
-    LLVMValueRef languageMainFunction = getMethodFunction(mainMethod);
+    LLVMValueRef languageMainFunction = getMethodFunction(null, mainMethod);
 
     // define strlen (which we will need for finding the length of each of the arguments)
     LLVMTypeRef[] strlenParameters = new LLVMTypeRef[] {LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0)};
@@ -2016,13 +2098,13 @@ public class CodeGenerator
         llvmArguments[i + 1] = typeHelper.convertTemporaryToStandard(argument, arguments[i].getType(), parameters[i].getType(), llvmFunction);
       }
       Type type = classCreationExpression.getType();
-      LLVMTypeRef nativeType = typeHelper.findTemporaryType(type);
-      LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
-      LLVMValueRef llvmStructSize = LLVM.LLVMBuildGEP(builder, LLVM.LLVMConstNull(nativeType), C.toNativePointerArray(indices, false, true), indices.length, "");
-      LLVMValueRef llvmSize = LLVM.LLVMBuildPtrToInt(builder, llvmStructSize, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
-      LLVMValueRef[] callocArguments = new LLVMValueRef[] {llvmSize, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
-      LLVMValueRef memory = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(callocArguments, false, true), callocArguments.length, "");
-      LLVMValueRef pointer = LLVM.LLVMBuildBitCast(builder, memory, nativeType, "");
+      if (!(type instanceof NamedType) || !(((NamedType) type).getResolvedTypeDefinition() instanceof ClassDefinition))
+      {
+        throw new IllegalStateException("A class creation expression must be for a class type");
+      }
+      ClassDefinition classDefinition = (ClassDefinition) ((NamedType) type).getResolvedTypeDefinition();
+      LLVMValueRef[] allocatorArgs = new LLVMValueRef[0];
+      LLVMValueRef pointer = LLVM.LLVMBuildCall(builder, getAllocatorFunction(classDefinition), C.toNativePointerArray(allocatorArgs, false, true), allocatorArgs.length, "");
       llvmArguments[0] = pointer;
       // get the constructor and call it
       LLVMValueRef llvmFunc = getConstructorFunction(constructor);
@@ -2177,8 +2259,9 @@ public class CodeGenerator
             throw new IllegalStateException("A FieldAccessExpression for a static method should not have a base expression");
           }
           LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
-          LLVMValueRef function = getMethodFunction(method);
-          LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+          LLVMValueRef function = getMethodFunction(notNullValue, method);
+          LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock); // restore builder position in case getMethodFunction() had to build another method
+
           function = LLVM.LLVMBuildBitCast(builder, function, typeHelper.findRawFunctionPointerType(functionType), "");
           LLVMValueRef firstArgument = LLVM.LLVMBuildBitCast(builder, notNullValue, typeHelper.getOpaquePointer(), "");
           result = LLVM.LLVMGetUndef(typeHelper.findStandardType(functionType));
@@ -2233,8 +2316,9 @@ public class CodeGenerator
         FunctionType functionType = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, null);
 
         LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
-        LLVMValueRef function = getMethodFunction(method);
-        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+        LLVMValueRef function = getMethodFunction(null, method);
+        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock); // restore builder position in case getMethodFunction() had to build another method
+
         function = LLVM.LLVMBuildBitCast(builder, function, typeHelper.findRawFunctionPointerType(functionType), "");
         LLVMValueRef firstArgument = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
         LLVMValueRef result = LLVM.LLVMGetUndef(typeHelper.findStandardType(functionType));
@@ -2259,7 +2343,6 @@ public class CodeGenerator
 
       Type[] parameterTypes;
       Type returnType;
-      LLVMValueRef llvmResolvedFunction;
       if (resolvedConstructor != null)
       {
         Parameter[] params = resolvedConstructor.getParameters();
@@ -2269,7 +2352,6 @@ public class CodeGenerator
           parameterTypes[i] = params[i].getType();
         }
         returnType = new NamedType(false, false, resolvedConstructor.getContainingTypeDefinition());
-        llvmResolvedFunction = getConstructorFunction(resolvedConstructor);
       }
       else if (resolvedMethod != null)
       {
@@ -2280,16 +2362,12 @@ public class CodeGenerator
           parameterTypes[i] = params[i].getType();
         }
         returnType = resolvedMethod.getReturnType();
-        LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
-        llvmResolvedFunction = getMethodFunction(resolvedMethod);
-        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
       }
       else if (resolvedBaseExpression != null)
       {
         FunctionType baseType = (FunctionType) resolvedBaseExpression.getType();
         parameterTypes = baseType.getParameterTypes();
         returnType = baseType.getReturnType();
-        llvmResolvedFunction = null;
       }
       else
       {
@@ -2347,6 +2425,7 @@ public class CodeGenerator
         LLVMValueRef[] realArguments = new LLVMValueRef[1 + values.length];
         realArguments[0] = alloca;
         System.arraycopy(values, 0, realArguments, 1, values.length);
+        LLVMValueRef llvmResolvedFunction = getConstructorFunction(resolvedConstructor);
         LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(realArguments, false, true), realArguments.length, "");
         result = alloca;
         resultIsTemporary = true;
@@ -2362,25 +2441,12 @@ public class CodeGenerator
         else
         {
           realArguments[0] = notNullCallee != null ? notNullCallee : thisValue;
-          Type firstArgType = notNullCallee != null ? calleeType : new NamedType(false, false, typeDefinition);
-          if (resolvedMethod instanceof BuiltinMethod)
-          {
-            realArguments[0] = typeHelper.convertTemporary(realArguments[0], firstArgType, ((BuiltinMethod) resolvedMethod).getBaseType());
-          }
-          else if (resolvedMethod.getContainingTypeDefinition() instanceof ClassDefinition)
-          {
-            // for virtual functions, cast the callee to an opaque pointer, since we do not know the actual type that the virtual method takes
-            realArguments[0] = LLVM.LLVMBuildBitCast(builder, realArguments[0], typeHelper.getOpaquePointer(), "");
-            // also cast the function to a raw function type representation so that it takes an opaque pointer as its first argument
-            FunctionType functionType = new FunctionType(false, resolvedMethod.isImmutable(), returnType, parameterTypes, null);
-            llvmResolvedFunction = LLVM.LLVMBuildBitCast(builder, llvmResolvedFunction, typeHelper.findRawFunctionPointerType(functionType), "");
-          }
-          else if (resolvedMethod.getContainingTypeDefinition() != null)
-          {
-            // for other functions, cast the callee to the containing type definition's type
-            realArguments[0] = typeHelper.convertTemporary(realArguments[0], firstArgType, new NamedType(false, false, resolvedMethod.getContainingTypeDefinition()));
-          }
+          realArguments[0] = typeHelper.convertMethodCallee(realArguments[0], resolvedMethod);
         }
+        LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVMValueRef llvmResolvedFunction = getMethodFunction(realArguments[0], resolvedMethod);
+        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock); // restore builder position in case getMethodFunction() had to build another method
+
         result = LLVM.LLVMBuildCall(builder, llvmResolvedFunction, C.toNativePointerArray(realArguments, false, true), realArguments.length, "");
       }
       else if (resolvedBaseExpression != null)
@@ -2764,8 +2830,6 @@ public class CodeGenerator
         }
         FunctionType functionType = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, null);
 
-        LLVMValueRef function = getMethodFunction(method);
-        function = LLVM.LLVMBuildBitCast(builder, function, typeHelper.findRawFunctionPointerType(functionType), "");
         LLVMValueRef firstArgument;
         if (method.isStatic())
         {
@@ -2775,6 +2839,11 @@ public class CodeGenerator
         {
           firstArgument = LLVM.LLVMBuildBitCast(builder, thisValue, typeHelper.getOpaquePointer(), "");
         }
+        LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVMValueRef function = getMethodFunction(method.isStatic() ? null : thisValue, method);
+        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock); // restore builder position in case getMethodFunction() had to build another method
+
+        function = LLVM.LLVMBuildBitCast(builder, function, typeHelper.findRawFunctionPointerType(functionType), "");
         LLVMValueRef result = LLVM.LLVMGetUndef(typeHelper.findStandardType(functionType));
         result = LLVM.LLVMBuildInsertValue(builder, result, firstArgument, 0, "");
         result = LLVM.LLVMBuildInsertValue(builder, result, function, 1, "");
