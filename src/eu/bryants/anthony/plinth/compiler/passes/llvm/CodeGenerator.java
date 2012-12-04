@@ -338,21 +338,6 @@ public class CodeGenerator
       LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i + 1);
       LLVM.LLVMSetValueName(parameter, parameters[i].getName());
     }
-
-    // add the native function if the programmer specified one
-    // but only if we are in the type definition which defines this Method
-    if (method.getNativeName() != null && method.getContainingTypeDefinition() == this.typeDefinition)
-    {
-      if (method.getBlock() == null)
-      {
-        addNativeDowncallFunction(method, llvmFunc);
-      }
-      else
-      {
-        addNativeUpcallFunction(method, llvmFunc);
-      }
-    }
-
     return llvmFunc;
   }
 
@@ -627,11 +612,25 @@ public class CodeGenerator
   {
     for (Method method : typeDefinition.getAllMethods())
     {
+      LLVMValueRef llvmFunction = getMethodFunction(method);
+
+      // add the native function if the programmer specified one
+      if (method.getNativeName() != null)
+      {
+        if (method.getBlock() == null)
+        {
+          addNativeDowncallFunction(method, llvmFunction);
+        }
+        else
+        {
+          addNativeUpcallFunction(method, llvmFunction);
+        }
+      }
+
       if (method.getBlock() == null)
       {
         continue;
       }
-      LLVMValueRef llvmFunction = getMethodFunction(method);
 
       LLVMBasicBlockRef block = LLVM.LLVMAppendBasicBlock(llvmFunction, "entry");
       LLVM.LLVMPositionBuilderAtEnd(builder, block);
