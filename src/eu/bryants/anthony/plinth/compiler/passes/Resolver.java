@@ -1094,13 +1094,16 @@ public class Resolver
         // the sub-expression didn't resolve to a variable or a field, or we would have got a valid type back in expressionType
         if (enclosingDefinition != null)
         {
-          Set<Method> methodSet = enclosingDefinition.getMethodsByName(name);
-          if (methodSet != null)
+          Set<Member> memberSet = new NamedType(false, false, enclosingDefinition).getMembers(name, true);
+          if (memberSet != null)
           {
-            for (Method m : methodSet)
+            for (Member m : memberSet)
             {
-              paramLists.put(m.getParameters(), m);
-              // leave methodBaseExpressions with a null value for this method, as we have no base expression
+              if (m instanceof Method)
+              {
+                paramLists.put(((Method) m).getParameters(), m);
+                // leave methodBaseExpressions with a null value for this method, as we have no base expression
+              }
             }
           }
         }
@@ -1337,49 +1340,35 @@ public class Resolver
       }
       if (enclosingDefinition != null)
       {
-        Field field;
-        if (enclosingDefinition instanceof ClassDefinition)
+        Set<Member> members = new NamedType(false, false, enclosingDefinition).getMembers(expr.getName(), true);
+
+        if (members != null && members.size() > 1)
         {
-          ClassDefinition current = (ClassDefinition) enclosingDefinition;
-          field = null;
-          // check the base class and then each of the super-classes in turn
-          // note: this allows static fields from the superclass to be resolved, which is possible inside the class itself, but not by specifying an explicit type
-          while (field == null & current != null)
+          throw new ConceptualException("Multiple members have the name '" + expr.getName() + "'", expr.getLexicalPhrase());
+        }
+        if (members != null && members.size() == 1)
+        {
+          Member member = members.iterator().next();
+          if (member instanceof Field)
           {
-            field = current.getField(expr.getName());
-            current = current.getSuperClassDefinition();
+            Field field = (Field) member;
+            if (field.isStatic())
+            {
+              var = field.getGlobalVariable();
+            }
+            else
+            {
+              var = field.getMemberVariable();
+            }
+            expr.setResolvedVariable(var);
+            return;
           }
-        }
-        else if (enclosingDefinition instanceof CompoundDefinition)
-        {
-          field = enclosingDefinition.getField(expr.getName());
-        }
-        else
-        {
-          throw new IllegalArgumentException("Unknown enclosing definition type: " + enclosingDefinition);
-        }
-        if (field != null)
-        {
-          if (field.isStatic())
+          else if (member instanceof Method)
           {
-            var = field.getGlobalVariable();
+            expr.setResolvedMethod((Method) member);
+            return;
           }
-          else
-          {
-            var = field.getMemberVariable();
-          }
-          expr.setResolvedVariable(var);
-          return;
-        }
-        Set<Method> methods = enclosingDefinition.getMethodsByName(expr.getName());
-        if (methods != null && methods.size() == 1)
-        {
-          expr.setResolvedMethod(methods.iterator().next());
-          return;
-        }
-        if (methods != null && methods.size() > 1)
-        {
-          throw new NameNotResolvedException("Unable to resolve \"" + expr.getName() + "\" - multiple methods exist with that name", expr.getLexicalPhrase());
+          throw new IllegalStateException("Unknown member type: " + member);
         }
       }
       throw new NameNotResolvedException("Unable to resolve \"" + expr.getName() + "\"", expr.getLexicalPhrase());

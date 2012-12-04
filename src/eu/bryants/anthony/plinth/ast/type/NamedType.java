@@ -200,6 +200,17 @@ public class NamedType extends Type
   @Override
   public Set<Member> getMembers(String name)
   {
+    return getMembers(name, false);
+  }
+
+  /**
+   * Finds all members of this type with the specified name, optionally including inherited static fields.
+   * @param name - the name to search for
+   * @param inheritStaticFields - true if inherited static fields should be included, false otherwise
+   * @return the set of members that are part of this type
+   */
+  public Set<Member> getMembers(String name, boolean inheritStaticFields)
+  {
     if (resolvedTypeDefinition == null)
     {
       throw new IllegalStateException("Cannot get the members of a NamedType before it is resolved");
@@ -232,7 +243,7 @@ public class NamedType extends Type
       {
         Field currentField = currentDefinition.getField(name);
         // exclude static fields from being inherited
-        if (currentField != null && !currentField.isStatic() && !disambiguators.contains(currentField.getName()))
+        if (currentField != null && (inheritStaticFields || !currentField.isStatic()) && !disambiguators.contains(currentField.getName()))
         {
           set.add(currentField);
           disambiguators.add(currentField.getName());
