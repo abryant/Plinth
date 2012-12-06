@@ -4,10 +4,12 @@ import parser.ParseException;
 import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
+import eu.bryants.anthony.plinth.ast.expression.CastExpression;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
+import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 
@@ -35,6 +37,7 @@ public class StatementRule extends Rule<ParseType>
   private static final Production<ParseType> SHORTHAND_ASSIGN_PRODUCTION = new Production<ParseType>(ParseType.SHORTHAND_ASSIGNMENT, ParseType.SEMICOLON);
 
   private static final Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> CAST_FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.CAST_KEYWORD, ParseType.LANGLE, ParseType.TYPE, ParseType.RANGLE, ParseType.FUNCTION_CALL_EXPRESSION, ParseType.SEMICOLON);
   private static final Production<ParseType> CLASS_CREATION_PRODUCTION = new Production<ParseType>(ParseType.CLASS_CREATION_EXPRESSION, ParseType.SEMICOLON);
 
   private static final Production<ParseType> DELEGATE_THIS_CONSTRUCTOR_PRODUCTION = new Production<ParseType>(ParseType.THIS_KEYWORD, ParseType.ARGUMENTS, ParseType.SEMICOLON);
@@ -43,7 +46,8 @@ public class StatementRule extends Rule<ParseType>
   public StatementRule()
   {
     super(ParseType.STATEMENT, ASSIGN_PRODUCTION, BLOCK_PRODUCTION, BREAK_PRODUCTION, CONTINUE_PRODUCTION, IF_PRODUCTION, FOR_PRODUCTION, INC_DEC_PRODUCTION,
-                               RETURN_PRODUCTION, WHILE_PRODUCTION, SHORTHAND_ASSIGN_PRODUCTION, FUNCTION_CALL_PRODUCTION, CLASS_CREATION_PRODUCTION,
+                               RETURN_PRODUCTION, WHILE_PRODUCTION, SHORTHAND_ASSIGN_PRODUCTION,
+                               FUNCTION_CALL_PRODUCTION, CAST_FUNCTION_CALL_PRODUCTION, CLASS_CREATION_PRODUCTION,
                                DELEGATE_THIS_CONSTRUCTOR_PRODUCTION, DELEGATE_SUPER_CONSTRUCTOR_PRODUCTION);
   }
 
@@ -70,6 +74,14 @@ public class StatementRule extends Rule<ParseType>
     {
       Expression expression = (Expression) args[0];
       return new ExpressionStatement(expression, LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1]));
+    }
+    if (production == CAST_FUNCTION_CALL_PRODUCTION)
+    {
+      Type castType = (Type) args[2];
+      Expression functionCallExpression = (Expression) args[4];
+      Expression castExpression = new CastExpression(castType, functionCallExpression,
+                                                     LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], castType.getLexicalPhrase(), (LexicalPhrase) args[3], functionCallExpression.getLexicalPhrase()));
+      return new ExpressionStatement(castExpression, LexicalPhrase.combine(castExpression.getLexicalPhrase(), (LexicalPhrase) args[5]));
     }
     if (production == CLASS_CREATION_PRODUCTION)
     {

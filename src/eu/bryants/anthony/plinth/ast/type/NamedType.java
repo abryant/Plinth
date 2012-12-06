@@ -206,10 +206,10 @@ public class NamedType extends Type
   /**
    * Finds all members of this type with the specified name, optionally including inherited static fields.
    * @param name - the name to search for
-   * @param inheritStaticFields - true if inherited static fields should be included, false otherwise
+   * @param inheritStaticMembers - true if inherited static members should be included, false otherwise
    * @return the set of members that are part of this type
    */
-  public Set<Member> getMembers(String name, boolean inheritStaticFields)
+  public Set<Member> getMembers(String name, boolean inheritStaticMembers)
   {
     if (resolvedTypeDefinition == null)
     {
@@ -243,7 +243,7 @@ public class NamedType extends Type
       {
         Field currentField = currentDefinition.getField(name);
         // exclude static fields from being inherited
-        if (currentField != null && (inheritStaticFields || !currentField.isStatic()) && !disambiguators.contains(currentField.getName()))
+        if (currentField != null && (inheritStaticMembers || !currentField.isStatic()) && !disambiguators.contains(currentField.getName()))
         {
           set.add(currentField);
           disambiguators.add(currentField.getName());
@@ -253,7 +253,7 @@ public class NamedType extends Type
         {
           for (Method method : currentMethodSet)
           {
-            if (!disambiguators.contains(method.getDisambiguator()))
+            if ((inheritStaticMembers || !method.isStatic()) && !disambiguators.contains(method.getDisambiguator()))
             {
               set.add(method);
               disambiguators.add(method.getDisambiguator());

@@ -278,7 +278,6 @@ public class Resolver
         mainBlock = new Block(null, null);
       }
       Parameter[] parameters = method.getParameters();
-      Type[] parameterTypes = new Type[parameters.length];
       for (int i = 0; i < parameters.length; ++i)
       {
         Variable oldVar = mainBlock.addVariable(parameters[i].getVariable());
@@ -287,7 +286,6 @@ public class Resolver
           throw new ConceptualException("Duplicate parameter: " + parameters[i].getName(), parameters[i].getLexicalPhrase());
         }
         resolve(parameters[i].getType(), compilationUnit);
-        parameterTypes[i] = parameters[i].getType();
       }
       Method oldMethod = allMethods.put(method.getDisambiguator(), method);
       if (oldMethod != null)
@@ -582,6 +580,7 @@ public class Resolver
         else if (assignees[i] instanceof FieldAssignee)
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
+          fieldAssignee.getFieldAccessExpression().setIsAssignableHint(true);
           // use the expression resolver to resolve the contained field access expression
           resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
         }
@@ -940,8 +939,42 @@ public class Resolver
     }
     else if (expression instanceof CastExpression)
     {
-      resolve(expression.getType(), compilationUnit);
-      resolve(((CastExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
+      CastExpression castExpression = (CastExpression) expression;
+      Type castType = expression.getType();
+      resolve(castType, compilationUnit);
+
+      // before resolving the casted expression, add hints for any FieldAccessExpressions or VariableExpressions that are directly inside it
+      Expression subExpression = castExpression.getExpression();
+      while (subExpression instanceof BracketedExpression)
+      {
+        subExpression = ((BracketedExpression) subExpression).getExpression();
+      }
+      if (subExpression instanceof FieldAccessExpression)
+      {
+        ((FieldAccessExpression) subExpression).setTypeHint(castType);
+      }
+      if (subExpression instanceof VariableExpression)
+      {
+        ((VariableExpression) subExpression).setTypeHint(castType);
+      }
+      if (subExpression instanceof FunctionCallExpression)
+      {
+        Expression baseExpression = ((FunctionCallExpression) subExpression).getFunctionExpression();
+        while (baseExpression instanceof BracketedExpression)
+        {
+          baseExpression = ((BracketedExpression) baseExpression).getExpression();
+        }
+        if (baseExpression instanceof FieldAccessExpression)
+        {
+          ((FieldAccessExpression) baseExpression).setReturnTypeHint(castType);
+        }
+        if (baseExpression instanceof VariableExpression)
+        {
+          ((VariableExpression) baseExpression).setReturnTypeHint(castType);
+        }
+      }
+
+      resolve(castExpression.getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (expression instanceof ClassCreationExpression)
     {
@@ -991,7 +1024,7 @@ public class Resolver
       }
 
       Set<Member> memberSet = baseType.getMembers(fieldName);
-      Set<Member> filtered = new HashSet<Member>();
+      Set<Member> staticFiltered = new HashSet<Member>();
       for (Member member : memberSet)
       {
         if (member instanceof ArrayLengthMember)
@@ -1000,20 +1033,20 @@ public class Resolver
           {
             throw new ConceptualException("Cannot access the array length member statically", fieldAccessExpression.getLexicalPhrase());
           }
-          filtered.add(member);
+          staticFiltered.add(member);
         }
         else if (member instanceof Field)
         {
           if (((Field) member).isStatic() == baseIsStatic)
           {
-            filtered.add(member);
+            staticFiltered.add(member);
           }
         }
         else if (member instanceof Method)
         {
           if (((Method) member).isStatic() == baseIsStatic)
           {
-            filtered.add(member);
+            staticFiltered.add(member);
           }
         }
         else
@@ -1022,15 +1055,28 @@ public class Resolver
         }
       }
 
-      if (filtered.isEmpty())
+      if (staticFiltered.isEmpty())
       {
         throw new NameNotResolvedException("No such " + (baseIsStatic ? "static" : "non-static") + " member \"" + fieldName + "\" for type " + baseType, fieldAccessExpression.getLexicalPhrase());
       }
-      if (filtered.size() > 1)
+      Member resolved = null;
+      if (staticFiltered.size() == 1)
+      {
+        resolved = staticFiltered.iterator().next();
+      }
+      else
+      {
+        Set<Member> hintFiltered = applyTypeHints(staticFiltered, fieldAccessExpression.getTypeHint(), fieldAccessExpression.getReturnTypeHint(), fieldAccessExpression.getIsFunctionHint(), fieldAccessExpression.getIsAssignableHint());
+        if (hintFiltered.size() == 1)
+        {
+          resolved = hintFiltered.iterator().next();
+        }
+      }
+      if (resolved == null)
       {
         throw new ConceptualException("Multiple " + (baseIsStatic ? "static" : "non-static") + " members have the name '" + fieldName + "'", fieldAccessExpression.getLexicalPhrase());
       }
-      fieldAccessExpression.setResolvedMember(filtered.iterator().next());
+      fieldAccessExpression.setResolvedMember(resolved);
     }
     else if (expression instanceof FloatingLiteralExpression)
     {
@@ -1047,6 +1093,22 @@ public class Resolver
       }
 
       Expression functionExpression = expr.getFunctionExpression();
+
+      // before resolving the functionExpression, add hints for any FieldAccessExpressions or VariableExpressions that are directly inside it
+      Expression subExpression = functionExpression;
+      while (subExpression instanceof BracketedExpression)
+      {
+        subExpression = ((BracketedExpression) subExpression).getExpression();
+      }
+      if (subExpression instanceof FieldAccessExpression)
+      {
+        ((FieldAccessExpression) subExpression).setIsFunctionHint(true);
+      }
+      if (subExpression instanceof VariableExpression)
+      {
+        ((VariableExpression) subExpression).setIsFunctionHint(true);
+      }
+
       Type expressionType = null;
       Exception cachedException = null;
       // first, try to resolve the function call as a normal expression
@@ -1087,23 +1149,29 @@ public class Resolver
       }
 
       Map<Parameter[], Member> paramLists = new HashMap<Parameter[], Member>();
+      Map<Parameter[], Member> hintedParamLists = new HashMap<Parameter[], Member>();
       Map<Method, Expression> methodBaseExpressions = new HashMap<Method, Expression>();
       if (functionExpression instanceof VariableExpression)
       {
-        String name = ((VariableExpression) functionExpression).getName();
+        VariableExpression variableExpression = (VariableExpression) functionExpression;
+        String name = variableExpression.getName();
         // the sub-expression didn't resolve to a variable or a field, or we would have got a valid type back in expressionType
         if (enclosingDefinition != null)
         {
           Set<Member> memberSet = new NamedType(false, false, enclosingDefinition).getMembers(name, true);
-          if (memberSet != null)
+          memberSet = memberSet != null ? memberSet : new HashSet<Member>();
+          Set<Member> hintedMemberSet = applyTypeHints(memberSet, variableExpression.getTypeHint(), variableExpression.getReturnTypeHint(), variableExpression.getIsFunctionHint(), variableExpression.getIsAssignableHint());
+          for (Member m : memberSet)
           {
-            for (Member m : memberSet)
+            if (m instanceof Method)
             {
-              if (m instanceof Method)
+              Parameter[] params = ((Method) m).getParameters();
+              paramLists.put(params, m);
+              if (hintedMemberSet.contains(m))
               {
-                paramLists.put(((Method) m).getParameters(), m);
-                // leave methodBaseExpressions with a null value for this method, as we have no base expression
+                hintedParamLists.put(params, m);
               }
+              // leave methodBaseExpressions with a null value for this method, as we have no base expression
             }
           }
         }
@@ -1118,6 +1186,14 @@ public class Resolver
             for (Constructor c : typeDefinition.getConstructors())
             {
               paramLists.put(c.getParameters(), c);
+              if (!variableExpression.getIsAssignableHint() && variableExpression.getTypeHint() == null)
+              {
+                Type returnTypeHint = variableExpression.getReturnTypeHint();
+                if (returnTypeHint != null && returnTypeHint.canAssign(new NamedType(false, false, typeDefinition)))
+                {
+                  hintedParamLists.put(c.getParameters(), c);
+                }
+              }
             }
           }
         }
@@ -1149,6 +1225,14 @@ public class Resolver
               for (Constructor c : typeDefinition.getConstructors())
               {
                 paramLists.put(c.getParameters(), c);
+                if (!fieldAccessExpression.getIsAssignableHint() && fieldAccessExpression.getTypeHint() == null)
+                {
+                  Type returnTypeHint = fieldAccessExpression.getReturnTypeHint();
+                  if (returnTypeHint != null && returnTypeHint.canAssign(new NamedType(false, false, typeDefinition)))
+                  {
+                    hintedParamLists.put(c.getParameters(), c);
+                  }
+                }
               }
             }
           }
@@ -1191,6 +1275,8 @@ public class Resolver
           }
 
           Set<Member> memberSet = baseType.getMembers(name);
+          memberSet = memberSet != null ? memberSet : new HashSet<Member>();
+          Set<Member> hintedMemberSet = applyTypeHints(memberSet, fieldAccessExpression.getTypeHint(), fieldAccessExpression.getReturnTypeHint(), fieldAccessExpression.getIsFunctionHint(), fieldAccessExpression.getIsAssignableHint());
           for (Member member : memberSet)
           {
             // only allow access to this method if it is called in the right way, depending on whether or not it is static
@@ -1198,6 +1284,10 @@ public class Resolver
             {
               Method method = (Method) member;
               paramLists.put(method.getParameters(), method);
+              if (hintedMemberSet.contains(member))
+              {
+                hintedParamLists.put(method.getParameters(), method);
+              }
               methodBaseExpressions.put(method, baseExpression);
             }
           }
@@ -1213,21 +1303,37 @@ public class Resolver
       }
 
       // filter out parameter lists which are not assign-compatible with the arguments
-      filterParameterLists(paramLists.entrySet(), expr.getArguments(), false, false);
-
+      filterParameterLists(hintedParamLists.entrySet(), expr.getArguments(), false, false);
       // if there are multiple parameter lists, try to narrow it down to one that is equivalent to the argument list
-      if (paramLists.size() > 1)
+      if (hintedParamLists.size() > 1)
       {
-        Map<Parameter[], Member> backupParamLists = new HashMap<Parameter[], Member>(paramLists);
-
-        filterParameterLists(paramLists.entrySet(), expr.getArguments(), true, false);
-
+        Map<Parameter[], Member> backupHintedParamLists = new HashMap<Parameter[], Member>(hintedParamLists);
+        filterParameterLists(hintedParamLists.entrySet(), expr.getArguments(), true, false);
         // if we have filtered out all of the parameter lists, try to narrow it down again, but this time allow nullable versions of argument types for parameters
-        if (paramLists.isEmpty())
+        if (hintedParamLists.isEmpty())
         {
           // revert back to the unfiltered one, and refilter with a broader condition
-          paramLists = backupParamLists;
-          filterParameterLists(paramLists.entrySet(), expr.getArguments(), true, true);
+          hintedParamLists = backupHintedParamLists;
+          filterParameterLists(hintedParamLists.entrySet(), expr.getArguments(), true, true);
+        }
+      }
+      if (hintedParamLists.size() == 1)
+      {
+        paramLists = hintedParamLists;
+      }
+      else
+      {
+        // try the same thing without using hintedParamLists
+        filterParameterLists(paramLists.entrySet(), expr.getArguments(), false, false);
+        if (paramLists.size() > 1)
+        {
+          Map<Parameter[], Member> backupParamLists = new HashMap<Parameter[], Member>(paramLists);
+          filterParameterLists(paramLists.entrySet(), expr.getArguments(), true, false);
+          if (paramLists.isEmpty())
+          {
+            paramLists = backupParamLists;
+            filterParameterLists(paramLists.entrySet(), expr.getArguments(), true, true);
+          }
         }
       }
 
@@ -1341,17 +1447,31 @@ public class Resolver
       if (enclosingDefinition != null)
       {
         Set<Member> members = new NamedType(false, false, enclosingDefinition).getMembers(expr.getName(), true);
+        members = members != null ? members : new HashSet<Member>();
 
-        if (members != null && members.size() > 1)
+        Member resolved = null;
+        if (members.size() == 1)
         {
-          throw new ConceptualException("Multiple members have the name '" + expr.getName() + "'", expr.getLexicalPhrase());
+          resolved = members.iterator().next();
         }
-        if (members != null && members.size() == 1)
+        else
         {
-          Member member = members.iterator().next();
-          if (member instanceof Field)
+          Set<Member> filteredMembers = applyTypeHints(members, expr.getTypeHint(), expr.getReturnTypeHint(), expr.getIsFunctionHint(), expr.getIsAssignableHint());
+          if (filteredMembers.size() == 1)
           {
-            Field field = (Field) member;
+            resolved = filteredMembers.iterator().next();
+          }
+          else if (members.size() > 1)
+          {
+            throw new ConceptualException("Multiple members have the name '" + expr.getName() + "'", expr.getLexicalPhrase());
+          }
+        }
+
+        if (resolved != null)
+        {
+          if (resolved instanceof Field)
+          {
+            Field field = (Field) resolved;
             if (field.isStatic())
             {
               var = field.getGlobalVariable();
@@ -1363,12 +1483,12 @@ public class Resolver
             expr.setResolvedVariable(var);
             return;
           }
-          else if (member instanceof Method)
+          else if (resolved instanceof Method)
           {
-            expr.setResolvedMethod((Method) member);
+            expr.setResolvedMethod((Method) resolved);
             return;
           }
-          throw new IllegalStateException("Unknown member type: " + member);
+          throw new IllegalStateException("Unknown member type: " + resolved);
         }
       }
       throw new NameNotResolvedException("Unable to resolve \"" + expr.getName() + "\"", expr.getLexicalPhrase());
@@ -1377,6 +1497,69 @@ public class Resolver
     {
       throw new ConceptualException("Internal name resolution error: Unknown expression type", expression.getLexicalPhrase());
     }
+  }
+
+  /**
+   * Applies the specified type hints to the given member set, and returns the resulting set. The original set is not modified.
+   * @param members - the set of members to filter
+   * @param typeHint - a hint about the type of the member, or null for no hint
+   * @param returnTypeHint - a hint about the return type of the member (which only applies if isFunctionHint == true), or null for no hint
+   * @param isFunctionHint - true to hint that the result should have a function type, false to not hint anything
+   * @param isAssignableHint - true to hint that the result should be an assignable member, false to not hint anything
+   * @return a set of only the Members which match the given hints
+   */
+  private Set<Member> applyTypeHints(Set<Member> members, Type typeHint, Type returnTypeHint, boolean isFunctionHint, boolean isAssignableHint)
+  {
+    // TODO: allow members which only match the typeHints and returnTypeHints if the result is being casted (i.e. check canAssign() in reverse, but perform the same checks as the TypeChecker
+    Set<Member> filtered = new HashSet<Member>(members);
+    Iterator<Member> it = filtered.iterator();
+    while (it.hasNext())
+    {
+      Member member = it.next();
+      if (isAssignableHint && member instanceof Method)
+      {
+        it.remove();
+        continue;
+      }
+      if (isFunctionHint)
+      {
+        if (member instanceof Field && !(((Field) member).getType() instanceof FunctionType))
+        {
+          it.remove();
+          continue;
+        }
+        if (returnTypeHint != null && member instanceof Method && !returnTypeHint.canAssign(((Method) member).getReturnType()))
+        {
+          it.remove();
+          continue;
+        }
+      }
+      if (typeHint != null)
+      {
+        if (member instanceof Field && !typeHint.canAssign(((Field) member).getType()))
+        {
+          it.remove();
+          continue;
+        }
+        if (member instanceof Method)
+        {
+          Method method = (Method) member;
+          Parameter[] parameters = method.getParameters();
+          Type[] parameterTypes = new Type[parameters.length];
+          for (int i = 0; i < parameters.length; ++i)
+          {
+            parameterTypes[i] = parameters[i].getType();
+          }
+          FunctionType functionType = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, null);
+          if (!typeHint.canAssign(functionType))
+          {
+            it.remove();
+            continue;
+          }
+        }
+      }
+    }
+    return filtered;
   }
 
   /**

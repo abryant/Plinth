@@ -27,8 +27,8 @@ class Test extends Foo
     {
       this(-8);
     }
-    this.foo();
-    foo(1);
+    (cast<{-> void}> this.foo)();
+    cast<uint> foo();
     stderr::println("Test(?ubyte) after delegate constructor, field = " + field);
   }
 
@@ -51,7 +51,7 @@ class Test extends Foo
     test.foo();
     Test t = cast<Test> test;
     t.argh();
-    t.foo();
+    (cast<{-> void}> t.foo)();
     return args.length;
   }
 
@@ -70,9 +70,14 @@ class Test extends Foo
     return " " + x;
   }
 
-  void foo(uint x)
+  void foo()
   {
-    stderr::println("Test::foo(" + x.toString() + ")");
+    stderr::println("Test::foo()");
+  }
+  uint foo()
+  {
+    stderr::println("Test::foo():19");
+    return 19;
   }
 
   void argh()
@@ -96,8 +101,9 @@ class Foo
   {
     stderr::println(field);
   }
-  void foo()
+  uint foo()
   {
-    stderr::println("Foo::foo()");
+    stderr::println("Foo::foo():2");
+    return 2;
   }
 }

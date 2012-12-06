@@ -45,6 +45,7 @@ Statements = Statement | Statements Statement
 Statement = Assignment | Block | BreakStatement | ContinueStatement | ForStatement | IfStatement | PrefixIncDecStatement | ReturnStatement | WhileStatement |
             ShorthandAssignment Semicolon |
             FunctionCallExpression Semicolon |
+            CastKeyword LAngle Type RAngle FunctionCallExpression Semicolon |
             ClassCreationExpression Semicolon |
             ThisKeyword Arguments Semicolon | SuperKeyword Arguments Semicolon
 
