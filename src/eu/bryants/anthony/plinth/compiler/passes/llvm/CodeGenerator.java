@@ -143,13 +143,29 @@ public class CodeGenerator
     {
       virtualFunctionHandler.addVirtualFunctionTable();
       virtualFunctionHandler.addVirtualFunctionTableDescriptor();
+      virtualFunctionHandler.addClassVFTInitialisationFunction();
       addAllocatorFunction();
     }
     addInitialiserBody(true);  // add the static initialisers
-    setGlobalConstructor(getInitialiserFunction(true));
     addInitialiserBody(false); // add the non-static initialisers
     addConstructorBodies();
     addMethodBodies();
+
+    // set the llvm.global_ctors variable, to contain things which need to run before main()
+    LLVMValueRef[] globalConstructorFunctions;
+    int[] priorities;
+    if (typeDefinition instanceof ClassDefinition && ((ClassDefinition) typeDefinition).getSuperClassDefinition() != null)
+    {
+      globalConstructorFunctions = new LLVMValueRef[] {virtualFunctionHandler.getClassVFTInitialisationFunction(),
+                                                       getInitialiserFunction(true)};
+      priorities = new int[] {0, 10};
+    }
+    else
+    {
+      globalConstructorFunctions = new LLVMValueRef[] {getInitialiserFunction(true)};
+      priorities = new int[] {10};
+    }
+    setGlobalConstructors(globalConstructorFunctions, priorities);
 
     MetadataGenerator.generateMetadata(typeDefinition, module);
   }
@@ -208,6 +224,7 @@ public class CodeGenerator
     // create the static and non-static initialiser functions
     if (typeDefinition instanceof ClassDefinition)
     {
+      virtualFunctionHandler.getClassVFTInitialisationFunction();
       getAllocatorFunction((ClassDefinition) typeDefinition);
     }
     getInitialiserFunction(true);
@@ -502,8 +519,8 @@ public class CodeGenerator
       }
       else
       {
-        currentVFT = virtualFunctionHandler.generateSuperClassVFT((ClassDefinition) typeDefinition, current);
-        currentVFT = LLVM.LLVMBuildBitCast(builder, currentVFT, LLVM.LLVMPointerType(virtualFunctionHandler.getVFTType(current), 0), "");
+        LLVMValueRef globalValue = virtualFunctionHandler.getSuperClassVFTGlobal(current);
+        currentVFT = LLVM.LLVMBuildLoad(builder, globalValue, "");
       }
       LLVMValueRef objectVFTPointer = virtualFunctionHandler.getObjectVirtualFunctionTablePointer(pointer, current);
       LLVM.LLVMBuildStore(builder, currentVFT, objectVFTPointer);
@@ -570,20 +587,35 @@ public class CodeGenerator
     LLVM.LLVMBuildRetVoid(builder);
   }
 
-  private void setGlobalConstructor(LLVMValueRef initialiserFunc)
+  /**
+   * Sets the global constructors for this module. This should only be done once per module.
+   * The functions provided are put into the llvm.global_ctors variable, along with their associated priorities.
+   * At run time, these functions will be run before main(), in ascending order of priority (so priority 0 is run first, then priority 1, etc.)
+   * @param functions - the functions to run before main()
+   * @param priorities - the priorities of the functions
+   */
+  private void setGlobalConstructors(LLVMValueRef[] functions, int[] priorities)
   {
+    if (functions.length != priorities.length)
+    {
+      throw new IllegalArgumentException("To set the global constructors, you must provide an equal number of functions and priorities");
+    }
+
     // build up the type of the global variable
     LLVMTypeRef[] paramTypes = new LLVMTypeRef[0];
     LLVMTypeRef functionType = LLVM.LLVMFunctionType(LLVM.LLVMVoidType(), C.toNativePointerArray(paramTypes, false, true), paramTypes.length, false);
     LLVMTypeRef functionPointerType = LLVM.LLVMPointerType(functionType, 0);
     LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), functionPointerType};
     LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
-    LLVMTypeRef arrayType = LLVM.LLVMArrayType(structType, 1);
+    LLVMTypeRef arrayType = LLVM.LLVMArrayType(structType, functions.length);
 
     // build the constant expression for global variable's initialiser
-    LLVMValueRef[] constantValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false), initialiserFunc};
-    LLVMValueRef element = LLVM.LLVMConstStruct(C.toNativePointerArray(constantValues, false, true), constantValues.length, false);
-    LLVMValueRef[] arrayElements = new LLVMValueRef[] {element};
+    LLVMValueRef[] arrayElements = new LLVMValueRef[functions.length];
+    for (int i = 0; i < functions.length; ++i)
+    {
+      LLVMValueRef[] constantValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), priorities[i], false), functions[i]};
+      arrayElements[i] = LLVM.LLVMConstStruct(C.toNativePointerArray(constantValues, false, true), constantValues.length, false);
+    }
     LLVMValueRef array = LLVM.LLVMConstArray(structType, C.toNativePointerArray(arrayElements, false, true), arrayElements.length);
 
     // create the 'llvm.global_ctors' global variable, which lists which functions are run before main()

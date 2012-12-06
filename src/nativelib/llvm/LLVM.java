@@ -59,6 +59,13 @@ public class LLVM
     public static final int LLVMLinkerPrivateWeakLinkage   = 16;
   }
 
+  public static class LLVMVisibility
+  {
+    public static final int LLVMDefaultVisibility   = 0;
+    public static final int LLVMHiddenVisibility    = 1;
+    public static final int LLVMProtectedVisibility = 2;
+  }
+
   public static class LLVMLinkerMode
   {
     public static final int LLVMLinkerDestroySource = 0;
@@ -212,6 +219,7 @@ public class LLVM
   public static native void LLVMSetInitializer(LLVMValueRef globalVariable, LLVMValueRef constantValue);
   public static native void LLVMSetLinkage(LLVMValueRef global, int linkage);
   public static native void LLVMSetGlobalConstant(LLVMValueRef global, boolean constant);
+  public static native void LLVMSetVisibility(LLVMValueRef global, int visibility);
 
   public static native LLVMTypeRef LLVMArrayType(LLVMTypeRef elementType, int elementCount);
   public static native LLVMTypeRef LLVMFunctionType(LLVMTypeRef returnType, Pointer paramTypes, int paramCount, boolean isVarArg);

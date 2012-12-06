@@ -7,6 +7,7 @@ import java.util.Map;
 
 import nativelib.c.C;
 import nativelib.llvm.LLVM;
+import nativelib.llvm.LLVM.LLVMBasicBlockRef;
 import nativelib.llvm.LLVM.LLVMBuilderRef;
 import nativelib.llvm.LLVM.LLVMModuleRef;
 import nativelib.llvm.LLVM.LLVMTypeRef;
@@ -26,6 +27,10 @@ import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 public class VirtualFunctionHandler
 {
   private static final String SUPERCLASS_VFT_GENERATOR_NAME = "plinth_core_generate_superclass_vft";
+  private static final String VFT_PREFIX = "_VFT_";
+  private static final String VFT_DESCRIPTOR_PREFIX = "_VFT_DESC_";
+  private static final String VFT_INIT_FUNCTION_PREFIX = "_SUPER_VFT_INIT_";
+  private static final String SUPERCLASSS_VFT_GLOBAL_PREFIX = "_SUPER_VFT_";
 
   private CodeGenerator codeGenerator;
   private TypeDefinition typeDefinition;
@@ -64,7 +69,7 @@ public class VirtualFunctionHandler
    */
   public LLVMValueRef getVirtualFunctionTablePointer(ClassDefinition classDefinition)
   {
-    String mangledName = classDefinition.getVirtualFunctionTableMangledName();
+    String mangledName = VFT_PREFIX + classDefinition.getQualifiedName().getMangledName();
     LLVMValueRef existingVFT = LLVM.LLVMGetNamedGlobal(module, mangledName);
     if (existingVFT != null)
     {
@@ -81,7 +86,7 @@ public class VirtualFunctionHandler
    */
   public LLVMValueRef getVirtualFunctionTableDescriptorPointer(ClassDefinition classDefinition)
   {
-    String mangledName = classDefinition.getVirtualFunctionTableDescriptorMangledName();
+    String mangledName = VFT_DESCRIPTOR_PREFIX + classDefinition.getQualifiedName().getMangledName();
     LLVMValueRef existingDesc = LLVM.LLVMGetNamedGlobal(module, mangledName);
     if (existingDesc != null)
     {
@@ -316,7 +321,7 @@ public class VirtualFunctionHandler
    * @param superClass - the superclass that the VFT will be based on
    * @return the VFT generated
    */
-  public LLVMValueRef generateSuperClassVFT(ClassDefinition valueClass, ClassDefinition superClass)
+  public LLVMValueRef buildSuperClassVFTGeneration(ClassDefinition valueClass, ClassDefinition superClass)
   {
     List<ClassDefinition> searchClassesList = new LinkedList<ClassDefinition>();
     ClassDefinition current = valueClass;
@@ -368,5 +373,88 @@ public class VirtualFunctionHandler
     LLVMValueRef function = getSuperclassVirtualFunctionTableGenerator();
     LLVMValueRef[] arguments = new LLVMValueRef[] {descriptor, vft, searchListGlobal};
     return LLVM.LLVMBuildCall(builder, function, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+  }
+
+  /**
+   * Gets the function which will initialise all of the superclass VFTs for the specified ClassDefinition.
+   * The returned function pointer will have the LLVM type signature: void()*
+   * @param classDefinition - the ClassDefinition to get the VFT initialisation function for
+   * @return the VFT initialisation function for the specified class
+   */
+  public LLVMValueRef getClassVFTInitialisationFunction()
+  {
+    if (!(typeDefinition instanceof ClassDefinition))
+    {
+      throw new IllegalStateException("Cannot get a VFT initialisation function for a non-class type");
+    }
+    ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
+    String mangledName = VFT_INIT_FUNCTION_PREFIX + classDefinition.getQualifiedName().getMangledName();
+    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunction != null)
+    {
+      return existingFunction;
+    }
+    LLVMTypeRef returnType = LLVM.LLVMVoidType();
+    LLVMTypeRef[] paramTypes = new LLVMTypeRef[0];
+    LLVMTypeRef functionType = LLVM.LLVMFunctionType(returnType, C.toNativePointerArray(paramTypes, false, true), paramTypes.length, false);
+    LLVMValueRef function = LLVM.LLVMAddFunction(module, mangledName, functionType);
+    LLVM.LLVMSetLinkage(function, LLVM.LLVMLinkage.LLVMPrivateLinkage);
+    LLVM.LLVMSetVisibility(function, LLVM.LLVMVisibility.LLVMHiddenVisibility);
+    return function;
+  }
+
+  /**
+   * Gets the global variable that will be used to store a pointer to the virtual function table for the specified superclass of the current type definition.
+   * @param superClass - the superclass to generate the VFT pointer for
+   * @return the superclass VFT global variable for the specified superclass of the current type definition
+   */
+  public LLVMValueRef getSuperClassVFTGlobal(ClassDefinition superClass)
+  {
+    if (!(typeDefinition instanceof ClassDefinition))
+    {
+      throw new IllegalStateException("Cannot get a superclass's VFT global variable for a non-class type");
+    }
+    ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
+    String mangledName = SUPERCLASSS_VFT_GLOBAL_PREFIX + classDefinition.getQualifiedName().getMangledName() + "_" + superClass.getQualifiedName().getMangledName();
+
+    LLVMValueRef existingGlobal = LLVM.LLVMGetNamedGlobal(module, mangledName);
+    if (existingGlobal != null)
+    {
+      return existingGlobal;
+    }
+
+    LLVMTypeRef type = LLVM.LLVMPointerType(getVFTType(superClass), 0);
+    LLVMValueRef global = LLVM.LLVMAddGlobal(module, type, mangledName);
+    LLVM.LLVMSetLinkage(global, LLVM.LLVMLinkage.LLVMPrivateLinkage);
+    LLVM.LLVMSetVisibility(global, LLVM.LLVMVisibility.LLVMHiddenVisibility);
+    LLVM.LLVMSetInitializer(global, LLVM.LLVMConstNull(type));
+    return global;
+  }
+
+  /**
+   * Builds a function which will generate all of the superclass VFTs for the specified ClassDefinition.
+   * @param classDefinition - the ClassDefinition to build the VFT initialiser for
+   */
+  public void addClassVFTInitialisationFunction()
+  {
+    if (!(typeDefinition instanceof ClassDefinition))
+    {
+      throw new IllegalStateException("Cannot generate a VFT initialisation function for a non-class type");
+    }
+    ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
+    LLVMValueRef function = getClassVFTInitialisationFunction();
+    LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(function, "entry");
+    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+
+    ClassDefinition superClassDefinition = classDefinition.getSuperClassDefinition();
+    while (superClassDefinition != null)
+    {
+      LLVMValueRef vft = buildSuperClassVFTGeneration(classDefinition, superClassDefinition);
+      LLVMValueRef castedVFT = LLVM.LLVMBuildBitCast(builder, vft, LLVM.LLVMPointerType(getVFTType(superClassDefinition), 0), "");
+      LLVMValueRef vftGlobal = getSuperClassVFTGlobal(superClassDefinition);
+      LLVM.LLVMBuildStore(builder, castedVFT, vftGlobal);
+      superClassDefinition = superClassDefinition.getSuperClassDefinition();
+    }
+    LLVM.LLVMBuildRetVoid(builder);
   }
 }
