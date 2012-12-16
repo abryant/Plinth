@@ -108,11 +108,32 @@ public class LLVM
 
   public static native LLVMBasicBlockRef LLVMAppendBasicBlock(LLVMValueRef function, String name);
   public static native LLVMBasicBlockRef LLVMInsertBasicBlock(LLVMBasicBlockRef insertBeforeBlock, String name);
+  public static LLVMBasicBlockRef LLVMAddBasicBlock(LLVMBuilderRef builder, String name)
+  {
+    LLVMBasicBlockRef currentBlock = LLVMGetInsertBlock(builder);
+    LLVMBasicBlockRef nextBlock = LLVMGetNextBasicBlock(currentBlock);
+    if (nextBlock == null)
+    {
+      LLVMValueRef function = LLVMGetBasicBlockParent(currentBlock);
+      return LLVM.LLVMAppendBasicBlock(function, name);
+    }
+    return LLVM.LLVMInsertBasicBlock(nextBlock, name);
+  }
   public static native LLVMBasicBlockRef LLVMGetEntryBasicBlock(LLVMValueRef function);
+  public static native LLVMBasicBlockRef LLVMGetNextBasicBlock(LLVMBasicBlockRef block);
+  public static native LLVMValueRef LLVMGetBasicBlockParent(LLVMBasicBlockRef block);
   public static native LLVMValueRef LLVMGetFirstInstruction(LLVMBasicBlockRef block);
   public static native LLVMValueRef LLVMGetLastInstruction(LLVMBasicBlockRef block);
 
   public static native LLVMBuilderRef LLVMCreateBuilder();
+  public static LLVMBuilderRef LLVMCreateFunctionBuilder(LLVMValueRef function)
+  {
+    LLVMBasicBlockRef entryBlock = LLVMAppendBasicBlock(function, "entry");
+    LLVMBuilderRef builder = LLVMCreateBuilder();
+    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+    return builder;
+  }
+  public static native void LLVMDisposeBuilder(LLVMBuilderRef builder);
   public static native void LLVMPositionBuilder(LLVMBuilderRef builder, LLVMBasicBlockRef block, LLVMValueRef instruction);
   public static native void LLVMPositionBuilderBefore(LLVMBuilderRef builder, LLVMValueRef instruction);
   public static native void LLVMPositionBuilderAtEnd(LLVMBuilderRef builder, LLVMBasicBlockRef block);
@@ -132,6 +153,16 @@ public class LLVM
 
   public static native LLVMValueRef LLVMBuildAdd(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildAlloca(LLVMBuilderRef builder, LLVMTypeRef type, String name);
+  public static LLVMValueRef LLVMBuildAllocaInEntryBlock(LLVMBuilderRef builder, LLVMTypeRef type, String name)
+  {
+    LLVMBasicBlockRef currentBlock = LLVMGetInsertBlock(builder);
+    LLVMValueRef function = LLVMGetBasicBlockParent(currentBlock);
+    LLVMBasicBlockRef entryBlock = LLVMGetEntryBasicBlock(function);
+    LLVMPositionBuilderAtStart(builder, entryBlock);
+    LLVMValueRef alloca = LLVMBuildAlloca(builder, type, name);
+    LLVMPositionBuilderAtEnd(builder, currentBlock);
+    return alloca;
+  }
   public static native LLVMValueRef LLVMBuildAnd(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildAShr(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildBitCast(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);

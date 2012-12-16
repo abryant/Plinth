@@ -7,7 +7,6 @@ import java.util.Map;
 
 import nativelib.c.C;
 import nativelib.llvm.LLVM;
-import nativelib.llvm.LLVM.LLVMBasicBlockRef;
 import nativelib.llvm.LLVM.LLVMBuilderRef;
 import nativelib.llvm.LLVM.LLVMModuleRef;
 import nativelib.llvm.LLVM.LLVMTypeRef;
@@ -41,7 +40,6 @@ public class VirtualFunctionHandler
   private TypeHelper typeHelper;
 
   private LLVMModuleRef module;
-  private LLVMBuilderRef builder;
 
   private LLVMTypeRef vftDescriptorType;
   private LLVMTypeRef vftType;
@@ -50,12 +48,11 @@ public class VirtualFunctionHandler
   private LLVMTypeRef objectVirtualTableType;
   private Map<ClassDefinition, LLVMTypeRef> nativeVirtualTableTypes = new HashMap<ClassDefinition, LLVMTypeRef>();
 
-  public VirtualFunctionHandler(CodeGenerator codeGenerator, TypeDefinition typeDefinition, LLVMModuleRef module, LLVMBuilderRef builder)
+  public VirtualFunctionHandler(CodeGenerator codeGenerator, TypeDefinition typeDefinition, LLVMModuleRef module)
   {
     this.codeGenerator = codeGenerator;
     this.typeDefinition = typeDefinition;
     this.module = module;
-    this.builder = builder;
   }
 
   /**
@@ -90,7 +87,7 @@ public class VirtualFunctionHandler
     LLVMValueRef[] llvmMethods = new LLVMValueRef[methods.length];
     for (int i = 0; i < methods.length; ++i)
     {
-      llvmMethods[i] = codeGenerator.getMethodFunction(null, methods[i]);
+      llvmMethods[i] = codeGenerator.getMethodFunction(null, null, methods[i]);
     }
     LLVM.LLVMSetInitializer(global, LLVM.LLVMConstNamedStruct(vftType, C.toNativePointerArray(llvmMethods, false, true), llvmMethods.length));
 
@@ -179,7 +176,7 @@ public class VirtualFunctionHandler
     LLVMValueRef[] llvmMethods = new LLVMValueRef[methods.length];
     for (int i = 0; i < methods.length; ++i)
     {
-      llvmMethods[i] = codeGenerator.getMethodFunction(null, methods[i]);
+      llvmMethods[i] = codeGenerator.getMethodFunction(null, null, methods[i]);
     }
     LLVMTypeRef vftType = getVFTType(classDefinition);
     LLVM.LLVMSetInitializer(vftPointer, LLVM.LLVMConstNamedStruct(vftType, C.toNativePointerArray(llvmMethods, false, true), llvmMethods.length));
@@ -219,10 +216,11 @@ public class VirtualFunctionHandler
 
   /**
    * Finds a pointer to the first virtual function table pointer inside the specified base value.
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param baseValue - the base value to find the virtual function table pointer inside
    * @return a pointer to the virtual function table pointer inside the specified base value
    */
-  public LLVMValueRef getFirstVirtualFunctionTablePointer(LLVMValueRef baseValue)
+  public LLVMValueRef getFirstVirtualFunctionTablePointer(LLVMBuilderRef builder, LLVMValueRef baseValue)
   {
     LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                  LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
@@ -231,11 +229,12 @@ public class VirtualFunctionHandler
 
   /**
    * Finds a pointer to the virtual function table pointer inside the specified base value.
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param baseValue - the base value to find the virtual function table pointer inside
    * @param classDefinition - the ClassDefinition to find the virtual function table of
    * @return a pointer to the virtual function table pointer inside the specified base value
    */
-  public LLVMValueRef getVirtualFunctionTablePointer(LLVMValueRef baseValue, ClassDefinition classDefinition)
+  public LLVMValueRef getVirtualFunctionTablePointer(LLVMBuilderRef builder, LLVMValueRef baseValue, ClassDefinition classDefinition)
   {
     int index = 0;
     ClassDefinition superClassDefinition = classDefinition.getSuperClassDefinition();
@@ -251,11 +250,12 @@ public class VirtualFunctionHandler
 
   /**
    * Finds the pointer to the specified Method inside the specified base value
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param baseValue - the base value to look up the method in one of the virtual function tables of
    * @param method - the Method to look up in a virtual function table
    * @return a pointer to the native function representing the specified method
    */
-  public LLVMValueRef getMethodPointer(LLVMValueRef baseValue, Method method)
+  public LLVMValueRef getMethodPointer(LLVMBuilderRef builder, LLVMValueRef baseValue, Method method)
   {
     if (method.isStatic())
     {
@@ -267,7 +267,7 @@ public class VirtualFunctionHandler
       TypeDefinition typeDefinition = method.getContainingTypeDefinition();
       if (typeDefinition instanceof ClassDefinition)
       {
-        vftPointer = getVirtualFunctionTablePointer(baseValue, (ClassDefinition) typeDefinition);
+        vftPointer = getVirtualFunctionTablePointer(builder, baseValue, (ClassDefinition) typeDefinition);
       }
     }
     else if (method instanceof BuiltinMethod)
@@ -275,7 +275,7 @@ public class VirtualFunctionHandler
       BuiltinMethod builtinMethod = (BuiltinMethod) method;
       if (builtinMethod.getBaseType() instanceof ObjectType)
       {
-        vftPointer = getFirstVirtualFunctionTablePointer(baseValue);
+        vftPointer = getFirstVirtualFunctionTablePointer(builder, baseValue);
       }
     }
     if (vftPointer == null)
@@ -435,11 +435,12 @@ public class VirtualFunctionHandler
 
   /**
    * Generates code to generate a superclass's virtual function table, by searching through the specified descriptors in order for overridden functions.
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param valueClass - the class that the VFT will be stored in, i.e. the most specialised class that the object is based on
    * @param superClass - the superclass that the VFT will be based on
    * @return the VFT generated
    */
-  public LLVMValueRef buildSuperClassVFTGeneration(ClassDefinition valueClass, ClassDefinition superClass)
+  public LLVMValueRef buildSuperClassVFTGeneration(LLVMBuilderRef builder, ClassDefinition valueClass, ClassDefinition superClass)
   {
     List<ClassDefinition> searchClassesList = new LinkedList<ClassDefinition>();
     ClassDefinition current = valueClass;
@@ -561,18 +562,18 @@ public class VirtualFunctionHandler
     }
     ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
     LLVMValueRef function = getClassVFTInitialisationFunction();
-    LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(function, "entry");
-    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(function);
 
     ClassDefinition superClassDefinition = classDefinition.getSuperClassDefinition();
     while (superClassDefinition != null)
     {
-      LLVMValueRef vft = buildSuperClassVFTGeneration(classDefinition, superClassDefinition);
+      LLVMValueRef vft = buildSuperClassVFTGeneration(builder, classDefinition, superClassDefinition);
       LLVMValueRef castedVFT = LLVM.LLVMBuildBitCast(builder, vft, LLVM.LLVMPointerType(getVFTType(superClassDefinition), 0), "");
       LLVMValueRef vftGlobal = getSuperClassVFTGlobal(superClassDefinition);
       LLVM.LLVMBuildStore(builder, castedVFT, vftGlobal);
       superClassDefinition = superClassDefinition.getSuperClassDefinition();
     }
     LLVM.LLVMBuildRetVoid(builder);
+    LLVM.LLVMDisposeBuilder(builder);
   }
 }

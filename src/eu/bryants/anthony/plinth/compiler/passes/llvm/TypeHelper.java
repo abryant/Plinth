@@ -47,7 +47,6 @@ public class TypeHelper
   private VirtualFunctionHandler virtualFunctionHandler;
 
   private LLVMModuleRef module;
-  private LLVMBuilderRef builder;
 
   private LLVMTypeRef opaqueType;
   private LLVMTypeRef objectType;
@@ -58,14 +57,12 @@ public class TypeHelper
    * @param codeGenerator - the CodeGenerator to use to generate any miscellaneous sections of code, such as null checks
    * @param virtualFunctionHandler - the VirtualFunctionHandler to handle building the types of virtual function tables
    * @param module - the LLVMModuleRef that this TypeHelper will build inside
-   * @param builder - the LLVMBuilderRef to build type conversions with
    */
-  public TypeHelper(CodeGenerator codeGenerator, VirtualFunctionHandler virtualFunctionHandler, LLVMModuleRef module, LLVMBuilderRef builder)
+  public TypeHelper(CodeGenerator codeGenerator, VirtualFunctionHandler virtualFunctionHandler, LLVMModuleRef module)
   {
     this.codeGenerator = codeGenerator;
     this.virtualFunctionHandler = virtualFunctionHandler;
     this.module = module;
-    this.builder = builder;
     opaqueType = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), "opaque");
   }
 
@@ -366,11 +363,12 @@ public class TypeHelper
   /**
    * Finds the pointer to the specified field inside the specified value.
    * The value should be a NamedType in a temporary type representation, and should be for the type which contains the specified field, or a subtype thereof.
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param baseValue - the base value to get the field of
    * @param field - the Field to extract
    * @return a pointer to the specified field inside baseValue
    */
-  public LLVMValueRef getFieldPointer(LLVMValueRef baseValue, Field field)
+  public LLVMValueRef getFieldPointer(LLVMBuilderRef builder, LLVMValueRef baseValue, Field field)
   {
     if (field.isStatic())
     {
@@ -395,10 +393,11 @@ public class TypeHelper
 
   /**
    * Gets the poiner to the length field of the specified array.
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param array - the array to get the length field of, in a temporary type representation
    * @return a pointer to the length field of the specified array
    */
-  public LLVMValueRef getArrayLengthPointer(LLVMValueRef array)
+  public LLVMValueRef getArrayLengthPointer(LLVMBuilderRef builder, LLVMValueRef array)
   {
     LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                  LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
@@ -407,11 +406,12 @@ public class TypeHelper
 
   /**
    * Gets the pointer to the specified element of the specified array.
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param array - the array to get the element of, in a temporary type representation
    * @param index - the index into the array to go, as a uint
    * @return a pointer to the specified array element (in a pointer-to-standard type representation)
    */
-  public LLVMValueRef getArrayElementPointer(LLVMValueRef array, LLVMValueRef index)
+  public LLVMValueRef getArrayElementPointer(LLVMBuilderRef builder, LLVMValueRef array, LLVMValueRef index)
   {
     LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                  LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 2, false),
@@ -423,11 +423,12 @@ public class TypeHelper
    * Converts the specified Method's callee to the correct type to be passed into the Method.
    * This method assumes that the callee is already a subtype of the correct type to pass into the Method,
    * and so it only converts between class types.
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param callee - the callee to convert
    * @param method - the Method that the callee will be passed into
    * @return the converted callee
    */
-  public LLVMValueRef convertMethodCallee(LLVMValueRef callee, Method method)
+  public LLVMValueRef convertMethodCallee(LLVMBuilderRef builder, LLVMValueRef callee, Method method)
   {
     TypeDefinition typeDefinition = method.getContainingTypeDefinition();
     if (method instanceof BuiltinMethod && !method.isStatic())
@@ -479,8 +480,7 @@ public class TypeHelper
     LLVM.LLVMSetLinkage(objectFunction, LLVM.LLVMLinkage.LLVMLinkOnceODRLinkage);
     LLVM.LLVMSetVisibility(objectFunction, LLVM.LLVMVisibility.LLVMHiddenVisibility);
 
-    LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(objectFunction, "entry");
-    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(objectFunction);
 
     Type baseType;
     if (method.getContainingTypeDefinition() != null)
@@ -496,10 +496,10 @@ public class TypeHelper
       throw new IllegalArgumentException("Method has no base type: " + method);
     }
     LLVMValueRef callee = LLVM.LLVMGetParam(objectFunction, 0);
-    LLVMValueRef convertedBaseValue = convertTemporary(callee, objectType, baseType, objectFunction);
+    LLVMValueRef convertedBaseValue = convertTemporary(builder, callee, objectType, baseType);
 
     LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
-    LLVMValueRef methodFunction = codeGenerator.getMethodFunction(convertedBaseValue, method);
+    LLVMValueRef methodFunction = codeGenerator.getMethodFunction(builder, convertedBaseValue, method);
     LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
     LLVMValueRef[] arguments = new LLVMValueRef[1 + parameters.length];
     arguments[0] = convertedBaseValue;
@@ -516,6 +516,7 @@ public class TypeHelper
     {
       LLVM.LLVMBuildRet(builder, result);
     }
+    LLVM.LLVMDisposeBuilder(builder);
 
     return objectFunction;
   }
@@ -526,14 +527,14 @@ public class TypeHelper
    * @param compoundDefinition - the CompoundDefinition to initialise the value as
    * @param compoundValue - the value to initialise, which is a temporary type representation of the specified CompoundDefinition
    */
-  void initialiseCompoundType(CompoundDefinition compoundDefinition, LLVMValueRef compoundValue)
+  void initialiseCompoundType(LLVMBuilderRef builder, CompoundDefinition compoundDefinition, LLVMValueRef compoundValue)
   {
     // initialise all of the fields which have default values to zero/null
     for (Field field : compoundDefinition.getNonStaticFields())
     {
       if (field.getType().hasDefaultValue())
       {
-        LLVMValueRef pointer = getFieldPointer(compoundValue, field);
+        LLVMValueRef pointer = getFieldPointer(builder, compoundValue, field);
         LLVM.LLVMBuildStore(builder, LLVM.LLVMConstNull(findStandardType(field.getType())), pointer);
       }
     }
@@ -542,13 +543,13 @@ public class TypeHelper
   /**
    * Converts the specified value from the specified 'from' type to the specified 'to' type, as a temporary.
    * This method assumes that the incoming value has a temporary native type, and produces a result with a temporary native type.
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param value - the value to convert
    * @param from - the Type to convert from
    * @param to - the Type to convert to
-   * @param llvmFunction - the function we are building code inside
    * @return the converted value
    */
-  public LLVMValueRef convertTemporary(LLVMValueRef value, Type from, Type to, LLVMValueRef llvmFunction)
+  public LLVMValueRef convertTemporary(LLVMBuilderRef builder, LLVMValueRef value, Type from, Type to)
   {
     if (from.isEquivalent(to))
     {
@@ -556,7 +557,7 @@ public class TypeHelper
     }
     if (from instanceof PrimitiveType && to instanceof PrimitiveType)
     {
-      return convertPrimitiveType(value, (PrimitiveType) from, (PrimitiveType) to);
+      return convertPrimitiveType(builder, value, (PrimitiveType) from, (PrimitiveType) to);
     }
     if (from instanceof ArrayType && to instanceof ArrayType)
     {
@@ -686,7 +687,7 @@ public class TypeHelper
       for (int i = 0; i < fromSubTypes.length; i++)
       {
         LLVMValueRef current = LLVM.LLVMBuildExtractValue(builder, tupleValue, i, "");
-        LLVMValueRef converted = convertTemporary(current, fromSubTypes[i], toSubTypes[i], llvmFunction);
+        LLVMValueRef converted = convertTemporary(builder, current, fromSubTypes[i], toSubTypes[i]);
         currentValue = LLVM.LLVMBuildInsertValue(builder, currentValue, converted, i, "");
       }
 
@@ -738,15 +739,15 @@ public class TypeHelper
       LLVMBasicBlockRef continuationBlock = null;
       if (from.isNullable())
       {
-        notNullBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "toObjectConversionNotNull");
-        continuationBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "toObjectConversionContinuation");
+        continuationBlock = LLVM.LLVMAddBasicBlock(builder, "toObjectConversionContinuation");
+        notNullBlock = LLVM.LLVMAddBasicBlock(builder, "toObjectConversionNotNull");
 
-        LLVMValueRef isNotNull = codeGenerator.buildNullCheck(value, from);
+        LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
         startBlock = LLVM.LLVMGetInsertBlock(builder);
         LLVM.LLVMBuildCondBr(builder, isNotNull, notNullBlock, continuationBlock);
 
         LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
-        notNullValue = convertTemporary(value, from, notNullFromType, llvmFunction);
+        notNullValue = convertTemporary(builder, value, from, notNullFromType);
       }
       LLVMTypeRef nativeType = LLVM.LLVMPointerType(findSpecialisedObjectType(notNullFromType), 0);
       // allocate memory for the object
@@ -761,14 +762,14 @@ public class TypeHelper
       LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
       LLVMValueRef baseChangeVFT = virtualFunctionHandler.getBaseChangeObjectVFT(notNullFromType);
       LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
-      LLVMValueRef vftElementPointer = virtualFunctionHandler.getFirstVirtualFunctionTablePointer(pointer);
+      LLVMValueRef vftElementPointer = virtualFunctionHandler.getFirstVirtualFunctionTablePointer(builder, pointer);
       LLVM.LLVMBuildStore(builder, baseChangeVFT, vftElementPointer);
 
       // store the value inside the object
       LLVMValueRef[] elementIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                           LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
       LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, pointer, C.toNativePointerArray(elementIndices, false, true), elementIndices.length, "");
-      notNullValue = convertTemporaryToStandard(notNullValue, notNullFromType, llvmFunction);
+      notNullValue = convertTemporaryToStandard(builder, notNullValue, notNullFromType);
       LLVM.LLVMBuildStore(builder, notNullValue, elementPointer);
 
       // cast away the part of the type that contains the value
@@ -803,15 +804,15 @@ public class TypeHelper
       LLVMBasicBlockRef continuationBlock = null;
       if (from.isNullable())
       {
-        notNullBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "fromObjectConversionNotNull");
-        continuationBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "fromObjectConversionContinuation");
+        continuationBlock = LLVM.LLVMAddBasicBlock(builder, "fromObjectConversionContinuation");
+        notNullBlock = LLVM.LLVMAddBasicBlock(builder, "fromObjectConversionNotNull");
 
-        LLVMValueRef isNotNull = codeGenerator.buildNullCheck(value, from);
+        LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
         startBlock = LLVM.LLVMGetInsertBlock(builder);
         LLVM.LLVMBuildCondBr(builder, isNotNull, notNullBlock, continuationBlock);
 
         LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
-        notNullValue = convertTemporary(value, from, TypeChecker.findTypeWithNullability(from, false), llvmFunction);
+        notNullValue = convertTemporary(builder, value, from, TypeChecker.findTypeWithNullability(from, false));
       }
 
       Type notNullToType = TypeChecker.findTypeWithNullability(to, false);
@@ -821,7 +822,7 @@ public class TypeHelper
       LLVMValueRef[] elementIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                           LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
       LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, castedValue, C.toNativePointerArray(elementIndices, false, true), elementIndices.length, "");
-      LLVMValueRef notNullResult = convertStandardPointerToTemporary(elementPointer, TypeChecker.findTypeWithNullability(to, false), to, llvmFunction);
+      LLVMValueRef notNullResult = convertStandardPointerToTemporary(builder, elementPointer, TypeChecker.findTypeWithNullability(to, false), to);
 
       if (from.isNullable())
       {
@@ -847,7 +848,7 @@ public class TypeHelper
    * @param to - the PrimitiveType to convert to
    * @return the converted value
    */
-  private LLVMValueRef convertPrimitiveType(LLVMValueRef value, PrimitiveType from, PrimitiveType to)
+  private LLVMValueRef convertPrimitiveType(LLVMBuilderRef builder, LLVMValueRef value, PrimitiveType from, PrimitiveType to)
   {
     PrimitiveTypeType fromType = from.getPrimitiveTypeType();
     PrimitiveTypeType toType = to.getPrimitiveTypeType();
@@ -934,26 +935,26 @@ public class TypeHelper
 
   /**
    * Converts the specified value of the specified type from a temporary type representation to a standard type representation, after converting it from 'fromType' to 'toType'.
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param value - the value to convert
    * @param fromType - the type to convert from
    * @param toType - the type to convert to
-   * @param llvmFunction - the function to add any LLVMBasicBlockRefs to if required
    * @return the converted value
    */
-  public LLVMValueRef convertTemporaryToStandard(LLVMValueRef value, Type fromType, Type toType, LLVMValueRef llvmFunction)
+  public LLVMValueRef convertTemporaryToStandard(LLVMBuilderRef builder, LLVMValueRef value, Type fromType, Type toType)
   {
-    LLVMValueRef temporary = convertTemporary(value, fromType, toType, llvmFunction);
-    return convertTemporaryToStandard(temporary, toType, llvmFunction);
+    LLVMValueRef temporary = convertTemporary(builder, value, fromType, toType);
+    return convertTemporaryToStandard(builder, temporary, toType);
   }
 
   /**
    * Converts the specified value of the specified type from a temporary type representation to a standard type representation.
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param value - the value to convert
    * @param type - the type to convert
-   * @param llvmFunction - the function to add any LLVMBasicBlockRefs to if required
    * @return the converted value
    */
-  public LLVMValueRef convertTemporaryToStandard(LLVMValueRef value, Type type, LLVMValueRef llvmFunction)
+  public LLVMValueRef convertTemporaryToStandard(LLVMBuilderRef builder, LLVMValueRef value, Type type)
   {
     if (type instanceof ArrayType)
     {
@@ -982,8 +983,8 @@ public class TypeHelper
           LLVMValueRef isNotNullValue = LLVM.LLVMBuildIsNotNull(builder, value, "");
           // we need to branch on isNotNullValue, to decide whether to load from the pointer
           LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
-          LLVMBasicBlockRef loadBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "compoundConversion");
-          LLVMBasicBlockRef convertedBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "compoundConverted");
+          LLVMBasicBlockRef convertedBlock = LLVM.LLVMAddBasicBlock(builder, "compoundConverted");
+          LLVMBasicBlockRef loadBlock = LLVM.LLVMAddBasicBlock(builder, "compoundConversion");
 
           LLVM.LLVMBuildCondBr(builder, isNotNullValue, loadBlock, convertedBlock);
           LLVM.LLVMPositionBuilderAtEnd(builder, loadBlock);
@@ -1057,7 +1058,7 @@ public class TypeHelper
       for (int i = 0; i < subTypes.length; ++i)
       {
         LLVMValueRef extractedValue = LLVM.LLVMBuildExtractValue(builder, notNullValue, i, "");
-        LLVMValueRef convertedValue = convertTemporaryToStandard(extractedValue, subTypes[i], llvmFunction);
+        LLVMValueRef convertedValue = convertTemporaryToStandard(builder, extractedValue, subTypes[i]);
         resultNotNull = LLVM.LLVMBuildInsertValue(builder, resultNotNull, convertedValue, i, "");
       }
       if (type.isNullable())
@@ -1079,26 +1080,26 @@ public class TypeHelper
 
   /**
    * Converts the specified value of the specified type from a standard type representation to a temporary type representation, before converting it from 'fromType' to 'toType'.
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param value - the value to convert
    * @param fromType - the type to convert from
    * @param toType - the type to convert to
-   * @param llvmFunction - the function to add any LLVMBasicBlockRefs to if required
    * @return the converted value
    */
-  public LLVMValueRef convertStandardToTemporary(LLVMValueRef value, Type fromType, Type toType, LLVMValueRef llvmFunction)
+  public LLVMValueRef convertStandardToTemporary(LLVMBuilderRef builder, LLVMValueRef value, Type fromType, Type toType)
   {
-    LLVMValueRef temporary = convertStandardToTemporary(value, fromType, llvmFunction);
-    return convertTemporary(temporary, fromType, toType, llvmFunction);
+    LLVMValueRef temporary = convertStandardToTemporary(builder, value, fromType);
+    return convertTemporary(builder, temporary, fromType, toType);
   }
 
   /**
    * Converts the specified value of the specified type from a standard type representation to a temporary type representation.
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param value - the value to convert
    * @param type - the type to convert
-   * @param llvmFunction - the function to add any allocas to the start of if required
    * @return the converted value
    */
-  public LLVMValueRef convertStandardToTemporary(LLVMValueRef value, Type type, LLVMValueRef llvmFunction)
+  public LLVMValueRef convertStandardToTemporary(LLVMBuilderRef builder, LLVMValueRef value, Type type)
   {
     if (type instanceof ArrayType)
     {
@@ -1126,14 +1127,10 @@ public class TypeHelper
           notNullValue = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
         }
 
-        // build an alloca at the top of the entry block, to store this new value
-        LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
-        LLVM.LLVMPositionBuilderAtStart(builder, LLVM.LLVMGetEntryBasicBlock(llvmFunction));
         // find the type to alloca, which is the standard representation of a non-nullable version of this type
         // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with any nullability)
         LLVMTypeRef allocaBaseType = findStandardType(TypeChecker.findTypeWithNullability(type, false));
-        LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, allocaBaseType, "");
-        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+        LLVMValueRef alloca = LLVM.LLVMBuildAllocaInEntryBlock(builder, allocaBaseType, "");
         LLVM.LLVMBuildStore(builder, notNullValue, alloca);
         if (type.isNullable())
         {
@@ -1196,7 +1193,7 @@ public class TypeHelper
       for (int i = 0; i < subTypes.length; ++i)
       {
         LLVMValueRef extractedValue = LLVM.LLVMBuildExtractValue(builder, notNullValue, i, "");
-        LLVMValueRef convertedValue = convertStandardToTemporary(extractedValue, subTypes[i], llvmFunction);
+        LLVMValueRef convertedValue = convertStandardToTemporary(builder, extractedValue, subTypes[i]);
         resultNotNull = LLVM.LLVMBuildInsertValue(builder, resultNotNull, convertedValue, i, "");
       }
       if (type.isNullable())
@@ -1218,26 +1215,26 @@ public class TypeHelper
 
   /**
    * Converts the specified pointer to a value of the specified type from a pointer to a standard type representation to a temporary type representation, before converting it from 'fromType' to 'toType'.
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param pointer - the pointer to the value to convert
    * @param fromType - the type to convert from
    * @param toType - the type to convert to
-   * @param llvmFunction - the function to add any LLVMBasicBlockRefs to if required
    * @return the converted value
    */
-  public LLVMValueRef convertStandardPointerToTemporary(LLVMValueRef pointer, Type fromType, Type toType, LLVMValueRef llvmFunction)
+  public LLVMValueRef convertStandardPointerToTemporary(LLVMBuilderRef builder, LLVMValueRef pointer, Type fromType, Type toType)
   {
-    LLVMValueRef temporary = convertStandardPointerToTemporary(pointer, fromType, llvmFunction);
-    return convertTemporary(temporary, fromType, toType, llvmFunction);
+    LLVMValueRef temporary = convertStandardPointerToTemporary(builder, pointer, fromType);
+    return convertTemporary(builder, temporary, fromType, toType);
   }
 
   /**
    * Converts the specified pointer to a value of the specified type from a pointer to a standard type representation to a temporary type representation.
+   * @param builder - the LLVMBuilderRef to build instructions with
    * @param value - the pointer to the value to convert
    * @param type - the type to convert
-   * @param llvmFunction - the function to add any allocas to the start of if required
    * @return the converted value
    */
-  public LLVMValueRef convertStandardPointerToTemporary(LLVMValueRef value, Type type, LLVMValueRef llvmFunction)
+  public LLVMValueRef convertStandardPointerToTemporary(LLVMBuilderRef builder, LLVMValueRef value, Type type)
   {
     if (type instanceof ArrayType)
     {
@@ -1338,7 +1335,7 @@ public class TypeHelper
         LLVMValueRef[] valueIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                           LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), i, false)};
         LLVMValueRef valuePointer = LLVM.LLVMBuildGEP(builder, notNullPointer, C.toNativePointerArray(valueIndices, false, true), valueIndices.length, "");
-        LLVMValueRef convertedValue = convertStandardPointerToTemporary(valuePointer, subTypes[i], llvmFunction);
+        LLVMValueRef convertedValue = convertStandardPointerToTemporary(builder, valuePointer, subTypes[i]);
         resultNotNull = LLVM.LLVMBuildInsertValue(builder, resultNotNull, convertedValue, i, "");
       }
       if (type.isNullable())

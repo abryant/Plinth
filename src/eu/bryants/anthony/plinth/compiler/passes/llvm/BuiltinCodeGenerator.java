@@ -37,7 +37,6 @@ import eu.bryants.anthony.plinth.compiler.passes.TypeChecker;
  */
 public class BuiltinCodeGenerator
 {
-  private LLVMBuilderRef builder;
   private LLVMModuleRef module;
 
   private CodeGenerator codeGenerator;
@@ -45,14 +44,12 @@ public class BuiltinCodeGenerator
 
   /**
    * Creates a new BuiltinCodeGenerator to generate code for special types.
-   * @param builder - the LLVMBuilderRef to build code with
    * @param module - the LLVMModuleRef to add new functions to
    * @param codeGenerator - the CodeGenerator to use to build certain elements of the module
    * @param typeHelper - the TypeHelper to find native types with, and to use to convert between types
    */
-  public BuiltinCodeGenerator(LLVMBuilderRef builder, LLVMModuleRef module, CodeGenerator codeGenerator, TypeHelper typeHelper)
+  public BuiltinCodeGenerator(LLVMModuleRef module, CodeGenerator codeGenerator, TypeHelper typeHelper)
   {
-    this.builder = builder;
     this.module = module;
     this.codeGenerator = codeGenerator;
     this.typeHelper = typeHelper;
@@ -160,14 +157,14 @@ public class BuiltinCodeGenerator
     }
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
-    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(null, SpecialTypeHandler.stringValueOfBoolean);
+    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(null, null, SpecialTypeHandler.stringValueOfBoolean);
 
-    LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "entry");
-    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
     LLVMValueRef[] arguments = new LLVMValueRef[] {LLVM.LLVMConstNull(typeHelper.getOpaquePointer()), parameter};
     LLVMValueRef result = LLVM.LLVMBuildCall(builder, valueOfFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
     LLVM.LLVMBuildRet(builder, result);
+    LLVM.LLVMDisposeBuilder(builder);
 
     return builtinFunction;
   }
@@ -184,14 +181,13 @@ public class BuiltinCodeGenerator
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
     Method valueOfMethod = radix ? SpecialTypeHandler.stringValueOfLongRadix : SpecialTypeHandler.stringValueOfLong;
-    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(null, valueOfMethod);
+    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(null, null, valueOfMethod);
 
-    LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "entry");
-    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
 
     // get the parameter and convert it to a long
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
-    parameter = typeHelper.convertTemporary(parameter, baseType, valueOfMethod.getParameters()[0].getType(), builtinFunction);
+    parameter = typeHelper.convertTemporary(builder, parameter, baseType, valueOfMethod.getParameters()[0].getType());
 
     LLVMValueRef[] arguments;
     if (radix)
@@ -205,6 +201,7 @@ public class BuiltinCodeGenerator
     }
     LLVMValueRef result = LLVM.LLVMBuildCall(builder, valueOfFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
     LLVM.LLVMBuildRet(builder, result);
+    LLVM.LLVMDisposeBuilder(builder);
 
     return builtinFunction;
   }
@@ -221,14 +218,13 @@ public class BuiltinCodeGenerator
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
     Method valueOfMethod = radix ? SpecialTypeHandler.stringValueOfUlongRadix : SpecialTypeHandler.stringValueOfUlong;
-    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(null, valueOfMethod);
+    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(null, null, valueOfMethod);
 
-    LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "entry");
-    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
 
     // get the parameter and convert it to a long
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
-    parameter = typeHelper.convertTemporary(parameter, baseType, valueOfMethod.getParameters()[0].getType(), builtinFunction);
+    parameter = typeHelper.convertTemporary(builder, parameter, baseType, valueOfMethod.getParameters()[0].getType());
 
     LLVMValueRef[] arguments;
     if (radix)
@@ -242,6 +238,7 @@ public class BuiltinCodeGenerator
     }
     LLVMValueRef result = LLVM.LLVMBuildCall(builder, valueOfFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
     LLVM.LLVMBuildRet(builder, result);
+    LLVM.LLVMDisposeBuilder(builder);
 
     return builtinFunction;
   }
@@ -256,14 +253,14 @@ public class BuiltinCodeGenerator
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
     Method valueOfMethod = baseType.getPrimitiveTypeType() == PrimitiveTypeType.FLOAT ? SpecialTypeHandler.stringValueOfFloat : SpecialTypeHandler.stringValueOfDouble;
-    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(null, valueOfMethod);
+    LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(null, null, valueOfMethod);
 
-    LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "entry");
-    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
     LLVMValueRef[] arguments = new LLVMValueRef[] {LLVM.LLVMConstNull(typeHelper.getOpaquePointer()), parameter};
     LLVMValueRef result = LLVM.LLVMBuildCall(builder, valueOfFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
     LLVM.LLVMBuildRet(builder, result);
+    LLVM.LLVMDisposeBuilder(builder);
 
     return builtinFunction;
   }
@@ -277,17 +274,14 @@ public class BuiltinCodeGenerator
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
 
-    LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "entry");
-    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
 
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
     LLVMValueRef integerValue = LLVM.LLVMBuildPtrToInt(builder, parameter, LLVM.LLVMInt64Type(), "");
 
-    LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
     Type ulongType = new PrimitiveType(false, PrimitiveTypeType.ULONG, null);
     Method toStringMethod = ulongType.getMethod(new BuiltinMethod(ulongType, BuiltinMethodType.TO_STRING_RADIX).getDisambiguator());
-    LLVMValueRef longToStringFunction = codeGenerator.getMethodFunction(null, toStringMethod);
-    LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+    LLVMValueRef longToStringFunction = codeGenerator.getMethodFunction(builder, null, toStringMethod);
 
     LLVMValueRef[] longToStringArguments = new LLVMValueRef[] {integerValue, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 16, false)};
     LLVMValueRef pointerString = LLVM.LLVMBuildCall(builder, longToStringFunction, C.toNativePointerArray(longToStringArguments, false, true), longToStringArguments.length, "");
@@ -297,14 +291,15 @@ public class BuiltinCodeGenerator
     String prefixString = "[" + (resolvedDefinition instanceof CompoundDefinition ? ((CompoundDefinition) resolvedDefinition).getQualifiedName() : "object") + "@";
     String suffixString = "]";
 
-    LLVMValueRef startString = codeGenerator.buildStringCreation(prefixString, builtinFunction);
-    startString = typeHelper.convertTemporaryToStandard(startString, SpecialTypeHandler.STRING_TYPE, builtinFunction);
-    LLVMValueRef endString = codeGenerator.buildStringCreation(suffixString, builtinFunction);
-    endString = typeHelper.convertTemporaryToStandard(endString, SpecialTypeHandler.STRING_TYPE, builtinFunction);
+    LLVMValueRef startString = codeGenerator.buildStringCreation(builder, prefixString);
+    startString = typeHelper.convertTemporaryToStandard(builder, startString, SpecialTypeHandler.STRING_TYPE);
+    LLVMValueRef endString = codeGenerator.buildStringCreation(builder, suffixString);
+    endString = typeHelper.convertTemporaryToStandard(builder, endString, SpecialTypeHandler.STRING_TYPE);
 
-    LLVMValueRef completeString = codeGenerator.buildStringConcatenation(builtinFunction, startString, pointerString, endString);
-    completeString = typeHelper.convertTemporaryToStandard(completeString, SpecialTypeHandler.STRING_TYPE, builtinFunction);
+    LLVMValueRef completeString = codeGenerator.buildStringConcatenation(builder, startString, pointerString, endString);
+    completeString = typeHelper.convertTemporaryToStandard(builder, completeString, SpecialTypeHandler.STRING_TYPE);
     LLVM.LLVMBuildRet(builder, completeString);
+    LLVM.LLVMDisposeBuilder(builder);
 
     return builtinFunction;
   }
@@ -315,23 +310,23 @@ public class BuiltinCodeGenerator
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
 
-    LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "entry");
-    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
 
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
-    LLVMValueRef array = typeHelper.convertStandardToTemporary(parameter, arrayType, builtinFunction);
+    LLVMValueRef array = typeHelper.convertStandardToTemporary(builder, parameter, arrayType);
 
-    LLVMValueRef lengthPointer = typeHelper.getArrayLengthPointer(array);
+    LLVMValueRef lengthPointer = typeHelper.getArrayLengthPointer(builder, array);
     LLVMValueRef length = LLVM.LLVMBuildLoad(builder, lengthPointer, "");
 
-    LLVMValueRef llvmStartString = codeGenerator.buildStringCreation("[", builtinFunction);
+    LLVMValueRef llvmStartString = codeGenerator.buildStringCreation(builder, "[");
 
-    LLVMBasicBlockRef loopBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "elementLoop");
-    LLVMBasicBlockRef addCommaBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "appendComma");
-    LLVMBasicBlockRef exitBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "exit");
+    LLVMBasicBlockRef exitBlock = LLVM.LLVMAddBasicBlock(builder, "exit");
+    LLVMBasicBlockRef addCommaBlock = LLVM.LLVMAddBasicBlock(builder, "appendComma");
+    LLVMBasicBlockRef loopBlock = LLVM.LLVMAddBasicBlock(builder, "elementLoop");
 
     // go straight to the exit block if the array has a zero length
     LLVMValueRef zeroLengthCheck = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, length, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false), "");
+    LLVMBasicBlockRef startBlock = LLVM.LLVMGetInsertBlock(builder);
     LLVM.LLVMBuildCondBr(builder, zeroLengthCheck, exitBlock, loopBlock);
 
     // build the main loop block
@@ -339,9 +334,9 @@ public class BuiltinCodeGenerator
     LLVMValueRef stringPhi = LLVM.LLVMBuildPhi(builder, typeHelper.findTemporaryType(SpecialTypeHandler.STRING_TYPE), "");
     LLVMValueRef indexPhi = LLVM.LLVMBuildPhi(builder, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
 
-    LLVMValueRef elementPointer = typeHelper.getArrayElementPointer(array, indexPhi);
+    LLVMValueRef elementPointer = typeHelper.getArrayElementPointer(builder, array, indexPhi);
     LLVMValueRef element = LLVM.LLVMBuildLoad(builder, elementPointer, "");
-    element = typeHelper.convertStandardToTemporary(element, baseType, builtinFunction);
+    element = typeHelper.convertStandardToTemporary(builder, element, baseType);
 
     // build the string conversion
     Type notNullBaseType = TypeChecker.findTypeWithNullability(baseType, false);
@@ -351,18 +346,16 @@ public class BuiltinCodeGenerator
     LLVMBasicBlockRef continuationBlock = null;
     if (baseType.isNullable())
     {
-      LLVMValueRef nullCheckResult = codeGenerator.buildNullCheck(element, baseType);
-      LLVMBasicBlockRef notNullBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "toStringCall");
-      nullBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "nullGeneration");
-      continuationBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "continuation");
+      LLVMValueRef nullCheckResult = codeGenerator.buildNullCheck(builder, element, baseType);
+      continuationBlock = LLVM.LLVMAddBasicBlock(builder, "continuation");
+      nullBlock = LLVM.LLVMAddBasicBlock(builder, "nullGeneration");
+      LLVMBasicBlockRef notNullBlock = LLVM.LLVMAddBasicBlock(builder, "toStringCall");
       LLVM.LLVMBuildCondBr(builder, nullCheckResult, notNullBlock, nullBlock);
       LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
-      notNullElement = typeHelper.convertTemporary(element, baseType, notNullBaseType, builtinFunction);
+      notNullElement = typeHelper.convertTemporary(builder, element, baseType, notNullBaseType);
     }
     Method toStringMethod = notNullBaseType.getMethod(new BuiltinMethod(notNullBaseType, BuiltinMethodType.TO_STRING).getDisambiguator());
-    LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
-    LLVMValueRef toStringFunction = codeGenerator.getMethodFunction(notNullElement, toStringMethod);
-    LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+    LLVMValueRef toStringFunction = codeGenerator.getMethodFunction(builder, notNullElement, toStringMethod);
     LLVMValueRef[] arguments = new LLVMValueRef[] {notNullElement};
     LLVMValueRef notNullElementString = LLVM.LLVMBuildCall(builder, toStringFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
 
@@ -372,8 +365,8 @@ public class BuiltinCodeGenerator
       LLVM.LLVMBuildBr(builder, continuationBlock);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, nullBlock);
-      LLVMValueRef llvmNullString = codeGenerator.buildStringCreation("null", builtinFunction);
-      llvmNullString = typeHelper.convertTemporaryToStandard(llvmNullString, SpecialTypeHandler.STRING_TYPE, builtinFunction);
+      LLVMValueRef llvmNullString = codeGenerator.buildStringCreation(builder, "null");
+      llvmNullString = typeHelper.convertTemporaryToStandard(builder, llvmNullString, SpecialTypeHandler.STRING_TYPE);
       LLVMBasicBlockRef endNullBlock = LLVM.LLVMGetInsertBlock(builder);
       LLVM.LLVMBuildBr(builder, continuationBlock);
 
@@ -389,9 +382,9 @@ public class BuiltinCodeGenerator
     }
 
     // concatenate the string so far (from stringPhi) with the new string
-    LLVMValueRef[] concatenationValues = new LLVMValueRef[] {typeHelper.convertTemporaryToStandard(stringPhi, SpecialTypeHandler.STRING_TYPE, builtinFunction),
+    LLVMValueRef[] concatenationValues = new LLVMValueRef[] {typeHelper.convertTemporaryToStandard(builder, stringPhi, SpecialTypeHandler.STRING_TYPE),
                                                              elementString};
-    LLVMValueRef currentString = codeGenerator.buildStringConcatenation(builtinFunction, concatenationValues);
+    LLVMValueRef currentString = codeGenerator.buildStringConcatenation(builder, concatenationValues);
 
     // check whether this is the last element
     LLVMValueRef incIndex = LLVM.LLVMBuildAdd(builder, indexPhi, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false), "");
@@ -401,15 +394,15 @@ public class BuiltinCodeGenerator
 
     // build the add comma block
     LLVM.LLVMPositionBuilderAtEnd(builder, addCommaBlock);
-    LLVMValueRef llvmCommaString = codeGenerator.buildStringCreation(", ", builtinFunction);
-    LLVMValueRef[] commaConcatenationValues = new LLVMValueRef[] {typeHelper.convertTemporaryToStandard(currentString, SpecialTypeHandler.STRING_TYPE, builtinFunction),
-                                                                  typeHelper.convertTemporaryToStandard(llvmCommaString, SpecialTypeHandler.STRING_TYPE, builtinFunction)};
-    LLVMValueRef nextString = codeGenerator.buildStringConcatenation(builtinFunction, commaConcatenationValues);
+    LLVMValueRef llvmCommaString = codeGenerator.buildStringCreation(builder, ", ");
+    LLVMValueRef[] commaConcatenationValues = new LLVMValueRef[] {typeHelper.convertTemporaryToStandard(builder, currentString, SpecialTypeHandler.STRING_TYPE),
+                                                                  typeHelper.convertTemporaryToStandard(builder, llvmCommaString, SpecialTypeHandler.STRING_TYPE)};
+    LLVMValueRef nextString = codeGenerator.buildStringConcatenation(builder, commaConcatenationValues);
     LLVMBasicBlockRef endCommaBlock = LLVM.LLVMGetInsertBlock(builder);
     LLVM.LLVMBuildBr(builder, loopBlock);
 
     // add incoming values to the loop phi nodes
-    LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {entryBlock, endCommaBlock};
+    LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, endCommaBlock};
     LLVMValueRef[] indexIncomingValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false), incIndex};
     LLVM.LLVMAddIncoming(indexPhi, C.toNativePointerArray(indexIncomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), indexIncomingValues.length);
     LLVMValueRef[] stringIncomingValues = new LLVMValueRef[] {llvmStartString, nextString};
@@ -418,17 +411,18 @@ public class BuiltinCodeGenerator
     // build the exit block
     LLVM.LLVMPositionBuilderAtEnd(builder, exitBlock);
     LLVMValueRef exitStringPhi = LLVM.LLVMBuildPhi(builder, typeHelper.findTemporaryType(SpecialTypeHandler.STRING_TYPE), "");
-    LLVMBasicBlockRef[] exitIncomingBlocks = new LLVMBasicBlockRef[] {entryBlock, endLoopBlock};
+    LLVMBasicBlockRef[] exitIncomingBlocks = new LLVMBasicBlockRef[] {startBlock, endLoopBlock};
     LLVMValueRef[] exitIncomingValues = new LLVMValueRef[] {llvmStartString, currentString};
     LLVM.LLVMAddIncoming(exitStringPhi, C.toNativePointerArray(exitIncomingValues, false, true), C.toNativePointerArray(exitIncomingBlocks, false, true), exitIncomingValues.length);
 
     // do the final concatenation, and return the result
-    LLVMValueRef llvmEndString = codeGenerator.buildStringCreation("]", builtinFunction);
-    LLVMValueRef[] finalConcatenationValues = new LLVMValueRef[] {typeHelper.convertTemporaryToStandard(exitStringPhi, SpecialTypeHandler.STRING_TYPE, builtinFunction),
-                                                                  typeHelper.convertTemporaryToStandard(llvmEndString, SpecialTypeHandler.STRING_TYPE, builtinFunction)};
-    LLVMValueRef result = codeGenerator.buildStringConcatenation(builtinFunction, finalConcatenationValues);
-    result = typeHelper.convertTemporaryToStandard(result, SpecialTypeHandler.STRING_TYPE, builtinFunction);
+    LLVMValueRef llvmEndString = codeGenerator.buildStringCreation(builder, "]");
+    LLVMValueRef[] finalConcatenationValues = new LLVMValueRef[] {typeHelper.convertTemporaryToStandard(builder, exitStringPhi, SpecialTypeHandler.STRING_TYPE),
+                                                                  typeHelper.convertTemporaryToStandard(builder, llvmEndString, SpecialTypeHandler.STRING_TYPE)};
+    LLVMValueRef result = codeGenerator.buildStringConcatenation(builder, finalConcatenationValues);
+    result = typeHelper.convertTemporaryToStandard(builder, result, SpecialTypeHandler.STRING_TYPE);
     LLVM.LLVMBuildRet(builder, result);
+    LLVM.LLVMDisposeBuilder(builder);
 
     return builtinFunction;
   }
@@ -442,8 +436,7 @@ public class BuiltinCodeGenerator
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
 
-    LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "entry");
-    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
 
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
     LLVMValueRef calleeValue = LLVM.LLVMBuildExtractValue(builder, parameter, 0, "");
@@ -451,11 +444,9 @@ public class BuiltinCodeGenerator
     LLVMValueRef functionValue = LLVM.LLVMBuildExtractValue(builder, parameter, 1, "");
     LLVMValueRef functionIntegerValue = LLVM.LLVMBuildPtrToInt(builder, functionValue, LLVM.LLVMInt64Type(), "");
 
-    LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
     Type ulongType = new PrimitiveType(false, PrimitiveTypeType.ULONG, null);
     Method toStringMethod = ulongType.getMethod(new BuiltinMethod(ulongType, BuiltinMethodType.TO_STRING_RADIX).getDisambiguator());
-    LLVMValueRef longToStringFunction = codeGenerator.getMethodFunction(null, toStringMethod);
-    LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+    LLVMValueRef longToStringFunction = codeGenerator.getMethodFunction(builder, null, toStringMethod);
 
     LLVMValueRef[] calleeToStringArguments = new LLVMValueRef[] {calleeIntegerValue, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 16, false)};
     LLVMValueRef calleeString = LLVM.LLVMBuildCall(builder, longToStringFunction, C.toNativePointerArray(calleeToStringArguments, false, true), calleeToStringArguments.length, "");
@@ -467,16 +458,17 @@ public class BuiltinCodeGenerator
     String middleString = " callee@";
     String endString = "]";
 
-    LLVMValueRef llvmStartString = codeGenerator.buildStringCreation(startString, builtinFunction);
-    llvmStartString = typeHelper.convertTemporaryToStandard(llvmStartString, SpecialTypeHandler.STRING_TYPE, builtinFunction);
-    LLVMValueRef llvmMiddleString = codeGenerator.buildStringCreation(middleString, builtinFunction);
-    llvmMiddleString = typeHelper.convertTemporaryToStandard(llvmMiddleString, SpecialTypeHandler.STRING_TYPE, builtinFunction);
-    LLVMValueRef llvmEndString = codeGenerator.buildStringCreation(endString, builtinFunction);
-    llvmEndString = typeHelper.convertTemporaryToStandard(llvmEndString, SpecialTypeHandler.STRING_TYPE, builtinFunction);
+    LLVMValueRef llvmStartString = codeGenerator.buildStringCreation(builder, startString);
+    llvmStartString = typeHelper.convertTemporaryToStandard(builder, llvmStartString, SpecialTypeHandler.STRING_TYPE);
+    LLVMValueRef llvmMiddleString = codeGenerator.buildStringCreation(builder, middleString);
+    llvmMiddleString = typeHelper.convertTemporaryToStandard(builder, llvmMiddleString, SpecialTypeHandler.STRING_TYPE);
+    LLVMValueRef llvmEndString = codeGenerator.buildStringCreation(builder, endString);
+    llvmEndString = typeHelper.convertTemporaryToStandard(builder, llvmEndString, SpecialTypeHandler.STRING_TYPE);
 
-    LLVMValueRef completeString = codeGenerator.buildStringConcatenation(builtinFunction, llvmStartString, functionString, llvmMiddleString, calleeString, llvmEndString);
-    completeString = typeHelper.convertTemporaryToStandard(completeString, SpecialTypeHandler.STRING_TYPE, builtinFunction);
+    LLVMValueRef completeString = codeGenerator.buildStringConcatenation(builder, llvmStartString, functionString, llvmMiddleString, calleeString, llvmEndString);
+    completeString = typeHelper.convertTemporaryToStandard(builder, completeString, SpecialTypeHandler.STRING_TYPE);
     LLVM.LLVMBuildRet(builder, completeString);
+    LLVM.LLVMDisposeBuilder(builder);
 
     return builtinFunction;
   }
@@ -490,15 +482,14 @@ public class BuiltinCodeGenerator
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
 
-    LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "entry");
-    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
 
     LLVMValueRef tupleValue = LLVM.LLVMGetParam(builtinFunction, 0);
 
     List<LLVMValueRef> subStrings = new LinkedList<LLVMValueRef>();
 
-    LLVMValueRef llvmStartString = codeGenerator.buildStringCreation("(", builtinFunction);
-    llvmStartString = typeHelper.convertTemporaryToStandard(llvmStartString, SpecialTypeHandler.STRING_TYPE, builtinFunction);
+    LLVMValueRef llvmStartString = codeGenerator.buildStringCreation(builder, "(");
+    llvmStartString = typeHelper.convertTemporaryToStandard(builder, llvmStartString, SpecialTypeHandler.STRING_TYPE);
     subStrings.add(llvmStartString);
 
     Type[] subTypes = ((TupleType) baseType).getSubTypes();
@@ -506,8 +497,8 @@ public class BuiltinCodeGenerator
     {
       if (subTypes[i] instanceof NullType)
       {
-        LLVMValueRef llvmNullString = codeGenerator.buildStringCreation("null", builtinFunction);
-        llvmNullString = typeHelper.convertTemporaryToStandard(llvmNullString, SpecialTypeHandler.STRING_TYPE, builtinFunction);
+        LLVMValueRef llvmNullString = codeGenerator.buildStringCreation(builder, "null");
+        llvmNullString = typeHelper.convertTemporaryToStandard(builder, llvmNullString, SpecialTypeHandler.STRING_TYPE);
         subStrings.add(llvmNullString);
       }
       else
@@ -517,18 +508,16 @@ public class BuiltinCodeGenerator
         LLVMBasicBlockRef continuationBlock = null;
         if (subTypes[i].isNullable())
         {
-          LLVMValueRef nullCheckResult = codeGenerator.buildNullCheck(subValue, subTypes[i]);
-          LLVMBasicBlockRef notNullBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "toStringCall");
-          nullBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "nullGeneration");
-          continuationBlock = LLVM.LLVMAppendBasicBlock(builtinFunction, "continuation");
+          LLVMValueRef nullCheckResult = codeGenerator.buildNullCheck(builder, subValue, subTypes[i]);
+          continuationBlock = LLVM.LLVMAddBasicBlock(builder, "continuation");
+          nullBlock = LLVM.LLVMAddBasicBlock(builder, "nullGeneration");
+          LLVMBasicBlockRef notNullBlock = LLVM.LLVMAddBasicBlock(builder, "toStringCall");
           LLVM.LLVMBuildCondBr(builder, nullCheckResult, notNullBlock, nullBlock);
           LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
         }
-        LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
         Type notNullSubType = TypeChecker.findTypeWithNullability(subTypes[i], false);
         Method toStringMethod = notNullSubType.getMethod(new BuiltinMethod(notNullSubType, BuiltinMethodType.TO_STRING).getDisambiguator());
-        LLVMValueRef toStringFunction = codeGenerator.getMethodFunction(subValue, toStringMethod);
-        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+        LLVMValueRef toStringFunction = codeGenerator.getMethodFunction(builder, subValue, toStringMethod);
         LLVMValueRef[] arguments = new LLVMValueRef[] {subValue};
         LLVMValueRef llvmTypeString = LLVM.LLVMBuildCall(builder, toStringFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
 
@@ -538,8 +527,8 @@ public class BuiltinCodeGenerator
           LLVM.LLVMBuildBr(builder, continuationBlock);
 
           LLVM.LLVMPositionBuilderAtEnd(builder, nullBlock);
-          LLVMValueRef llvmNullString = codeGenerator.buildStringCreation("null", builtinFunction);
-          llvmNullString = typeHelper.convertTemporaryToStandard(llvmNullString, SpecialTypeHandler.STRING_TYPE, builtinFunction);
+          LLVMValueRef llvmNullString = codeGenerator.buildStringCreation(builder, "null");
+          llvmNullString = typeHelper.convertTemporaryToStandard(builder, llvmNullString, SpecialTypeHandler.STRING_TYPE);
           LLVMBasicBlockRef endNullBlock = LLVM.LLVMGetInsertBlock(builder);
           LLVM.LLVMBuildBr(builder, continuationBlock);
 
@@ -559,19 +548,20 @@ public class BuiltinCodeGenerator
 
       if (i != subTypes.length - 1)
       {
-        LLVMValueRef llvmCommaString = codeGenerator.buildStringCreation(", ", builtinFunction);
-        llvmCommaString = typeHelper.convertTemporaryToStandard(llvmCommaString, SpecialTypeHandler.STRING_TYPE, builtinFunction);
+        LLVMValueRef llvmCommaString = codeGenerator.buildStringCreation(builder, ", ");
+        llvmCommaString = typeHelper.convertTemporaryToStandard(builder, llvmCommaString, SpecialTypeHandler.STRING_TYPE);
         subStrings.add(llvmCommaString);
       }
     }
 
-    LLVMValueRef llvmEndString = codeGenerator.buildStringCreation(")", builtinFunction);
-    llvmEndString = typeHelper.convertTemporaryToStandard(llvmEndString, SpecialTypeHandler.STRING_TYPE, builtinFunction);
+    LLVMValueRef llvmEndString = codeGenerator.buildStringCreation(builder, ")");
+    llvmEndString = typeHelper.convertTemporaryToStandard(builder, llvmEndString, SpecialTypeHandler.STRING_TYPE);
     subStrings.add(llvmEndString);
 
-    LLVMValueRef result = codeGenerator.buildStringConcatenation(builtinFunction, subStrings.toArray(new LLVMValueRef[subStrings.size()]));
-    result = typeHelper.convertTemporaryToStandard(result, SpecialTypeHandler.STRING_TYPE, builtinFunction);
+    LLVMValueRef result = codeGenerator.buildStringConcatenation(builder, subStrings.toArray(new LLVMValueRef[subStrings.size()]));
+    result = typeHelper.convertTemporaryToStandard(builder, result, SpecialTypeHandler.STRING_TYPE);
     LLVM.LLVMBuildRet(builder, result);
+    LLVM.LLVMDisposeBuilder(builder);
 
     return builtinFunction;
   }
