@@ -2302,6 +2302,7 @@ public class CodeGenerator
       if (baseExpression != null)
       {
         LLVMValueRef baseValue = buildExpression(baseExpression, builder, thisValue, variables);
+        Type notNullType = baseExpression.getType();
         LLVMValueRef notNullValue = baseValue;
         LLVMBasicBlockRef startBlock = null;
         LLVMBasicBlockRef continuationBlock = null;
@@ -2314,7 +2315,8 @@ public class CodeGenerator
           LLVM.LLVMBuildCondBr(builder, nullCheckResult, accessBlock, continuationBlock);
 
           LLVM.LLVMPositionBuilderAtEnd(builder, accessBlock);
-          notNullValue = typeHelper.convertTemporary(builder, baseValue, baseExpression.getType(), TypeChecker.findTypeWithNullability(baseExpression.getType(), false));
+          notNullType = TypeChecker.findTypeWithNullability(baseExpression.getType(), false);
+          notNullValue = typeHelper.convertTemporary(builder, baseValue, baseExpression.getType(), notNullType);
         }
 
         LLVMValueRef result;
@@ -2348,10 +2350,22 @@ public class CodeGenerator
           {
             throw new IllegalStateException("A FieldAccessExpression for a static method should not have a base expression");
           }
-          LLVMValueRef function = getMethodFunction(builder, notNullValue, method);
+          LLVMValueRef function;
+          if (notNullType instanceof ObjectType ||
+              (notNullType instanceof NamedType && ((NamedType) notNullType).getResolvedTypeDefinition() instanceof ClassDefinition) ||
+              notNullType instanceof ArrayType)
+          {
+            function = getMethodFunction(builder, notNullValue, method);
+          }
+          else
+          {
+            function = typeHelper.getBaseChangeFunction(method);
+          }
 
           function = LLVM.LLVMBuildBitCast(builder, function, typeHelper.findRawFunctionPointerType(functionType), "");
-          LLVMValueRef firstArgument = LLVM.LLVMBuildBitCast(builder, notNullValue, typeHelper.getOpaquePointer(), "");
+          Type objectType = new ObjectType(false, false, null);
+          LLVMValueRef firstArgument = typeHelper.convertTemporary(builder, notNullValue, notNullType, objectType);
+          firstArgument = LLVM.LLVMBuildBitCast(builder, firstArgument, typeHelper.getOpaquePointer(), "");
           result = LLVM.LLVMGetUndef(typeHelper.findStandardType(functionType));
           result = LLVM.LLVMBuildInsertValue(builder, result, firstArgument, 0, "");
           result = LLVM.LLVMBuildInsertValue(builder, result, function, 1, "");

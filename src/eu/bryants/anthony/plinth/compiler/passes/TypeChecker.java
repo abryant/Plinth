@@ -41,7 +41,6 @@ import eu.bryants.anthony.plinth.ast.expression.TupleExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.plinth.ast.expression.VariableExpression;
 import eu.bryants.anthony.plinth.ast.member.ArrayLengthMember;
-import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
@@ -1053,24 +1052,6 @@ public class TypeChecker
       {
         // create a function type for this method
         Method method = (Method) member;
-        // TODO: when we unify the type system under a single common parent type, remove these restrictions
-        // TODO: but also, when that happens, make sure normal method calls are preferred over ones which make a heap allocation by converting the type to Object
-        if (!method.isStatic() && method instanceof BuiltinMethod && ((BuiltinMethod) method).getBaseType() instanceof FunctionType)
-        {
-          throw new ConceptualException("Cannot convert a non-static method on a function type to a function type, as there is nowhere to store the function value of 'this' to call the method on", fieldAccessExpression.getLexicalPhrase());
-        }
-        if (!method.isStatic() && method.getContainingTypeDefinition() instanceof CompoundDefinition)
-        {
-          throw new ConceptualException("Cannot convert a non-static method on a compound type to a function type, as there is nowhere to store the compound value of 'this' to call the method on", fieldAccessExpression.getLexicalPhrase());
-        }
-        if (!method.isStatic() && method instanceof BuiltinMethod && ((BuiltinMethod) method).getBaseType() instanceof PrimitiveType)
-        {
-          throw new ConceptualException("Cannot convert a non-static method on a primitive type to a function type, as there is nowhere to store the primitive value of 'this' to call the method on", fieldAccessExpression.getLexicalPhrase());
-        }
-        if (!method.isStatic() && method instanceof BuiltinMethod && ((BuiltinMethod) method).getBaseType() instanceof TupleType)
-        {
-          throw new ConceptualException("Cannot convert a non-static method on a tuple type to a function type, as there is nowhere to store the tuple value of 'this' to call the method on", fieldAccessExpression.getLexicalPhrase());
-        }
         Parameter[] parameters = method.getParameters();
         Type[] parameterTypes = new Type[parameters.length];
         for (int i = 0; i < parameters.length; ++i)

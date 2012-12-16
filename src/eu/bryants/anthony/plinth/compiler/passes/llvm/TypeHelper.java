@@ -498,9 +498,7 @@ public class TypeHelper
     LLVMValueRef callee = LLVM.LLVMGetParam(objectFunction, 0);
     LLVMValueRef convertedBaseValue = convertTemporary(builder, callee, objectType, baseType);
 
-    LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
     LLVMValueRef methodFunction = codeGenerator.getMethodFunction(builder, convertedBaseValue, method);
-    LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
     LLVMValueRef[] arguments = new LLVMValueRef[1 + parameters.length];
     arguments[0] = convertedBaseValue;
     for (int i = 0; i < parameters.length; ++i)
