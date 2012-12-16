@@ -7,13 +7,13 @@ compound stdout
    * Writes the specified character array to the underlying standard output stream.
    * @param bytes - the bytes to write
    */
-  static native "plinth_stdout_write" void write(#[]ubyte bytes);
+  static immutable native "plinth_stdout_write" void write(#[]ubyte bytes);
 
   /**
    * Prints the specified string, followed by a newline, to the standard output stream.
    * @param s - the string to write
    */
-  static void println(string s)
+  static immutable void println(string s)
   {
     write(s.bytes);
     write("\n".bytes);
@@ -23,7 +23,7 @@ compound stdout
    * Prints the specified string to the standard output stream.
    * @param s - the string to write
    */
-  static void print(string s)
+  static immutable void print(string s)
   {
     write(s.bytes);
   }
