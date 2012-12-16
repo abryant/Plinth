@@ -1136,7 +1136,36 @@ public class Resolver
       {
         if (expressionType instanceof FunctionType)
         {
-          // the sub-expressions all resolved properly, and we can leave it to the type checker to make sure the parameters match the arguments
+          // the sub-expressions all resolved properly, so we could just return here
+          // however, if this is just a normal method call, we can pull the resolved method into
+          // this FunctionCallExpression, so that we don't have to convert through FunctionType
+          Expression testExpression = functionExpression;
+          while (testExpression instanceof BracketedExpression)
+          {
+            testExpression = ((BracketedExpression) testExpression).getExpression();
+          }
+          if (testExpression instanceof VariableExpression)
+          {
+            VariableExpression variableExpression = (VariableExpression) testExpression;
+            if (variableExpression.getResolvedMethod() != null)
+            {
+              // the base resolved to a Method, so just resolve this FunctionCallExpression to the same Method
+              expr.setResolvedMethod(variableExpression.getResolvedMethod());
+              return;
+            }
+          }
+          else if (testExpression instanceof FieldAccessExpression)
+          {
+            FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) testExpression;
+            Member resolvedMember = fieldAccessExpression.getResolvedMember();
+            if (resolvedMember instanceof Method)
+            {
+              // the base resolved to a Method, so just resolve this FunctionCallExpression to the same Method
+              expr.setResolvedMethod((Method) resolvedMember);
+              expr.setResolvedBaseExpression(fieldAccessExpression.getBaseExpression()); // this will be null for static field accesses
+              return;
+            }
+          }
           expr.setResolvedBaseExpression(functionExpression);
           return;
         }
