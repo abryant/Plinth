@@ -42,7 +42,7 @@ class Test extends Foo
 
     // find all of the command line arguments
     string fullargs = concatMap(addSpace, args);
-    stdout::println("Your " + args.length.toString() + " arguments were:" + fullargs);
+    stdout::println("Your " + args.length.toString() + " arguments were: " + args.toString());
 
     object o = new object();
 

@@ -18,6 +18,7 @@ import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
+import eu.bryants.anthony.plinth.ast.type.Type;
 
 /*
  * Created on 4 Dec 2012
@@ -33,6 +34,7 @@ public class VirtualFunctionHandler
   private static final String VFT_DESCRIPTOR_PREFIX = "_VFT_DESC_";
   private static final String VFT_INIT_FUNCTION_PREFIX = "_SUPER_VFT_INIT_";
   private static final String SUPERCLASS_VFT_GLOBAL_PREFIX = "_SUPER_VFT_";
+  private static final String BASE_CHANGE_OBJECT_VFT_PREFIX = "_base_change_o_VFT_";
 
   private CodeGenerator codeGenerator;
   private TypeDefinition typeDefinition;
@@ -89,6 +91,38 @@ public class VirtualFunctionHandler
     for (int i = 0; i < methods.length; ++i)
     {
       llvmMethods[i] = codeGenerator.getMethodFunction(null, methods[i]);
+    }
+    LLVM.LLVMSetInitializer(global, LLVM.LLVMConstNamedStruct(vftType, C.toNativePointerArray(llvmMethods, false, true), llvmMethods.length));
+
+    return global;
+  }
+
+  /**
+   * Gets the base change VFT for the specified type.
+   * @param baseType - the type to get the base change VFT for
+   * @return a VFT compatible with the 'object' VFT, but with methods which in turn call the methods for the specified type
+   */
+  public LLVMValueRef getBaseChangeObjectVFT(Type baseType)
+  {
+    String mangledName = BASE_CHANGE_OBJECT_VFT_PREFIX + baseType.getMangledName();
+
+    LLVMValueRef global = LLVM.LLVMGetNamedGlobal(module, mangledName);
+    if (global != null)
+    {
+      return global;
+    }
+
+    LLVMTypeRef vftType = getObjectVFTType();
+    global = LLVM.LLVMAddGlobal(module, vftType, mangledName);
+    LLVM.LLVMSetLinkage(global, LLVM.LLVMLinkage.LLVMLinkOnceODRLinkage);
+    LLVM.LLVMSetVisibility(global, LLVM.LLVMVisibility.LLVMHiddenVisibility);
+
+    BuiltinMethod[] methods = ObjectType.OBJECT_METHODS;
+    LLVMValueRef[] llvmMethods = new LLVMValueRef[methods.length];
+    for (int i = 0; i < methods.length; ++i)
+    {
+      Method actualMethod = baseType.getMethod(methods[i].getDisambiguator());
+      llvmMethods[i] = typeHelper.getBaseChangeFunction(actualMethod);
     }
     LLVM.LLVMSetInitializer(global, LLVM.LLVMConstNamedStruct(vftType, C.toNativePointerArray(llvmMethods, false, true), llvmMethods.length));
 
@@ -184,11 +218,11 @@ public class VirtualFunctionHandler
   }
 
   /**
-   * Finds a pointer to the virtual function table pointer inside the specified base value.
-   * @param baseValue - the base value to find the virtual funtion table pointer inside
+   * Finds a pointer to the first virtual function table pointer inside the specified base value.
+   * @param baseValue - the base value to find the virtual function table pointer inside
    * @return a pointer to the virtual function table pointer inside the specified base value
    */
-  public LLVMValueRef getObjectVirtualFunctionTablePointer(LLVMValueRef baseValue)
+  public LLVMValueRef getFirstVirtualFunctionTablePointer(LLVMValueRef baseValue)
   {
     LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                  LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
@@ -241,7 +275,7 @@ public class VirtualFunctionHandler
       BuiltinMethod builtinMethod = (BuiltinMethod) method;
       if (builtinMethod.getBaseType() instanceof ObjectType)
       {
-        vftPointer = getObjectVirtualFunctionTablePointer(baseValue);
+        vftPointer = getFirstVirtualFunctionTablePointer(baseValue);
       }
     }
     if (vftPointer == null)

@@ -1,6 +1,6 @@
 ; ModuleID = 'vft.ll'
 
-%Descriptor = type { i32, [0 x { i32, [0 x i8] }*] }
+%Descriptor = type { i32, [0 x { %opaque*, i32, [0 x i8] }*] }
 %VFT = type [0 x %opaque*]
 %FunctionSearchList = type {i32, [0 x {%Descriptor*, %VFT*}]}
 %opaque = type opaque
@@ -20,10 +20,10 @@ entry:
 loop:
   %i = phi i32 [0, %entry], [%nexti, %loop]
   %disambiguatorPtr = getelementptr %Descriptor* %thisDescriptor, i32 0, i32 1, i32 %i
-  %disambiguator = load {i32, [0 x i8]}** %disambiguatorPtr
+  %disambiguator = load {%opaque*, i32, [0 x i8]}** %disambiguatorPtr
   %defaultPtr = getelementptr %VFT* %thisVFT, i32 0, i32 %i
   %default = load %opaque** %defaultPtr
-  %func = call %opaque* @plinth_find_vft_function({i32, [0 x i8]}* %disambiguator, %opaque* %default, %FunctionSearchList* %searchDescriptors)
+  %func = call %opaque* @plinth_find_vft_function({%opaque*, i32, [0 x i8]}* %disambiguator, %opaque* %default, %FunctionSearchList* %searchDescriptors)
   %element = getelementptr %VFT* %vft, i32 0, i32 %i
   store %opaque* %func, %opaque** %element
   %nexti = add i32 %i, 1
@@ -34,9 +34,9 @@ exit:
   ret %VFT* %vft
 }
 
-define private hidden %opaque* @plinth_find_vft_function({i32, [0 x i8]}* %disambiguator, %opaque* %default, %FunctionSearchList* %searchDescriptors) {
+define private hidden %opaque* @plinth_find_vft_function({%opaque*, i32, [0 x i8]}* %disambiguator, %opaque* %default, %FunctionSearchList* %searchDescriptors) {
 entry:
-  %disambiguatorLengthPtr = getelementptr {i32, [0 x i8]}* %disambiguator, i32 0, i32 0
+  %disambiguatorLengthPtr = getelementptr {%opaque*, i32, [0 x i8]}* %disambiguator, i32 0, i32 1
   %disambiguatorLength = load i32* %disambiguatorLengthPtr
   %numSearchPtr = getelementptr %FunctionSearchList* %searchDescriptors, i32 0, i32 0
   %numSearch = load i32* %numSearchPtr
@@ -57,15 +57,15 @@ searchloop:
 functionloop:
   %j = phi i32 [0, %searchloop], [%nextj, %endfunctionloop]
   %currentDisambiguatorPtr = getelementptr %Descriptor* %descriptor, i32 0, i32 1, i32 %j
-  %currentDisambiguator = load {i32, [0 x i8]}** %currentDisambiguatorPtr
-  %currentDisambiguatorLengthPtr = getelementptr {i32, [0 x i8]}* %currentDisambiguator, i32 0, i32 0
+  %currentDisambiguator = load {%opaque*, i32, [0 x i8]}** %currentDisambiguatorPtr
+  %currentDisambiguatorLengthPtr = getelementptr {%opaque*, i32, [0 x i8]}* %currentDisambiguator, i32 0, i32 1
   %currentDisambiguatorLength = load i32* %currentDisambiguatorLengthPtr
   %check = icmp eq i32 %disambiguatorLength, %currentDisambiguatorLength
   br i1 %check, label %checkdisambiguator, label %endfunctionloop
 
 checkdisambiguator:
-  %disambiguatorStr = getelementptr {i32, [0 x i8]}* %disambiguator, i32 0, i32 1, i32 0
-  %currentDisambiguatorStr = getelementptr {i32, [0 x i8]}* %currentDisambiguator, i32 0, i32 1, i32 0
+  %disambiguatorStr = getelementptr {%opaque*, i32, [0 x i8]}* %disambiguator, i32 0, i32 2, i32 0
+  %currentDisambiguatorStr = getelementptr {%opaque*, i32, [0 x i8]}* %currentDisambiguator, i32 0, i32 2, i32 0
   %comparison = call i32 @strncmp(i8* %disambiguatorStr, i8* %currentDisambiguatorStr, i32 %disambiguatorLength)
   %match = icmp eq i32 %comparison, 0
   br i1 %match, label %foundfunction, label %endfunctionloop

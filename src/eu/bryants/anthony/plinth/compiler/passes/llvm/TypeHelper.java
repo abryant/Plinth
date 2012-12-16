@@ -42,7 +42,6 @@ import eu.bryants.anthony.plinth.compiler.passes.TypeChecker;
 public class TypeHelper
 {
   private static final String BASE_CHANGE_FUNCTION_PREFIX = "_base_change_o";
-  private static final String BASE_CHANGE_OBJECT_VFT_PREFIX = "_base_change_o_VFT_";
 
   private CodeGenerator codeGenerator;
   private VirtualFunctionHandler virtualFunctionHandler;
@@ -137,8 +136,9 @@ public class TypeHelper
       ArrayType arrayType = (ArrayType) type;
       LLVMTypeRef baseType = findNativeType(arrayType.getBaseType(), false);
       LLVMTypeRef llvmArray = LLVM.LLVMArrayType(baseType, 0);
-      LLVMTypeRef[] structureTypes = new LLVMTypeRef[] {LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), llvmArray};
-      LLVMTypeRef llvmStructure = LLVM.LLVMStructType(C.toNativePointerArray(structureTypes, false, true), 2, false);
+      LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
+      LLVMTypeRef[] structureTypes = new LLVMTypeRef[] {vftPointerType, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), llvmArray};
+      LLVMTypeRef llvmStructure = LLVM.LLVMStructType(C.toNativePointerArray(structureTypes, false, true), structureTypes.length, false);
       return LLVM.LLVMPointerType(llvmStructure, 0);
     }
     if (type instanceof FunctionType)
@@ -394,6 +394,32 @@ public class TypeHelper
   }
 
   /**
+   * Gets the poiner to the length field of the specified array.
+   * @param array - the array to get the length field of, in a temporary type representation
+   * @return a pointer to the length field of the specified array
+   */
+  public LLVMValueRef getArrayLengthPointer(LLVMValueRef array)
+  {
+    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
+    return LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
+  }
+
+  /**
+   * Gets the pointer to the specified element of the specified array.
+   * @param array - the array to get the element of, in a temporary type representation
+   * @param index - the index into the array to go, as a uint
+   * @return a pointer to the specified array element (in a pointer-to-standard type representation)
+   */
+  public LLVMValueRef getArrayElementPointer(LLVMValueRef array, LLVMValueRef index)
+  {
+    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 2, false),
+                                                 index};
+    return LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
+  }
+
+  /**
    * Converts the specified Method's callee to the correct type to be passed into the Method.
    * This method assumes that the callee is already a subtype of the correct type to pass into the Method,
    * and so it only converts between class types.
@@ -492,38 +518,6 @@ public class TypeHelper
     }
 
     return objectFunction;
-  }
-
-  /**
-   * Gets the base change VFT for the specified type.
-   * @param baseType - the type to get the base change VFT for
-   * @return a VFT compatible with the 'object' VFT, but with methods which in turn call the methods for the specified type
-   */
-  public LLVMValueRef getBaseChangeObjectVFT(Type baseType)
-  {
-    String mangledName = BASE_CHANGE_OBJECT_VFT_PREFIX + baseType.getMangledName();
-
-    LLVMValueRef global = LLVM.LLVMGetNamedGlobal(module, mangledName);
-    if (global != null)
-    {
-      return global;
-    }
-
-    LLVMTypeRef vftType = virtualFunctionHandler.getObjectVFTType();
-    global = LLVM.LLVMAddGlobal(module, vftType, mangledName);
-    LLVM.LLVMSetLinkage(global, LLVM.LLVMLinkage.LLVMLinkOnceODRLinkage);
-    LLVM.LLVMSetVisibility(global, LLVM.LLVMVisibility.LLVMHiddenVisibility);
-
-    BuiltinMethod[] methods = ObjectType.OBJECT_METHODS;
-    LLVMValueRef[] llvmMethods = new LLVMValueRef[methods.length];
-    for (int i = 0; i < methods.length; ++i)
-    {
-      Method actualMethod = baseType.getMethod(methods[i].getDisambiguator());
-      llvmMethods[i] = getBaseChangeFunction(actualMethod);
-    }
-    LLVM.LLVMSetInitializer(global, LLVM.LLVMConstNamedStruct(vftType, C.toNativePointerArray(llvmMethods, false, true), llvmMethods.length));
-
-    return global;
   }
 
   /**
@@ -731,9 +725,10 @@ public class TypeHelper
       {
         return LLVM.LLVMConstNull(findTemporaryType(to));
       }
-      if (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition)
+      if ((from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition) ||
+          from instanceof ArrayType)
       {
-        // class types can be safely bitcast to object types
+        // class and array types can be safely bitcast to object types
         return LLVM.LLVMBuildBitCast(builder, value, findTemporaryType(to), "");
       }
       Type notNullFromType = TypeChecker.findTypeWithNullability(from, false);
@@ -764,11 +759,9 @@ public class TypeHelper
 
       // build the base change VFT, and store it as the object's VFT
       LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
-      LLVMValueRef baseChangeVFT = getBaseChangeObjectVFT(notNullFromType);
+      LLVMValueRef baseChangeVFT = virtualFunctionHandler.getBaseChangeObjectVFT(notNullFromType);
       LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
-      LLVMValueRef[] vftElementIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                             LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
-      LLVMValueRef vftElementPointer = LLVM.LLVMBuildGEP(builder, pointer, C.toNativePointerArray(vftElementIndices, false, true), vftElementIndices.length, "");
+      LLVMValueRef vftElementPointer = virtualFunctionHandler.getFirstVirtualFunctionTablePointer(pointer);
       LLVM.LLVMBuildStore(builder, baseChangeVFT, vftElementPointer);
 
       // store the value inside the object
@@ -798,7 +791,8 @@ public class TypeHelper
     }
     if (from instanceof ObjectType)
     {
-      if (to instanceof NamedType && ((NamedType) to).getResolvedTypeDefinition() instanceof ClassDefinition)
+      if ((to instanceof NamedType && ((NamedType) to).getResolvedTypeDefinition() instanceof ClassDefinition) ||
+          to instanceof ArrayType)
       {
         return LLVM.LLVMBuildBitCast(builder, value, findTemporaryType(to), "");
       }

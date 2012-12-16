@@ -321,9 +321,7 @@ public class BuiltinCodeGenerator
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
     LLVMValueRef array = typeHelper.convertStandardToTemporary(parameter, arrayType, builtinFunction);
 
-    LLVMValueRef[] lengthIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                       LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
-    LLVMValueRef lengthPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(lengthIndices, false, true), lengthIndices.length, "");
+    LLVMValueRef lengthPointer = typeHelper.getArrayLengthPointer(array);
     LLVMValueRef length = LLVM.LLVMBuildLoad(builder, lengthPointer, "");
 
     LLVMValueRef llvmStartString = codeGenerator.buildStringCreation("[", builtinFunction);
@@ -341,10 +339,7 @@ public class BuiltinCodeGenerator
     LLVMValueRef stringPhi = LLVM.LLVMBuildPhi(builder, typeHelper.findTemporaryType(SpecialTypeHandler.STRING_TYPE), "");
     LLVMValueRef indexPhi = LLVM.LLVMBuildPhi(builder, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
 
-    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
-                                                 indexPhi};
-    LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
+    LLVMValueRef elementPointer = typeHelper.getArrayElementPointer(array, indexPhi);
     LLVMValueRef element = LLVM.LLVMBuildLoad(builder, elementPointer, "");
     element = typeHelper.convertStandardToTemporary(element, baseType, builtinFunction);
 
