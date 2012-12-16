@@ -4,6 +4,8 @@ import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.Member;
+import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.member.Method.Disambiguator;
 
 /*
  * Created on 8 Apr 2012
@@ -65,6 +67,23 @@ public abstract class Type
    * @return the Members with the specified name, or the empty set if none exist
    */
   public abstract Set<Member> getMembers(String name);
+
+  /**
+   * Finds the method in this type with the specified disambiguator.
+   * @param disambiguator - the Disambiguator to search for
+   * @return the Method found, or null if no method exists with the specified signature
+   */
+  public Method getMethod(Disambiguator disambiguator)
+  {
+    for (Member member : getMembers(disambiguator.getName()))
+    {
+      if (member instanceof Method && ((Method) member).getDisambiguator().equals(disambiguator))
+      {
+        return (Method) member;
+      }
+    }
+    return null;
+  }
 
   /**
    * @return the mangled name of this type

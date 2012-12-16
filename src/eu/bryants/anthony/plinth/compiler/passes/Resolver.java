@@ -37,6 +37,7 @@ import eu.bryants.anthony.plinth.ast.expression.LogicalExpression;
 import eu.bryants.anthony.plinth.ast.expression.MinusExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullLiteralExpression;
+import eu.bryants.anthony.plinth.ast.expression.ObjectCreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression;
 import eu.bryants.anthony.plinth.ast.expression.ShiftExpression;
 import eu.bryants.anthony.plinth.ast.expression.StringLiteralExpression;
@@ -78,6 +79,7 @@ import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.NullType;
+import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
@@ -468,6 +470,10 @@ public class Resolver
       }
       namedType.setResolvedTypeDefinition(currentDefinition);
     }
+    else if (type instanceof ObjectType)
+    {
+      // do nothing
+    }
     else if (type instanceof PrimitiveType)
     {
       // do nothing
@@ -663,7 +669,7 @@ public class Resolver
         ClassDefinition superClassDefinition = ((ClassDefinition) enclosingDefinition).getSuperClassDefinition();
         if (superClassDefinition == null)
         {
-          // TODO: once the type system has been unified under a single common super-type, remove this restriction, and allow super() to mean just calling the object() constructor and running the initialisers
+          // TODO: once the type system has been unified under a single common super-type, remove this restriction, and allow super() to mean just calling the object() constructor (a no-op) and running the initialisers
           throw new ConceptualException("Cannot call a super(...) constructor from a class with no superclass", delegateConstructorStatement.getLexicalPhrase());
         }
         constructorTypeDefinition = superClassDefinition;
@@ -1396,6 +1402,10 @@ public class Resolver
     {
       // do nothing
     }
+    else if (expression instanceof ObjectCreationExpression)
+    {
+      // do nothing
+    }
     else if (expression instanceof RelationalExpression)
     {
       resolve(((RelationalExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
@@ -1510,7 +1520,8 @@ public class Resolver
    */
   private Set<Member> applyTypeHints(Set<Member> members, Type typeHint, Type returnTypeHint, boolean isFunctionHint, boolean isAssignableHint)
   {
-    // TODO: allow members which only match the typeHints and returnTypeHints if the result is being casted (i.e. check canAssign() in reverse, but perform the same checks as the TypeChecker
+    // TODO: allow members which only match the typeHints and returnTypeHints if the result is being casted (i.e. check canAssign() in reverse, but perform the same checks as the TypeChecker)
+    //       (this works, since typeHints and returnTypeHints are only added by casting)
     Set<Member> filtered = new HashSet<Member>(members);
     Iterator<Member> it = filtered.iterator();
     while (it.hasNext())

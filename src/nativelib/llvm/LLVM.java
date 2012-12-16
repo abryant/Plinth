@@ -206,6 +206,7 @@ public class LLVM
   public static native LLVMModuleRef LLVMModuleCreateWithName(String name);
   public static native LLVMValueRef LLVMAddFunction(LLVMModuleRef module, String name, LLVMTypeRef type);
   public static native LLVMValueRef LLVMGetNamedFunction(LLVMModuleRef module, String name);
+  public static native boolean LLVMIsDeclaration(LLVMValueRef global);
 
   public static native void LLVMSetValueName(LLVMValueRef value, String name);
 

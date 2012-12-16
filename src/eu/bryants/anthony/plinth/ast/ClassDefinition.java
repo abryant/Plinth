@@ -114,7 +114,6 @@ public class ClassDefinition extends TypeDefinition
       }
     }
     nonStaticFields = buildNonStaticFieldList(fields.values());
-    nonStaticMethods = buildNonStaticMethodList(allMethods);
   }
 
   /**
@@ -206,6 +205,30 @@ public class ClassDefinition extends TypeDefinition
   public QName getSuperClassQName()
   {
     return superQName;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public void buildNonStaticMethods()
+  {
+    // only include methods from ObjectType if we do not have a superclass
+    nonStaticMethods = buildNonStaticMethodList(superClassDefinition == null);
+    for (Method method : nonStaticMethods)
+    {
+      Set<Method> methodSet = methods.get(method.getName());
+      if (methodSet == null)
+      {
+        methodSet = new HashSet<Method>();
+        methods.put(method.getName(), methodSet);
+      }
+      if (!methodSet.contains(method))
+      {
+        method.setContainingTypeDefinition(this);
+        methodSet.add(method);
+      }
+    }
   }
 
   /**

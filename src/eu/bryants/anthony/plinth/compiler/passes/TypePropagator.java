@@ -22,6 +22,7 @@ import eu.bryants.anthony.plinth.ast.expression.LogicalExpression;
 import eu.bryants.anthony.plinth.ast.expression.MinusExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullLiteralExpression;
+import eu.bryants.anthony.plinth.ast.expression.ObjectCreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression;
 import eu.bryants.anthony.plinth.ast.expression.ShiftExpression;
 import eu.bryants.anthony.plinth.ast.expression.StringLiteralExpression;
@@ -490,6 +491,10 @@ public class TypePropagator
       // we don't care if we get a NullType here, that just means that the value of this null is never used, so we just let the CodeGenerator generate it as such
       expression.setType(type);
     }
+    else if (expression instanceof ObjectCreationExpression)
+    {
+      // do nothing
+    }
     else if (expression instanceof RelationalExpression)
     {
       RelationalExpression relationalExpression = (RelationalExpression) expression;
@@ -526,13 +531,18 @@ public class TypePropagator
     {
       TupleExpression tupleExpression = (TupleExpression) expression;
       Expression[] subExpressions = tupleExpression.getSubExpressions();
-      // propagate the parent's type down to the sub-expressions
-      TupleType propagatedType = (TupleType) type;
-      tupleExpression.setType(propagatedType);
-      Type[] subTypes = propagatedType.getSubTypes();
-      for (int i = 0; i < subTypes.length; ++i)
+      // propagate the parent's type down to the sub-expressions, if it is a TupleType
+      Type[] subTypes = null;
+      if (type instanceof TupleType)
       {
-        propagateTypes(subExpressions[i], subTypes[i]);
+        TupleType propagatedType = (TupleType) type;
+        tupleExpression.setType(propagatedType);
+        subTypes = propagatedType.getSubTypes();
+      }
+      for (int i = 0; i < subExpressions.length; ++i)
+      {
+        // if we don't have a sub-type here, just propagate the sub-expression's type, since we don't have any better choices here
+        propagateTypes(subExpressions[i], subTypes == null ? subExpressions[i].getType() : subTypes[i]);
       }
     }
     else if (expression instanceof TupleIndexExpression)

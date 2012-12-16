@@ -32,6 +32,7 @@ import eu.bryants.anthony.plinth.ast.expression.LogicalExpression;
 import eu.bryants.anthony.plinth.ast.expression.MinusExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullLiteralExpression;
+import eu.bryants.anthony.plinth.ast.expression.ObjectCreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression;
 import eu.bryants.anthony.plinth.ast.expression.ShiftExpression;
 import eu.bryants.anthony.plinth.ast.expression.StringLiteralExpression;
@@ -39,6 +40,7 @@ import eu.bryants.anthony.plinth.ast.expression.ThisExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.plinth.ast.expression.VariableExpression;
+import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
@@ -252,7 +254,7 @@ public class ControlFlowChecker
     Block mainBlock = method.getBlock();
     if (mainBlock == null)
     {
-      if (method.getNativeName() == null)
+      if (method.getNativeName() == null && !(method instanceof BuiltinMethod))
       {
         throw new ConceptualException("A non-native method must always have a body", method.getLexicalPhrase());
       }
@@ -1225,6 +1227,10 @@ public class ControlFlowChecker
       checkControlFlow(((NullCoalescingExpression) expression).getAlternativeExpression(), initialisedVariables, initialiserState, inConstructor, inStaticContext, inImmutableContext);
     }
     else if (expression instanceof NullLiteralExpression)
+    {
+      // do nothing
+    }
+    else if (expression instanceof ObjectCreationExpression)
     {
       // do nothing
     }

@@ -4,6 +4,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
+import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
+import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
 import eu.bryants.anthony.plinth.ast.member.Member;
 
 /*
@@ -107,8 +109,13 @@ public class TupleType extends Type
   @Override
   public Set<Member> getMembers(String name)
   {
-    // tuple types currently have no members
-    return new HashSet<Member>();
+    Set<Member> memberSet = new HashSet<Member>();
+    if (name.equals(BuiltinMethodType.TO_STRING.methodName))
+    {
+      Type notNullThis = new TupleType(false, subTypes, null);
+      memberSet.add(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING));
+    }
+    return memberSet;
   }
 
   /**

@@ -26,6 +26,7 @@ public class SpecialTypeHandler
   private static final String STRING_VALUEOF_NAME = "valueOf";
   public static Constructor stringArrayConstructor;
   public static Constructor stringConcatenationConstructor;
+  public static Constructor stringArrayConcatenationConstructor;
   public static Method stringValueOfBoolean;
   public static Method stringValueOfLong;
   public static Method stringValueOfUlong;
@@ -61,6 +62,7 @@ public class SpecialTypeHandler
       throw new ConceptualException("The string type must be a compound definition!", typeDefinition.getLexicalPhrase());
     }
     Type arrayType = new ArrayType(false, true, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
+    Type stringArrayType = new ArrayType(false, false, STRING_TYPE, null);
     for (Constructor constructor : typeDefinition.getConstructors())
     {
       Parameter[] parameters = constructor.getParameters();
@@ -71,6 +73,10 @@ public class SpecialTypeHandler
       if (parameters.length == 2 && parameters[0].getType().isEquivalent(STRING_TYPE) && parameters[1].getType().isEquivalent(STRING_TYPE))
       {
         stringConcatenationConstructor = constructor;
+      }
+      if (parameters.length == 1 && parameters[0].getType().isEquivalent(stringArrayType))
+      {
+        stringArrayConcatenationConstructor = constructor;
       }
     }
     for (Method method : typeDefinition.getMethodsByName(STRING_VALUEOF_NAME))
@@ -118,6 +124,10 @@ public class SpecialTypeHandler
     if (stringConcatenationConstructor == null)
     {
       throw new ConceptualException("The string type must have a constructor which takes two " + STRING_TYPE + " arguments", typeDefinition.getLexicalPhrase());
+    }
+    if (stringArrayConcatenationConstructor == null)
+    {
+      throw new ConceptualException("The string type must have a constructor which takes a single " + stringArrayType + " argument", typeDefinition.getLexicalPhrase());
     }
     if (stringValueOfBoolean == null ||
         stringValueOfLong    == null || stringValueOfLongRadix  == null ||

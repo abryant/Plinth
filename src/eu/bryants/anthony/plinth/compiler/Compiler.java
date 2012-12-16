@@ -212,6 +212,13 @@ public class Compiler
       {
         resolver.resolveTopLevelTypes(compilationUnit);
       }
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
+        {
+          typeDefinition.buildNonStaticMethods();
+        }
+      }
       for (TypeDefinition typeDefinition : importedTypeDefinitions)
       {
         if (typeDefinition instanceof ClassDefinition)

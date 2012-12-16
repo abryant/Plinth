@@ -8,6 +8,7 @@ import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
+import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
@@ -69,6 +70,11 @@ public class TypeNoQNameRule extends Rule<ParseType>
   private static final Production<ParseType> IMMUTABLE_FUNCTION_PRODUCTION          = new Production<ParseType>(                         ParseType.HASH, ParseType.LBRACE, ParseType.OPTIONAL_TYPE_LIST, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
   private static final Production<ParseType> NULLABLE_IMMUTABLE_FUNCTION_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.HASH, ParseType.LBRACE, ParseType.OPTIONAL_TYPE_LIST, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
 
+  private static final Production<ParseType> OBJECT_PRODUCTION = new Production<ParseType>(ParseType.OBJECT_KEYWORD);
+  private static final Production<ParseType> NULLABLE_OBJECT_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.OBJECT_KEYWORD);
+  private static final Production<ParseType> IMMUTABLE_OBJECT_PRODUCTION = new Production<ParseType>(ParseType.HASH, ParseType.OBJECT_KEYWORD);
+  private static final Production<ParseType> NULLABLE_IMMUTABLE_OBJECT_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.HASH, ParseType.OBJECT_KEYWORD);
+
   public TypeNoQNameRule()
   {
     super(ParseType.TYPE_NO_QNAME, BOOLEAN_PRODUCTION,                    NULLABLE_BOOLEAN_PRODUCTION,
@@ -80,7 +86,8 @@ public class TypeNoQNameRule extends Rule<ParseType>
                                    NULLABLE_NAMED_PRODUCTION, IMMUTABLE_NAMED_PRODUCTION, NULLABLE_IMMUTABLE_NAMED_PRODUCTION,
                                    ARRAY_PRODUCTION, NULLABLE_ARRAY_PRODUCTION, IMMUTABLE_ARRAY_PRODUCTION, NULLABLE_IMMUTABLE_ARRAY_PRODUCTION,
                                    TUPLE_PRODUCTION, NULLABLE_TUPLE_PRODUCTION, NULLABLE_QNAME_TUPLE_PRODUCTION,
-                                   FUNCTION_PRODUCTION, NULLABLE_FUNCTION_PRODUCTION, IMMUTABLE_FUNCTION_PRODUCTION, NULLABLE_IMMUTABLE_FUNCTION_PRODUCTION);
+                                   FUNCTION_PRODUCTION, NULLABLE_FUNCTION_PRODUCTION, IMMUTABLE_FUNCTION_PRODUCTION, NULLABLE_IMMUTABLE_FUNCTION_PRODUCTION,
+                                   OBJECT_PRODUCTION, NULLABLE_OBJECT_PRODUCTION, IMMUTABLE_OBJECT_PRODUCTION, NULLABLE_IMMUTABLE_OBJECT_PRODUCTION);
   }
 
   /**
@@ -178,6 +185,23 @@ public class TypeNoQNameRule extends Rule<ParseType>
       Type returnType = (Type) args[5];
       Type[] paramTypes = list.toArray(new Type[list.size()]);
       return new FunctionType(true, true, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], list.getLexicalPhrase(), (LexicalPhrase) args[4], returnType.getLexicalPhrase(), (LexicalPhrase) args[6]));
+    }
+
+    if (production == OBJECT_PRODUCTION)
+    {
+      return new ObjectType(false, false, (LexicalPhrase) args[0]);
+    }
+    if (production == NULLABLE_OBJECT_PRODUCTION)
+    {
+      return new ObjectType(true, false, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1]));
+    }
+    if (production == IMMUTABLE_OBJECT_PRODUCTION)
+    {
+      return new ObjectType(false, true, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1]));
+    }
+    if (production == NULLABLE_IMMUTABLE_OBJECT_PRODUCTION)
+    {
+      return new ObjectType(true, true, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2]));
     }
 
     PrimitiveTypeType type;

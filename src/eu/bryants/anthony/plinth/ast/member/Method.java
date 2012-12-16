@@ -239,20 +239,24 @@ public class Method extends Member
    * It also allows methods to be sorted into a predictable order, by implementing comparable.
    * @author Anthony Bryant
    */
-  private class Disambiguator implements Comparable<Object>
+  public class Disambiguator implements Comparable<Disambiguator>
   {
+
+    /**
+     * @return the name associated with this Disambiguator
+     */
+    public String getName()
+    {
+      return name;
+    }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public int compareTo(Object other)
+    public int compareTo(Disambiguator other)
     {
-      if (!(other instanceof Disambiguator))
-      {
-        throw new IllegalArgumentException("A method Disambiguator should not be compared to an object which is not a method Disambiguator");
-      }
-      Method otherMethod = ((Disambiguator) other).getMethod();
+      Method otherMethod = other.getMethod();
       // compare name, then mangled return type, then each mangled parameter in turn, using lexicographic ordering
       // if they are equal except that one parameter list is a prefix of the other, then the comparison makes the longer parameter list larger
       int nameComparison = name.compareTo(otherMethod.name);

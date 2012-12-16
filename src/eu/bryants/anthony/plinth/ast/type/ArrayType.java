@@ -5,6 +5,8 @@ import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.ArrayLengthMember;
+import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
+import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
 import eu.bryants.anthony.plinth.ast.member.Member;
 
 /*
@@ -137,6 +139,11 @@ public class ArrayType extends Type
     if (name.equals(LENGTH_FIELD_NAME))
     {
       set.add(LENGTH_MEMBER);
+    }
+    if (name.equals(BuiltinMethodType.TO_STRING.methodName))
+    {
+      ArrayType notNullThis = new ArrayType(false, explicitlyImmutable, contextuallyImmutable, baseType, null);
+      set.add(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING));
     }
     return set;
   }

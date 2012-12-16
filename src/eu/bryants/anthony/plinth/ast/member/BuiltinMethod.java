@@ -18,12 +18,9 @@ public class BuiltinMethod extends Method
 
   public static enum BuiltinMethodType
   {
-    BOOLEAN_TO_STRING       (SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[0]),
-    SIGNED_TO_STRING        (SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[0]),
-    SIGNED_TO_STRING_RADIX  (SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[] {new Parameter(false, new PrimitiveType(false, PrimitiveTypeType.UINT, null), "radix", null)}),
-    UNSIGNED_TO_STRING      (SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[0]),
-    UNSIGNED_TO_STRING_RADIX(SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[] {new Parameter(false, new PrimitiveType(false, PrimitiveTypeType.UINT, null), "radix", null)}),
-    FLOATING_TO_STRING      (SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[0]),
+    // NOTE: if isImmutable is ever false, we may have to exclude it if it becomes part of an immutable TypeDefinition
+    TO_STRING      (SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[0]),
+    TO_STRING_RADIX(SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[] {new Parameter(false, new PrimitiveType(false, PrimitiveTypeType.UINT, null), "radix", null)}),
     ;
     public final Type returnType;
     public final String methodName;
@@ -82,16 +79,30 @@ public class BuiltinMethod extends Method
    * {@inheritDoc}
    */
   @Override
+  public String toString()
+  {
+    return "builtin(" + baseType + ") " + super.toString();
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public String getMangledName()
   {
+    // wherever possible, this needs to be equivalent to Method.getMangledName(), so that built-in object methods work
+    if (getContainingTypeDefinition() != null)
+    {
+      return super.getMangledName();
+    }
     StringBuffer buffer = new StringBuffer();
     if (isStatic())
     {
-      buffer.append("_SB");
+      buffer.append("_SM");
     }
     else
     {
-      buffer.append("_B");
+      buffer.append("_M");
     }
     buffer.append(baseType.getMangledName());
     buffer.append('_');

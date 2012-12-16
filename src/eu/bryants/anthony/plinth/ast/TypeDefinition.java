@@ -3,16 +3,21 @@ package eu.bryants.anthony.plinth.ast;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.plinth.ast.misc.QName;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
+import eu.bryants.anthony.plinth.ast.type.ObjectType;
 
 /*
  * Created on 11 Sep 2012
@@ -117,26 +122,57 @@ public abstract class TypeDefinition
   /**
    * Builds the array of non-static fields and sets the fields' indices.
    * The field order is based on the lexicographical ordering of their names.
+   * @param includeObjectMethods - true to include all of the methods that are defined in ObjectType, false to leave them out if they are not redefined explicitly
+   *                               this should only be set to false if the type inherits from another type
    */
-  protected static Method[] buildNonStaticMethodList(Collection<Method> allMethods)
+  protected Method[] buildNonStaticMethodList(boolean includeObjectMethods)
   {
-    // filter out static fields, and sort the non-static fields by name
+    Method[] allMethods = getAllMethods();
+    // filter out static methods, and methods which exist in ObjectType
     List<Method> list = new LinkedList<Method>();
+    Map<Object, Method> objectMethods = new HashMap<Object, Method>();
+    filterLoop:
     for (Method method : allMethods)
     {
-      if (!method.isStatic())
+      if (method.isStatic())
       {
-        list.add(method);
+        continue;
       }
+      if (includeObjectMethods)
+      {
+        for (Method objectMethod : ObjectType.OBJECT_METHODS)
+        {
+          if (objectMethod.getDisambiguator().equals(method.getDisambiguator()))
+          {
+            objectMethods.put(objectMethod.getDisambiguator(), method);
+            continue filterLoop;
+          }
+        }
+      }
+      list.add(method);
     }
+    // sort them by disambiguator
     Collections.sort(list, new Comparator<Method>()
     {
       @Override
       public int compare(Method o1, Method o2)
       {
-        return ((Comparable<Object>) o1.getDisambiguator()).compareTo(o2.getDisambiguator());
+        return o1.getDisambiguator().compareTo(o2.getDisambiguator());
       }
     });
+    if (includeObjectMethods)
+    {
+      // add the methods from ObjectType at the start of the list, in order (overridden by ones from this type wherever possible)
+      for (int i = 0; i < ObjectType.OBJECT_METHODS.length; ++i)
+      {
+        Method method = objectMethods.get(ObjectType.OBJECT_METHODS[i].getDisambiguator());
+        if (method == null)
+        {
+          method = new BuiltinMethod(new NamedType(false, false, this), ObjectType.OBJECT_METHODS[i].getBuiltinType());
+        }
+        list.add(i, method);
+      }
+    }
     Method[] nonStaticMethods = list.toArray(new Method[list.size()]);
     for (int i = 0; i < nonStaticMethods.length; ++i)
     {
@@ -144,6 +180,11 @@ public abstract class TypeDefinition
     }
     return nonStaticMethods;
   }
+
+  /**
+   * Builds the list of non-static methods, so that they can be used by the compilation passes.
+   */
+  public abstract void buildNonStaticMethods();
 
   /**
    * @return the Initialisers, in declaration order
@@ -177,6 +218,8 @@ public abstract class TypeDefinition
   public abstract Method[] getAllMethods();
 
   /**
+   * NOTE: for a newly parsed TypeDefinition, buildNonStaticMethods() should always be called before this, as before it is called, this will return null
+   * For imported type definitions, the metadata contains the non static method list in the correct order, so this should not be called.
    * @return the non-static methods, in order of their indices
    */
   public abstract Method[] getNonStaticMethods();

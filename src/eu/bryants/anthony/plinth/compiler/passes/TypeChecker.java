@@ -31,6 +31,7 @@ import eu.bryants.anthony.plinth.ast.expression.LogicalExpression.LogicalOperato
 import eu.bryants.anthony.plinth.ast.expression.MinusExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullLiteralExpression;
+import eu.bryants.anthony.plinth.ast.expression.ObjectCreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression.RelationalOperator;
 import eu.bryants.anthony.plinth.ast.expression.ShiftExpression;
@@ -75,6 +76,7 @@ import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.NullType;
+import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
@@ -846,34 +848,35 @@ public class TypeChecker
     {
       Type exprType = checkTypes(((CastExpression) expression).getExpression());
       Type castedType = expression.getType();
-      // forbid casting away immutability (both explicit and contextual) for ArrayType and NamedType
-      if (exprType instanceof ArrayType || exprType instanceof NamedType)
+      // forbid casting away immutability (both explicit and contextual)
+      boolean fromExplicitlyImmutable = (exprType instanceof ArrayType  && ((ArrayType)  exprType).isExplicitlyImmutable()) ||
+                                        (exprType instanceof NamedType  && ((NamedType)  exprType).isExplicitlyImmutable()) ||
+                                        (exprType instanceof ObjectType && ((ObjectType) exprType).isExplicitlyImmutable());
+      boolean toExplicitlyImmutable = (castedType instanceof ArrayType  && ((ArrayType)  castedType).isExplicitlyImmutable()) ||
+                                      (castedType instanceof NamedType  && ((NamedType)  castedType).isExplicitlyImmutable()) ||
+                                      (castedType instanceof ObjectType && ((ObjectType) castedType).isExplicitlyImmutable());
+      if (fromExplicitlyImmutable & !toExplicitlyImmutable)
       {
-        boolean fromExplicitlyImmutable = (exprType instanceof ArrayType && ((ArrayType) exprType).isExplicitlyImmutable()) ||
-                                          (exprType instanceof NamedType && ((NamedType) exprType).isExplicitlyImmutable());
-        boolean toExplicitlyImmutable = (castedType instanceof ArrayType && ((ArrayType) castedType).isExplicitlyImmutable()) ||
-                                        (castedType instanceof NamedType && ((NamedType) castedType).isExplicitlyImmutable());
-        if (fromExplicitlyImmutable & !toExplicitlyImmutable)
-        {
-          throw new ConceptualException("Cannot cast away immutability, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
-        }
-        boolean fromContextuallyImmutable = (exprType instanceof ArrayType && ((ArrayType) exprType).isContextuallyImmutable()) ||
-                                            (exprType instanceof NamedType && ((NamedType) exprType).isContextuallyImmutable());
-        boolean toContextuallyImmutable = (castedType instanceof ArrayType && ((ArrayType) castedType).isContextuallyImmutable()) ||
-                                          (castedType instanceof NamedType && ((NamedType) castedType).isContextuallyImmutable());
-        if (fromContextuallyImmutable & !toContextuallyImmutable)
-        {
-          throw new ConceptualException("Cannot cast away contextual immutability, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
-        }
+        throw new ConceptualException("Cannot cast away immutability, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
       }
-      // forbid casting to immutable for FunctionType
-      if (exprType   instanceof FunctionType && !((FunctionType) exprType).isImmutable() &&
-          castedType instanceof FunctionType &&  ((FunctionType) castedType).isImmutable())
+      boolean fromContextuallyImmutable = (exprType instanceof ArrayType  && ((ArrayType)  exprType).isContextuallyImmutable()) ||
+                                          (exprType instanceof NamedType  && ((NamedType)  exprType).isContextuallyImmutable()) ||
+                                          (exprType instanceof ObjectType && ((ObjectType) exprType).isContextuallyImmutable());
+      boolean toContextuallyImmutable = (castedType instanceof ArrayType  && ((ArrayType)  castedType).isContextuallyImmutable()) ||
+                                        (castedType instanceof NamedType  && ((NamedType)  castedType).isContextuallyImmutable()) ||
+                                        (castedType instanceof ObjectType && ((ObjectType) castedType).isContextuallyImmutable());
+      if (fromContextuallyImmutable & !toContextuallyImmutable)
       {
-        throw new ConceptualException("Cannot cast a function to immutable, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
+        throw new ConceptualException("Cannot cast away contextual immutability, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
+      }
+      // forbid casting anything but an immutable FunctionType to an immutable FunctionType
+      if (!(exprType instanceof FunctionType && ((FunctionType) exprType).isImmutable()) &&
+          castedType instanceof FunctionType && ((FunctionType) castedType).isImmutable())
+      {
+        throw new ConceptualException("Cannot cast to an immutable function, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
       }
 
-      if (exprType.canAssign(castedType) || castedType.canAssign(exprType))
+      if (exprType.canAssign(castedType) || findTypeWithNullability(castedType, true).canAssign(exprType))
       {
         // if the assignment works in reverse (i.e. the casted type can be assigned to the expression) then it can be casted back
         // (also allow it if the assignment works forwards, although usually that should be a warning about an unnecessary cast, unless the cast allows access to a hidden field)
@@ -1398,6 +1401,12 @@ public class TypeChecker
       expression.setType(type);
       return type;
     }
+    else if (expression instanceof ObjectCreationExpression)
+    {
+      Type type = new ObjectType(false, false, null);
+      expression.setType(type);
+      return type;
+    }
     else if (expression instanceof RelationalExpression)
     {
       RelationalExpression relationalExpression = (RelationalExpression) expression;
@@ -1627,50 +1636,48 @@ public class TypeChecker
     {
       PrimitiveTypeType aType = ((PrimitiveType) a).getPrimitiveTypeType();
       PrimitiveTypeType bType = ((PrimitiveType) b).getPrimitiveTypeType();
-      if (aType == PrimitiveTypeType.BOOLEAN || bType == PrimitiveTypeType.BOOLEAN || aType.isFloating() || bType.isFloating())
+      // if either of them was either floating point or boolean, we would have found any compatibilities above
+      if (aType != PrimitiveTypeType.BOOLEAN && bType != PrimitiveTypeType.BOOLEAN && !aType.isFloating() && !bType.isFloating())
       {
-        // if either of them was either floating point or boolean, we would have found any compatibilities above
-        return null;
-      }
-      // check through the signed integer types for one which can assign both of them
-      // the resulting type must be signed, because if a and b had the same signedness, we would have found a common supertype above
+        // check through the signed integer types for one which can assign both of them
+        // the resulting type must be signed, because if a and b had the same signedness, we would have found a common supertype above
 
-      // exclude the maximum bit width, because if one is signed and the other is unsigned, then they cannot both fit in the size allocated for either one of them
-      int minWidth = Math.max(aType.getBitCount(), bType.getBitCount()) + 1;
-      PrimitiveTypeType currentBest = null;
-      for (PrimitiveTypeType typeType : PrimitiveTypeType.values())
-      {
-        if (typeType != PrimitiveTypeType.BOOLEAN && !typeType.isFloating() &&
-            typeType.isSigned() && typeType.getBitCount() >= minWidth &&
-            (currentBest == null || typeType.getBitCount() < currentBest.getBitCount()))
+        // exclude the maximum bit width, because if one is signed and the other is unsigned, then they cannot both fit in the size allocated for either one of them
+        int minWidth = Math.max(aType.getBitCount(), bType.getBitCount()) + 1;
+        PrimitiveTypeType currentBest = null;
+        for (PrimitiveTypeType typeType : PrimitiveTypeType.values())
         {
-          currentBest = typeType;
+          if (typeType != PrimitiveTypeType.BOOLEAN && !typeType.isFloating() &&
+              typeType.isSigned() && typeType.getBitCount() >= minWidth &&
+              (currentBest == null || typeType.getBitCount() < currentBest.getBitCount()))
+          {
+            currentBest = typeType;
+          }
         }
+        if (currentBest == null)
+        {
+          currentBest = PrimitiveTypeType.FLOAT;
+        }
+        boolean nullable = a.isNullable() | b.isNullable();
+        return new PrimitiveType(nullable, currentBest, null);
       }
-      if (currentBest == null)
-      {
-        currentBest = PrimitiveTypeType.FLOAT;
-      }
-      boolean nullable = a.isNullable() | b.isNullable();
-      return new PrimitiveType(nullable, currentBest, null);
     }
     if (a instanceof ArrayType && b instanceof ArrayType)
     {
       ArrayType arrayA = (ArrayType) a;
       ArrayType arrayB = (ArrayType) b;
-      boolean nullability = a.isNullable() | b.isNullable();
+      boolean nullability = a.isNullable() || b.isNullable();
       boolean explicitImmutability   = arrayA.isExplicitlyImmutable()   || arrayB.isExplicitlyImmutable();
       boolean contextualImmutability = arrayA.isContextuallyImmutable() || arrayB.isContextuallyImmutable();
       // alter one of the types to have the minimum nullability, explicit immutability, and contextual immutability that we need
       // if the altered type cannot assign the other one, then altering the other type would not help,
       // since the only other variable in array.canAssign() is the base type, and the checking for it is symmetric
       Type alteredA = findTypeWithNullability(arrayA, nullability);
-      alteredA = findTypeWithImmutability(alteredA, explicitImmutability, contextualImmutability);
+      alteredA = findTypeWithDataImmutability(alteredA, explicitImmutability, contextualImmutability);
       if (alteredA.canAssign(b))
       {
         return alteredA;
       }
-      return null;
     }
     if (a instanceof FunctionType && b instanceof FunctionType)
     {
@@ -1690,49 +1697,60 @@ public class TypeChecker
       {
         return alteredA;
       }
-      return null;
     }
     if (a instanceof NamedType && b instanceof NamedType)
     {
       NamedType namedA = (NamedType) a;
       NamedType namedB = (NamedType) b;
-      boolean nullability = a.isNullable() | b.isNullable();
+      boolean nullability = a.isNullable() || b.isNullable();
       boolean explicitImmutability   = namedA.isExplicitlyImmutable()   || namedB.isExplicitlyImmutable();
       boolean contextualImmutability = namedA.isContextuallyImmutable() || namedB.isContextuallyImmutable();
       // alter the types to have the minimum nullability, explicit immutability, and contextual immutability that we need
       // if neither of the altered types can assign the unaltered other type, then we cannot do anything else,
       // since either the types are the same, or one of them is a supertype of the other, because we do not yet have a concept of multiple inheritance (e.g. interfaces)
       Type alteredA = findTypeWithNullability(namedA, nullability);
-      alteredA = findTypeWithImmutability(alteredA, explicitImmutability, contextualImmutability);
+      alteredA = findTypeWithDataImmutability(alteredA, explicitImmutability, contextualImmutability);
       if (alteredA.canAssign(b))
       {
         return alteredA;
       }
       Type alteredB = findTypeWithNullability(namedB, nullability);
-      alteredB = findTypeWithImmutability(alteredB, explicitImmutability, contextualImmutability);
+      alteredB = findTypeWithDataImmutability(alteredB, explicitImmutability, contextualImmutability);
       if (alteredB.canAssign(a))
       {
         return alteredB;
       }
-      return null;
     }
     if (a instanceof TupleType && b instanceof TupleType)
     {
       // these TupleTypes must both have at least two elements, since we have handled all single-element tuples above already
       Type[] aSubTypes = ((TupleType) a).getSubTypes();
       Type[] bSubTypes = ((TupleType) b).getSubTypes();
-      if (aSubTypes.length != bSubTypes.length)
+      if (aSubTypes.length == bSubTypes.length)
       {
-        return null;
+        Type[] commonSubTypes = new Type[aSubTypes.length];
+        for (int i = 0; i < aSubTypes.length; ++i)
+        {
+          commonSubTypes[i] = findCommonSuperType(aSubTypes[i], bSubTypes[i]);
+        }
+        return new TupleType(a.isNullable() | b.isNullable(), commonSubTypes, null);
       }
-      Type[] commonSubTypes = new Type[aSubTypes.length];
-      for (int i = 0; i < aSubTypes.length; ++i)
-      {
-        commonSubTypes[i] = findCommonSuperType(aSubTypes[i], bSubTypes[i]);
-      }
-      return new TupleType(a.isNullable() | b.isNullable(), commonSubTypes, null);
     }
-    return null;
+    // otherwise, object is the common supertype, so find its nullability and immutability
+    boolean nullable = a.isNullable() || b.isNullable();
+    boolean explicitlyImmutable = (a instanceof ArrayType  && ((ArrayType)  a).isExplicitlyImmutable()) ||
+                                  (a instanceof NamedType  && ((NamedType)  a).isExplicitlyImmutable()) ||
+                                  (a instanceof ObjectType && ((ObjectType) a).isExplicitlyImmutable()) ||
+                                  (b instanceof ArrayType  && ((ArrayType)  b).isExplicitlyImmutable()) ||
+                                  (b instanceof NamedType  && ((NamedType)  b).isExplicitlyImmutable()) ||
+                                  (b instanceof ObjectType && ((ObjectType) b).isExplicitlyImmutable());
+    boolean contextuallyImmutable = (a instanceof ArrayType  && ((ArrayType)  a).isContextuallyImmutable()) ||
+                                    (a instanceof NamedType  && ((NamedType)  a).isContextuallyImmutable()) ||
+                                    (a instanceof ObjectType && ((ObjectType) a).isContextuallyImmutable()) ||
+                                    (b instanceof ArrayType  && ((ArrayType)  b).isContextuallyImmutable()) ||
+                                    (b instanceof NamedType  && ((NamedType)  b).isContextuallyImmutable()) ||
+                                    (b instanceof ObjectType && ((ObjectType) b).isContextuallyImmutable());
+    return new ObjectType(nullable, explicitlyImmutable, contextuallyImmutable, null);
   }
 
   /**
@@ -1762,6 +1780,11 @@ public class TypeChecker
       NamedType namedType = (NamedType) type;
       return new NamedType(nullable, namedType.isExplicitlyImmutable(), namedType.isContextuallyImmutable(), namedType.getResolvedTypeDefinition());
     }
+    if (type instanceof ObjectType)
+    {
+      ObjectType objectType = (ObjectType) type;
+      return new ObjectType(nullable, objectType.isExplicitlyImmutable(), objectType.isContextuallyImmutable(), null);
+    }
     if (type instanceof PrimitiveType)
     {
       return new PrimitiveType(nullable, ((PrimitiveType) type).getPrimitiveTypeType(), null);
@@ -1788,6 +1811,10 @@ public class TypeChecker
     {
       return ((NamedType) type).isExplicitlyImmutable() || ((NamedType) type).isContextuallyImmutable();
     }
+    if (type instanceof ObjectType)
+    {
+      return ((ObjectType) type).isExplicitlyImmutable() || ((ObjectType) type).isContextuallyImmutable();
+    }
     if (type instanceof FunctionType || type instanceof NullType || type instanceof PrimitiveType || type instanceof TupleType)
     {
       return false;
@@ -1796,14 +1823,14 @@ public class TypeChecker
   }
 
   /**
-   * Finds the equivalent of the specified type with the specified explicit and contextual immutability.
-   * If the specified type does not have a concept of either explicit or contextual immutability, then that type of immutability is not checked in the calculation.
+   * Finds the equivalent of the specified type with the specified explicit and contextual data-immutability.
+   * If the specified type does not have a concept of either explicit or contextual data-immutability, then that type of immutability is not checked in the calculation.
    * @param type - the type to find the version of which has the specified explicit immutability
-   * @param explicitlyImmutable - true if the returned type should be explicitly immutable, false otherwise
-   * @param contextuallyImmutable - true if the returned type should be contextual immutable, false otherwise
-   * @return the version of the specified type with the specified explicit and contextual immutability, or the original type if it already has the requested immutability
+   * @param explicitlyImmutable - true if the returned type should be explicitly data-immutable, false otherwise
+   * @param contextuallyImmutable - true if the returned type should be contextual data-immutable, false otherwise
+   * @return the version of the specified type with the specified explicit and contextual data-immutability, or the original type if it already has the requested data-immutability
    */
-  public static Type findTypeWithImmutability(Type type, boolean explicitlyImmutable, boolean contextuallyImmutable)
+  public static Type findTypeWithDataImmutability(Type type, boolean explicitlyImmutable, boolean contextuallyImmutable)
   {
     if (type instanceof ArrayType)
     {
@@ -1814,15 +1841,6 @@ public class TypeChecker
       }
       return new ArrayType(arrayType.isNullable(), explicitlyImmutable, contextuallyImmutable, arrayType.getBaseType(), null);
     }
-    if (type instanceof FunctionType)
-    {
-      FunctionType functionType = (FunctionType) type;
-      if (functionType.isImmutable() == explicitlyImmutable)
-      {
-        return functionType;
-      }
-      return new FunctionType(functionType.isNullable(), explicitlyImmutable, functionType.getReturnType(), functionType.getParameterTypes(), null);
-    }
     if (type instanceof NamedType)
     {
       NamedType namedType = (NamedType) type;
@@ -1831,6 +1849,15 @@ public class TypeChecker
         return namedType;
       }
       return new NamedType(namedType.isNullable(), explicitlyImmutable, contextuallyImmutable, namedType.getResolvedTypeDefinition());
+    }
+    if (type instanceof ObjectType)
+    {
+      ObjectType objectType = (ObjectType) type;
+      if (objectType.isExplicitlyImmutable() == explicitlyImmutable && objectType.isContextuallyImmutable() == contextuallyImmutable)
+      {
+        return objectType;
+      }
+      return new ObjectType(objectType.isNullable(), explicitlyImmutable, contextuallyImmutable, null);
     }
     if (type instanceof PrimitiveType || type instanceof TupleType)
     {
@@ -1868,6 +1895,15 @@ public class TypeChecker
         return namedType;
       }
       return new NamedType(namedType.isNullable(), namedType.isExplicitlyImmutable(), contextuallyImmutable, namedType.getResolvedTypeDefinition());
+    }
+    if (type instanceof ObjectType)
+    {
+      ObjectType objectType = (ObjectType) type;
+      if (objectType.isContextuallyImmutable() == contextuallyImmutable)
+      {
+        return objectType;
+      }
+      return new ObjectType(objectType.isNullable(), objectType.isExplicitlyImmutable(), contextuallyImmutable, null);
     }
     if (type instanceof TupleType)
     {

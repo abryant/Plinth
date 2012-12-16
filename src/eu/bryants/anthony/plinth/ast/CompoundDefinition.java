@@ -117,7 +117,6 @@ public class CompoundDefinition extends TypeDefinition
       }
     }
     nonStaticFields = buildNonStaticFieldList(fields.values());
-    nonStaticMethods = buildNonStaticMethodList(allMethods);
   }
 
   /**
@@ -198,6 +197,29 @@ public class CompoundDefinition extends TypeDefinition
       }
       method.setContainingTypeDefinition(this);
       methodSet.add(method);
+    }
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public void buildNonStaticMethods()
+  {
+    nonStaticMethods = buildNonStaticMethodList(true);
+    for (Method method : nonStaticMethods)
+    {
+      Set<Method> methodSet = methods.get(method.getName());
+      if (methodSet == null)
+      {
+        methodSet = new HashSet<Method>();
+        methods.put(method.getName(), methodSet);
+      }
+      if (!methodSet.contains(method))
+      {
+        method.setContainingTypeDefinition(this);
+        methodSet.add(method);
+      }
     }
   }
 

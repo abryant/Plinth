@@ -103,7 +103,8 @@ TypeNoQName = BooleanKeyword |                 QuestionMark BooleanKeyword |
               LSquare RSquare Type   | QuestionMark LSquare RSquare Type | Hash LSquare RSquare Type   | QuestionMark Hash LSquare RSquare Type |
               LParen TypeListNoQName RParen | QuestionMark LParen TypeListNoQName RParen | QuestionMark NestedQNameList |
                    LBrace OptionalTypeList Arrow ReturnType RBrace | QuestionMark      LBrace OptionalTypeList Arrow ReturnType RBrace |
-              Hash LBrace OptionalTypeList Arrow ReturnType RBrace | QuestionMark Hash LBrace OptionalTypeList Arrow ReturnType RBrace
+              Hash LBrace OptionalTypeList Arrow ReturnType RBrace | QuestionMark Hash LBrace OptionalTypeList Arrow ReturnType RBrace |
+              ObjectKeyword | QuestionMark ObjectKeyword | Hash ObjectKeyword | QuestionMark Hash ObjectKeyword
 OptionalTypeList = TypeListNoQName | QNameList | epsilon
 Type = TypeNoQName | QName | NestedQNameList
 ReturnType = Type | VoidKeyword
@@ -165,12 +166,14 @@ BasicPrimary = IntegerLiteral | FloatingLiteral |
                NewKeyword LSquare RSquare Type LBrace RBrace |
                NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace |
                PrimaryNoTrailingType Dot Name |
+               NestedQNameList Dot Name |
                PrimaryNoTrailingType QuestionMarkDot Name |
                QNameExpression QuestionMarkDot Name |
                Type DoubleColon Name |
                FunctionCallExpression |
                LParen TupleExpression RParen |
                ClassCreationExpression |
+               NewKeyword ObjectKeyword Arguments |
                StringLiteral
 ClassCreationExpression = NewKeyword QName Arguments
 FunctionCallExpression = PrimaryNoThis Arguments | QNameExpression Arguments

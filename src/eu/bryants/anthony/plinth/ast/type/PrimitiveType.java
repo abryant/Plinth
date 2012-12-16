@@ -233,47 +233,14 @@ public class PrimitiveType extends Type
     PrimitiveType notNullThis = new PrimitiveType(false, primitiveTypeType, null);
 
     HashSet<Member> members = new HashSet<Member>();
-    switch (primitiveTypeType)
+    if (name.equals(BuiltinMethodType.TO_STRING.methodName))
     {
-    case BOOLEAN:
-      if (name.equals(BuiltinMethodType.BOOLEAN_TO_STRING.methodName))
-      {
-        members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.BOOLEAN_TO_STRING));
-      }
-      break;
-    case BYTE:
-    case SHORT:
-    case INT:
-    case LONG:
-      if (name.equals(BuiltinMethodType.SIGNED_TO_STRING.methodName))
-      {
-        members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.SIGNED_TO_STRING));
-      }
-      if (name.equals(BuiltinMethodType.SIGNED_TO_STRING_RADIX.methodName))
-      {
-        members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.SIGNED_TO_STRING_RADIX));
-      }
-      break;
-    case UBYTE:
-    case USHORT:
-    case UINT:
-    case ULONG:
-      if (name.equals(BuiltinMethodType.UNSIGNED_TO_STRING.methodName))
-      {
-        members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.UNSIGNED_TO_STRING));
-      }
-      if (name.equals(BuiltinMethodType.UNSIGNED_TO_STRING_RADIX.methodName))
-      {
-        members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.UNSIGNED_TO_STRING_RADIX));
-      }
-      break;
-    case FLOAT:
-    case DOUBLE:
-      if (name.equals(BuiltinMethodType.FLOATING_TO_STRING.methodName))
-      {
-        members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.FLOATING_TO_STRING));
-      }
-      break;
+      members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING));
+    }
+    if (name.equals(BuiltinMethodType.TO_STRING_RADIX.methodName) &&
+        primitiveTypeType != PrimitiveTypeType.BOOLEAN && !primitiveTypeType.isFloating())
+    {
+      members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING_RADIX));
     }
     return members;
   }

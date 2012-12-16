@@ -44,11 +44,16 @@ class Test extends Foo
     string fullargs = concatMap(addSpace, args);
     stdout::println("Your " + args.length.toString() + " arguments were:" + fullargs);
 
+    object o = new object();
+
     stdout::println("2.2250738585072011e-308 = " + 2.2250738585072011e-308.toString());
     stdout::println("maths::abs(-1) = " + maths::abs(-1).toString());
     Foo test = new Test(args.length > 2 ? 2 : null);
     test.argh();
     test.foo();
+    o = 99999, o, bigint();
+    o = "hello, world!", 65537, main, args, o, test, 0.3, null, (5, null, test);
+    stderr::println("toString() test: " + o.toString());
     Test t = cast<Test> test;
     t.argh();
     (cast<{-> void}> t.foo)();

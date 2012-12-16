@@ -14,7 +14,9 @@ import nativelib.llvm.LLVM.LLVMTypeRef;
 import nativelib.llvm.LLVM.LLVMValueRef;
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
+import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 
 /*
@@ -30,7 +32,7 @@ public class VirtualFunctionHandler
   private static final String VFT_PREFIX = "_VFT_";
   private static final String VFT_DESCRIPTOR_PREFIX = "_VFT_DESC_";
   private static final String VFT_INIT_FUNCTION_PREFIX = "_SUPER_VFT_INIT_";
-  private static final String SUPERCLASSS_VFT_GLOBAL_PREFIX = "_SUPER_VFT_";
+  private static final String SUPERCLASS_VFT_GLOBAL_PREFIX = "_SUPER_VFT_";
 
   private CodeGenerator codeGenerator;
   private TypeDefinition typeDefinition;
@@ -43,6 +45,7 @@ public class VirtualFunctionHandler
   private LLVMTypeRef vftType;
   private LLVMTypeRef functionSearchListType;
 
+  private LLVMTypeRef objectVirtualTableType;
   private Map<ClassDefinition, LLVMTypeRef> nativeVirtualTableTypes = new HashMap<ClassDefinition, LLVMTypeRef>();
 
   public VirtualFunctionHandler(CodeGenerator codeGenerator, TypeDefinition typeDefinition, LLVMModuleRef module, LLVMBuilderRef builder)
@@ -60,6 +63,36 @@ public class VirtualFunctionHandler
   public void setTypeHelper(TypeHelper typeHelper)
   {
     this.typeHelper = typeHelper;
+  }
+
+  /**
+   * Gets the global variable that stores the virtual function table for the object type.
+   * @return the VFT global variable for the object type
+   */
+  public LLVMValueRef getObjectVFTGlobal()
+  {
+    String mangledName = VFT_PREFIX + ObjectType.MANGLED_NAME;
+
+    LLVMValueRef existingGlobal = LLVM.LLVMGetNamedGlobal(module, mangledName);
+    if (existingGlobal != null)
+    {
+      return existingGlobal;
+    }
+
+    LLVMTypeRef vftType = getObjectVFTType();
+    LLVMValueRef global = LLVM.LLVMAddGlobal(module, vftType, mangledName);
+    LLVM.LLVMSetLinkage(global, LLVM.LLVMLinkage.LLVMLinkOnceODRLinkage);
+    LLVM.LLVMSetVisibility(global, LLVM.LLVMVisibility.LLVMHiddenVisibility);
+
+    Method[] methods = ObjectType.OBJECT_METHODS;
+    LLVMValueRef[] llvmMethods = new LLVMValueRef[methods.length];
+    for (int i = 0; i < methods.length; ++i)
+    {
+      llvmMethods[i] = codeGenerator.getMethodFunction(null, methods[i]);
+    }
+    LLVM.LLVMSetInitializer(global, LLVM.LLVMConstNamedStruct(vftType, C.toNativePointerArray(llvmMethods, false, true), llvmMethods.length));
+
+    return global;
   }
 
   /**
@@ -139,7 +172,7 @@ public class VirtualFunctionHandler
 
     for (int i = 0; i < methods.length; ++i)
     {
-      String disambiguator = ((Object) methods[i].getDisambiguator()).toString();
+      String disambiguator = methods[i].getDisambiguator().toString();
       LLVMValueRef stringConstant = codeGenerator.addStringConstant(disambiguator);
       llvmStrings[i] = LLVM.LLVMConstBitCast(stringConstant, stringPointerType);
     }
@@ -152,11 +185,23 @@ public class VirtualFunctionHandler
 
   /**
    * Finds a pointer to the virtual function table pointer inside the specified base value.
+   * @param baseValue - the base value to find the virtual funtion table pointer inside
+   * @return a pointer to the virtual function table pointer inside the specified base value
+   */
+  public LLVMValueRef getObjectVirtualFunctionTablePointer(LLVMValueRef baseValue)
+  {
+    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
+    return LLVM.LLVMBuildGEP(builder, baseValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+  }
+
+  /**
+   * Finds a pointer to the virtual function table pointer inside the specified base value.
    * @param baseValue - the base value to find the virtual function table pointer inside
    * @param classDefinition - the ClassDefinition to find the virtual function table of
    * @return a pointer to the virtual function table pointer inside the specified base value
    */
-  public LLVMValueRef getObjectVirtualFunctionTablePointer(LLVMValueRef baseValue, ClassDefinition classDefinition)
+  public LLVMValueRef getVirtualFunctionTablePointer(LLVMValueRef baseValue, ClassDefinition classDefinition)
   {
     int index = 0;
     ClassDefinition superClassDefinition = classDefinition.getSuperClassDefinition();
@@ -182,14 +227,28 @@ public class VirtualFunctionHandler
     {
       throw new IllegalArgumentException("Cannot get a method pointer for a static method");
     }
-    TypeDefinition typeDefinition = method.getContainingTypeDefinition();
-    if (!(typeDefinition instanceof ClassDefinition))
+    LLVMValueRef vftPointer = null;
+    if (method.getContainingTypeDefinition() != null)
     {
-      throw new IllegalArgumentException("Cannot get a method pointer for a method from something other than a ClassDefinition");
+      TypeDefinition typeDefinition = method.getContainingTypeDefinition();
+      if (typeDefinition instanceof ClassDefinition)
+      {
+        vftPointer = getVirtualFunctionTablePointer(baseValue, (ClassDefinition) typeDefinition);
+      }
     }
-    ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
-    LLVMValueRef vftPoiner = getObjectVirtualFunctionTablePointer(baseValue, classDefinition);
-    LLVMValueRef vft = LLVM.LLVMBuildLoad(builder, vftPoiner, "");
+    else if (method instanceof BuiltinMethod)
+    {
+      BuiltinMethod builtinMethod = (BuiltinMethod) method;
+      if (builtinMethod.getBaseType() instanceof ObjectType)
+      {
+        vftPointer = getObjectVirtualFunctionTablePointer(baseValue);
+      }
+    }
+    if (vftPointer == null)
+    {
+      throw new IllegalArgumentException("Cannot get a method pointer for a method from something other than an object or a ClassDefinition");
+    }
+    LLVMValueRef vft = LLVM.LLVMBuildLoad(builder, vftPointer, "");
     int index = method.getMethodIndex();
     LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                  LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), index, false)};
@@ -236,9 +295,9 @@ public class VirtualFunctionHandler
   }
 
   /**
-   * Finds the native type for a pointer to the virtual function table for the specified ClassDefinition.
+   * Finds the native type for the virtual function table for the specified ClassDefinition.
    * @param classDefinition - the ClassDefinition to find the VFT type for
-   * @return the native type of a pointer to the virtual function table for the specified ClassDefinition
+   * @return the native type of the virtual function table for the specified ClassDefinition
    */
   public LLVMTypeRef getVFTType(ClassDefinition classDefinition)
   {
@@ -253,6 +312,31 @@ public class VirtualFunctionHandler
     nativeVirtualTableTypes.put(classDefinition, result);
 
     Method[] methods = classDefinition.getNonStaticMethods();
+    LLVMTypeRef[] methodTypes = new LLVMTypeRef[methods.length];
+    for (int i = 0; i < methods.length; ++i)
+    {
+      methodTypes[i] = LLVM.LLVMPointerType(typeHelper.findMethodType(methods[i]), 0);
+    }
+    LLVM.LLVMStructSetBody(result, C.toNativePointerArray(methodTypes, false, true), methodTypes.length, false);
+    return result;
+  }
+
+  /**
+   * Finds the native type for the virtual function table for the 'object' type.
+   * @return the native type for the virtual function table for the 'object' type
+   */
+  public LLVMTypeRef getObjectVFTType()
+  {
+    if (objectVirtualTableType != null)
+    {
+      return objectVirtualTableType;
+    }
+    LLVMTypeRef result = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), ObjectType.MANGLED_NAME + "_VFT");
+    // cache the LLVM type before we call findMethodType(), so that once we call it, everything will be able to use this type instead of recreating it and possibly recursing infinitely
+    // later on, we add the fields using LLVMStructSetBody
+    objectVirtualTableType = result;
+
+    Method[] methods = ObjectType.OBJECT_METHODS;
     LLVMTypeRef[] methodTypes = new LLVMTypeRef[methods.length];
     for (int i = 0; i < methods.length; ++i)
     {
@@ -415,7 +499,7 @@ public class VirtualFunctionHandler
       throw new IllegalStateException("Cannot get a superclass's VFT global variable for a non-class type");
     }
     ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
-    String mangledName = SUPERCLASSS_VFT_GLOBAL_PREFIX + classDefinition.getQualifiedName().getMangledName() + "_" + superClass.getQualifiedName().getMangledName();
+    String mangledName = SUPERCLASS_VFT_GLOBAL_PREFIX + classDefinition.getQualifiedName().getMangledName() + "_" + superClass.getQualifiedName().getMangledName();
 
     LLVMValueRef existingGlobal = LLVM.LLVMGetNamedGlobal(module, mangledName);
     if (existingGlobal != null)

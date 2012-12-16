@@ -55,7 +55,7 @@ public class NullType extends Type
   @Override
   public String getMangledName()
   {
-    throw new UnsupportedOperationException("The null type does not have a mangled name");
+    return "n";
   }
 
   /**

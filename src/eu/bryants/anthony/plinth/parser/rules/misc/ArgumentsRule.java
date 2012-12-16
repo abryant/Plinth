@@ -19,8 +19,8 @@ public class ArgumentsRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION         = new Production<>(ParseType.LPAREN, ParseType.EXPRESSION_LIST, ParseType.RPAREN);
-  private static final Production<ParseType> NO_ARGS_PRODUCTION = new Production<>(ParseType.LPAREN,                            ParseType.RPAREN);
+  private static final Production<ParseType> PRODUCTION         = new Production<ParseType>(ParseType.LPAREN, ParseType.EXPRESSION_LIST, ParseType.RPAREN);
+  private static final Production<ParseType> NO_ARGS_PRODUCTION = new Production<ParseType>(ParseType.LPAREN,                            ParseType.RPAREN);
 
   public ArgumentsRule()
   {

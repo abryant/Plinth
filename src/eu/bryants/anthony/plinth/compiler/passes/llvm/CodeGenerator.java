@@ -39,6 +39,7 @@ import eu.bryants.anthony.plinth.ast.expression.LogicalExpression.LogicalOperato
 import eu.bryants.anthony.plinth.ast.expression.MinusExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullCoalescingExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullLiteralExpression;
+import eu.bryants.anthony.plinth.ast.expression.ObjectCreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression.RelationalOperator;
 import eu.bryants.anthony.plinth.ast.expression.ShiftExpression;
@@ -83,6 +84,7 @@ import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.NullType;
+import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
@@ -130,7 +132,7 @@ public class CodeGenerator
     builder = LLVM.LLVMCreateBuilder();
 
     virtualFunctionHandler = new VirtualFunctionHandler(this, typeDefinition, module, builder);
-    typeHelper = new TypeHelper(virtualFunctionHandler, builder);
+    typeHelper = new TypeHelper(this, virtualFunctionHandler, module, builder);
     virtualFunctionHandler.setTypeHelper(typeHelper);
     builtinGenerator = new BuiltinCodeGenerator(builder, module, this, typeHelper);
 
@@ -242,6 +244,14 @@ public class CodeGenerator
   }
 
   /**
+   * @return the declaration of the i8* calloc(i32, i32) function
+   */
+  public LLVMValueRef getCallocFunction()
+  {
+    return callocFunction;
+  }
+
+  /**
    * Gets the allocator function for the specified ClassDefinition.
    * @param classDefinition - the class definition to get the allocator for
    * @return the function declaration for the allocator of the specified ClassDefinition
@@ -349,7 +359,8 @@ public class CodeGenerator
    */
   LLVMValueRef getMethodFunction(LLVMValueRef callee, Method method)
   {
-    if (callee != null && !method.isStatic() && method.getContainingTypeDefinition() instanceof ClassDefinition)
+    if (callee != null && !method.isStatic() && (method.getContainingTypeDefinition() instanceof ClassDefinition ||
+                                                 (method instanceof BuiltinMethod && ((BuiltinMethod) method).getBaseType() instanceof ObjectType)))
     {
       // generate a virtual function table lookup
       return virtualFunctionHandler.getMethodPointer(callee, method);
@@ -360,7 +371,8 @@ public class CodeGenerator
     {
       return existingFunc;
     }
-    if (method instanceof BuiltinMethod)
+    // if it is a built-in method, generate it (unless it is part of a type definition, in which case just define it to be linked in)
+    if (method instanceof BuiltinMethod && method.getContainingTypeDefinition() == null)
     {
       return builtinGenerator.generateMethod((BuiltinMethod) method);
     }
@@ -522,7 +534,7 @@ public class CodeGenerator
         LLVMValueRef globalValue = virtualFunctionHandler.getSuperClassVFTGlobal(current);
         currentVFT = LLVM.LLVMBuildLoad(builder, globalValue, "");
       }
-      LLVMValueRef objectVFTPointer = virtualFunctionHandler.getObjectVirtualFunctionTablePointer(pointer, current);
+      LLVMValueRef objectVFTPointer = virtualFunctionHandler.getVirtualFunctionTablePointer(pointer, current);
       LLVM.LLVMBuildStore(builder, currentVFT, objectVFTPointer);
       current = current.getSuperClassDefinition();
     }
@@ -673,7 +685,7 @@ public class CodeGenerator
             {
               throw new IllegalArgumentException("Missing no-args super() constructor");
             }
-            LLVMValueRef convertedThis = typeHelper.convertTemporary(thisValue, new NamedType(false, false, typeDefinition), new NamedType(false, false, superClassDefinition));
+            LLVMValueRef convertedThis = typeHelper.convertTemporary(thisValue, new NamedType(false, false, typeDefinition), new NamedType(false, false, superClassDefinition), llvmFunction);
             LLVMValueRef[] superConstructorArgs = new LLVMValueRef[] {convertedThis};
             LLVM.LLVMBuildCall(builder, getConstructorFunction(noArgsSuper), C.toNativePointerArray(superConstructorArgs, false, true), superConstructorArgs.length, "");
           }
@@ -708,6 +720,11 @@ public class CodeGenerator
   {
     for (Method method : typeDefinition.getAllMethods())
     {
+      if (method instanceof BuiltinMethod)
+      {
+        builtinGenerator.generateMethod((BuiltinMethod) method);
+        continue;
+      }
       LLVMValueRef llvmFunction = getMethodFunction(null, method);
 
       // add the native function if the programmer specified one
@@ -797,6 +814,87 @@ public class CodeGenerator
     LLVM.LLVMSetLinkage(globalVariable, LLVM.LLVMLinkage.LLVMPrivateLinkage);
     LLVM.LLVMSetGlobalConstant(globalVariable, true);
     return globalVariable;
+  }
+
+  /**
+   * Builds a string creation for the specified string value.
+   * @param value - the value of the string to create
+   * @param llvmFunction - the LLVM function that we are building in, so that we can create an alloca in the entry block
+   * @return the result of creating the string, in a temporary type representation
+   */
+  public LLVMValueRef buildStringCreation(String value, LLVMValueRef llvmFunction)
+  {
+    LLVMValueRef globalVariable = addStringConstant(value);
+
+    // extract the string([]ubyte) constructor from the type of this expression
+    Type arrayType = new ArrayType(false, true, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
+    LLVMValueRef constructorFunction = getConstructorFunction(SpecialTypeHandler.stringArrayConstructor);
+    LLVMValueRef bitcastedArray = LLVM.LLVMBuildBitCast(builder, globalVariable, typeHelper.findStandardType(arrayType), "");
+
+    // build an alloca in the entry block for the string value
+    LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+    LLVM.LLVMPositionBuilderAtStart(builder, LLVM.LLVMGetEntryBasicBlock(llvmFunction));
+    // find the type to alloca, which is the standard representation of a non-nullable version of this type
+    // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with any nullability)
+    LLVMTypeRef allocaBaseType = typeHelper.findStandardType(new NamedType(false, false, SpecialTypeHandler.stringArrayConstructor.getContainingTypeDefinition()));
+    LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, allocaBaseType, "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+    typeHelper.initialiseCompoundType((CompoundDefinition) SpecialTypeHandler.stringArrayConstructor.getContainingTypeDefinition(), alloca);
+
+    LLVMValueRef[] arguments = new LLVMValueRef[] {alloca, bitcastedArray};
+    LLVM.LLVMBuildCall(builder, constructorFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+    return alloca;
+  }
+
+  /**
+   * Builds a string concatenation for the specified strings.
+   * @param strings - the array of strings to concatenate, each in a standard type representation
+   * @param llvmFunction - the LLVM function that we are building in, so that we can create an alloca in the entry block
+   * @return the result of concatenating the two strings, in a temporary type representation
+   */
+  public LLVMValueRef buildStringConcatenation(LLVMValueRef llvmFunction, LLVMValueRef... strings)
+  {
+    if (strings.length < 2)
+    {
+      throw new IllegalArgumentException("Cannot concatenate less than two strings");
+    }
+    // concatenate the strings
+    // build an alloca in the entry block for the result of the concatenation
+    LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+    LLVM.LLVMPositionBuilderAtStart(builder, LLVM.LLVMGetEntryBasicBlock(llvmFunction));
+    // find the type to alloca, which is the standard representation of a non-nullable version of this type
+    // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with any nullability)
+    LLVMTypeRef allocaBaseType = typeHelper.findStandardType(new NamedType(false, false, SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition()));
+    LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, allocaBaseType, "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+    typeHelper.initialiseCompoundType((CompoundDefinition) SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition(), alloca);
+
+    if (strings.length == 2)
+    {
+      // call the string(string, string) constructor
+      LLVMValueRef[] arguments = new LLVMValueRef[] {alloca, strings[0], strings[1]};
+      LLVMValueRef concatenationConstructor = getConstructorFunction(SpecialTypeHandler.stringConcatenationConstructor);
+      LLVM.LLVMBuildCall(builder, concatenationConstructor, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+      return alloca;
+    }
+
+    LLVMValueRef arrayLength = LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), strings.length, false);
+    ArrayType arrayType = new ArrayType(false, false, SpecialTypeHandler.STRING_TYPE, null);
+    LLVMValueRef array = buildArrayCreation(llvmFunction, new LLVMValueRef[] {arrayLength}, arrayType);
+
+    for (int i = 0; i < strings.length; ++i)
+    {
+      LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                   LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
+                                                   LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), i, false)};
+      LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
+      LLVM.LLVMBuildStore(builder, strings[i], elementPointer);
+    }
+
+    LLVMValueRef[] arguments = new LLVMValueRef[] {alloca, typeHelper.convertTemporaryToStandard(array, arrayType, llvmFunction)};
+    LLVMValueRef concatenationConstructor = getConstructorFunction(SpecialTypeHandler.stringArrayConcatenationConstructor);
+    LLVM.LLVMBuildCall(builder, concatenationConstructor, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+    return alloca;
   }
 
   /**
@@ -1038,7 +1136,7 @@ public class CodeGenerator
             }
             else
             {
-              convertedValue = typeHelper.convertTemporary(value, assignStatement.getExpression().getType(), assignees[0].getResolvedType());
+              convertedValue = typeHelper.convertTemporary(value, assignStatement.getExpression().getType(), assignees[0].getResolvedType(), llvmFunction);
             }
             LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[0]);
           }
@@ -1062,7 +1160,7 @@ public class CodeGenerator
               }
               else
               {
-                convertedValue = typeHelper.convertTemporary(extracted, expressionSubTypes[i], assignees[i].getResolvedType());
+                convertedValue = typeHelper.convertTemporary(extracted, expressionSubTypes[i], assignees[i].getResolvedType(), llvmFunction);
               }
               LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[i]);
             }
@@ -1104,7 +1202,7 @@ public class CodeGenerator
       LLVMValueRef llvmConstructor = getConstructorFunction(delegatedConstructor);
       LLVMValueRef[] llvmArguments = new LLVMValueRef[1 + parameters.length];
       // convert the thisValue to the delegated constructor's type, since if this is a super(...) constructor, the native type representation will be different
-      llvmArguments[0] = typeHelper.convertTemporary(thisValue, new NamedType(false, false, typeDefinition), new NamedType(false, false, delegatedConstructor.getContainingTypeDefinition()));
+      llvmArguments[0] = typeHelper.convertTemporary(thisValue, new NamedType(false, false, typeDefinition), new NamedType(false, false, delegatedConstructor.getContainingTypeDefinition()), llvmFunction);
       for (int i = 0; i < parameters.length; ++i)
       {
         LLVMValueRef argument = buildExpression(arguments[i], llvmFunction, thisValue, variables);
@@ -1454,35 +1552,23 @@ public class CodeGenerator
         }
         Type type = assignees[i].getResolvedType();
         LLVMValueRef leftValue = LLVM.LLVMBuildLoad(builder, llvmAssigneePointers[i], "");
-        if (standardTypeRepresentations[i])
-        {
-          leftValue = typeHelper.convertStandardToTemporary(leftValue, type, llvmFunction);
-        }
-        LLVMValueRef rightValue = typeHelper.convertTemporary(resultValues[i], resultValueTypes[i], type);
+        LLVMValueRef rightValue = typeHelper.convertTemporary(resultValues[i], resultValueTypes[i], type, llvmFunction);
         LLVMValueRef assigneeResult;
         if (shorthandAssignStatement.getOperator() == ShorthandAssignmentOperator.ADD && type.isEquivalent(SpecialTypeHandler.STRING_TYPE))
         {
-          // concatenate the strings
-          // build an alloca in the entry block for the result of the concatenation
-          LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
-          LLVM.LLVMPositionBuilderAtStart(builder, LLVM.LLVMGetEntryBasicBlock(llvmFunction));
-          // find the type to alloca, which is the standard representation of a non-nullable version of this type
-          // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with any nullability)
-          LLVMTypeRef allocaBaseType = typeHelper.findStandardType(new NamedType(false, false, SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition()));
-          LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, allocaBaseType, "");
-          LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
-          typeHelper.initialiseCompoundType((CompoundDefinition) SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition(), alloca);
-
-          // call the string(string, string) constructor
-          LLVMValueRef[] arguments = new LLVMValueRef[] {alloca,
-                                                         typeHelper.convertTemporaryToStandard(leftValue, resultType, llvmFunction),
-                                                         typeHelper.convertTemporaryToStandard(rightValue, resultType, llvmFunction)};
-          LLVMValueRef concatenationConstructor = getConstructorFunction(SpecialTypeHandler.stringConcatenationConstructor);
-          LLVM.LLVMBuildCall(builder, concatenationConstructor, C.toNativePointerArray(arguments, false, true), arguments.length, "");
-          assigneeResult = alloca;
+          if (!standardTypeRepresentations[i])
+          {
+            leftValue = typeHelper.convertTemporaryToStandard(leftValue, type, llvmFunction);
+          }
+          rightValue = typeHelper.convertTemporaryToStandard(rightValue, type, llvmFunction);
+          assigneeResult = buildStringConcatenation(llvmFunction, leftValue, rightValue);
         }
         else if (type instanceof PrimitiveType)
         {
+          if (standardTypeRepresentations[i])
+          {
+            leftValue = typeHelper.convertStandardToTemporary(leftValue, type, llvmFunction);
+          }
           PrimitiveTypeType primitiveType = ((PrimitiveType) type).getPrimitiveTypeType();
           boolean floating = primitiveType.isFloating();
           boolean signed = primitiveType.isSigned();
@@ -1640,7 +1726,15 @@ public class CodeGenerator
     throw new IllegalArgumentException("Unknown predicate '" + operator + "'");
   }
 
-  private LLVMValueRef buildArrayCreation(LLVMValueRef llvmFunction, LLVMValueRef[] llvmLengths, ArrayType type)
+  /**
+   * Builds code to create an array in the specified function, with the specified length(s) and type
+   * @param llvmFunction - the function that we are building the array creation in, to add the new blocks to
+   * @param llvmLengths - the list of lengths of the array(s), each being a native uint.
+   *                      if the array is multidimensional, this should contain an element per dimension to be created
+   * @param type - the type of the array to create
+   * @return the pointer to the array to create, in a temporary type representation
+   */
+  public LLVMValueRef buildArrayCreation(LLVMValueRef llvmFunction, LLVMValueRef[] llvmLengths, ArrayType type)
   {
     LLVMTypeRef llvmArrayType = typeHelper.findTemporaryType(type);
     LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false), // go into the pointer to the {i32, [0 x <type>]}
@@ -1709,7 +1803,7 @@ public class CodeGenerator
    * @param type - the type of the specified LLVMValueRef
    * @return an LLVMValueRef for an i1, which will be 1 if the value is non-null, and 0 if the value is null
    */
-  private LLVMValueRef buildNullCheck(LLVMValueRef value, Type type)
+  public LLVMValueRef buildNullCheck(LLVMValueRef value, Type type)
   {
     if (!type.isNullable())
     {
@@ -2002,27 +2096,14 @@ public class CodeGenerator
       Type rightType = arithmeticExpression.getRightSubExpression().getType();
       Type resultType = arithmeticExpression.getType();
       // cast if necessary
-      left = typeHelper.convertTemporary(left, leftType, resultType);
-      right = typeHelper.convertTemporary(right, rightType, resultType);
+      left = typeHelper.convertTemporary(left, leftType, resultType, llvmFunction);
+      right = typeHelper.convertTemporary(right, rightType, resultType, llvmFunction);
       if (arithmeticExpression.getOperator() == ArithmeticOperator.ADD && resultType.isEquivalent(SpecialTypeHandler.STRING_TYPE))
       {
-        // concatenate the strings
-        // build an alloca in the entry block for the result of the concatenation
-        LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
-        LLVM.LLVMPositionBuilderAtStart(builder, LLVM.LLVMGetEntryBasicBlock(llvmFunction));
-        // find the type to alloca, which is the standard representation of a non-nullable version of this type
-        // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with any nullability)
-        LLVMTypeRef allocaBaseType = typeHelper.findStandardType(new NamedType(false, false, SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition()));
-        LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, allocaBaseType, "");
-        LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
-        typeHelper.initialiseCompoundType((CompoundDefinition) SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition(), alloca);
-
-        LLVMValueRef[] arguments = new LLVMValueRef[] {alloca,
-                                                       typeHelper.convertTemporaryToStandard(left, resultType, llvmFunction),
-                                                       typeHelper.convertTemporaryToStandard(right, resultType, llvmFunction)};
-        LLVMValueRef concatenationConstructor = getConstructorFunction(SpecialTypeHandler.stringConcatenationConstructor);
-        LLVM.LLVMBuildCall(builder, concatenationConstructor, C.toNativePointerArray(arguments, false, true), arguments.length, "");
-        return typeHelper.convertTemporary(alloca, new NamedType(false, false, SpecialTypeHandler.stringConcatenationConstructor.getContainingTypeDefinition()), resultType);
+        LLVMValueRef leftString = typeHelper.convertTemporaryToStandard(left, resultType, llvmFunction);
+        LLVMValueRef rightString = typeHelper.convertTemporaryToStandard(right, resultType, llvmFunction);
+        LLVMValueRef result = buildStringConcatenation(llvmFunction, leftString, rightString);
+        return typeHelper.convertTemporary(result, SpecialTypeHandler.STRING_TYPE, resultType, llvmFunction);
       }
       boolean floating = ((PrimitiveType) resultType).getPrimitiveTypeType().isFloating();
       boolean signed = ((PrimitiveType) resultType).getPrimitiveTypeType().isSigned();
@@ -2063,8 +2144,8 @@ public class CodeGenerator
       LLVMValueRef dimensionValue = buildExpression(arrayAccessExpression.getDimensionExpression(), llvmFunction, thisValue, variables);
       LLVMValueRef convertedDimensionValue = typeHelper.convertTemporaryToStandard(dimensionValue, arrayAccessExpression.getDimensionExpression().getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE, llvmFunction);
       LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                                     LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
-                                                                     convertedDimensionValue};
+                                                   LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false),
+                                                   convertedDimensionValue};
       LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, arrayValue, C.toNativePointerArray(indices, false, true), indices.length, "");
       ArrayType arrayType = (ArrayType) arrayAccessExpression.getArrayExpression().getType();
       return typeHelper.convertStandardPointerToTemporary(elementPointer, arrayType.getBaseType(), arrayAccessExpression.getType(), llvmFunction);
@@ -2090,7 +2171,7 @@ public class CodeGenerator
           LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
           LLVM.LLVMBuildStore(builder, convertedValue, elementPointer);
         }
-        return typeHelper.convertTemporary(array, type, arrayCreationExpression.getType());
+        return typeHelper.convertTemporary(array, type, arrayCreationExpression.getType(), llvmFunction);
       }
 
       LLVMValueRef[] llvmLengths = new LLVMValueRef[dimensionExpressions.length];
@@ -2100,12 +2181,12 @@ public class CodeGenerator
         llvmLengths[i] = typeHelper.convertTemporaryToStandard(expressionValue, dimensionExpressions[i].getType(), ArrayLengthMember.ARRAY_LENGTH_TYPE, llvmFunction);
       }
       LLVMValueRef array = buildArrayCreation(llvmFunction, llvmLengths, type);
-      return typeHelper.convertTemporary(array, type, arrayCreationExpression.getType());
+      return typeHelper.convertTemporary(array, type, arrayCreationExpression.getType(), llvmFunction);
     }
     if (expression instanceof BitwiseNotExpression)
     {
       LLVMValueRef value = buildExpression(((BitwiseNotExpression) expression).getExpression(), llvmFunction, thisValue, variables);
-      value = typeHelper.convertTemporary(value, ((BitwiseNotExpression) expression).getExpression().getType(), expression.getType());
+      value = typeHelper.convertTemporary(value, ((BitwiseNotExpression) expression).getExpression().getType(), expression.getType(), llvmFunction);
       return LLVM.LLVMBuildNot(builder, value, "");
     }
     if (expression instanceof BooleanLiteralExpression)
@@ -2117,19 +2198,19 @@ public class CodeGenerator
     {
       LLVMValueRef value = buildExpression(((BooleanNotExpression) expression).getExpression(), llvmFunction, thisValue, variables);
       LLVMValueRef result = LLVM.LLVMBuildNot(builder, value, "");
-      return typeHelper.convertTemporary(result, ((BooleanNotExpression) expression).getExpression().getType(), expression.getType());
+      return typeHelper.convertTemporary(result, ((BooleanNotExpression) expression).getExpression().getType(), expression.getType(), llvmFunction);
     }
     if (expression instanceof BracketedExpression)
     {
       BracketedExpression bracketedExpression = (BracketedExpression) expression;
       LLVMValueRef value = buildExpression(bracketedExpression.getExpression(), llvmFunction, thisValue, variables);
-      return typeHelper.convertTemporary(value, bracketedExpression.getExpression().getType(), expression.getType());
+      return typeHelper.convertTemporary(value, bracketedExpression.getExpression().getType(), expression.getType(), llvmFunction);
     }
     if (expression instanceof CastExpression)
     {
       CastExpression castExpression = (CastExpression) expression;
       LLVMValueRef value = buildExpression(castExpression.getExpression(), llvmFunction, thisValue, variables);
-      return typeHelper.convertTemporary(value, castExpression.getExpression().getType(), castExpression.getType());
+      return typeHelper.convertTemporary(value, castExpression.getExpression().getType(), castExpression.getType(), llvmFunction);
     }
     if (expression instanceof ClassCreationExpression)
     {
@@ -2166,7 +2247,7 @@ public class CodeGenerator
       if (nullCheckExpression != null)
       {
         LLVMValueRef value = buildExpression(nullCheckExpression, llvmFunction, thisValue, variables);
-        LLVMValueRef convertedValue = typeHelper.convertTemporary(value, nullCheckExpression.getType(), equalityExpression.getComparisonType());
+        LLVMValueRef convertedValue = typeHelper.convertTemporary(value, nullCheckExpression.getType(), equalityExpression.getComparisonType(), llvmFunction);
         LLVMValueRef nullity = buildNullCheck(convertedValue, equalityExpression.getComparisonType());
         switch (operator)
         {
@@ -2237,13 +2318,13 @@ public class CodeGenerator
               comparisonResult = LLVM.LLVMBuildOr(builder, nullityComparison, comparisonResult, "");
             }
           }
-          return typeHelper.convertTemporary(comparisonResult, new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null), equalityExpression.getType());
+          return typeHelper.convertTemporary(comparisonResult, new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null), equalityExpression.getType(), llvmFunction);
         }
         throw new IllegalArgumentException("Unknown result type, unable to generate comparison expression: " + equalityExpression);
       }
       // perform a standard equality check, using buildEqualityCheck()
-      left = typeHelper.convertTemporary(left, leftType, comparisonType);
-      right = typeHelper.convertTemporary(right, rightType, comparisonType);
+      left = typeHelper.convertTemporary(left, leftType, comparisonType, llvmFunction);
+      right = typeHelper.convertTemporary(right, rightType, comparisonType, llvmFunction);
       return buildEqualityCheck(left, right, comparisonType, operator, llvmFunction);
     }
     if (expression instanceof FieldAccessExpression)
@@ -2267,7 +2348,7 @@ public class CodeGenerator
           LLVM.LLVMBuildCondBr(builder, nullCheckResult, accessBlock, continuationBlock);
 
           LLVM.LLVMPositionBuilderAtEnd(builder, accessBlock);
-          notNullValue = typeHelper.convertTemporary(baseValue, baseExpression.getType(), TypeChecker.findTypeWithNullability(baseExpression.getType(), false));
+          notNullValue = typeHelper.convertTemporary(baseValue, baseExpression.getType(), TypeChecker.findTypeWithNullability(baseExpression.getType(), false), llvmFunction);
         }
 
         LLVMValueRef result;
@@ -2443,7 +2524,7 @@ public class CodeGenerator
 
         LLVM.LLVMPositionBuilderAtEnd(builder, callBlock);
         calleeType = TypeChecker.findTypeWithNullability(resolvedBaseExpression.getType(), false);
-        notNullCallee = typeHelper.convertTemporary(callee, resolvedBaseExpression.getType(), calleeType);
+        notNullCallee = typeHelper.convertTemporary(callee, resolvedBaseExpression.getType(), calleeType, llvmFunction);
       }
 
       Expression[] arguments = functionExpression.getArguments();
@@ -2521,7 +2602,7 @@ public class CodeGenerator
 
         if (resultIsTemporary)
         {
-          result = typeHelper.convertTemporary(result, returnType, functionExpression.getType());
+          result = typeHelper.convertTemporary(result, returnType, functionExpression.getType(), llvmFunction);
         }
         else
         {
@@ -2545,7 +2626,7 @@ public class CodeGenerator
       }
       if (resultIsTemporary)
       {
-        return typeHelper.convertTemporary(result, returnType, functionExpression.getType());
+        return typeHelper.convertTemporary(result, returnType, functionExpression.getType(), llvmFunction);
       }
       return typeHelper.convertStandardToTemporary(result, returnType, functionExpression.getType(), llvmFunction);
     }
@@ -2562,13 +2643,13 @@ public class CodeGenerator
 
       LLVM.LLVMPositionBuilderAtEnd(builder, thenBlock);
       LLVMValueRef thenValue = buildExpression(inlineIf.getThenExpression(), llvmFunction, thisValue, variables);
-      LLVMValueRef convertedThenValue = typeHelper.convertTemporary(thenValue, inlineIf.getThenExpression().getType(), inlineIf.getType());
+      LLVMValueRef convertedThenValue = typeHelper.convertTemporary(thenValue, inlineIf.getThenExpression().getType(), inlineIf.getType(), llvmFunction);
       LLVMBasicBlockRef thenBranchBlock = LLVM.LLVMGetInsertBlock(builder);
       LLVM.LLVMBuildBr(builder, continuationBlock);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, elseBlock);
       LLVMValueRef elseValue = buildExpression(inlineIf.getElseExpression(), llvmFunction, thisValue, variables);
-      LLVMValueRef convertedElseValue = typeHelper.convertTemporary(elseValue, inlineIf.getElseExpression().getType(), inlineIf.getType());
+      LLVMValueRef convertedElseValue = typeHelper.convertTemporary(elseValue, inlineIf.getElseExpression().getType(), inlineIf.getType(), llvmFunction);
       LLVMBasicBlockRef elseBranchBlock = LLVM.LLVMGetInsertBlock(builder);
       LLVM.LLVMBuildBr(builder, continuationBlock);
 
@@ -2602,12 +2683,12 @@ public class CodeGenerator
       PrimitiveType rightType = (PrimitiveType) logicalExpression.getRightSubExpression().getType();
       // cast if necessary
       PrimitiveType resultType = (PrimitiveType) logicalExpression.getType();
-      left = typeHelper.convertTemporary(left, leftType, resultType);
+      left = typeHelper.convertTemporary(left, leftType, resultType, llvmFunction);
       LogicalOperator operator = logicalExpression.getOperator();
       if (operator != LogicalOperator.SHORT_CIRCUIT_AND && operator != LogicalOperator.SHORT_CIRCUIT_OR)
       {
         LLVMValueRef right = buildExpression(logicalExpression.getRightSubExpression(), llvmFunction, thisValue, variables);
-        right = typeHelper.convertTemporary(right, rightType, resultType);
+        right = typeHelper.convertTemporary(right, rightType, resultType, llvmFunction);
         switch (operator)
         {
         case AND:
@@ -2630,7 +2711,7 @@ public class CodeGenerator
 
       LLVM.LLVMPositionBuilderAtEnd(builder, rightCheckBlock);
       LLVMValueRef right = buildExpression(logicalExpression.getRightSubExpression(), llvmFunction, thisValue, variables);
-      right = typeHelper.convertTemporary(right, rightType, resultType);
+      right = typeHelper.convertTemporary(right, rightType, resultType, llvmFunction);
       LLVM.LLVMBuildBr(builder, continuationBlock);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
@@ -2645,7 +2726,7 @@ public class CodeGenerator
     {
       MinusExpression minusExpression = (MinusExpression) expression;
       LLVMValueRef value = buildExpression(minusExpression.getExpression(), llvmFunction, thisValue, variables);
-      value = typeHelper.convertTemporary(value, minusExpression.getExpression().getType(), TypeChecker.findTypeWithNullability(minusExpression.getType(), false));
+      value = typeHelper.convertTemporary(value, minusExpression.getExpression().getType(), TypeChecker.findTypeWithNullability(minusExpression.getType(), false), llvmFunction);
       PrimitiveTypeType primitiveTypeType = ((PrimitiveType) minusExpression.getType()).getPrimitiveTypeType();
       LLVMValueRef result;
       if (primitiveTypeType.isFloating())
@@ -2656,14 +2737,14 @@ public class CodeGenerator
       {
         result = LLVM.LLVMBuildNeg(builder, value, "");
       }
-      return typeHelper.convertTemporary(result, TypeChecker.findTypeWithNullability(minusExpression.getType(), false), minusExpression.getType());
+      return typeHelper.convertTemporary(result, TypeChecker.findTypeWithNullability(minusExpression.getType(), false), minusExpression.getType(), llvmFunction);
     }
     if (expression instanceof NullCoalescingExpression)
     {
       NullCoalescingExpression nullCoalescingExpression = (NullCoalescingExpression) expression;
 
       LLVMValueRef nullableValue = buildExpression(nullCoalescingExpression.getNullableExpression(), llvmFunction, thisValue, variables);
-      nullableValue = typeHelper.convertTemporary(nullableValue, nullCoalescingExpression.getNullableExpression().getType(), TypeChecker.findTypeWithNullability(nullCoalescingExpression.getType(), true));
+      nullableValue = typeHelper.convertTemporary(nullableValue, nullCoalescingExpression.getNullableExpression().getType(), TypeChecker.findTypeWithNullability(nullCoalescingExpression.getType(), true), llvmFunction);
       LLVMValueRef checkResult = buildNullCheck(nullableValue, TypeChecker.findTypeWithNullability(nullCoalescingExpression.getType(), true));
 
       LLVMBasicBlockRef conversionBlock = LLVM.LLVMAppendBasicBlock(llvmFunction, "nullCoalescingConversion");
@@ -2673,13 +2754,13 @@ public class CodeGenerator
 
       // create a block to convert the nullable value into a non-nullable value
       LLVM.LLVMPositionBuilderAtEnd(builder, conversionBlock);
-      LLVMValueRef convertedNullableValue = typeHelper.convertTemporary(nullableValue, TypeChecker.findTypeWithNullability(nullCoalescingExpression.getType(), true), nullCoalescingExpression.getType());
+      LLVMValueRef convertedNullableValue = typeHelper.convertTemporary(nullableValue, TypeChecker.findTypeWithNullability(nullCoalescingExpression.getType(), true), nullCoalescingExpression.getType(), llvmFunction);
       LLVMBasicBlockRef endConversionBlock = LLVM.LLVMGetInsertBlock(builder);
       LLVM.LLVMBuildBr(builder, continuationBlock);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, alternativeBlock);
       LLVMValueRef alternativeValue = buildExpression(nullCoalescingExpression.getAlternativeExpression(), llvmFunction, thisValue, variables);
-      alternativeValue = typeHelper.convertTemporary(alternativeValue, nullCoalescingExpression.getAlternativeExpression().getType(), nullCoalescingExpression.getType());
+      alternativeValue = typeHelper.convertTemporary(alternativeValue, nullCoalescingExpression.getAlternativeExpression().getType(), nullCoalescingExpression.getType(), llvmFunction);
       LLVMBasicBlockRef endAlternativeBlock = LLVM.LLVMGetInsertBlock(builder);
       LLVM.LLVMBuildBr(builder, continuationBlock);
 
@@ -2696,6 +2777,29 @@ public class CodeGenerator
     {
       Type type = expression.getType();
       return LLVM.LLVMConstNull(typeHelper.findTemporaryType(type));
+    }
+    if (expression instanceof ObjectCreationExpression)
+    {
+      ObjectType objectType = new ObjectType(false, false, null);
+      LLVMTypeRef nativeType = typeHelper.findStandardType(objectType);
+      // allocate memory for the object
+      LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
+      LLVMValueRef llvmStructSize = LLVM.LLVMBuildGEP(builder, LLVM.LLVMConstNull(nativeType), C.toNativePointerArray(indices, false, true), indices.length, "");
+      LLVMValueRef llvmSize = LLVM.LLVMBuildPtrToInt(builder, llvmStructSize, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
+      LLVMValueRef[] callocArguments = new LLVMValueRef[] {llvmSize, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
+      LLVMValueRef memory = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(callocArguments, false, true), callocArguments.length, "");
+      LLVMValueRef pointer = LLVM.LLVMBuildBitCast(builder, memory, nativeType, "");
+
+      // store the VFT
+      LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVMValueRef objectVFT = virtualFunctionHandler.getObjectVFTGlobal();
+      LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
+      LLVMValueRef[] vftIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                      LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
+      LLVMValueRef vftElementPointer = LLVM.LLVMBuildGEP(builder, pointer, C.toNativePointerArray(vftIndices, false, true), vftIndices.length, "");
+      LLVM.LLVMBuildStore(builder, objectVFT, vftElementPointer);
+
+      return typeHelper.convertStandardToTemporary(pointer, objectType, llvmFunction);
     }
     if (expression instanceof RelationalExpression)
     {
@@ -2731,8 +2835,8 @@ public class CodeGenerator
         }
         throw new IllegalArgumentException("Unknown result type, unable to generate comparison expression: " + expression);
       }
-      left = typeHelper.convertTemporary(left, leftType, resultType);
-      right = typeHelper.convertTemporary(right, rightType, resultType);
+      left = typeHelper.convertTemporary(left, leftType, resultType, llvmFunction);
+      right = typeHelper.convertTemporary(right, rightType, resultType, llvmFunction);
       LLVMValueRef result;
       if (resultType.getPrimitiveTypeType().isFloating())
       {
@@ -2742,15 +2846,15 @@ public class CodeGenerator
       {
         result = LLVM.LLVMBuildICmp(builder, getPredicate(relationalExpression.getOperator(), false, resultType.getPrimitiveTypeType().isSigned()), left, right, "");
       }
-      return typeHelper.convertTemporary(result, new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null), relationalExpression.getType());
+      return typeHelper.convertTemporary(result, new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null), relationalExpression.getType(), llvmFunction);
     }
     if (expression instanceof ShiftExpression)
     {
       ShiftExpression shiftExpression = (ShiftExpression) expression;
       LLVMValueRef leftValue = buildExpression(shiftExpression.getLeftExpression(), llvmFunction, thisValue, variables);
       LLVMValueRef rightValue = buildExpression(shiftExpression.getRightExpression(), llvmFunction, thisValue, variables);
-      LLVMValueRef convertedLeft = typeHelper.convertTemporary(leftValue, shiftExpression.getLeftExpression().getType(), shiftExpression.getType());
-      LLVMValueRef convertedRight = typeHelper.convertTemporary(rightValue, shiftExpression.getRightExpression().getType(), shiftExpression.getType());
+      LLVMValueRef convertedLeft = typeHelper.convertTemporary(leftValue, shiftExpression.getLeftExpression().getType(), shiftExpression.getType(), llvmFunction);
+      LLVMValueRef convertedRight = typeHelper.convertTemporary(rightValue, shiftExpression.getRightExpression().getType(), shiftExpression.getType(), llvmFunction);
       switch (shiftExpression.getOperator())
       {
       case RIGHT_SHIFT:
@@ -2768,26 +2872,8 @@ public class CodeGenerator
     {
       StringLiteralExpression stringLiteralExpression = (StringLiteralExpression) expression;
       String value = stringLiteralExpression.getLiteral().getLiteralValue();
-      LLVMValueRef globalVariable = addStringConstant(value);
-
-      // extract the string([]ubyte) constructor from the type of this expression
-      Type arrayType = new ArrayType(false, true, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
-      LLVMValueRef constructorFunction = getConstructorFunction(SpecialTypeHandler.stringArrayConstructor);
-      LLVMValueRef bitcastedArray = LLVM.LLVMBuildBitCast(builder, globalVariable, typeHelper.findStandardType(arrayType), "");
-
-      // build an alloca in the entry block for the string value
-      LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
-      LLVM.LLVMPositionBuilderAtStart(builder, LLVM.LLVMGetEntryBasicBlock(llvmFunction));
-      // find the type to alloca, which is the standard representation of a non-nullable version of this type
-      // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with any nullability)
-      LLVMTypeRef allocaBaseType = typeHelper.findStandardType(new NamedType(false, false, SpecialTypeHandler.stringArrayConstructor.getContainingTypeDefinition()));
-      LLVMValueRef alloca = LLVM.LLVMBuildAlloca(builder, allocaBaseType, "");
-      LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
-      typeHelper.initialiseCompoundType((CompoundDefinition) SpecialTypeHandler.stringArrayConstructor.getContainingTypeDefinition(), alloca);
-
-      LLVMValueRef[] arguments = new LLVMValueRef[] {alloca, bitcastedArray};
-      LLVM.LLVMBuildCall(builder, constructorFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
-      return typeHelper.convertTemporary(alloca, new NamedType(false, false, SpecialTypeHandler.stringArrayConstructor.getContainingTypeDefinition()), expression.getType());
+      LLVMValueRef llvmString = buildStringCreation(value, llvmFunction);
+      return typeHelper.convertTemporary(llvmString, new NamedType(false, false, SpecialTypeHandler.stringArrayConstructor.getContainingTypeDefinition()), expression.getType(), llvmFunction);
     }
     if (expression instanceof ThisExpression)
     {
@@ -2805,10 +2891,10 @@ public class CodeGenerator
       {
         LLVMValueRef value = buildExpression(subExpressions[i], llvmFunction, thisValue, variables);
         Type type = tupleTypes[i];
-        value = typeHelper.convertTemporary(value, subExpressions[i].getType(), type);
+        value = typeHelper.convertTemporary(value, subExpressions[i].getType(), type, llvmFunction);
         currentValue = LLVM.LLVMBuildInsertValue(builder, currentValue, value, i, "");
       }
-      return typeHelper.convertTemporary(currentValue, nonNullableTupleType, tupleExpression.getType());
+      return typeHelper.convertTemporary(currentValue, nonNullableTupleType, tupleExpression.getType(), llvmFunction);
     }
     if (expression instanceof TupleIndexExpression)
     {
@@ -2818,7 +2904,7 @@ public class CodeGenerator
       // convert the 1-based indexing to 0-based before extracting the value
       int index = tupleIndexExpression.getIndexLiteral().getValue().intValue() - 1;
       LLVMValueRef value = LLVM.LLVMBuildExtractValue(builder, result, index, "");
-      return typeHelper.convertTemporary(value, tupleType.getSubTypes()[index], tupleIndexExpression.getType());
+      return typeHelper.convertTemporary(value, tupleType.getSubTypes()[index], tupleIndexExpression.getType(), llvmFunction);
     }
     if (expression instanceof VariableExpression)
     {

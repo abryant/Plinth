@@ -39,7 +39,7 @@ immutable compound string
    * @param str1 - the first string
    * @param str2 - the second string
    */
-  this(#string str1, #string str2)
+  this(string str1, string str2)
   {
     []ubyte bytes = new [str1.bytes.length + str2.bytes.length]ubyte;
     for (uint i = 0; i < str1.bytes.length; ++i)
@@ -63,6 +63,54 @@ immutable compound string
       for (uint i = 0; i < chars2.length; ++i)
       {
         chars[chars1.length + i] = chars2[i];
+      }
+      this.chars = chars;
+    }
+  }
+
+  /**
+   * Creates a string containing the concatenation of the specified array of strings
+   * @param strings - the array of strings to concatenate together
+   */
+  this([]string strings)
+  {
+    uint len = 0;
+    ?uint charLength = 0;
+    for (uint i = 0; i < strings.length; ++i)
+    {
+      len += strings[i].bytes.length;
+      if charLength != null & strings[i].chars != null
+      {
+        charLength = (cast<uint> charLength) + (cast<uint> strings[i].chars?.length);
+      }
+      else
+      {
+        charLength = null;
+      }
+    }
+    []ubyte bytes = new [len]ubyte;
+    uint pos = 0;
+    for (uint i = 0; i < strings.length; ++i)
+    {
+      for (uint j = 0; j < strings[i].bytes.length; ++j)
+      {
+        bytes[pos + j] = strings[i].bytes[j];
+      }
+      pos += strings[i].bytes.length;
+    }
+    this.bytes = bytes;
+    if charLength != null
+    {
+      []uint chars = new [cast<uint> charLength]uint;
+      uint charPos = 0;
+      for (uint i = 0; i < strings.length; ++i)
+      {
+        #[]uint strChars = cast<#[]uint> strings[i].chars;
+        for (uint j = 0; j < strChars.length; ++j)
+        {
+          chars[charPos + j] = strChars[j];
+        }
+        charPos += strChars.length;
       }
       this.chars = chars;
     }
@@ -189,6 +237,14 @@ immutable compound string
       }
     }
     return true;
+  }
+
+  /**
+   * @return this string
+   */
+  string toString()
+  {
+    return this;
   }
 
   /**
