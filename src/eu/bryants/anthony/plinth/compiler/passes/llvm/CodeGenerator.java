@@ -185,10 +185,7 @@ public class CodeGenerator
     {
       if (field.isStatic())
       {
-        GlobalVariable globalVariable = field.getGlobalVariable();
-        LLVMValueRef value = LLVM.LLVMAddGlobal(module, typeHelper.findStandardType(field.getType()), globalVariable.getMangledName());
-        LLVM.LLVMSetInitializer(value, LLVM.LLVMConstNull(typeHelper.findStandardType(field.getType())));
-        globalVariables.put(globalVariable, value);
+        getGlobal(field.getGlobalVariable());
       }
     }
 
@@ -209,7 +206,10 @@ public class CodeGenerator
     // lazily initialise globals which do not yet exist
     Type type = globalVariable.getType();
     LLVMValueRef newValue = LLVM.LLVMAddGlobal(module, typeHelper.findStandardType(type), globalVariable.getMangledName());
-    LLVM.LLVMSetInitializer(newValue, LLVM.LLVMConstNull(typeHelper.findStandardType(type)));
+    if (globalVariable.getEnclosingTypeDefinition() == typeDefinition)
+    {
+      LLVM.LLVMSetInitializer(newValue, LLVM.LLVMConstNull(typeHelper.findStandardType(type)));
+    }
     globalVariables.put(globalVariable, newValue);
     return newValue;
   }
