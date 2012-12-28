@@ -1163,6 +1163,7 @@ public class Resolver
               // the base resolved to a Method, so just resolve this FunctionCallExpression to the same Method
               expr.setResolvedMethod((Method) resolvedMember);
               expr.setResolvedBaseExpression(fieldAccessExpression.getBaseExpression()); // this will be null for static field accesses
+              expr.setResolvedNullTraversal(fieldAccessExpression.isNullTraversing());
               return;
             }
           }
