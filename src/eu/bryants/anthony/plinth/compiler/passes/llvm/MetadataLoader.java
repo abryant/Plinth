@@ -229,7 +229,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A constructor must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 2)
+    if (values.length != 3)
     {
       throw new MalformedMetadataException("A constructor's metadata node must have the correct number of sub-nodes");
     }
@@ -241,9 +241,16 @@ public class MetadataLoader
     }
     boolean isImmutable = isImmutableStr.equals("immutable");
 
-    Parameter[] parameters = loadParameters(values[1]);
+    String isSelfishStr = readMDString(values[1]);
+    if (isSelfishStr == null)
+    {
+      throw new MalformedMetadataException("A constructor must have a valid selfishness property in its metadata node");
+    }
+    boolean isSelfish = isSelfishStr.equals("selfish");
 
-    return new Constructor(isImmutable, parameters, null, null);
+    Parameter[] parameters = loadParameters(values[2]);
+
+    return new Constructor(isImmutable, isSelfish, parameters, null, null);
   }
 
   private static Method loadMethod(LLVMValueRef metadataNode) throws MalformedMetadataException

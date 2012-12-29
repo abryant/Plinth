@@ -17,6 +17,7 @@ Modifiers = FinalKeyword                | Modifiers FinalKeyword     |
             ImmutableKeyword            | Modifiers ImmutableKeyword |
             MutableKeyword              | Modifiers MutableKeyword   |
             NativeKeyword               | Modifiers NativeKeyword    |
+            SelfishKeyword              | Modifiers SelfishKeyword   |
             StaticKeyword               | Modifiers StaticKeyword    |
             NativeKeyword StringLiteral | Modifiers NativeKeyword StringLiteral
 OptionalModifiers = epsilon | Modifiers

@@ -136,7 +136,8 @@ public class MetadataGenerator
   {
     LLVMValueRef parametersNode = generateParameters(constructor.getParameters());
     LLVMValueRef immutabilityNode = createMDString(constructor.isImmutable() ? "immutable" : "not-immutable");
-    LLVMValueRef[] values = new LLVMValueRef[] {immutabilityNode, parametersNode};
+    LLVMValueRef selfishnessNode = createMDString(constructor.isSelfish() ? "selfish" : "not-selfish");
+    LLVMValueRef[] values = new LLVMValueRef[] {immutabilityNode, selfishnessNode, parametersNode};
     return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
   }
 

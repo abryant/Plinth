@@ -12,7 +12,6 @@ import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.Modifier;
-import eu.bryants.anthony.plinth.parser.parseAST.ModifierType;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 import eu.bryants.anthony.plinth.parser.parseAST.QNameElement;
 
@@ -142,28 +141,26 @@ public class AssignStatementRule extends Rule<ParseType>
     boolean isFinal = false;
     for (Modifier modifier : modifiers)
     {
-      if (modifier.getModifierType() == ModifierType.FINAL)
+      switch (modifier.getModifierType())
       {
+      case FINAL:
         if (isFinal)
         {
           throw new LanguageParseException("Duplicate 'final' modifier", modifier.getLexicalPhrase());
         }
         isFinal = true;
-      }
-      else if (modifier.getModifierType() == ModifierType.IMMUTABLE)
-      {
+        break;
+      case IMMUTABLE:
         throw new LanguageParseException("Unexpected modifier: The 'immutable' modifier does not apply to local variables (try using #Type instead)", modifier.getLexicalPhrase());
-      }
-      else if (modifier.getModifierType() == ModifierType.NATIVE)
-      {
+      case MUTABLE:
+        throw new LanguageParseException("Unexpected modifier: Local variables cannot be mutable", modifier.getLexicalPhrase());
+      case NATIVE:
         throw new LanguageParseException("Unexpected modifier: Local variables cannot have native specifiers", modifier.getLexicalPhrase());
-      }
-      else if (modifier.getModifierType() == ModifierType.STATIC)
-      {
+      case SELFISH:
+        throw new LanguageParseException("Unexpected modifier: Local variables cannot be selfish", modifier.getLexicalPhrase());
+      case STATIC:
         throw new LanguageParseException("Unexpected modifier: Local variables cannot be static", modifier.getLexicalPhrase());
-      }
-      else
-      {
+      default:
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }

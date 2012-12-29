@@ -10,7 +10,6 @@ import eu.bryants.anthony.plinth.ast.statement.Block;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.Modifier;
-import eu.bryants.anthony.plinth.parser.parseAST.ModifierType;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 
 /*
@@ -53,7 +52,7 @@ public class ConstructorRule extends Rule<ParseType>
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[1];
       Block block = (Block) args[2];
-      return new Constructor(false, parameters.toArray(new Parameter[parameters.size()]), block,
+      return new Constructor(false, false, parameters.toArray(new Parameter[parameters.size()]), block,
                              LexicalPhrase.combine((LexicalPhrase) args[0], parameters.getLexicalPhrase(), block.getLexicalPhrase()));
     }
     throw badTypeList();
@@ -62,37 +61,37 @@ public class ConstructorRule extends Rule<ParseType>
   private Constructor processModifiers(ParseList<Modifier> modifiers, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     boolean isImmutable = false;
+    boolean isSelfish = false;
     for (Modifier modifier : modifiers)
     {
-      if (modifier.getModifierType() == ModifierType.FINAL)
+      switch (modifier.getModifierType())
       {
+      case FINAL:
         throw new LanguageParseException("Unexpected modifier: Constructors cannot be final", modifier.getLexicalPhrase());
-      }
-      else if (modifier.getModifierType() == ModifierType.IMMUTABLE)
-      {
+      case IMMUTABLE:
         if (isImmutable)
         {
           throw new LanguageParseException("Duplicate 'immutable' modifier", modifier.getLexicalPhrase());
         }
         isImmutable = true;
-      }
-      else if (modifier.getModifierType() == ModifierType.MUTABLE)
-      {
+        break;
+      case MUTABLE:
         throw new LanguageParseException("Unexpected modifier: Constructors cannot be mutable", modifier.getLexicalPhrase());
-      }
-      else if (modifier.getModifierType() == ModifierType.NATIVE)
-      {
+      case NATIVE:
         throw new LanguageParseException("Unexpected modifier: Constructors cannot be native functions", modifier.getLexicalPhrase());
-      }
-      else if (modifier.getModifierType() == ModifierType.STATIC)
-      {
+      case SELFISH:
+        if (isSelfish)
+        {
+          throw new LanguageParseException("Duplicate 'selfish' modifier", modifier.getLexicalPhrase());
+        }
+        isSelfish = true;
+        break;
+      case STATIC:
         throw new LanguageParseException("Unexpected modifier: Constructors cannot be static", modifier.getLexicalPhrase());
-      }
-      else
-      {
+      default:
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }
-    return new Constructor(isImmutable, parameters, block, lexicalPhrase);
+    return new Constructor(isImmutable, isSelfish, parameters, block, lexicalPhrase);
   }
 }

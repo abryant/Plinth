@@ -56,6 +56,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("object",    ParseType.OBJECT_KEYWORD);
     KEYWORDS.put("package",   ParseType.PACKAGE_KEYWORD);
     KEYWORDS.put("return",    ParseType.RETURN_KEYWORD);
+    KEYWORDS.put("selfish",   ParseType.SELFISH_KEYWORD);
     KEYWORDS.put("short",     ParseType.SHORT_KEYWORD);
     KEYWORDS.put("static",    ParseType.STATIC_KEYWORD);
     KEYWORDS.put("super",     ParseType.SUPER_KEYWORD);

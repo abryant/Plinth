@@ -11,7 +11,6 @@ import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.Modifier;
-import eu.bryants.anthony.plinth.parser.parseAST.ModifierType;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 
 /*
@@ -83,40 +82,36 @@ public class FieldRule extends Rule<ParseType>
     boolean isMutable = false;
     for (Modifier modifier : modifiers)
     {
-      if (modifier.getModifierType() == ModifierType.FINAL)
+      switch (modifier.getModifierType())
       {
+      case FINAL:
         if (isFinal)
         {
           throw new LanguageParseException("Duplicate 'final' modifier", modifier.getLexicalPhrase());
         }
         isFinal = true;
-      }
-      else if (modifier.getModifierType() == ModifierType.MUTABLE)
-      {
+        break;
+      case IMMUTABLE:
+        throw new LanguageParseException("Unexpected modifier: The 'immutable' modifier does not apply to fields (try using #Type instead)", modifier.getLexicalPhrase());
+      case MUTABLE:
         if (isMutable)
         {
           throw new LanguageParseException("Duplicate 'mutable' modifier", modifier.getLexicalPhrase());
         }
         isMutable = true;
-      }
-      else if (modifier.getModifierType() == ModifierType.IMMUTABLE)
-      {
-        throw new LanguageParseException("Unexpected modifier: The 'immutable' modifier does not apply to local variables (try using #Type instead)", modifier.getLexicalPhrase());
-      }
-      else if (modifier.getModifierType() == ModifierType.NATIVE)
-      {
+        break;
+      case NATIVE:
         throw new LanguageParseException("Unexpected modifier: Fields cannot be native", modifier.getLexicalPhrase());
-      }
-      else if (modifier.getModifierType() == ModifierType.STATIC)
-      {
+      case SELFISH:
+        throw new LanguageParseException("Unexpected modifier: Fields cannot be selfish", modifier.getLexicalPhrase());
+      case STATIC:
         if (isStatic)
         {
           throw new LanguageParseException("Duplicate 'static' modifier", modifier.getLexicalPhrase());
         }
         isStatic = true;
-      }
-      else
-      {
+        break;
+      default:
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }

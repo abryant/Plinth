@@ -13,6 +13,7 @@ public enum ModifierType
   IMMUTABLE,
   MUTABLE,
   NATIVE,
+  SELFISH,
   STATIC,
   ;
 }

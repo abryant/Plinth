@@ -13,7 +13,6 @@ import eu.bryants.anthony.plinth.ast.type.VoidType;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.Modifier;
-import eu.bryants.anthony.plinth.parser.parseAST.ModifierType;
 import eu.bryants.anthony.plinth.parser.parseAST.NativeSpecifier;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 
@@ -143,20 +142,20 @@ public class MethodRule extends Rule<ParseType>
     {
       for (Modifier modifier : modifiers)
       {
-        if (modifier.getModifierType() == ModifierType.FINAL)
+        switch (modifier.getModifierType())
         {
+        case FINAL:
           throw new LanguageParseException("Unexpected modifier: Methods cannot be final", modifier.getLexicalPhrase());
-        }
-        else if (modifier.getModifierType() == ModifierType.IMMUTABLE)
-        {
+        case IMMUTABLE:
           if (isImmutable)
           {
             throw new LanguageParseException("Duplicate 'immutable' modifier", modifier.getLexicalPhrase());
           }
           isImmutable = true;
-        }
-        else if (modifier.getModifierType() == ModifierType.NATIVE)
-        {
+          break;
+        case MUTABLE:
+          throw new LanguageParseException("Unexpected modifier: Methods cannot be mutable", modifier.getLexicalPhrase());
+        case NATIVE:
           if (nativeName != null)
           {
             throw new LanguageParseException("Duplicate 'native' specifier", modifier.getLexicalPhrase());
@@ -167,17 +166,17 @@ public class MethodRule extends Rule<ParseType>
           {
             nativeName = name;
           }
-        }
-        else if (modifier.getModifierType() == ModifierType.STATIC)
-        {
+          break;
+        case SELFISH:
+          throw new LanguageParseException("Unexpected modifier: Methods cannot be selfish", modifier.getLexicalPhrase());
+        case STATIC:
           if (isStatic)
           {
             throw new LanguageParseException("Duplicate 'static' modifier", modifier.getLexicalPhrase());
           }
           isStatic = true;
-        }
-        else
-        {
+          break;
+        default:
           throw new IllegalStateException("Unknown modifier: " + modifier);
         }
       }

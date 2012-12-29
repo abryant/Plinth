@@ -128,14 +128,15 @@ public class TypeChecker
           boolean hasNoArgsSuper = false;
           for (Constructor test : superClassDefinition.getConstructors())
           {
-            if (test.getParameters().length == 0)
+            // note: only non-selfish constructors can be called as super-constructors
+            if (!test.isSelfish() && test.getParameters().length == 0)
             {
               hasNoArgsSuper = true;
             }
           }
           if (!hasNoArgsSuper)
           {
-            throw new ConceptualException("This constructor needs to explicitly call a super(...) constructor (as there are no super() constructors which take zero arguments)", constructor.getLexicalPhrase());
+            throw new ConceptualException("This constructor needs to explicitly call a super(...) constructor (as there are no super() constructors which are not selfish and take zero arguments)", constructor.getLexicalPhrase());
           }
         }
       }

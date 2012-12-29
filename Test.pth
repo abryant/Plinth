@@ -1,5 +1,25 @@
 package foo.bar;
 
+class A
+{
+  static ?A escaped;
+  this()
+  {
+    //escaped = this;
+  }
+}
+
+class B extends A
+{
+  string field;
+  this()
+  {
+    stdout::println("A::escaped.field: " + ((cast<?B> A::escaped)?.field ?: "it's null"));
+    field = "hi";
+  }
+}
+
+
 class Test extends Foo
 {
   {
@@ -16,7 +36,7 @@ class Test extends Foo
     stderr::println("Test(short): " + c.toString());
     field = "short";
   }
-  this(?ubyte b)
+  selfish this(?ubyte b)
   {
     stderr::println("Test(?ubyte) before delegate constructor");
     if b == null
@@ -34,6 +54,7 @@ class Test extends Foo
 
   static uint main([]string args)
   {
+    new B();
     stdout::print("Please enter your name: ");
     string line = stdin::readLine();
     // remove the newline

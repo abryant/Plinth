@@ -15,16 +15,18 @@ import eu.bryants.anthony.plinth.ast.statement.Block;
 public class Constructor extends Member
 {
   private boolean isImmutable;
+  private boolean isSelfish;
   private Parameter[] parameters;
   private Block block;
 
   private TypeDefinition containingTypeDefinition;
   private boolean callsDelegateConstructor;
 
-  public Constructor(boolean isImmutable, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
+  public Constructor(boolean isImmutable, boolean isSelfish, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.isImmutable = isImmutable;
+    this.isSelfish = isSelfish;
     this.parameters = parameters;
     for (int i = 0; i < parameters.length; i++)
     {
@@ -48,6 +50,14 @@ public class Constructor extends Member
   public boolean isImmutable()
   {
     return isImmutable;
+  }
+
+  /**
+   * @return the isSelfish
+   */
+  public boolean isSelfish()
+  {
+    return isSelfish;
   }
 
   /**
@@ -105,6 +115,10 @@ public class Constructor extends Member
   {
     StringBuffer buffer = new StringBuffer();
     buffer.append("_C");
+    if (isSelfish)
+    {
+      buffer.append("s");
+    }
     buffer.append(containingTypeDefinition.getQualifiedName().getMangledName());
     buffer.append('_');
     for (Parameter parameter : parameters)
@@ -124,6 +138,10 @@ public class Constructor extends Member
     if (isImmutable)
     {
       buffer.append("immutable ");
+    }
+    if (isSelfish)
+    {
+      buffer.append("selfish ");
     }
     buffer.append("this(");
     for (int i = 0; i < parameters.length; i++)

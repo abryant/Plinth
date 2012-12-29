@@ -11,7 +11,6 @@ import eu.bryants.anthony.plinth.ast.terminal.Name;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.Modifier;
-import eu.bryants.anthony.plinth.parser.parseAST.ModifierType;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 
 /*
@@ -68,32 +67,26 @@ public class ClassDefinitionRule extends Rule<ParseType>
     boolean isImmutable = false;
     for (Modifier modifier : modifiers)
     {
-      if (modifier.getModifierType() == ModifierType.FINAL)
+      switch (modifier.getModifierType())
       {
+      case FINAL:
         throw new LanguageParseException("Unexpected modifier: Class definitions cannot be final", modifier.getLexicalPhrase());
-      }
-      else if (modifier.getModifierType() == ModifierType.IMMUTABLE)
-      {
+      case IMMUTABLE:
         if (isImmutable)
         {
           throw new LanguageParseException("Duplicate 'immutable' modifier", modifier.getLexicalPhrase());
         }
         isImmutable = true;
-      }
-      else if (modifier.getModifierType() == ModifierType.MUTABLE)
-      {
+        break;
+      case MUTABLE:
         throw new LanguageParseException("Unexpected modifier: Class definitions cannot be mutable", modifier.getLexicalPhrase());
-      }
-      else if (modifier.getModifierType() == ModifierType.NATIVE)
-      {
+      case NATIVE:
         throw new LanguageParseException("Unexpected modifier: Class definitions cannot be native", modifier.getLexicalPhrase());
-      }
-      else if (modifier.getModifierType() == ModifierType.STATIC)
-      {
-        throw new LanguageParseException("Unexpected modifier: Class definitions cannot be native", modifier.getLexicalPhrase());
-      }
-      else
-      {
+      case SELFISH:
+        throw new LanguageParseException("Unexpected modifier: Class definitions cannot be selfish", modifier.getLexicalPhrase());
+      case STATIC:
+        throw new LanguageParseException("Unexpected modifier: Class definitions cannot be static", modifier.getLexicalPhrase());
+      default:
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }

@@ -24,21 +24,23 @@ public class ModifiersRule extends Rule<ParseType>
 
   private static final Production<ParseType> START_FINAL_PRODUCTION       = new Production<ParseType>(ParseType.FINAL_KEYWORD);
   private static final Production<ParseType> START_IMMUTABLE_PRODUCTION   = new Production<ParseType>(ParseType.IMMUTABLE_KEYWORD);
-  private static final Production<ParseType> START_MUTABLE_PRODUCTION   = new Production<ParseType>(ParseType.MUTABLE_KEYWORD);
+  private static final Production<ParseType> START_MUTABLE_PRODUCTION     = new Production<ParseType>(ParseType.MUTABLE_KEYWORD);
   private static final Production<ParseType> START_NATIVE_PRODUCTION      = new Production<ParseType>(ParseType.NATIVE_KEYWORD);
   private static final Production<ParseType> START_NATIVE_NAME_PRODUCTION = new Production<ParseType>(ParseType.NATIVE_KEYWORD, ParseType.STRING_LITERAL);
+  private static final Production<ParseType> START_SELFISH_PRODUCTION     = new Production<ParseType>(ParseType.SELFISH_KEYWORD);
   private static final Production<ParseType> START_STATIC_PRODUCTION      = new Production<ParseType>(ParseType.STATIC_KEYWORD);
   private static final Production<ParseType> FINAL_PRODUCTION       = new Production<ParseType>(ParseType.MODIFIERS, ParseType.FINAL_KEYWORD);
   private static final Production<ParseType> IMMUTABLE_PRODUCTION   = new Production<ParseType>(ParseType.MODIFIERS, ParseType.IMMUTABLE_KEYWORD);
-  private static final Production<ParseType> MUTABLE_PRODUCTION   = new Production<ParseType>(ParseType.MODIFIERS, ParseType.MUTABLE_KEYWORD);
+  private static final Production<ParseType> MUTABLE_PRODUCTION     = new Production<ParseType>(ParseType.MODIFIERS, ParseType.MUTABLE_KEYWORD);
   private static final Production<ParseType> NATIVE_PRODUCTION      = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NATIVE_KEYWORD);
   private static final Production<ParseType> NATIVE_NAME_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NATIVE_KEYWORD, ParseType.STRING_LITERAL);
+  private static final Production<ParseType> SELFISH_PRODUCTION     = new Production<ParseType>(ParseType.MODIFIERS, ParseType.SELFISH_KEYWORD);
   private static final Production<ParseType> STATIC_PRODUCTION      = new Production<ParseType>(ParseType.MODIFIERS, ParseType.STATIC_KEYWORD);
 
   public ModifiersRule()
   {
-    super(ParseType.MODIFIERS, START_FINAL_PRODUCTION, START_IMMUTABLE_PRODUCTION, START_MUTABLE_PRODUCTION, START_NATIVE_PRODUCTION, START_NATIVE_NAME_PRODUCTION, START_STATIC_PRODUCTION,
-                                     FINAL_PRODUCTION,       IMMUTABLE_PRODUCTION,       MUTABLE_PRODUCTION,       NATIVE_PRODUCTION,       NATIVE_NAME_PRODUCTION,       STATIC_PRODUCTION);
+    super(ParseType.MODIFIERS, START_FINAL_PRODUCTION, START_IMMUTABLE_PRODUCTION, START_MUTABLE_PRODUCTION, START_NATIVE_PRODUCTION, START_NATIVE_NAME_PRODUCTION, START_SELFISH_PRODUCTION, START_STATIC_PRODUCTION,
+                                     FINAL_PRODUCTION,       IMMUTABLE_PRODUCTION,       MUTABLE_PRODUCTION,       NATIVE_PRODUCTION,       NATIVE_NAME_PRODUCTION,       SELFISH_PRODUCTION,       STATIC_PRODUCTION);
   }
 
   /**
@@ -68,6 +70,10 @@ public class ModifiersRule extends Rule<ParseType>
       StringLiteral literal = (StringLiteral) args[1];
       LexicalPhrase lexicalPhrase = LexicalPhrase.combine((LexicalPhrase) args[0], literal.getLexicalPhrase());
       return new ParseList<Modifier>(new NativeSpecifier(literal.getLiteralValue(), lexicalPhrase), lexicalPhrase);
+    }
+    if (production == START_SELFISH_PRODUCTION)
+    {
+      return new ParseList<Modifier>(new Modifier(ModifierType.SELFISH, (LexicalPhrase) args[0]), (LexicalPhrase) args[0]);
     }
     if (production == START_STATIC_PRODUCTION)
     {
@@ -111,6 +117,14 @@ public class ModifiersRule extends Rule<ParseType>
       ParseList<Modifier> list = (ParseList<Modifier>) args[0];
       StringLiteral literal = (StringLiteral) args[2];
       Modifier modifier = new NativeSpecifier(literal.getLiteralValue(), LexicalPhrase.combine((LexicalPhrase) args[1], literal.getLexicalPhrase()));
+      list.addLast(modifier, LexicalPhrase.combine(list.getLexicalPhrase(), modifier.getLexicalPhrase()));
+      return list;
+    }
+    if (production == SELFISH_PRODUCTION)
+    {
+      @SuppressWarnings("unchecked")
+      ParseList<Modifier> list = (ParseList<Modifier>) args[0];
+      Modifier modifier = new Modifier(ModifierType.SELFISH, (LexicalPhrase) args[1]);
       list.addLast(modifier, LexicalPhrase.combine(list.getLexicalPhrase(), modifier.getLexicalPhrase()));
       return list;
     }
