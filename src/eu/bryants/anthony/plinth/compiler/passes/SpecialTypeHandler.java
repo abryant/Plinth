@@ -63,7 +63,7 @@ public class SpecialTypeHandler
     }
     Type arrayType = new ArrayType(false, true, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
     Type stringArrayType = new ArrayType(false, false, STRING_TYPE, null);
-    for (Constructor constructor : typeDefinition.getConstructors())
+    for (Constructor constructor : typeDefinition.getUniqueConstructors())
     {
       Parameter[] parameters = constructor.getParameters();
       if (parameters.length == 1 && parameters[0].getType().isEquivalent(arrayType))

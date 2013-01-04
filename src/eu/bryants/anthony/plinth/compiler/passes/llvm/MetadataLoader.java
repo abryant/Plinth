@@ -1,5 +1,6 @@
 package eu.bryants.anthony.plinth.compiler.passes.llvm;
 
+import java.math.BigInteger;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -20,6 +21,7 @@ import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
+import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
@@ -189,7 +191,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A field must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 4)
+    if (values.length != 5)
     {
       throw new MalformedMetadataException("A field's metadata node must have the correct number of sub-nodes");
     }
@@ -201,20 +203,22 @@ public class MetadataLoader
     }
     boolean isFinal = isFinalStr.equals("final");
 
-    String isMutableStr = readMDString(values[0]);
+    String isMutableStr = readMDString(values[1]);
     if (isMutableStr == null)
     {
       throw new MalformedMetadataException("A field must have a valid mutability property in its metadata node");
     }
     boolean isMutable = isFinalStr.equals("mutable");
 
-    Type type = loadType(values[2]);
-    String name = readMDString(values[3]);
+    SinceSpecifier sinceSpecifier = loadSinceSpecifier(values[2]);
+
+    Type type = loadType(values[3]);
+    String name = readMDString(values[4]);
     if (name == null)
     {
       throw new MalformedMetadataException("A field must have a valid name in its metadata node");
     }
-    Field field = new Field(type, name, isStatic, isFinal, isMutable, null, null);
+    Field field = new Field(type, name, isStatic, isFinal, isMutable, sinceSpecifier, null, null);
     if (!isStatic)
     {
       field.setMemberIndex(index);
@@ -229,7 +233,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A constructor must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 3)
+    if (values.length != 4)
     {
       throw new MalformedMetadataException("A constructor's metadata node must have the correct number of sub-nodes");
     }
@@ -248,9 +252,11 @@ public class MetadataLoader
     }
     boolean isSelfish = isSelfishStr.equals("selfish");
 
-    Parameter[] parameters = loadParameters(values[2]);
+    SinceSpecifier sinceSpecifier = loadSinceSpecifier(values[2]);
 
-    return new Constructor(isImmutable, isSelfish, parameters, null, null);
+    Parameter[] parameters = loadParameters(values[3]);
+
+    return new Constructor(isImmutable, isSelfish, sinceSpecifier, parameters, null, null);
   }
 
   private static Method loadMethod(LLVMValueRef metadataNode) throws MalformedMetadataException
@@ -260,7 +266,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A method must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 6)
+    if (values.length != 7)
     {
       throw new MalformedMetadataException("A method's metadata node must have the correct number of sub-nodes");
     }
@@ -296,9 +302,11 @@ public class MetadataLoader
       nativeName = null;
     }
 
-    Type returnType = loadType(values[4]);
-    Parameter[] parameters = loadParameters(values[5]);
-    return new Method(returnType, name, isStatic, isImmutable, nativeName, parameters, null, null);
+    SinceSpecifier sinceSpecifier = loadSinceSpecifier(values[4]);
+
+    Type returnType = loadType(values[5]);
+    Parameter[] parameters = loadParameters(values[6]);
+    return new Method(returnType, name, isStatic, isImmutable, nativeName, sinceSpecifier, parameters, null, null);
   }
 
   private static Parameter[] loadParameters(LLVMValueRef metadataNode) throws MalformedMetadataException
@@ -329,6 +337,38 @@ public class MetadataLoader
       parameters[i] = new Parameter(false, type, name, null);
     }
     return parameters;
+  }
+
+  private static SinceSpecifier loadSinceSpecifier(LLVMValueRef metadataNode) throws MalformedMetadataException
+  {
+    if (LLVM.LLVMIsAMDNode(metadataNode) == null)
+    {
+      throw new MalformedMetadataException("A since specifier must be represented by a metadata node");
+    }
+    LLVMValueRef[] versionPartNodes = readOperands(metadataNode);
+    if (versionPartNodes.length == 0)
+    {
+      // the since specifier is blank
+      return null;
+    }
+    BigInteger[] versionParts = new BigInteger[versionPartNodes.length];
+    for (int i = 0; i < versionPartNodes.length; ++i)
+    {
+      String versionPartStr = readMDString(versionPartNodes[i]);
+      if (versionPartStr == null)
+      {
+        throw new MalformedMetadataException("A since specifier's version number elements must be represented by metadata strings");
+      }
+      try
+      {
+        versionParts[i] = new BigInteger(versionPartStr);
+      }
+      catch (NumberFormatException e)
+      {
+        throw new MalformedMetadataException("A since specifier must consist of a list of version number elements, all of which must be integers", e);
+      }
+    }
+    return new SinceSpecifier(versionParts, null);
   }
 
   private static Type loadType(LLVMValueRef metadataNode) throws MalformedMetadataException

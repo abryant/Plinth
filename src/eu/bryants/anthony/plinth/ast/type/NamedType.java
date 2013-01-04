@@ -1,6 +1,8 @@
 package eu.bryants.anthony.plinth.ast.type;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
@@ -11,6 +13,7 @@ import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.misc.QName;
+import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 
 /*
  * Created on 9 May 2012
@@ -215,23 +218,41 @@ public class NamedType extends Type
     {
       throw new IllegalStateException("Cannot get the members of a NamedType before it is resolved");
     }
-    HashSet<Member> set = new HashSet<Member>();
-    // maintain a set of disambiguators as well as the members, so that we can keep track of
+    // store the disambiguators as well as the members, so that we can keep track of
     // whether we have added e.g. a function with type {uint -> void}
-    Set<Object> disambiguators = new HashSet<Object>();
+    Map<String, Member> matches = new HashMap<String, Member>();
     Field field = resolvedTypeDefinition.getField(name);
     if (field != null)
     {
-      set.add(field);
-      disambiguators.add(field.getName());
+      matches.put("F" + field.getName(), field);
     }
     Set<Method> methodSet = resolvedTypeDefinition.getMethodsByName(name);
     if (methodSet != null)
     {
       for (Method method : methodSet)
       {
-        set.add(method);
-        disambiguators.add(method.getDisambiguator());
+        String disambiguator = "M" + method.getDisambiguator().toString();
+        Member old = matches.get(disambiguator);
+        if (old == null)
+        {
+          matches.put(disambiguator, method);
+        }
+        else
+        {
+          Method oldMethod = (Method) old;
+          // we have a second method with the same disambiguator
+          // since the Resolver prohibits duplicate non-static methods, this one must be static
+          if (!method.isStatic() || !oldMethod.isStatic())
+          {
+            throw new IllegalStateException("Duplicate non-static methods can not exist in a class");
+          }
+          // find which of these static methods has the greater since specifier, and use it
+          SinceSpecifier oldSince = oldMethod.getSinceSpecifier();
+          SinceSpecifier newSince = method.getSinceSpecifier();
+          Method newer = oldSince == null ? method :
+                         oldSince.compareTo(newSince) < 0 ? method : oldMethod;
+          matches.put(disambiguator, newer);
+        }
       }
     }
     if (resolvedTypeDefinition instanceof ClassDefinition)
@@ -243,27 +264,51 @@ public class NamedType extends Type
       {
         Field currentField = currentDefinition.getField(name);
         // exclude static fields from being inherited
-        if (currentField != null && (inheritStaticMembers || !currentField.isStatic()) && !disambiguators.contains(currentField.getName()))
+        if (currentField != null && (inheritStaticMembers || !currentField.isStatic()) && !matches.containsKey("F" + currentField.getName()))
         {
-          set.add(currentField);
-          disambiguators.add(currentField.getName());
+          matches.put("F" + currentField.getName(), currentField);
         }
         Set<Method> currentMethodSet = currentDefinition.getMethodsByName(name);
         if (currentMethodSet != null)
         {
           for (Method method : currentMethodSet)
           {
-            if ((inheritStaticMembers || !method.isStatic()) && !disambiguators.contains(method.getDisambiguator()))
+            if (inheritStaticMembers || !method.isStatic())
             {
-              set.add(method);
-              disambiguators.add(method.getDisambiguator());
+              String disambiguator = "M" + method.getDisambiguator().toString();
+              Member old = matches.get(disambiguator);
+              if (old == null)
+              {
+                matches.put(disambiguator, method);
+              }
+              else
+              {
+                Method oldMethod = (Method) old;
+                // there is already another method with this disambiguator
+                // if it is from a subclass, don't even try to overwrite it
+                if (oldMethod.getContainingTypeDefinition() != currentDefinition)
+                {
+                  continue;
+                }
+                // since the Resolver prohibits duplicate non-static methods in a single type, this one must be static
+                if (!method.isStatic() || !oldMethod.isStatic())
+                {
+                  throw new IllegalStateException("Duplicate non-static methods can not exist in a class");
+                }
+                // find which of these static methods has the greater since specifier, and use it
+                SinceSpecifier oldSince = oldMethod.getSinceSpecifier();
+                SinceSpecifier newSince = method.getSinceSpecifier();
+                Method newer = oldSince == null ? method :
+                               oldSince.compareTo(newSince) < 0 ? method : oldMethod;
+                matches.put(disambiguator, newer);
+              }
             }
           }
         }
         currentDefinition = currentDefinition.getSuperClassDefinition();
       }
     }
-    return set;
+    return new HashSet<Member>(matches.values());
   }
 
   /**

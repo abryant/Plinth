@@ -51,7 +51,7 @@ public class NativeNameChecker
   {
     checkName(Initialiser.getMangledName(typeDefinition, true), typeDefinition.getLexicalPhrase());
     checkName(Initialiser.getMangledName(typeDefinition, false), typeDefinition.getLexicalPhrase());
-    for (Constructor constructor : typeDefinition.getConstructors())
+    for (Constructor constructor : typeDefinition.getAllConstructors())
     {
       checkName(constructor.getMangledName(), constructor.getLexicalPhrase());
     }

@@ -163,7 +163,7 @@ public class CycleChecker
   private static void checkConstructorDelegateCycles(TypeDefinition typeDefinition) throws ConceptualException
   {
     Map<Constructor, List<Constructor>> constructorDelegates = new HashMap<Constructor, List<Constructor>>();
-    for (Constructor constructor : typeDefinition.getConstructors())
+    for (Constructor constructor : typeDefinition.getAllConstructors())
     {
       List<Constructor> delegateConstructors = new LinkedList<Constructor>();
       findDelegateConstructors(constructor.getBlock(), delegateConstructors);

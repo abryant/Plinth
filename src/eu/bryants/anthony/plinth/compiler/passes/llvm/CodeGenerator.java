@@ -231,7 +231,7 @@ public class CodeGenerator
     getInitialiserFunction(false);
 
     // create the constructor and method functions
-    for (Constructor constructor : typeDefinition.getConstructors())
+    for (Constructor constructor : typeDefinition.getAllConstructors())
     {
       getConstructorFunction(constructor);
     }
@@ -634,7 +634,7 @@ public class CodeGenerator
 
   private void addConstructorBodies()
   {
-    for (Constructor constructor : typeDefinition.getConstructors())
+    for (Constructor constructor : typeDefinition.getAllConstructors())
     {
       final LLVMValueRef llvmFunction = getConstructorFunction(constructor);
 
@@ -669,7 +669,7 @@ public class CodeGenerator
           if (superClassDefinition != null)
           {
             Constructor noArgsSuper = null;
-            for (Constructor test : superClassDefinition.getConstructors())
+            for (Constructor test : superClassDefinition.getUniqueConstructors())
             {
               if (test.getParameters().length == 0)
               {

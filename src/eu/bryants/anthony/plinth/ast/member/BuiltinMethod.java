@@ -50,7 +50,7 @@ public class BuiltinMethod extends Method
    */
   public BuiltinMethod(Type baseType, BuiltinMethodType builtinType)
   {
-    super(builtinType.returnType, builtinType.methodName, builtinType.isStatic, builtinType.isImmutable, builtinType.nativeName, builtinType.parameters, null, null);
+    super(builtinType.returnType, builtinType.methodName, builtinType.isStatic, builtinType.isImmutable, builtinType.nativeName, null, builtinType.parameters, null, null);
     this.baseType = baseType;
     this.builtinType = builtinType;
     if (baseType.isNullable())

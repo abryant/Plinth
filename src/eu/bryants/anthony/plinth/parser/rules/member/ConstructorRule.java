@@ -7,10 +7,12 @@ import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
+import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.Modifier;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
+import eu.bryants.anthony.plinth.parser.parseAST.SinceModifier;
 
 /*
  * Created on 11 May 2012
@@ -52,7 +54,7 @@ public class ConstructorRule extends Rule<ParseType>
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[1];
       Block block = (Block) args[2];
-      return new Constructor(false, false, parameters.toArray(new Parameter[parameters.size()]), block,
+      return new Constructor(false, false, null, parameters.toArray(new Parameter[parameters.size()]), block,
                              LexicalPhrase.combine((LexicalPhrase) args[0], parameters.getLexicalPhrase(), block.getLexicalPhrase()));
     }
     throw badTypeList();
@@ -62,6 +64,7 @@ public class ConstructorRule extends Rule<ParseType>
   {
     boolean isImmutable = false;
     boolean isSelfish = false;
+    SinceSpecifier sinceSpecifier = null;
     for (Modifier modifier : modifiers)
     {
       switch (modifier.getModifierType())
@@ -86,12 +89,19 @@ public class ConstructorRule extends Rule<ParseType>
         }
         isSelfish = true;
         break;
+      case SINCE:
+        if (sinceSpecifier != null)
+        {
+          throw new LanguageParseException("Duplicate since(...) specifier", modifier.getLexicalPhrase());
+        }
+        sinceSpecifier = ((SinceModifier) modifier).getSinceSpecifier();
+        break;
       case STATIC:
         throw new LanguageParseException("Unexpected modifier: Constructors cannot be static", modifier.getLexicalPhrase());
       default:
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }
-    return new Constructor(isImmutable, isSelfish, parameters, block, lexicalPhrase);
+    return new Constructor(isImmutable, isSelfish, sinceSpecifier, parameters, block, lexicalPhrase);
   }
 }

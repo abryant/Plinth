@@ -117,7 +117,7 @@ public class TypeChecker
     {
       checkTypes(initialiser);
     }
-    for (Constructor constructor : typeDefinition.getConstructors())
+    for (Constructor constructor : typeDefinition.getAllConstructors())
     {
       if (!constructor.getCallsDelegateConstructor() && typeDefinition instanceof ClassDefinition)
       {
@@ -126,7 +126,7 @@ public class TypeChecker
         if (superClassDefinition != null)
         {
           boolean hasNoArgsSuper = false;
-          for (Constructor test : superClassDefinition.getConstructors())
+          for (Constructor test : superClassDefinition.getUniqueConstructors())
           {
             // note: only non-selfish constructors can be called as super-constructors
             if (!test.isSelfish() && test.getParameters().length == 0)

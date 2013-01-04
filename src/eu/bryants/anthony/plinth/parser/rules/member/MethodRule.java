@@ -8,6 +8,7 @@ import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
+import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
@@ -15,6 +16,7 @@ import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.Modifier;
 import eu.bryants.anthony.plinth.parser.parseAST.NativeSpecifier;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
+import eu.bryants.anthony.plinth.parser.parseAST.SinceModifier;
 
 /*
  * Created on 20 May 2012
@@ -138,6 +140,7 @@ public class MethodRule extends Rule<ParseType>
     boolean isStatic = false;
     boolean isImmutable = false;
     String nativeName = null;
+    SinceSpecifier sinceSpecifier = null;
     if (modifiers != null)
     {
       for (Modifier modifier : modifiers)
@@ -169,6 +172,13 @@ public class MethodRule extends Rule<ParseType>
           break;
         case SELFISH:
           throw new LanguageParseException("Unexpected modifier: Methods cannot be selfish", modifier.getLexicalPhrase());
+        case SINCE:
+          if (sinceSpecifier != null)
+          {
+            throw new LanguageParseException("Duplicate since(...) specifier", modifier.getLexicalPhrase());
+          }
+          sinceSpecifier = ((SinceModifier) modifier).getSinceSpecifier();
+          break;
         case STATIC:
           if (isStatic)
           {
@@ -181,7 +191,7 @@ public class MethodRule extends Rule<ParseType>
         }
       }
     }
-    return new Method(returnType, name, isStatic, isImmutable, nativeName, parameters, block, lexicalPhrase);
+    return new Method(returnType, name, isStatic, isImmutable, nativeName, sinceSpecifier, parameters, block, lexicalPhrase);
   }
 
 }

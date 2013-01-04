@@ -1,5 +1,6 @@
 package eu.bryants.anthony.plinth.compiler.passes.llvm;
 
+import java.math.BigInteger;
 import java.util.Collection;
 
 import nativelib.c.C;
@@ -14,6 +15,7 @@ import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
+import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
@@ -69,7 +71,7 @@ public class MetadataGenerator
     }
     LLVMValueRef staticFieldsNode = LLVM.LLVMMDNode(C.toNativePointerArray(staticFieldNodes, false, true), staticFieldNodes.length);
 
-    Collection<Constructor> constructors = typeDefinition.getConstructors();
+    Collection<Constructor> constructors = typeDefinition.getAllConstructors();
     LLVMValueRef[] constructorNodes = new LLVMValueRef[constructors.size()];
     int constructorIndex = 0;
     for (Constructor constructor : constructors)
@@ -126,18 +128,20 @@ public class MetadataGenerator
   {
     LLVMValueRef finalityNode = createMDString(field.isFinal() ? "final" : "not-final");
     LLVMValueRef mutabilityNode = createMDString(field.isMutable() ? "mutable" : "not-mutable");
+    LLVMValueRef sinceSpecifierNode = generateSinceSpecifier(field.getSinceSpecifier());
     LLVMValueRef typeNode = generateType(field.getType());
     LLVMValueRef nameNode = createMDString(field.getName());
-    LLVMValueRef[] values = new LLVMValueRef[] {finalityNode, mutabilityNode, typeNode, nameNode};
+    LLVMValueRef[] values = new LLVMValueRef[] {finalityNode, mutabilityNode, sinceSpecifierNode, typeNode, nameNode};
     return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
   }
 
   private static LLVMValueRef generateConstructor(Constructor constructor)
   {
-    LLVMValueRef parametersNode = generateParameters(constructor.getParameters());
     LLVMValueRef immutabilityNode = createMDString(constructor.isImmutable() ? "immutable" : "not-immutable");
     LLVMValueRef selfishnessNode = createMDString(constructor.isSelfish() ? "selfish" : "not-selfish");
-    LLVMValueRef[] values = new LLVMValueRef[] {immutabilityNode, selfishnessNode, parametersNode};
+    LLVMValueRef sinceSpecifierNode = generateSinceSpecifier(constructor.getSinceSpecifier());
+    LLVMValueRef parametersNode = generateParameters(constructor.getParameters());
+    LLVMValueRef[] values = new LLVMValueRef[] {immutabilityNode, selfishnessNode, sinceSpecifierNode, parametersNode};
     return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
   }
 
@@ -147,9 +151,10 @@ public class MetadataGenerator
     LLVMValueRef isStaticNode = createMDString(method.isStatic() ? "static" : "not-static");
     LLVMValueRef isImmutableNode = createMDString(method.isImmutable() ? "immutable" : "not-immutable");
     LLVMValueRef nativeNameNode = createMDString(method.getNativeName() == null ? "" : method.getNativeName());
+    LLVMValueRef sinceSpecifierNode = generateSinceSpecifier(method.getSinceSpecifier());
     LLVMValueRef returnTypeNode = generateType(method.getReturnType());
     LLVMValueRef parametersNode = generateParameters(method.getParameters());
-    LLVMValueRef[] values = new LLVMValueRef[] {nameNode, isStaticNode, isImmutableNode, nativeNameNode, returnTypeNode, parametersNode};
+    LLVMValueRef[] values = new LLVMValueRef[] {nameNode, isStaticNode, isImmutableNode, nativeNameNode, sinceSpecifierNode, returnTypeNode, parametersNode};
     return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
   }
 
@@ -164,6 +169,22 @@ public class MetadataGenerator
       parameterNodes[i] = LLVM.LLVMMDNode(C.toNativePointerArray(parameterValues, false, true), parameterValues.length);
     }
     return LLVM.LLVMMDNode(C.toNativePointerArray(parameterNodes, false, true), parameterNodes.length);
+  }
+
+  private static LLVMValueRef generateSinceSpecifier(SinceSpecifier sinceSpecifier)
+  {
+    if (sinceSpecifier == null)
+    {
+      LLVMValueRef[] values = new LLVMValueRef[0];
+      return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
+    }
+    BigInteger[] versionParts = sinceSpecifier.getVersionParts();
+    LLVMValueRef[] llvmVersionParts = new LLVMValueRef[versionParts.length];
+    for (int i = 0; i < versionParts.length; ++i)
+    {
+      llvmVersionParts[i] = createMDString(versionParts[i].toString());
+    }
+    return LLVM.LLVMMDNode(C.toNativePointerArray(llvmVersionParts, false, true), llvmVersionParts.length);
   }
 
   private static LLVMValueRef generateType(Type type)

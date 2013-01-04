@@ -52,6 +52,7 @@ public class CompoundDefinitionRule extends Rule<ParseType>
   private CompoundDefinition processModifiers(ParseList<Modifier> modifiers, String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     boolean isImmutable = false;
+    boolean hasSince = false;
     for (Modifier modifier : modifiers)
     {
       switch (modifier.getModifierType())
@@ -71,6 +72,14 @@ public class CompoundDefinitionRule extends Rule<ParseType>
         throw new LanguageParseException("Unexpected modifier: Compound type definitions cannot be native", modifier.getLexicalPhrase());
       case SELFISH:
         throw new LanguageParseException("Unexpected modifier: Compound type definitions cannot be selfish", modifier.getLexicalPhrase());
+      case SINCE:
+        // these are ignored by all stages of compilation after parsing, but are allowed for documentation purposes
+        if (hasSince)
+        {
+          throw new LanguageParseException("Duplicate since(...) specifier", modifier.getLexicalPhrase());
+        }
+        hasSince = true;
+        break;
       case STATIC:
         throw new LanguageParseException("Unexpected modifier: Compound type definitions cannot be static", modifier.getLexicalPhrase());
       default:

@@ -7,11 +7,13 @@ import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
+import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.Modifier;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
+import eu.bryants.anthony.plinth.parser.parseAST.SinceModifier;
 
 /*
  * Created on 9 May 2012
@@ -44,14 +46,14 @@ public class FieldRule extends Rule<ParseType>
     {
       Type type = (Type) args[0];
       Name name = (Name) args[1];
-      return new Field(type, name.getName(), false, false, false, null, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2]));
+      return new Field(type, name.getName(), false, false, false, null, null, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2]));
     }
     if (production == INITIALISER_PRODUCTION)
     {
       Type type = (Type) args[0];
       Name name = (Name) args[1];
       Expression initialiserExpression = (Expression) args[3];
-      return new Field(type, name.getName(), false, false, false, initialiserExpression, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], initialiserExpression.getLexicalPhrase(), (LexicalPhrase) args[4]));
+      return new Field(type, name.getName(), false, false, false, null, initialiserExpression, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], initialiserExpression.getLexicalPhrase(), (LexicalPhrase) args[4]));
     }
     if (production == MODIFIERS_PRODUCTION)
     {
@@ -80,6 +82,7 @@ public class FieldRule extends Rule<ParseType>
     boolean isStatic = false;
     boolean isFinal = false;
     boolean isMutable = false;
+    SinceSpecifier sinceSpecifier = null;
     for (Modifier modifier : modifiers)
     {
       switch (modifier.getModifierType())
@@ -104,6 +107,13 @@ public class FieldRule extends Rule<ParseType>
         throw new LanguageParseException("Unexpected modifier: Fields cannot be native", modifier.getLexicalPhrase());
       case SELFISH:
         throw new LanguageParseException("Unexpected modifier: Fields cannot be selfish", modifier.getLexicalPhrase());
+      case SINCE:
+        if (sinceSpecifier != null)
+        {
+          throw new LanguageParseException("Duplicate since(...) specifier", modifier.getLexicalPhrase());
+        }
+        sinceSpecifier = ((SinceModifier) modifier).getSinceSpecifier();
+        break;
       case STATIC:
         if (isStatic)
         {
@@ -115,6 +125,6 @@ public class FieldRule extends Rule<ParseType>
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }
-    return new Field(type, name, isStatic, isFinal, isMutable, initialiserExpression, lexicalPhrase);
+    return new Field(type, name, isStatic, isFinal, isMutable, sinceSpecifier, initialiserExpression, lexicalPhrase);
   }
 }

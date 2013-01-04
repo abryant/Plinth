@@ -75,6 +75,7 @@ import eu.bryants.anthony.plinth.ast.statement.ReturnStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
+import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
@@ -250,7 +251,9 @@ public class Resolver
         }
       }
     }
-    for (Constructor constructor : typeDefinition.getConstructors())
+
+    Map<String, Constructor> allConstructors = new HashMap<String, Constructor>();
+    for (Constructor constructor : typeDefinition.getAllConstructors())
     {
       Block mainBlock = constructor.getBlock();
       if (mainBlock == null)
@@ -258,6 +261,12 @@ public class Resolver
         // we are resolving a bitcode file with no blocks inside it, so create a temporary one so that we can check for duplicate parameters easily
         mainBlock = new Block(null, null);
       }
+      StringBuffer disambiguatorBuffer = new StringBuffer();
+      if (constructor.getSinceSpecifier() != null)
+      {
+        disambiguatorBuffer.append(constructor.getSinceSpecifier().getMangledName());
+      }
+      disambiguatorBuffer.append('_');
       for (Parameter p : constructor.getParameters())
       {
         Variable oldVar = mainBlock.addVariable(p.getVariable());
@@ -266,10 +275,20 @@ public class Resolver
           throw new ConceptualException("Duplicate parameter: " + p.getName(), p.getLexicalPhrase());
         }
         resolve(p.getType(), compilationUnit);
+        disambiguatorBuffer.append(p.getType().getMangledName());
       }
+      String disambiguator = disambiguatorBuffer.toString();
+      Constructor existing = allConstructors.get(disambiguator);
+      if (existing != null)
+      {
+        throw new ConceptualException("Duplicate constructor", constructor.getLexicalPhrase());
+      }
+      allConstructors.put(disambiguator, constructor);
     }
+
     // resolve all method return and parameter types, and check for duplicate methods
-    Map<Object, Method> allMethods = new HashMap<Object, Method>();
+    // however, we must allow duplicated static methods if their since specifiers differ, so our map must allow for multiple methods per disambiguator
+    Map<Object, Set<Method>> allMethods = new HashMap<Object, Set<Method>>();
     for (Method method : typeDefinition.getAllMethods())
     {
       resolve(method.getReturnType(), compilationUnit);
@@ -289,10 +308,37 @@ public class Resolver
         }
         resolve(parameters[i].getType(), compilationUnit);
       }
-      Method oldMethod = allMethods.put(method.getDisambiguator(), method);
-      if (oldMethod != null)
+
+      Set<Method> methodSet = allMethods.get(method.getDisambiguator());
+      if (methodSet == null)
       {
-        throw new ConceptualException("Duplicate method: " + method.getName(), method.getLexicalPhrase());
+        methodSet = new HashSet<Method>();
+        allMethods.put(method.getDisambiguator(), methodSet);
+      }
+      if (methodSet.isEmpty())
+      {
+        methodSet.add(method);
+      }
+      else
+      {
+        // there is already a method with this disambiguator
+        // first, disallow all duplicates for non-static methods (this works because Disambiguators take staticness into account)
+        if (!method.isStatic())
+        {
+          throw new ConceptualException("Duplicate non-static method: " + method.getName(), method.getLexicalPhrase());
+        }
+        // for static methods, we only allow another method if it has a different since specifier from all of the existing ones
+        SinceSpecifier newSpecifier = method.getSinceSpecifier();
+        for (Method existing : methodSet)
+        {
+          SinceSpecifier currentSpecifier = existing.getSinceSpecifier();
+          if (newSpecifier == null ? currentSpecifier == null : newSpecifier.compareTo(currentSpecifier) == 0)
+          {
+            throw new ConceptualException("Duplicate static method: " + method.getName(), method.getLexicalPhrase());
+          }
+        }
+        // no methods exist with the same since specifier, so add the new one
+        methodSet.add(method);
       }
     }
   }
@@ -316,7 +362,7 @@ public class Resolver
     // a non-static initialiser is an immutable context if there is at least one immutable constructor
     // so we need to check whether there are any immutable constructors here
     boolean hasImmutableConstructors = false;
-    for (Constructor constructor : typeDefinition.getConstructors())
+    for (Constructor constructor : typeDefinition.getAllConstructors())
     {
       if (constructor.isImmutable())
       {
@@ -1219,7 +1265,7 @@ public class Resolver
           TypeDefinition typeDefinition = type.getResolvedTypeDefinition();
           if (typeDefinition != null && typeDefinition instanceof CompoundDefinition)
           {
-            for (Constructor c : typeDefinition.getConstructors())
+            for (Constructor c : typeDefinition.getUniqueConstructors())
             {
               paramLists.put(c.getParameters(), c);
               if (!variableExpression.getIsAssignableHint() && variableExpression.getTypeHint() == null)
@@ -1258,7 +1304,7 @@ public class Resolver
             TypeDefinition typeDefinition = type.getResolvedTypeDefinition();
             if (typeDefinition != null && typeDefinition instanceof CompoundDefinition)
             {
-              for (Constructor c : typeDefinition.getConstructors())
+              for (Constructor c : typeDefinition.getUniqueConstructors())
               {
                 paramLists.put(c.getParameters(), c);
                 if (!fieldAccessExpression.getIsAssignableHint() && fieldAccessExpression.getTypeHint() == null)
@@ -1665,7 +1711,7 @@ public class Resolver
       argumentTypes[i] = TypeChecker.checkTypes(arguments[i]);
     }
     // resolve the constructor being called
-    Collection<Constructor> constructors = typeDefinition.getConstructors();
+    Collection<Constructor> constructors = typeDefinition.getUniqueConstructors();
     Map<Parameter[], Constructor> parameterLists = new HashMap<Parameter[], Constructor>();
     for (Constructor constructor : constructors)
     {

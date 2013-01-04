@@ -272,7 +272,7 @@ public class CompoundDefinition extends TypeDefinition
    * @return the constructors of this CompoundDefinition
    */
   @Override
-  public Collection<Constructor> getConstructors()
+  public Collection<Constructor> getAllConstructors()
   {
     return constructors;
   }

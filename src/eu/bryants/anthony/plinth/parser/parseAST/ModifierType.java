@@ -14,6 +14,7 @@ public enum ModifierType
   MUTABLE,
   NATIVE,
   SELFISH,
+  SINCE,
   STATIC,
   ;
 }

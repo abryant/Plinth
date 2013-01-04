@@ -6,6 +6,11 @@ class A
   this()
   {
     //escaped = this;
+    stdout::println("Hello, old");
+  }
+  since(1.2) this()
+  {
+    stdout::println("Hello, blah");
   }
 }
 
@@ -54,7 +59,7 @@ class Test extends Foo
 
   static uint main([]string args)
   {
-    new B();
+    stdout::println(new B().field);
     stdout::print("Please enter your name: ");
     string line = stdin::readLine();
     // remove the newline
@@ -91,6 +96,18 @@ class Test extends Foo
     return result;
   }
 
+  since(2.0)
+  static string concatMap({string -> string} f, []string input)
+  {
+    string result = string();
+    for (uint i = 0; i < input.length; ++i)
+    {
+      result += f(input[i]);
+    }
+    stdout::println("concatMap v2.0");
+    return result;
+  }
+
   static string addSpace(string x)
   {
     return " " + x;
@@ -99,16 +116,6 @@ class Test extends Foo
   void foo()
   {
     stderr::println("Test::foo()");
-  }
-  uint foo()
-  {
-    stderr::println("Test::foo():19");
-    return 19;
-  }
-
-  void argh()
-  {
-    stderr::println("Test::argh()");
   }
 }
 
@@ -123,11 +130,11 @@ class Foo
     stderr::println("super constructor!");
     field = "Foo::argh()";
   }
-  void argh()
+  since(8.12) void argh()
   {
     stderr::println(field);
   }
-  uint foo()
+  since(10) uint foo()
   {
     stderr::println("Foo::foo():2");
     return 2;

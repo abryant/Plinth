@@ -91,6 +91,7 @@ public enum ParseType
   NAME,             // Name
   INTEGER_LITERAL,  // IntegerLiteral
   FLOATING_LITERAL, // FloatingLiteral
+  SINCE_SPECIFIER,  // SinceSpecifier
   STRING_LITERAL,   // StringLiteral
 
   // symbols (values for these should all be LexicalPhrase)

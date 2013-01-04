@@ -77,7 +77,7 @@ public abstract class Type
   {
     for (Member member : getMembers(disambiguator.getName()))
     {
-      if (member instanceof Method && ((Method) member).getDisambiguator().equals(disambiguator))
+      if (member instanceof Method && ((Method) member).getDisambiguator().matches(disambiguator))
       {
         return (Method) member;
       }

@@ -280,7 +280,7 @@ public class ClassDefinition extends TypeDefinition
    * @return the constructors of this ClassDefinition
    */
   @Override
-  public Collection<Constructor> getConstructors()
+  public Collection<Constructor> getAllConstructors()
   {
     return constructors;
   }

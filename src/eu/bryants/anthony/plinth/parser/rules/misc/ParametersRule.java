@@ -85,6 +85,8 @@ public class ParametersRule extends Rule<ParseType>
         throw new LanguageParseException("Unexpected modifier: Parameters cannot have native specifiers", modifier.getLexicalPhrase());
       case SELFISH:
         throw new LanguageParseException("Unexpected modifier: Parameters cannot be selfish", modifier.getLexicalPhrase());
+      case SINCE:
+        throw new LanguageParseException("Unexpected modifier: Parameters cannot have since(...) specifiers", modifier.getLexicalPhrase());
       case STATIC:
         throw new LanguageParseException("Unexpected modifier: Parameters cannot be static", modifier.getLexicalPhrase());
       default:

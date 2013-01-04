@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -15,7 +16,9 @@ import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
+import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
+import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
 
@@ -108,6 +111,23 @@ public abstract class TypeDefinition
       @Override
       public int compare(Field o1, Field o2)
       {
+        // first, compare the since specifiers, as they are always the first thing we sort on
+        SinceSpecifier since1 = o1.getSinceSpecifier();
+        SinceSpecifier since2 = o2.getSinceSpecifier();
+        // two null since specifiers are equal, and a null since specifiers always comes before a not-null one
+        if ((since1 == null) != (since2 == null))
+        {
+          return since1 == null ? -1 : 1;
+        }
+        if (since1 != null && since2 != null)
+        {
+          int sinceComparison = since1.compareTo(since2);
+          if (sinceComparison != 0)
+          {
+            return sinceComparison;
+          }
+        }
+        // if the since specifiers are equal, compare the names
         return o1.getName().compareTo(o2.getName());
       }
     });
@@ -130,7 +150,7 @@ public abstract class TypeDefinition
     Method[] allMethods = getAllMethods();
     // filter out static methods, and methods which exist in ObjectType
     List<Method> list = new LinkedList<Method>();
-    Map<Object, Method> objectMethods = new HashMap<Object, Method>();
+    Method[] objectMethods = new Method[ObjectType.OBJECT_METHODS.length];
     filterLoop:
     for (Method method : allMethods)
     {
@@ -140,11 +160,11 @@ public abstract class TypeDefinition
       }
       if (includeObjectMethods)
       {
-        for (Method objectMethod : ObjectType.OBJECT_METHODS)
+        for (int i = 0; i < ObjectType.OBJECT_METHODS.length; ++i)
         {
-          if (objectMethod.getDisambiguator().equals(method.getDisambiguator()))
+          if (ObjectType.OBJECT_METHODS[i].getDisambiguator().matches(method.getDisambiguator()))
           {
-            objectMethods.put(objectMethod.getDisambiguator(), method);
+            objectMethods[i] = method;
             continue filterLoop;
           }
         }
@@ -165,7 +185,7 @@ public abstract class TypeDefinition
       // add the methods from ObjectType at the start of the list, in order (overridden by ones from this type wherever possible)
       for (int i = 0; i < ObjectType.OBJECT_METHODS.length; ++i)
       {
-        Method method = objectMethods.get(ObjectType.OBJECT_METHODS[i].getDisambiguator());
+        Method method = objectMethods[i];
         if (method == null)
         {
           method = new BuiltinMethod(new NamedType(false, false, this), ObjectType.OBJECT_METHODS[i].getBuiltinType());
@@ -208,9 +228,40 @@ public abstract class TypeDefinition
   public abstract Field getField(String name);
 
   /**
-   * @return the constructors of this TypeDefinition
+   * @return all of the constructors of this TypeDefinition, including ones which only differ in their since specifiers
    */
-  public abstract Collection<Constructor> getConstructors();
+  public abstract Collection<Constructor> getAllConstructors();
+
+  /**
+   * @return all of the constructors for this TypeDefinition, excluding the ones which only differ in their since specifiers
+   */
+  public Set<Constructor> getUniqueConstructors()
+  {
+    Map<String, Constructor> constructors = new HashMap<String, Constructor>();
+    for (Constructor constructor : getAllConstructors())
+    {
+      StringBuffer disambiguatorBuffer = new StringBuffer();
+      for (Parameter p : constructor.getParameters())
+      {
+        disambiguatorBuffer.append(p.getType().getMangledName());
+      }
+      String disambiguator = disambiguatorBuffer.toString();
+      Constructor existing = constructors.get(disambiguator);
+      if (existing == null)
+      {
+        constructors.put(disambiguator, constructor);
+      }
+      else
+      {
+        SinceSpecifier existingSince = existing.getSinceSpecifier();
+        SinceSpecifier currentSince = constructor.getSinceSpecifier();
+        Constructor newer = existingSince == null ? constructor :
+                            existingSince.compareTo(currentSince) < 0 ? constructor : existing;
+        constructors.put(disambiguator, newer);
+      }
+    }
+    return new HashSet<Constructor>(constructors.values());
+  }
 
   /**
    * @return an array containing all of the methods in this TypeDefinition
@@ -254,7 +305,7 @@ public abstract class TypeDefinition
       buffer.append(field.toString().replaceAll("(?m)^", "  "));
       buffer.append("\n");
     }
-    for (Constructor constructor : getConstructors())
+    for (Constructor constructor : getAllConstructors())
     {
       buffer.append(constructor.toString().replaceAll("(?m)^", "  "));
       buffer.append("\n");

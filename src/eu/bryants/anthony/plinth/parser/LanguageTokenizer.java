@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.io.Reader;
 import java.math.BigInteger;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 import parser.ParseException;
@@ -14,6 +16,7 @@ import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.terminal.FloatingLiteral;
 import eu.bryants.anthony.plinth.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
+import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.terminal.StringLiteral;
 
 /*
@@ -58,6 +61,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("return",    ParseType.RETURN_KEYWORD);
     KEYWORDS.put("selfish",   ParseType.SELFISH_KEYWORD);
     KEYWORDS.put("short",     ParseType.SHORT_KEYWORD);
+    // "since" is handled differently (the whole "since(1.2.3)" is parsed by the tokenizer)
     KEYWORDS.put("static",    ParseType.STATIC_KEYWORD);
     KEYWORDS.put("super",     ParseType.SUPER_KEYWORD);
     KEYWORDS.put("this",      ParseType.THIS_KEYWORD);
@@ -288,6 +292,12 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       return new Token<ParseType>(keyword, new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
     }
 
+    // check if the name is the start of a since specifier, and if it is then read the rest of it
+    if (name.equals("since"))
+    {
+      return readSinceSpecifier(new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn));
+    }
+
     // check if the name is an underscore, and if it is then return it
     if (name.equals("_"))
     {
@@ -296,6 +306,89 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
 
     // we have a name, so return it
     return new Token<ParseType>(ParseType.NAME, new Name(name, new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn - index, currentColumn)));
+  }
+
+  /**
+   * Reads a since specifier from the stream.
+   * This method assumes that a "since" keyword has just been parsed, and will throw exceptions if invalid tokens are detected after it.
+   * @param sinceKeywordPhrase - the LexicalPhrase of the "since" keyword which has already been parsed
+   * @return a since specifier Token
+   * @throws IOException - if an error occurs while reading from the stream
+   * @throws LanguageParseException - if an invalid token is detected in the since specifier
+   */
+  private Token<ParseType> readSinceSpecifier(LexicalPhrase sinceKeywordPhrase) throws IOException, LanguageParseException
+  {
+    // skip whitespace between "since" and "("
+    skipWhitespaceAndComments();
+
+    // read the "("
+    int nextChar = reader.read(0);
+    if (nextChar != '(')
+    {
+      throw new LanguageParseException("Expected '(' after 'since'.", new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn));
+    }
+    LexicalPhrase lparenPhrase = new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn, currentColumn + 1);
+    currentColumn++;
+    reader.discard(1);
+
+    skipWhitespaceAndComments();
+
+    // read the first number
+    Token<ParseType> firstLiteralToken = readIntegerLiteral();
+    if (firstLiteralToken == null)
+    {
+      throw new LanguageParseException("Expected integer literal in since specifier.", new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn));
+    }
+    IntegerLiteral firstLiteral = (IntegerLiteral) firstLiteralToken.getValue();
+    List<BigInteger> versionPartList = new LinkedList<BigInteger>();
+    versionPartList.add(firstLiteral.getValue());
+
+    skipWhitespaceAndComments();
+
+    LexicalPhrase versionPhrase = firstLiteral.getLexicalPhrase();
+    LexicalPhrase rparenPhrase;
+    while (true)
+    {
+      nextChar = reader.read(0);
+      if (nextChar == '.')
+      {
+        // read the dot
+        currentColumn++;
+        reader.discard(1);
+        LexicalPhrase dotPhrase = new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn - 1, currentColumn);
+
+        skipWhitespaceAndComments();
+
+        // read the next version number part
+        Token<ParseType> literalToken = readIntegerLiteral();
+        if (literalToken == null)
+        {
+          throw new LanguageParseException("Expected integer literal in since specifier.", new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn));
+        }
+        IntegerLiteral literal = (IntegerLiteral) literalToken.getValue();
+        versionPartList.add(literal.getValue());
+
+        versionPhrase = LexicalPhrase.combine(versionPhrase, dotPhrase, literal.getLexicalPhrase());
+
+        skipWhitespaceAndComments();
+      }
+      else if (nextChar == ')')
+      {
+        // read the RParen
+        currentColumn++;
+        reader.discard(1);
+        rparenPhrase = new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn - 1, currentColumn);
+        break;
+      }
+      else
+      {
+        throw new LanguageParseException("Expected '.' or ')' after integer literal in since specifier.", new LexicalPhrase(filePath, currentLine, reader.getCurrentLine(), currentColumn));
+      }
+    }
+
+    BigInteger[] versionParts = versionPartList.toArray(new BigInteger[versionPartList.size()]);
+    SinceSpecifier sinceSpecifier = new SinceSpecifier(versionParts, LexicalPhrase.combine(sinceKeywordPhrase, lparenPhrase, versionPhrase, rparenPhrase));
+    return new Token<ParseType>(ParseType.SINCE_SPECIFIER, sinceSpecifier);
   }
 
   /**
@@ -413,7 +506,6 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     }
     return null;
   }
-
 
   /**
    * Reads a floating literal from the start of the reader.

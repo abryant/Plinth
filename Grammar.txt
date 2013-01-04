@@ -18,6 +18,7 @@ Modifiers = FinalKeyword                | Modifiers FinalKeyword     |
             MutableKeyword              | Modifiers MutableKeyword   |
             NativeKeyword               | Modifiers NativeKeyword    |
             SelfishKeyword              | Modifiers SelfishKeyword   |
+            SinceSpecifier              | Modifiers SinceSpecifier   |
             StaticKeyword               | Modifiers StaticKeyword    |
             NativeKeyword StringLiteral | Modifiers NativeKeyword StringLiteral
 OptionalModifiers = epsilon | Modifiers
@@ -191,3 +192,5 @@ QNameList = QName |
             NestedQNameList |
             QName Comma QNameList |
             NestedQNameList Comma QNameList
+
+SinceSpecifier = special-cased by the tokenizer, because version numbers are easily confused with floating point numbers

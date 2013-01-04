@@ -96,7 +96,7 @@ public class TypePropagator
           propagateTypes(initialiser.getBlock(), VoidType.VOID_TYPE);
         }
       }
-      for (Constructor constructor : typeDefinition.getConstructors())
+      for (Constructor constructor : typeDefinition.getAllConstructors())
       {
         propagateTypes(constructor.getBlock(), new VoidType(null));
       }

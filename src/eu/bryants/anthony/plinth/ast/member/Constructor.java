@@ -4,6 +4,7 @@ import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
+import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 
 /*
  * Created on 10 May 2012
@@ -16,17 +17,19 @@ public class Constructor extends Member
 {
   private boolean isImmutable;
   private boolean isSelfish;
+  private SinceSpecifier sinceSpecifier;
   private Parameter[] parameters;
   private Block block;
 
   private TypeDefinition containingTypeDefinition;
   private boolean callsDelegateConstructor;
 
-  public Constructor(boolean isImmutable, boolean isSelfish, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
+  public Constructor(boolean isImmutable, boolean isSelfish, SinceSpecifier sinceSpecifier, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.isImmutable = isImmutable;
     this.isSelfish = isSelfish;
+    this.sinceSpecifier = sinceSpecifier;
     this.parameters = parameters;
     for (int i = 0; i < parameters.length; i++)
     {
@@ -58,6 +61,14 @@ public class Constructor extends Member
   public boolean isSelfish()
   {
     return isSelfish;
+  }
+
+  /**
+   * @return the sinceSpecifier
+   */
+  public SinceSpecifier getSinceSpecifier()
+  {
+    return sinceSpecifier;
   }
 
   /**
@@ -121,6 +132,11 @@ public class Constructor extends Member
     }
     buffer.append(containingTypeDefinition.getQualifiedName().getMangledName());
     buffer.append('_');
+    if (sinceSpecifier != null)
+    {
+      buffer.append(sinceSpecifier.getMangledName());
+    }
+    buffer.append('_');
     for (Parameter parameter : parameters)
     {
       buffer.append(parameter.getType().getMangledName());
@@ -142,6 +158,11 @@ public class Constructor extends Member
     if (isSelfish)
     {
       buffer.append("selfish ");
+    }
+    if (sinceSpecifier != null)
+    {
+      buffer.append(sinceSpecifier);
+      buffer.append(' ');
     }
     buffer.append("this(");
     for (int i = 0; i < parameters.length; i++)

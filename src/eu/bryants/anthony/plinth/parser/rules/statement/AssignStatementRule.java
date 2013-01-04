@@ -158,6 +158,8 @@ public class AssignStatementRule extends Rule<ParseType>
         throw new LanguageParseException("Unexpected modifier: Local variables cannot have native specifiers", modifier.getLexicalPhrase());
       case SELFISH:
         throw new LanguageParseException("Unexpected modifier: Local variables cannot be selfish", modifier.getLexicalPhrase());
+      case SINCE:
+        throw new LanguageParseException("Unexpected modifier: Local variables cannot have since(...) specifiers", modifier.getLexicalPhrase());
       case STATIC:
         throw new LanguageParseException("Unexpected modifier: Local variables cannot be static", modifier.getLexicalPhrase());
       default:

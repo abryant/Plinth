@@ -140,7 +140,7 @@ public class ControlFlowChecker
       boolean hasImmutableConstructors = false;
       // the non-static initialisers are selfish iff all constructors are selfish
       boolean onlyHasSelfishConstructors = true;
-      for (Constructor constructor : typeDefinition.getConstructors())
+      for (Constructor constructor : typeDefinition.getAllConstructors())
       {
         if (constructor.isImmutable())
         {
@@ -195,7 +195,7 @@ public class ControlFlowChecker
       delegateConstructorVariables.initialiserDefinitelyInitialised = instanceVariables.initialised;
       delegateConstructorVariables.initialiserPossiblyInitialised = instanceVariables.possiblyInitialised;
       delegateConstructorVariables.superClassVariables = superClassVariables;
-      for (Constructor constructor : typeDefinition.getConstructors())
+      for (Constructor constructor : typeDefinition.getAllConstructors())
       {
         checkControlFlow(constructor, delegateConstructorVariables);
       }

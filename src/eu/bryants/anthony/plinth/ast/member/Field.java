@@ -4,6 +4,7 @@ import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
+import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.Type;
 
 /*
@@ -21,13 +22,14 @@ public class Field extends Member
   private boolean isStatic;
   private boolean isFinal;
   private boolean isMutable;
+  private SinceSpecifier sinceSpecifier;
   private Expression initialiserExpression;
 
   private MemberVariable memberVariable;
   private GlobalVariable globalVariable;
   private int memberIndex;
 
-  public Field(Type type, String name, boolean isStatic, boolean isFinal, boolean isMutable, Expression initialiserExpression, LexicalPhrase lexicalPhrase)
+  public Field(Type type, String name, boolean isStatic, boolean isFinal, boolean isMutable, SinceSpecifier sinceSpecifier, Expression initialiserExpression, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.type = type;
@@ -35,6 +37,7 @@ public class Field extends Member
     this.isStatic = isStatic;
     this.isFinal = isFinal;
     this.isMutable = isMutable;
+    this.sinceSpecifier = sinceSpecifier;
     this.initialiserExpression = initialiserExpression;
   }
 
@@ -76,6 +79,14 @@ public class Field extends Member
   public boolean isMutable()
   {
     return isMutable;
+  }
+
+  /**
+   * @return the sinceSpecifier
+   */
+  public SinceSpecifier getSinceSpecifier()
+  {
+    return sinceSpecifier;
   }
 
   /**
@@ -140,6 +151,13 @@ public class Field extends Member
   @Override
   public String toString()
   {
-    return (isStatic ? "static " : "") + (isFinal ? "final " : "") + (isMutable ? "mutable " : "") + type + " " + name + (initialiserExpression == null ? "" : " = " + initialiserExpression) + ";";
+    return (isStatic ? "static " : "") +
+           (isFinal ? "final " : "") +
+           (isMutable ? "mutable " : "") +
+           (sinceSpecifier != null ? sinceSpecifier + " " : "") +
+           type + " " +
+           name +
+           (initialiserExpression == null ? "" : " = " + initialiserExpression) +
+           ";";
   }
 }

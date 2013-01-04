@@ -4,6 +4,7 @@ import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
+import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.Type;
 
 /*
@@ -21,6 +22,7 @@ public class Method extends Member
   private boolean isStatic;
   private boolean isImmutable;
   private String nativeName;
+  private SinceSpecifier sinceSpecifier;
   private Parameter[] parameters;
   private Block block;
 
@@ -36,11 +38,12 @@ public class Method extends Member
    * @param isStatic - true if the method should be static, false otherwise
    * @param isImmutable - true if the method should be immutable, false otherwise
    * @param nativeName - the native name of the method, or null if no native name is specified
+   * @param sinceSpecifier - the since specifier of the method, or null if none is given
    * @param parameters - the parameters for the method
    * @param block - the block that the method should run, or null if no block is specified
    * @param lexicalPhrase - the LexicalPhrase of this method
    */
-  public Method(Type returnType, String name, boolean isStatic, boolean isImmutable, String nativeName, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
+  public Method(Type returnType, String name, boolean isStatic, boolean isImmutable, String nativeName, SinceSpecifier sinceSpecifier, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.returnType = returnType;
@@ -48,6 +51,7 @@ public class Method extends Member
     this.isStatic = isStatic;
     this.isImmutable = isImmutable;
     this.nativeName = nativeName;
+    this.sinceSpecifier = sinceSpecifier;
     this.parameters = parameters;
     for (int i = 0; i < parameters.length; i++)
     {
@@ -114,6 +118,14 @@ public class Method extends Member
   }
 
   /**
+   * @return the sinceSpecifier
+   */
+  public SinceSpecifier getSinceSpecifier()
+  {
+    return sinceSpecifier;
+  }
+
+  /**
    * @return the parameters
    */
   public Parameter[] getParameters()
@@ -177,6 +189,14 @@ public class Method extends Member
     }
     buffer.append(containingTypeDefinition.getQualifiedName().getMangledName());
     buffer.append('_');
+    if (isStatic)
+    {
+      if (sinceSpecifier != null)
+      {
+        buffer.append(sinceSpecifier.getMangledName());
+      }
+      buffer.append('_');
+    }
     buffer.append(name);
     buffer.append('_');
     buffer.append(returnType.getMangledName());
@@ -208,6 +228,11 @@ public class Method extends Member
       buffer.append("native \"");
       buffer.append(nativeName);
       buffer.append("\" ");
+    }
+    if (sinceSpecifier != null)
+    {
+      buffer.append(sinceSpecifier);
+      buffer.append(' ');
     }
     buffer.append(returnType);
     buffer.append(' ');
@@ -257,8 +282,29 @@ public class Method extends Member
     public int compareTo(Disambiguator other)
     {
       Method otherMethod = other.getMethod();
-      // compare name, then mangled return type, then each mangled parameter in turn, using lexicographic ordering
+      // compare since specifier, then staticness, then name, then mangled return type, then each mangled parameter in turn, using lexicographic ordering
       // if they are equal except that one parameter list is a prefix of the other, then the comparison makes the longer parameter list larger
+
+      // two null since specifiers are equal, and a null since specifiers always comes before a not-null one
+      if ((sinceSpecifier == null) != (otherMethod.sinceSpecifier == null))
+      {
+        return sinceSpecifier == null ? -1 : 1;
+      }
+      if (sinceSpecifier != null && otherMethod.sinceSpecifier != null)
+      {
+        int sinceComparison = sinceSpecifier.compareTo(otherMethod.sinceSpecifier);
+        if (sinceComparison != 0)
+        {
+          return sinceComparison;
+        }
+      }
+
+      // static methods come before non-static methods
+      if (isStatic != otherMethod.isStatic)
+      {
+        return isStatic ? -1 : 1;
+      }
+
       int nameComparison = name.compareTo(otherMethod.name);
       if (nameComparison != 0)
       {
@@ -288,6 +334,7 @@ public class Method extends Member
     public String toString()
     {
       StringBuffer buffer = new StringBuffer();
+      buffer.append(isStatic ? "SM_" : "M_");
       buffer.append(name);
       buffer.append('_');
       buffer.append(returnType.getMangledName());
@@ -308,18 +355,15 @@ public class Method extends Member
     }
 
     /**
-     * {@inheritDoc}
+     * Checks whether this disambiguator matches the signature of the specified other disambiguator.
+     * This checks the signature of the method, but not the since specifier.
+     * @param other - the Disambiguator to check
+     * @return true if this Disambiguator matches the specified Disambiguator, false otherwise
      */
-    @Override
-    public boolean equals(Object o)
+    public boolean matches(Disambiguator other)
     {
-      if (!(o instanceof Disambiguator))
-      {
-        return false;
-      }
-      Disambiguator other = (Disambiguator) o;
       Method otherMethod = other.getMethod();
-      if (!returnType.isEquivalent(otherMethod.returnType) || !name.equals(otherMethod.name) || parameters.length != otherMethod.parameters.length)
+      if (isStatic != otherMethod.isStatic || !returnType.isEquivalent(otherMethod.returnType) || !name.equals(otherMethod.name) || parameters.length != otherMethod.parameters.length)
       {
         return false;
       }
@@ -331,6 +375,19 @@ public class Method extends Member
         }
       }
       return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(Object o)
+    {
+      if (!(o instanceof Disambiguator))
+      {
+        return false;
+      }
+      return matches((Disambiguator) o);
     }
 
     /**
