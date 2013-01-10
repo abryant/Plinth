@@ -456,7 +456,7 @@ public class MetadataLoader
       {
         throw new MalformedMetadataException("A functions type's parameter type list must be represented by a metadata node");
       }
-      LLVMValueRef[] parameterTypeNodes = readOperands(values[3]);
+      LLVMValueRef[] parameterTypeNodes = readOperands(values[4]);
       Type[] parameterTypes = new Type[parameterTypeNodes.length];
       for (int i = 0; i < parameterTypeNodes.length; ++i)
       {

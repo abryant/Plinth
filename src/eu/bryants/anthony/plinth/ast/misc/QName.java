@@ -43,7 +43,11 @@ public class QName
     names[oldNames.length] = name;
 
     LexicalPhrase[] oldLexicalPhrases = baseQName.getLexicalPhrases();
-    if (oldLexicalPhrases != null)
+    if (oldLexicalPhrases == null)
+    {
+      lexicalPhrases = new LexicalPhrase[] {nameLexicalPhrase};
+    }
+    else
     {
       lexicalPhrases = new LexicalPhrase[oldLexicalPhrases.length + 1];
       System.arraycopy(oldLexicalPhrases, 0, lexicalPhrases, 0, oldLexicalPhrases.length);
@@ -62,6 +66,7 @@ public class QName
       throw new IllegalArgumentException("Cannot create a QName with no sub-names");
     }
     this.names = names;
+    this.lexicalPhrases = new LexicalPhrase[0];
   }
 
   /**
@@ -81,6 +86,7 @@ public class QName
       throw new ConceptualException("A QName must be created with at least one name", null);
     }
     this.names = names;
+    this.lexicalPhrases = new LexicalPhrase[0];
   }
 
   /**

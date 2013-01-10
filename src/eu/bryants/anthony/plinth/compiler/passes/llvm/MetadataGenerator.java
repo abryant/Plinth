@@ -14,7 +14,6 @@ import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
-import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
@@ -111,8 +110,8 @@ public class MetadataGenerator
     {
       LLVMValueRef abstractnessNode = createMDString(typeDefinition.isAbstract() ? "abstract" : "not-abstract");
 
-      QName superClassQName = ((ClassDefinition) typeDefinition).getSuperClassQName();
-      LLVMValueRef superClassNode = createMDString(superClassQName == null ? "" : superClassQName.toString());
+      ClassDefinition superClass = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
+      LLVMValueRef superClassNode = createMDString(superClass == null ? "" : superClass.getQualifiedName().toString());
 
       LLVMValueRef[] values = new LLVMValueRef[] {nameNode, immutabilityNode, abstractnessNode, superClassNode, nonStaticFieldsNode, staticFieldsNode, constructorsNode, nonStaticMethodsNode, staticMethodsNode};
       LLVMValueRef resultNode = LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
