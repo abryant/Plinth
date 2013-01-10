@@ -3,3 +3,6 @@
 .settings
 bin
 *.bc
+*.pbc
+!plinth-lib/*.pbc
+!plinth-lib/**/*.pbc
