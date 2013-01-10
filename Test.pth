@@ -12,15 +12,32 @@ class A
   {
     stdout::println("Hello, blah");
   }
+  immutable void testImmutable()
+  {
+    stdout::println(toString());
+  }
+  immutable string toString()
+  {
+    return "A is not immutable";
+  }
 }
 
-class B extends A
+immutable class B extends A
 {
   string field;
-  this()
+  selfish this()
   {
     stdout::println("A::escaped.field: " + ((cast<?B> A::escaped)?.field ?: "it's null"));
     field = "hi";
+    testImmutable();
+  }
+  void testImmutable()
+  {
+    stdout::println(toString());
+  }
+  string toString()
+  {
+    return "B is immutable";
   }
 }
 

@@ -25,6 +25,7 @@ import eu.bryants.anthony.plinth.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
 import eu.bryants.anthony.plinth.compiler.passes.ControlFlowChecker;
 import eu.bryants.anthony.plinth.compiler.passes.CycleChecker;
+import eu.bryants.anthony.plinth.compiler.passes.InheritanceChecker;
 import eu.bryants.anthony.plinth.compiler.passes.NativeNameChecker;
 import eu.bryants.anthony.plinth.compiler.passes.Resolver;
 import eu.bryants.anthony.plinth.compiler.passes.SpecialTypeHandler;
@@ -229,6 +230,10 @@ public class Compiler
       for (CompilationUnit compilationUnit : compilationUnits)
       {
         CycleChecker.checkInheritanceCycles(compilationUnit);
+      }
+      for (CompilationUnit compilationUnit : compilationUnits)
+      {
+        InheritanceChecker.checkInheritedMembers(compilationUnit);
       }
       if (mainTypeName != null)
       {

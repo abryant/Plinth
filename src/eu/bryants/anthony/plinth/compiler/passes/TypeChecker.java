@@ -102,17 +102,6 @@ public class TypeChecker
 
   public static void checkTypes(TypeDefinition typeDefinition) throws ConceptualException
   {
-    if (typeDefinition instanceof ClassDefinition)
-    {
-      ClassDefinition superClassDefinition = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
-      if (superClassDefinition != null)
-      {
-        if (superClassDefinition.isImmutable() && !typeDefinition.isImmutable())
-        {
-          throw new ConceptualException("Cannot define a non-immutable class to be a subclass of an immutable class", typeDefinition.getLexicalPhrase());
-        }
-      }
-    }
     for (Initialiser initialiser : typeDefinition.getInitialisers())
     {
       checkTypes(initialiser);

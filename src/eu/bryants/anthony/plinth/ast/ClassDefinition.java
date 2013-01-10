@@ -316,7 +316,12 @@ public class ClassDefinition extends TypeDefinition
   @Override
   public Set<Method> getMethodsByName(String name)
   {
-    return methods.get(name);
+    Set<Method> result = methods.get(name);
+    if (result == null)
+    {
+      return new HashSet<Method>();
+    }
+    return result;
   }
 
   /**
