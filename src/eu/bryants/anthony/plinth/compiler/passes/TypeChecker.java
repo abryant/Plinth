@@ -876,7 +876,19 @@ public class TypeChecker
         throw new ConceptualException("Cannot cast to an immutable function, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
       }
 
-      if (exprType.canAssign(castedType) || findTypeWithNullability(castedType, true).canAssign(exprType))
+      // we have checked the immutability constraints properly, so we can ignore them in this next check
+      // we need to do this so that e.g. casts from A to #B work, if A is a supertype of B
+      Type checkExprType = findTypeWithDataImmutability(exprType, toExplicitlyImmutable, toContextuallyImmutable);
+      if (exprType instanceof FunctionType && castedType instanceof FunctionType)
+      {
+        FunctionType functionExprType = (FunctionType) checkExprType;
+        if (functionExprType.isImmutable() != ((FunctionType) castedType).isImmutable())
+        {
+          checkExprType = new FunctionType(functionExprType.isNullable(), ((FunctionType) castedType).isImmutable(), functionExprType.getReturnType(), functionExprType.getParameterTypes(), null);
+        }
+      }
+
+      if (findTypeWithNullability(checkExprType, true).canAssign(castedType) || findTypeWithNullability(castedType, true).canAssign(exprType))
       {
         // if the assignment works in reverse (i.e. the casted type can be assigned to the expression) then it can be casted back
         // (also allow it if the assignment works forwards, although usually that should be a warning about an unnecessary cast, unless the cast allows access to a hidden field)
@@ -1809,7 +1821,7 @@ public class TypeChecker
    * If the specified type does not have a concept of either explicit or contextual data-immutability, then that type of immutability is not checked in the calculation.
    * @param type - the type to find the version of which has the specified explicit immutability
    * @param explicitlyImmutable - true if the returned type should be explicitly data-immutable, false otherwise
-   * @param contextuallyImmutable - true if the returned type should be contextual data-immutable, false otherwise
+   * @param contextuallyImmutable - true if the returned type should be contextually data-immutable, false otherwise
    * @return the version of the specified type with the specified explicit and contextual data-immutability, or the original type if it already has the requested data-immutability
    */
   public static Type findTypeWithDataImmutability(Type type, boolean explicitlyImmutable, boolean contextuallyImmutable)
@@ -1841,11 +1853,11 @@ public class TypeChecker
       }
       return new ObjectType(objectType.isNullable(), explicitlyImmutable, contextuallyImmutable, null);
     }
-    if (type instanceof PrimitiveType || type instanceof TupleType)
+    if (type instanceof PrimitiveType || type instanceof TupleType || type instanceof FunctionType || type instanceof NullType)
     {
       return type;
     }
-    throw new IllegalArgumentException("Cannot change the immutability of: " + type);
+    throw new IllegalArgumentException("Cannot change the immutability of an unknown type: " + type);
   }
 
   /**
