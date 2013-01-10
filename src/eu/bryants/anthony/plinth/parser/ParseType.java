@@ -149,6 +149,7 @@ public enum ParseType
   UNDERSCORE,
 
   // keywords (values for these should all be LexicalPhrase)
+  ABSTRACT_KEYWORD,
   BOOLEAN_KEYWORD,
   BREAK_KEYWORD,
   BYTE_KEYWORD,

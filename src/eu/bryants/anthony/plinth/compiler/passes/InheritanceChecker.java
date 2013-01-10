@@ -5,8 +5,10 @@ import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
+import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
 
@@ -79,14 +81,105 @@ public class InheritanceChecker
       }
     }
 
+    for (Method method : typeDefinition.getAllMethods())
+    {
+      checkMethod(method);
+    }
+
     for (Method inheritedMethod : inheritedNonStaticMethods)
     {
+      boolean overridden = false;
       for (Method method : typeDefinition.getMethodsByName(inheritedMethod.getName()))
       {
         if (inheritedMethod.getDisambiguator().matches(method.getDisambiguator()))
         {
           checkMethodOverride(inheritedMethod, method);
+          overridden = true;
         }
+      }
+      if (!typeDefinition.isAbstract() && inheritedMethod.isAbstract() && !overridden)
+      {
+        // we have not implemented this abstract method, but it could have been implemented higher up the class hierarchy, so check for that
+        Method implementation = null;
+        if (typeDefinition instanceof ClassDefinition)
+        {
+          ClassDefinition superClass = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
+          while (implementation == null && superClass != null && superClass != inheritedMethod.getContainingTypeDefinition())
+          {
+            Set<Method> possibleMatches = superClass.getMethodsByName(inheritedMethod.getName());
+            for (Method m : possibleMatches)
+            {
+              if (m.getDisambiguator().matches(inheritedMethod.getDisambiguator()))
+              {
+                // this method matches the disambiguator, so check that it is an implementation of a method (i.e. has a body or is a native down-call)
+                if (m.getBlock() != null || m.getNativeName() != null)
+                {
+                  // this must be the most-derived implementation of this method
+                  implementation = m;
+                  break;
+                }
+              }
+            }
+          }
+          if (superClass == null && implementation == null)
+          {
+            // we reached the top of the inheritance hierarchy (i.e. we got all the way up to object without reaching the inheritedMethod's TypeDefinition, so it must be defined in an interface)
+            // and we still haven't found anything, so check the object methods
+            for (Method m : ObjectType.OBJECT_METHODS)
+            {
+              if (m.getDisambiguator().matches(inheritedMethod.getDisambiguator()))
+              {
+                implementation = m;
+                break;
+              }
+            }
+          }
+        }
+        if (implementation != null)
+        {
+          try
+          {
+            checkMethodOverride(inheritedMethod, implementation);
+          }
+          catch (ConceptualException e)
+          {
+            String implementationType = implementation.getContainingTypeDefinition() == null ? "object" : implementation.getContainingTypeDefinition().getQualifiedName().toString();
+            throw new ConceptualException(typeDefinition.getName() + " does not implement the abstract method: " + buildMethodDisambiguatorString(inheritedMethod),
+                                          typeDefinition.getLexicalPhrase(),
+                                          new ConceptualException("Note: It is implemented in " + implementationType + " but that method is incompatible because: " + e.getMessage(), e.getLexicalPhrase()));
+          }
+        }
+        if (implementation == null)
+        {
+          throw new ConceptualException(typeDefinition.getName() + " does not implement the abstract method: " + buildMethodDisambiguatorString(inheritedMethod), typeDefinition.getLexicalPhrase());
+        }
+      }
+    }
+  }
+
+  private static void checkMethod(Method method) throws ConceptualException
+  {
+    if (method.isAbstract())
+    {
+      if (method.isStatic())
+      {
+        throw new ConceptualException("A static method cannot be abstract", method.getLexicalPhrase());
+      }
+      if (method.getNativeName() != null)
+      {
+        throw new ConceptualException("An abstract method cannot be native", method.getLexicalPhrase());
+      }
+      if (method.getBlock() != null)
+      {
+        throw new ConceptualException("An abstract method cannot have a body", method.getLexicalPhrase());
+      }
+      if (method.getContainingTypeDefinition() instanceof CompoundDefinition)
+      {
+        throw new ConceptualException("A compound type cannot contain abstract methods", method.getLexicalPhrase());
+      }
+      if (!method.getContainingTypeDefinition().isAbstract())
+      {
+        throw new ConceptualException("Abstract methods can only be declared in abstract classes", method.getLexicalPhrase());
       }
     }
   }
@@ -97,5 +190,25 @@ public class InheritanceChecker
     {
       throw new ConceptualException("A non-immutable method cannot override an immutable method", method.getLexicalPhrase());
     }
+  }
+
+  private static String buildMethodDisambiguatorString(Method method)
+  {
+    Parameter[] parameters = method.getParameters();
+    StringBuffer buffer = new StringBuffer();
+    buffer.append(method.getReturnType());
+    buffer.append(' ');
+    buffer.append(method.getName());
+    buffer.append('(');
+    for (int i = 0; i < parameters.length; ++i)
+    {
+      buffer.append(parameters[i].getType());
+      if (i != parameters.length - 1)
+      {
+        buffer.append(", ");
+      }
+    }
+    buffer.append(')');
+    return buffer.toString();
   }
 }

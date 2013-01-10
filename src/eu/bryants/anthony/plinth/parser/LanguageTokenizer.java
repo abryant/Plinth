@@ -33,6 +33,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
   private static final Map<String, ParseType> KEYWORDS = new HashMap<String, ParseType>();
   static
   {
+    KEYWORDS.put("abstract",  ParseType.ABSTRACT_KEYWORD);
     KEYWORDS.put("boolean",   ParseType.BOOLEAN_KEYWORD);
     KEYWORDS.put("break",     ParseType.BREAK_KEYWORD);
     KEYWORDS.put("byte",      ParseType.BYTE_KEYWORD);

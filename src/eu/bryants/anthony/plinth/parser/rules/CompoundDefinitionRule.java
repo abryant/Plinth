@@ -57,6 +57,8 @@ public class CompoundDefinitionRule extends Rule<ParseType>
     {
       switch (modifier.getModifierType())
       {
+      case ABSTRACT:
+        throw new LanguageParseException("Unexpected modifier: Compound type definitions cannot be abstract", modifier.getLexicalPhrase());
       case FINAL:
         throw new LanguageParseException("Unexpected modifier: Compound type definitions cannot be final", modifier.getLexicalPhrase());
       case IMMUTABLE:

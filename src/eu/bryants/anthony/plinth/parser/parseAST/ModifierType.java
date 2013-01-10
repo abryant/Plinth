@@ -9,6 +9,7 @@ package eu.bryants.anthony.plinth.parser.parseAST;
  */
 public enum ModifierType
 {
+  ABSTRACT,
   FINAL,
   IMMUTABLE,
   MUTABLE,

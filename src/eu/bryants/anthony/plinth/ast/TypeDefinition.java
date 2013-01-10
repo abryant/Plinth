@@ -31,6 +31,7 @@ import eu.bryants.anthony.plinth.ast.type.ObjectType;
  */
 public abstract class TypeDefinition
 {
+  private boolean isAbstract;
   private boolean isImmutable;
 
   private String name;
@@ -40,15 +41,25 @@ public abstract class TypeDefinition
 
   /**
    * Creates a new TypeDefinition with the specified name.
+   * @param isAbstract - true if this TypeDefinition should be abstract, false otherwise
    * @param isImmutable - true if this TypeDefinition should be immutable, false otherwise
    * @param name - the name of the type defintion
    * @param lexicalPhrase - the LexicalPhrase of this TypeDefinition
    */
-  public TypeDefinition(boolean isImmutable, String name, LexicalPhrase lexicalPhrase)
+  public TypeDefinition(boolean isAbstract, boolean isImmutable, String name, LexicalPhrase lexicalPhrase)
   {
+    this.isAbstract = isAbstract;
     this.isImmutable = isImmutable;
     this.name = name;
     this.lexicalPhrase = lexicalPhrase;
+  }
+
+  /**
+   * @return the isAbstract
+   */
+  public boolean isAbstract()
+  {
+    return isAbstract;
   }
 
   /**

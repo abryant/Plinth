@@ -137,6 +137,7 @@ public class MethodRule extends Rule<ParseType>
 
   private Method processModifiers(ParseList<Modifier> modifiers, Type returnType, String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
+    boolean isAbstract = false;
     boolean isStatic = false;
     boolean isImmutable = false;
     String nativeName = null;
@@ -147,6 +148,13 @@ public class MethodRule extends Rule<ParseType>
       {
         switch (modifier.getModifierType())
         {
+        case ABSTRACT:
+          if (isAbstract)
+          {
+            throw new LanguageParseException("Duplicate 'abstract' modifier", modifier.getLexicalPhrase());
+          }
+          isAbstract = true;
+          break;
         case FINAL:
           throw new LanguageParseException("Unexpected modifier: Methods cannot be final", modifier.getLexicalPhrase());
         case IMMUTABLE:
@@ -191,7 +199,7 @@ public class MethodRule extends Rule<ParseType>
         }
       }
     }
-    return new Method(returnType, name, isStatic, isImmutable, nativeName, sinceSpecifier, parameters, block, lexicalPhrase);
+    return new Method(returnType, name, isAbstract, isStatic, isImmutable, nativeName, sinceSpecifier, parameters, block, lexicalPhrase);
   }
 
 }

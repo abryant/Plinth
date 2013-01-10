@@ -143,6 +143,8 @@ public class AssignStatementRule extends Rule<ParseType>
     {
       switch (modifier.getModifierType())
       {
+      case ABSTRACT:
+        throw new LanguageParseException("Unexpected modifier: Local variables cannot be abstract", modifier.getLexicalPhrase());
       case FINAL:
         if (isFinal)
         {

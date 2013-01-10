@@ -109,10 +109,12 @@ public class MetadataGenerator
 
     if (typeDefinition instanceof ClassDefinition)
     {
+      LLVMValueRef abstractnessNode = createMDString(typeDefinition.isAbstract() ? "abstract" : "not-abstract");
+
       QName superClassQName = ((ClassDefinition) typeDefinition).getSuperClassQName();
       LLVMValueRef superClassNode = createMDString(superClassQName == null ? "" : superClassQName.toString());
 
-      LLVMValueRef[] values = new LLVMValueRef[] {nameNode, immutabilityNode, superClassNode, nonStaticFieldsNode, staticFieldsNode, constructorsNode, nonStaticMethodsNode, staticMethodsNode};
+      LLVMValueRef[] values = new LLVMValueRef[] {nameNode, immutabilityNode, abstractnessNode, superClassNode, nonStaticFieldsNode, staticFieldsNode, constructorsNode, nonStaticMethodsNode, staticMethodsNode};
       LLVMValueRef resultNode = LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
       LLVM.LLVMAddNamedMetadataOperand(module, "ClassDefinitions", resultNode);
     }
@@ -148,13 +150,14 @@ public class MetadataGenerator
   private static LLVMValueRef generateMethod(Method method)
   {
     LLVMValueRef nameNode = createMDString(method.getName());
+    LLVMValueRef isAbstractNode = createMDString(method.isAbstract() ? "abstract" : "not-abstract");
     LLVMValueRef isStaticNode = createMDString(method.isStatic() ? "static" : "not-static");
     LLVMValueRef isImmutableNode = createMDString(method.isImmutable() ? "immutable" : "not-immutable");
     LLVMValueRef nativeNameNode = createMDString(method.getNativeName() == null ? "" : method.getNativeName());
     LLVMValueRef sinceSpecifierNode = generateSinceSpecifier(method.getSinceSpecifier());
     LLVMValueRef returnTypeNode = generateType(method.getReturnType());
     LLVMValueRef parametersNode = generateParameters(method.getParameters());
-    LLVMValueRef[] values = new LLVMValueRef[] {nameNode, isStaticNode, isImmutableNode, nativeNameNode, sinceSpecifierNode, returnTypeNode, parametersNode};
+    LLVMValueRef[] values = new LLVMValueRef[] {nameNode, isAbstractNode, isStaticNode, isImmutableNode, nativeNameNode, sinceSpecifierNode, returnTypeNode, parametersNode};
     return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
   }
 

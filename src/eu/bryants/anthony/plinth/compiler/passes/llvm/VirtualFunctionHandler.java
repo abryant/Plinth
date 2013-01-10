@@ -176,7 +176,14 @@ public class VirtualFunctionHandler
     LLVMValueRef[] llvmMethods = new LLVMValueRef[methods.length];
     for (int i = 0; i < methods.length; ++i)
     {
-      llvmMethods[i] = codeGenerator.getMethodFunction(null, null, methods[i]);
+      if (methods[i].isAbstract())
+      {
+        llvmMethods[i] = LLVM.LLVMConstNull(LLVM.LLVMPointerType(typeHelper.findMethodType(methods[i]), 0));
+      }
+      else
+      {
+        llvmMethods[i] = codeGenerator.getMethodFunction(null, null, methods[i]);
+      }
     }
     LLVMTypeRef vftType = getVFTType(classDefinition);
     LLVM.LLVMSetInitializer(vftPointer, LLVM.LLVMConstNamedStruct(vftType, C.toNativePointerArray(llvmMethods, false, true), llvmMethods.length));

@@ -69,6 +69,8 @@ public class ConstructorRule extends Rule<ParseType>
     {
       switch (modifier.getModifierType())
       {
+      case ABSTRACT:
+        throw new LanguageParseException("Unexpected modifier: Constructors cannot be abstract", modifier.getLexicalPhrase());
       case FINAL:
         throw new LanguageParseException("Unexpected modifier: Constructors cannot be final", modifier.getLexicalPhrase());
       case IMMUTABLE:

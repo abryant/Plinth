@@ -64,12 +64,20 @@ public class ClassDefinitionRule extends Rule<ParseType>
 
   private ClassDefinition processModifiers(ParseList<Modifier> modifiers, String name, QName superQName, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
+    boolean isAbstract = false;
     boolean isImmutable = false;
     boolean hasSince = false;
     for (Modifier modifier : modifiers)
     {
       switch (modifier.getModifierType())
       {
+      case ABSTRACT:
+        if (isAbstract)
+        {
+          throw new LanguageParseException("Duplicate 'abstract' modifier", modifier.getLexicalPhrase());
+        }
+        isAbstract = true;
+        break;
       case FINAL:
         throw new LanguageParseException("Unexpected modifier: Class definitions cannot be final", modifier.getLexicalPhrase());
       case IMMUTABLE:
@@ -99,6 +107,6 @@ public class ClassDefinitionRule extends Rule<ParseType>
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }
-    return new ClassDefinition(isImmutable, name, superQName, members, lexicalPhrase);
+    return new ClassDefinition(isAbstract, isImmutable, name, superQName, members, lexicalPhrase);
   }
 }

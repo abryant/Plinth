@@ -44,9 +44,9 @@ public class ClassDefinition extends TypeDefinition
 
   private ClassDefinition superClassDefinition;
 
-  public ClassDefinition(boolean isImmutable, String name, QName superQName, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  public ClassDefinition(boolean isAbstract, boolean isImmutable, String name, QName superQName, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
-    super(isImmutable, name, lexicalPhrase);
+    super(isAbstract, isImmutable, name, lexicalPhrase);
     this.superQName = superQName;
     // add all of the members by name
     Set<Method> allMethods = new HashSet<Method>();
@@ -118,6 +118,7 @@ public class ClassDefinition extends TypeDefinition
 
   /**
    * Creates a new ClassDefinition with the specified members.
+   * @param isAbstract - true if this class definition should be abstract, false otherwise
    * @param isImmutable - true if this class definition should be immutable, false otherwise
    * @param qname - the qualified name of the class definition
    * @param superQName - the qualified name of the superclass, or null if there is no superclass
@@ -128,9 +129,9 @@ public class ClassDefinition extends TypeDefinition
    * @param staticMethods - the static methods
    * @throws LanguageParseException - if there is a name collision between any of the methods, or a Constructor's name is wrong
    */
-  public ClassDefinition(boolean isImmutable, QName qname, QName superQName, Field[] nonStaticFields, Field[] staticFields, Constructor[] newConstructors, Method[] nonStaticMethods, Method[] staticMethods) throws LanguageParseException
+  public ClassDefinition(boolean isAbstract, boolean isImmutable, QName qname, QName superQName, Field[] nonStaticFields, Field[] staticFields, Constructor[] newConstructors, Method[] nonStaticMethods, Method[] staticMethods) throws LanguageParseException
   {
-    super(isImmutable, qname.getLastName(), null);
+    super(isAbstract, isImmutable, qname.getLastName(), null);
     setQualifiedName(qname);
     this.superQName = superQName;
     for (Field f : nonStaticFields)
@@ -363,6 +364,6 @@ public class ClassDefinition extends TypeDefinition
   @Override
   public String toString()
   {
-    return (isImmutable() ? "immutable " : "") + "class " + getName() + (superQName == null ? "" : " extends " + superQName) + "\n" + getBodyString() + "\n";
+    return (isAbstract() ? "abstract " : "") + (isImmutable() ? "immutable " : "") + "class " + getName() + (superQName == null ? "" : " extends " + superQName) + "\n" + getBodyString() + "\n";
   }
 }

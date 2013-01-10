@@ -259,9 +259,9 @@ public class ControlFlowChecker
     Block mainBlock = method.getBlock();
     if (mainBlock == null)
     {
-      if (method.getNativeName() == null && !(method instanceof BuiltinMethod))
+      if (method.getNativeName() == null && !method.isAbstract() && !(method instanceof BuiltinMethod))
       {
-        throw new ConceptualException("A non-native method must always have a body", method.getLexicalPhrase());
+        throw new ConceptualException("A method must have a body, unless it is abstract or native", method.getLexicalPhrase());
       }
       // this method has no body, so there is nothing to check
       return;

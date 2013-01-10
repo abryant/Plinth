@@ -50,7 +50,7 @@ public class CompoundDefinition extends TypeDefinition
    */
   public CompoundDefinition(boolean isImmutable, String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
-    super(isImmutable, name, lexicalPhrase);
+    super(false, isImmutable, name, lexicalPhrase);
     // add all of the members by name
     Set<Method> allMethods = new HashSet<Method>();
     for (Member member : members)
@@ -132,7 +132,7 @@ public class CompoundDefinition extends TypeDefinition
    */
   public CompoundDefinition(boolean isImmutable, QName qname, Field[] nonStaticFields, Field[] staticFields, Constructor[] newConstructors, Method[] nonStaticMethods, Method[] staticMethods) throws LanguageParseException
   {
-    super(isImmutable, qname.getLastName(), null);
+    super(false, isImmutable, qname.getLastName(), null);
     setQualifiedName(qname);
     for (Field f : nonStaticFields)
     {

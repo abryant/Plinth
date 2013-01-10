@@ -909,6 +909,10 @@ public class TypeChecker
       {
         throw new ConceptualException("Cannot use the 'new' operator on '" + type + "', it must be on a class definition", expression.getLexicalPhrase());
       }
+      if (((ClassDefinition) resolvedTypeDefinition).isAbstract())
+      {
+        throw new ConceptualException("Cannot create a new " + resolvedTypeDefinition.getQualifiedName() + ", because it is an abstract class", expression.getLexicalPhrase());
+      }
       Expression[] arguments = classCreationExpression.getArguments();
       Constructor constructor = classCreationExpression.getResolvedConstructor();
       Parameter[] parameters = constructor.getParameters();

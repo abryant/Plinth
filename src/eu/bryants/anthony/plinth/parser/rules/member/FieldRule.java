@@ -87,6 +87,8 @@ public class FieldRule extends Rule<ParseType>
     {
       switch (modifier.getModifierType())
       {
+      case ABSTRACT:
+        throw new LanguageParseException("Unexpected modifier: Fields cannot be abstract", modifier.getLexicalPhrase());
       case FINAL:
         if (isFinal)
         {

@@ -19,6 +19,7 @@ public class Method extends Member
 
   private Type returnType;
   private String name;
+  private boolean isAbstract;
   private boolean isStatic;
   private boolean isImmutable;
   private String nativeName;
@@ -35,6 +36,7 @@ public class Method extends Member
    * Creates a new Method with the specified parameters
    * @param returnType - the return type of the method
    * @param name - the name of the method
+   * @param isAbstract - true if the method should be abstract, false otherwise
    * @param isStatic - true if the method should be static, false otherwise
    * @param isImmutable - true if the method should be immutable, false otherwise
    * @param nativeName - the native name of the method, or null if no native name is specified
@@ -43,11 +45,12 @@ public class Method extends Member
    * @param block - the block that the method should run, or null if no block is specified
    * @param lexicalPhrase - the LexicalPhrase of this method
    */
-  public Method(Type returnType, String name, boolean isStatic, boolean isImmutable, String nativeName, SinceSpecifier sinceSpecifier, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
+  public Method(Type returnType, String name, boolean isAbstract, boolean isStatic, boolean isImmutable, String nativeName, SinceSpecifier sinceSpecifier, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.returnType = returnType;
     this.name = name;
+    this.isAbstract = isAbstract;
     this.isStatic = isStatic;
     this.isImmutable = isImmutable;
     this.nativeName = nativeName;
@@ -82,6 +85,14 @@ public class Method extends Member
   public String getName()
   {
     return name;
+  }
+
+  /**
+   * @return the isAbstract
+   */
+  public boolean isAbstract()
+  {
+    return isAbstract;
   }
 
   /**
@@ -215,6 +226,10 @@ public class Method extends Member
   public String toString()
   {
     StringBuffer buffer = new StringBuffer();
+    if (isAbstract)
+    {
+      buffer.append("abstract ");
+    }
     if (isStatic)
     {
       buffer.append("static ");

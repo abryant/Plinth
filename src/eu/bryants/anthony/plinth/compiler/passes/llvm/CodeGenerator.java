@@ -237,6 +237,10 @@ public class CodeGenerator
     }
     for (Method method : typeDefinition.getAllMethods())
     {
+      if (method.isAbstract())
+      {
+        continue;
+      }
       getMethodFunction(null, null, method);
     }
   }
@@ -363,6 +367,10 @@ public class CodeGenerator
     {
       // generate a virtual function table lookup
       return virtualFunctionHandler.getMethodPointer(builder, callee, method);
+    }
+    if (method.isAbstract())
+    {
+      throw new IllegalArgumentException("Abstract methods do not have LLVM functions: " + method);
     }
     String mangledName = method.getMangledName();
     LLVMValueRef existingFunc = LLVM.LLVMGetNamedFunction(module, mangledName);
@@ -716,6 +724,10 @@ public class CodeGenerator
   {
     for (Method method : typeDefinition.getAllMethods())
     {
+      if (method.isAbstract())
+      {
+        continue;
+      }
       if (method instanceof BuiltinMethod)
       {
         builtinGenerator.generateMethod((BuiltinMethod) method);

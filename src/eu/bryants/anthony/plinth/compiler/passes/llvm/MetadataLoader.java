@@ -81,7 +81,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A type definition must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    int offset = classDefinition ? 1 : 0;
+    int offset = classDefinition ? 2 : 0;
     if (values.length != 7 + offset)
     {
       throw new MalformedMetadataException("A type definition's metadata node must have the correct number of sub-nodes");
@@ -155,7 +155,14 @@ public class MetadataLoader
     {
       if (classDefinition)
       {
-        String superClassQNameStr = readMDString(values[2]);
+        String abstractnessStr = readMDString(values[2]);
+        if (abstractnessStr == null)
+        {
+          throw new MalformedMetadataException("A class definition must specify whether or not it is abstract");
+        }
+        boolean isAbstract = abstractnessStr.equals("abstract");
+
+        String superClassQNameStr = readMDString(values[3]);
         if (superClassQNameStr == null)
         {
           throw new MalformedMetadataException("A class definition must contain the fully qualified name of its superclass (or an empty string in its place)");
@@ -170,7 +177,7 @@ public class MetadataLoader
           throw new MalformedMetadataException(e.getMessage(), e);
         }
 
-        typeDefinition = new ClassDefinition(isImmutable, qname, superClassQName, nonStaticFields, staticFields, constructors, nonStaticMethods, staticMethods);
+        typeDefinition = new ClassDefinition(isAbstract, isImmutable, qname, superClassQName, nonStaticFields, staticFields, constructors, nonStaticMethods, staticMethods);
       }
       else
       {
@@ -266,7 +273,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A method must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 7)
+    if (values.length != 8)
     {
       throw new MalformedMetadataException("A method's metadata node must have the correct number of sub-nodes");
     }
@@ -277,21 +284,28 @@ public class MetadataLoader
       throw new MalformedMetadataException("A method must have a valid name in its metadata node");
     }
 
-    String isStaticStr = readMDString(values[1]);
+    String isAbstractStr = readMDString(values[1]);
+    if (isAbstractStr == null)
+    {
+      throw new MalformedMetadataException("A method must have a valid abstractness property in its metadata node");
+    }
+    boolean isAbstract = isAbstractStr.equals("abstract");
+
+    String isStaticStr = readMDString(values[2]);
     if (isStaticStr == null)
     {
       throw new MalformedMetadataException("A method must have a valid staticness property in its metadata node");
     }
     boolean isStatic = isStaticStr.equals("static");
 
-    String isImmutableStr = readMDString(values[2]);
+    String isImmutableStr = readMDString(values[3]);
     if (isImmutableStr == null)
     {
       throw new MalformedMetadataException("A method must have a valid immutability property in its metadata node");
     }
     boolean isImmutable = isImmutableStr.equals("immutable");
 
-    String nativeName = readMDString(values[3]);
+    String nativeName = readMDString(values[4]);
     if (nativeName == null)
     {
       throw new MalformedMetadataException("A method must have a valid native name (or an empty string in its place) in its metadata node");
@@ -302,11 +316,16 @@ public class MetadataLoader
       nativeName = null;
     }
 
-    SinceSpecifier sinceSpecifier = loadSinceSpecifier(values[4]);
+    SinceSpecifier sinceSpecifier = loadSinceSpecifier(values[5]);
 
-    Type returnType = loadType(values[5]);
-    Parameter[] parameters = loadParameters(values[6]);
-    return new Method(returnType, name, isStatic, isImmutable, nativeName, sinceSpecifier, parameters, null, null);
+    Type returnType = loadType(values[6]);
+    Parameter[] parameters = loadParameters(values[7]);
+
+    if (isAbstract && isStatic)
+    {
+      throw new MalformedMetadataException("A static method cannot be abstract");
+    }
+    return new Method(returnType, name, isAbstract, isStatic, isImmutable, nativeName, sinceSpecifier, parameters, null, null);
   }
 
   private static Parameter[] loadParameters(LLVMValueRef metadataNode) throws MalformedMetadataException

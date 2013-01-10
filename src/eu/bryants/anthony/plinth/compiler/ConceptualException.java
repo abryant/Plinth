@@ -14,11 +14,12 @@ public class ConceptualException extends Exception
   private static final long serialVersionUID = 1L;
 
   private LexicalPhrase lexicalPhrase;
+  private ConceptualException attachedNote;
 
   /**
    * Creates a new ConceptualException with the specified message.
    * @param message - the message to embed in this exception
-   * @param lexicalPhrase - the LexicalPhrase of the name that could not be resolved
+   * @param lexicalPhrase - the LexicalPhrase of the conceptual problem
    */
   public ConceptualException(String message, LexicalPhrase lexicalPhrase)
   {
@@ -27,10 +28,31 @@ public class ConceptualException extends Exception
   }
 
   /**
-   * @return the lexicalPhrase of the unresolved name
+   * Creates a new ConceptualException with the specified message.
+   * @param message - the message to embed in this exception
+   * @param lexicalPhrase - the LexicalPhrase of the conceptual problem
+   * @param attachedNote - a note to add to the description of the problem
+   */
+  public ConceptualException(String message, LexicalPhrase lexicalPhrase, ConceptualException attachedNote)
+  {
+    super(message, attachedNote);
+    this.lexicalPhrase = lexicalPhrase;
+    this.attachedNote = attachedNote;
+  }
+
+  /**
+   * @return the LexicalPhrase of the conceptual problem
    */
   public LexicalPhrase getLexicalPhrase()
   {
     return lexicalPhrase;
+  }
+
+  /**
+   * @return any note to add to the description of the problem
+   */
+  public ConceptualException getAttachedNote()
+  {
+    return attachedNote;
   }
 }

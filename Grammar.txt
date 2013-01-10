@@ -13,7 +13,8 @@ MemberList = epsilon |
              MemberList Field |
              MemberList Constructor |
              MemberList Method
-Modifiers = FinalKeyword                | Modifiers FinalKeyword     |
+Modifiers = AbstractKeyword             | Modifiers AbstractKeyword  |
+            FinalKeyword                | Modifiers FinalKeyword     |
             ImmutableKeyword            | Modifiers ImmutableKeyword |
             MutableKeyword              | Modifiers MutableKeyword   |
             NativeKeyword               | Modifiers NativeKeyword    |

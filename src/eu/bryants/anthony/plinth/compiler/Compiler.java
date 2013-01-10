@@ -231,6 +231,10 @@ public class Compiler
       {
         CycleChecker.checkInheritanceCycles(compilationUnit);
       }
+      for (TypeDefinition typeDefinition : importedTypeDefinitions)
+      {
+        InheritanceChecker.checkInheritedMembers(typeDefinition);
+      }
       for (CompilationUnit compilationUnit : compilationUnits)
       {
         InheritanceChecker.checkInheritedMembers(compilationUnit);
@@ -291,13 +295,13 @@ public class Compiler
     }
     catch (ConceptualException e)
     {
-      printConceptualException(e.getMessage(), e.getLexicalPhrase());
+      printConceptualException(e.getMessage(), e.getLexicalPhrase(), e.getAttachedNote());
       e.printStackTrace();
       System.exit(7);
     }
     catch (NameNotResolvedException e)
     {
-      printConceptualException(e.getMessage(), e.getLexicalPhrase());
+      printConceptualException(e.getMessage(), e.getLexicalPhrase(), null);
       e.printStackTrace();
       System.exit(7);
     }
@@ -544,43 +548,23 @@ public class Compiler
   /**
    * Prints all of the data from a ConceptualException to System.err.
    * @param message - the message from the exception
-   * @param lexicalPhrases - the LexicalPhrases associated with the exception
+   * @param lexicalPhrase - the LexicalPhrase associated with the exception
+   * @param attachedNote - any note attached to the ConceptualException
    */
-  public static void printConceptualException(String message, LexicalPhrase... lexicalPhrases)
+  public static void printConceptualException(String message, LexicalPhrase lexicalPhrase, ConceptualException attachedNote)
   {
-    if (lexicalPhrases == null || lexicalPhrases.length < 1)
+    if (lexicalPhrase == null)
     {
       System.err.println(message);
-      return;
-    }
-    // make a String representation of the LexicalPhrases' character ranges
-    StringBuffer buffer = new StringBuffer();
-    for (int i = 0; i < lexicalPhrases.length; i++)
-    {
-      if (lexicalPhrases[i] == null)
-      {
-        System.err.println(message);
-        return;
-      }
-      // line:start-end
-      buffer.append(lexicalPhrases[i].getLocationText());
-      if (i != lexicalPhrases.length - 1)
-      {
-        buffer.append(", ");
-      }
-    }
-    if (lexicalPhrases.length == 1)
-    {
-      System.err.println(buffer + ": " + message);
-      System.err.println(lexicalPhrases[0].getHighlightedLine());
     }
     else
     {
-      System.err.println(buffer + ": " + message);
-      for (LexicalPhrase phrase : lexicalPhrases)
-      {
-        System.err.println(phrase.getHighlightedLine());
-      }
+      System.err.println(lexicalPhrase.getLocationText() + ": " + message);
+      System.err.println(lexicalPhrase.getHighlightedLine());
+    }
+    if (attachedNote != null)
+    {
+      printConceptualException(attachedNote.getMessage(), attachedNote.getLexicalPhrase(), attachedNote.getAttachedNote());
     }
   }
 }

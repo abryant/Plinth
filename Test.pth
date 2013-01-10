@@ -1,6 +1,6 @@
 package foo.bar;
 
-class A
+abstract class A
 {
   static ?A escaped;
   this()
@@ -16,10 +16,7 @@ class A
   {
     stdout::println(toString());
   }
-  immutable string toString()
-  {
-    return "A is not immutable";
-  }
+  abstract immutable string toString();
 }
 
 immutable class B extends A
