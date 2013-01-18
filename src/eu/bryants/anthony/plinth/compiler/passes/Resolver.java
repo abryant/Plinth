@@ -15,6 +15,7 @@ import java.util.Stack;
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression;
@@ -214,21 +215,47 @@ public class Resolver
   {
     if (typeDefinition instanceof ClassDefinition)
     {
-      QName superQName = ((ClassDefinition) typeDefinition).getSuperClassQName();
+      ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
+      QName superQName = classDefinition.getSuperClassQName();
       if (superQName != null)
       {
-        NamedType type = new NamedType(false, false, superQName, superQName.getLexicalPhrase());
-        resolve(type, compilationUnit);
-        TypeDefinition superTypeDefinition = type.getResolvedTypeDefinition();
+        TypeDefinition superTypeDefinition = resolveTypeDefinition(superQName, compilationUnit);
         if (superTypeDefinition instanceof CompoundDefinition)
         {
-          throw new ConceptualException("A class may not extend a compound type", typeDefinition.getLexicalPhrase());
+          throw new ConceptualException("A class may not extend a compound type", classDefinition.getLexicalPhrase());
+        }
+        else if (superTypeDefinition instanceof InterfaceDefinition)
+        {
+          throw new ConceptualException("A class may not extend an interface", classDefinition.getLexicalPhrase());
         }
         else if (!(superTypeDefinition instanceof ClassDefinition))
         {
-          throw new ConceptualException("A class may only extend another class", typeDefinition.getLexicalPhrase());
+          throw new ConceptualException("A class may only extend another class", classDefinition.getLexicalPhrase());
         }
-        ((ClassDefinition) typeDefinition).setSuperClassDefinition((ClassDefinition) superTypeDefinition);
+        classDefinition.setSuperClassDefinition((ClassDefinition) superTypeDefinition);
+      }
+      QName[] superInterfaceQNames = classDefinition.getSuperInterfaceQNames();
+      if (superInterfaceQNames != null)
+      {
+        InterfaceDefinition[] resolvedDefinitions = new InterfaceDefinition[superInterfaceQNames.length];
+        for (int i = 0; i < superInterfaceQNames.length; ++i)
+        {
+          TypeDefinition resolvedInterface = resolveTypeDefinition(superInterfaceQNames[i], compilationUnit);
+          if (resolvedInterface instanceof ClassDefinition)
+          {
+            throw new ConceptualException("A class may not implement another class", classDefinition.getLexicalPhrase());
+          }
+          else if (resolvedInterface instanceof CompoundDefinition)
+          {
+            throw new ConceptualException("A class may not implement a compound type", classDefinition.getLexicalPhrase());
+          }
+          else if (!(resolvedInterface instanceof InterfaceDefinition))
+          {
+            throw new ConceptualException("A class may only implement interfaces", classDefinition.getLexicalPhrase());
+          }
+          resolvedDefinitions[i] = (InterfaceDefinition) resolvedInterface;
+        }
+        classDefinition.setSuperInterfaceDefinitions(resolvedDefinitions);
       }
     }
 
@@ -344,16 +371,18 @@ public class Resolver
   }
 
   /**
-   * Tries to resolve the specified QName to a TypeDefinition, from the context of the root package.
+   * Tries to resolve the specified QName to a TypeDefinition, from the context of the specified compilation unit,
+   * or if no compilation unit is given or nothing can be found there, the root package.
    * @param qname - the QName to resolve
+   * @param compilationUnit - the CompilationUnit to resolve the QName in the context of
    * @return the TypeDefinition resolved
    * @throws NameNotResolvedException - if the QName cannot be resolved
    * @throws ConceptualException - if a conceptual error occurs while resolving the TypeDefinition
    */
-  public TypeDefinition resolveTypeDefinition(QName qname) throws NameNotResolvedException, ConceptualException
+  public TypeDefinition resolveTypeDefinition(QName qname, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
-    NamedType namedType = new NamedType(false, false, qname, null);
-    resolve(namedType, null);
+    NamedType namedType = new NamedType(false, false, qname, qname.getLexicalPhrase());
+    resolve(namedType, compilationUnit);
     return namedType.getResolvedTypeDefinition();
   }
 

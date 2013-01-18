@@ -9,6 +9,7 @@ import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
+import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.member.Method;
@@ -126,39 +127,19 @@ public class NamedType extends Type
       throw new IllegalStateException("Cannot check whether two types are assign-compatible before they are resolved");
     }
     NamedType otherNamedType = (NamedType) type;
-    if (resolvedTypeDefinition instanceof ClassDefinition)
+    TypeDefinition otherResolvedTypeDefinition = otherNamedType.getResolvedTypeDefinition();
+    boolean found = false;
+    for (TypeDefinition otherSuperType : otherResolvedTypeDefinition.getInheritanceLinearisation())
     {
-      if (!(otherNamedType.getResolvedTypeDefinition() instanceof ClassDefinition))
+      if (otherSuperType == resolvedTypeDefinition)
       {
-        // cannot convert a non-ClassDefinition NamedType into a ClassDefinition one, since it can never be a subtype
-        return false;
-      }
-      ClassDefinition current = (ClassDefinition) otherNamedType.getResolvedTypeDefinition();
-      while (current != null)
-      {
-        if (current.equals(resolvedTypeDefinition))
-        {
-          break;
-        }
-        current = current.getSuperClassDefinition();
-      }
-      if (current == null)
-      {
-        // we couldn't find this type's ClassDefinition in the parent hierarchy of the other type's ClassDefinition
-        // so this is not a superclass of the other type, so it is not assign-compatible
-        return false;
+        found = true;
+        break;
       }
     }
-    else if (resolvedTypeDefinition instanceof CompoundDefinition)
+    if (!found)
     {
-      if (!resolvedTypeDefinition.equals(otherNamedType.getResolvedTypeDefinition()))
-      {
-        return false;
-      }
-    }
-    else
-    {
-      throw new IllegalStateException("Unknown type of TypeDefinition: " + resolvedTypeDefinition);
+      return false;
     }
     // an immutable type definition means the type is always immutable, so it must be equivalent regardless of immutability
     // this works with inheritance, since an immutable parent class can only have immutable subclasses
@@ -218,94 +199,74 @@ public class NamedType extends Type
     {
       throw new IllegalStateException("Cannot get the members of a NamedType before it is resolved");
     }
+
     // store the disambiguators as well as the members, so that we can keep track of
     // whether we have added e.g. a function with type {uint -> void}
     Map<String, Member> matches = new HashMap<String, Member>();
-    Field field = resolvedTypeDefinition.getField(name);
-    if (field != null)
+
+    // try to add members from the inherited classes in order, but be careful not to add
+    // members which cannot be disambiguated from those we have already added
+    TypeDefinition[] searchList = resolvedTypeDefinition.getInheritanceLinearisation();
+    for (TypeDefinition currentDefinition : searchList)
     {
-      matches.put("F" + field.getName(), field);
-    }
-    Set<Method> methodSet = resolvedTypeDefinition.getMethodsByName(name);
-    if (methodSet != null)
-    {
-      for (Method method : methodSet)
+      Field currentField = currentDefinition.getField(name);
+      // exclude static fields from being inherited
+      if (currentField != null && (!currentField.isStatic() || inheritStaticMembers || currentDefinition == resolvedTypeDefinition) && !matches.containsKey("F" + currentField.getName()))
       {
-        String disambiguator = "M" + method.getDisambiguator().toString();
-        Member old = matches.get(disambiguator);
-        if (old == null)
-        {
-          matches.put(disambiguator, method);
-        }
-        else
-        {
-          Method oldMethod = (Method) old;
-          // we have a second method with the same disambiguator
-          // since the Resolver prohibits duplicate non-static methods, this one must be static
-          if (!method.isStatic() || !oldMethod.isStatic())
-          {
-            throw new IllegalStateException("Duplicate non-static methods can not exist in a class");
-          }
-          // find which of these static methods has the greater since specifier, and use it
-          SinceSpecifier oldSince = oldMethod.getSinceSpecifier();
-          SinceSpecifier newSince = method.getSinceSpecifier();
-          Method newer = oldSince == null ? method :
-                         oldSince.compareTo(newSince) < 0 ? method : oldMethod;
-          matches.put(disambiguator, newer);
-        }
+        matches.put("F" + currentField.getName(), currentField);
       }
-    }
-    if (resolvedTypeDefinition instanceof ClassDefinition)
-    {
-      // try to add members from the parent classes, but be careful not to add
-      // members which cannot be disambiguated from those we have already added
-      ClassDefinition currentDefinition = ((ClassDefinition) resolvedTypeDefinition).getSuperClassDefinition();
-      while (currentDefinition != null)
+      Set<Method> currentMethodSet = currentDefinition.getMethodsByName(name);
+      if (currentMethodSet != null)
       {
-        Field currentField = currentDefinition.getField(name);
-        // exclude static fields from being inherited
-        if (currentField != null && (inheritStaticMembers || !currentField.isStatic()) && !matches.containsKey("F" + currentField.getName()))
+        for (Method method : currentMethodSet)
         {
-          matches.put("F" + currentField.getName(), currentField);
-        }
-        Set<Method> currentMethodSet = currentDefinition.getMethodsByName(name);
-        if (currentMethodSet != null)
-        {
-          for (Method method : currentMethodSet)
+          if (!method.isStatic() || inheritStaticMembers || currentDefinition == resolvedTypeDefinition)
           {
-            if (inheritStaticMembers || !method.isStatic())
+            String disambiguator = "M" + method.getDisambiguator().toString();
+            Member old = matches.get(disambiguator);
+            if (old == null)
             {
-              String disambiguator = "M" + method.getDisambiguator().toString();
-              Member old = matches.get(disambiguator);
-              if (old == null)
+              matches.put(disambiguator, method);
+            }
+            else
+            {
+              Method oldMethod = (Method) old;
+              // there is already another method with this disambiguator
+              // if it is from a different class, then it was earlier in the resolution list, so don't even try to overwrite it
+              if (oldMethod.getContainingTypeDefinition() != currentDefinition)
               {
-                matches.put(disambiguator, method);
+                continue;
               }
-              else
+              // since the Resolver prohibits duplicate non-static methods in a single type, this one must be static
+              if (!method.isStatic() || !oldMethod.isStatic())
               {
-                Method oldMethod = (Method) old;
-                // there is already another method with this disambiguator
-                // if it is from a subclass, don't even try to overwrite it
-                if (oldMethod.getContainingTypeDefinition() != currentDefinition)
-                {
-                  continue;
-                }
-                // since the Resolver prohibits duplicate non-static methods in a single type, this one must be static
-                if (!method.isStatic() || !oldMethod.isStatic())
-                {
-                  throw new IllegalStateException("Duplicate non-static methods can not exist in a class");
-                }
-                // find which of these static methods has the greater since specifier, and use it
-                SinceSpecifier oldSince = oldMethod.getSinceSpecifier();
-                SinceSpecifier newSince = method.getSinceSpecifier();
-                Method newer = oldSince == null ? method :
-                               oldSince.compareTo(newSince) < 0 ? method : oldMethod;
-                matches.put(disambiguator, newer);
+                throw new IllegalStateException("Duplicate non-static methods can not exist in a class");
               }
+              // find which of these static methods has the greater since specifier, and use it
+              SinceSpecifier oldSince = oldMethod.getSinceSpecifier();
+              SinceSpecifier newSince = method.getSinceSpecifier();
+              Method newer = oldSince == null ? method :
+                             oldSince.compareTo(newSince) < 0 ? method : oldMethod;
+              matches.put(disambiguator, newer);
             }
           }
         }
-        currentDefinition = currentDefinition.getSuperClassDefinition();
+      }
+    }
+    for (BuiltinMethod builtin : ObjectType.OBJECT_METHODS)
+    {
+      if (!builtin.getName().equals(name))
+      {
+        continue;
+      }
+      if (!builtin.isStatic() || inheritStaticMembers)
+      {
+        String disambiguator = "M" + builtin.getDisambiguator().toString();
+        Member old = matches.get(disambiguator);
+        if (old == null)
+        {
+          matches.put(disambiguator, builtin);
+        }
       }
     }
     return new HashSet<Member>(matches.values());

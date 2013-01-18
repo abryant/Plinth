@@ -5,6 +5,7 @@ import parser.lalr.LALRRuleSet;
 import eu.bryants.anthony.plinth.parser.rules.ClassDefinitionRule;
 import eu.bryants.anthony.plinth.parser.rules.CompilationUnitRule;
 import eu.bryants.anthony.plinth.parser.rules.CompoundDefinitionRule;
+import eu.bryants.anthony.plinth.parser.rules.InterfaceDefinitionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.AdditiveExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.BasicPrimaryRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.ClassCreationExpressionRule;
@@ -36,7 +37,9 @@ import eu.bryants.anthony.plinth.parser.rules.misc.AssigneeRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.DeclarationAssigneeListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ForInitRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ForUpdateRule;
+import eu.bryants.anthony.plinth.parser.rules.misc.ImplementsClauseRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ImportsRule;
+import eu.bryants.anthony.plinth.parser.rules.misc.InterfaceListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ModifiersRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.NestedQNameListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.OptionalModifiersRule;
@@ -112,7 +115,9 @@ public class PlinthParseRules
     new DeclarationAssigneeListRule(),
     new ForInitRule(),
     new ForUpdateRule(),
+    new ImplementsClauseRule(),
     new ImportsRule(),
+    new InterfaceListRule(),
     new ModifiersRule(),
     new NestedQNameListRule(),
     new OptionalModifiersRule(),
@@ -146,6 +151,7 @@ public class PlinthParseRules
     // startRule does not need to be included here: new CompilationUnitRule(),
     new ClassDefinitionRule(),
     new CompoundDefinitionRule(),
+    new InterfaceDefinitionRule(),
   };
 
   @SuppressWarnings("unchecked")

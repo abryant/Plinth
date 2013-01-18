@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
@@ -19,6 +20,8 @@ import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
 import eu.bryants.anthony.plinth.ast.misc.QName;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
+import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 
 /*
@@ -201,26 +204,45 @@ public class CompoundDefinition extends TypeDefinition
   }
 
   /**
+   * Adds all of the builtin methods which are not explicitly implemented.
+   */
+  private void addBuiltinMethods()
+  {
+    for (BuiltinMethod builtinMethod : ObjectType.OBJECT_METHODS)
+    {
+      Set<Method> methodSet = methods.get(builtinMethod.getName());
+      if (methodSet == null)
+      {
+        methodSet = new HashSet<Method>();
+        methods.put(builtinMethod.getName(), methodSet);
+      }
+      boolean found = false;
+      for (Method m : methodSet)
+      {
+        if (m.getDisambiguator().matches(builtinMethod.getDisambiguator()))
+        {
+          found = true;
+          break;
+        }
+      }
+      if (!found)
+      {
+        BuiltinMethod customBuiltin = new BuiltinMethod(new NamedType(false, isImmutable(), this), builtinMethod.getBuiltinType());
+        customBuiltin.setContainingTypeDefinition(this);
+        methodSet.add(customBuiltin);
+      }
+    }
+  }
+
+  /**
    * {@inheritDoc}
    */
   @Override
   public void buildNonStaticMethods()
   {
-    nonStaticMethods = buildNonStaticMethodList(true);
-    for (Method method : nonStaticMethods)
-    {
-      Set<Method> methodSet = methods.get(method.getName());
-      if (methodSet == null)
-      {
-        methodSet = new HashSet<Method>();
-        methods.put(method.getName(), methodSet);
-      }
-      if (!methodSet.contains(method))
-      {
-        method.setContainingTypeDefinition(this);
-        methodSet.add(method);
-      }
-    }
+    // add any builtin methods which were not overridden by the user
+    addBuiltinMethods();
+    nonStaticMethods = buildNonStaticMethodList();
   }
 
   /**
@@ -256,6 +278,25 @@ public class CompoundDefinition extends TypeDefinition
   public Field[] getNonStaticFields()
   {
     return nonStaticFields;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public Field[] getStaticFields()
+  {
+    Field[] staticFields = new Field[fields.size() - nonStaticFields.length];
+    int index = 0;
+    for (Field f : fields.values())
+    {
+      if (f.isStatic())
+      {
+        staticFields[index] = f;
+        ++index;
+      }
+    }
+    return staticFields;
   }
 
   /**
@@ -302,6 +343,35 @@ public class CompoundDefinition extends TypeDefinition
   }
 
   /**
+   * @return the sorted array of all of the non-static methods in this CompoundDefinition
+   */
+  @Override
+  public Method[] getNonStaticMethods()
+  {
+    return nonStaticMethods;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public Method[] getStaticMethods()
+  {
+    Method[] allMethods = getAllMethods();
+    Method[] staticMethods = new Method[allMethods.length - nonStaticMethods.length];
+    int index = 0;
+    for (Method m : allMethods)
+    {
+      if (m.isStatic())
+      {
+        staticMethods[index] = m;
+        ++index;
+      }
+    }
+    return staticMethods;
+  }
+
+  /**
    * @param name - the name to get the methods with
    * @return the set of methods with the specified name
    */
@@ -314,15 +384,6 @@ public class CompoundDefinition extends TypeDefinition
       return new HashSet<Method>();
     }
     return result;
-  }
-
-  /**
-   * @return the sorted array of all of the non-static methods in this CompoundDefinition
-   */
-  @Override
-  public Method[] getNonStaticMethods()
-  {
-    return nonStaticMethods;
   }
 
   /**

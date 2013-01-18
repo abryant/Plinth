@@ -90,7 +90,7 @@ public class BuiltinMethod extends Method
   @Override
   public String getMangledName()
   {
-    // wherever possible, this needs to be equivalent to Method.getMangledName(), so that built-in object methods work
+    // wherever possible, this needs to be equivalent to Method.getMangledName(), so that built-in methods work on compound types
     if (getContainingTypeDefinition() != null)
     {
       return super.getMangledName();

@@ -24,8 +24,8 @@ public class ClassDefinitionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION         = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CLASS_KEYWORD, ParseType.NAME,                                             ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
-  private static final Production<ParseType> EXTENDS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CLASS_KEYWORD, ParseType.NAME, ParseType.EXTENDS_KEYWORD, ParseType.QNAME, ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
+  private static final Production<ParseType> PRODUCTION         = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CLASS_KEYWORD, ParseType.NAME,                                             ParseType.IMPLEMENTS_CLAUSE, ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
+  private static final Production<ParseType> EXTENDS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CLASS_KEYWORD, ParseType.NAME, ParseType.EXTENDS_KEYWORD, ParseType.QNAME, ParseType.IMPLEMENTS_CLAUSE, ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
 
   public ClassDefinitionRule()
   {
@@ -44,9 +44,17 @@ public class ClassDefinitionRule extends Rule<ParseType>
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
       Name name = (Name) args[2];
       @SuppressWarnings("unchecked")
-      ParseList<Member> members = (ParseList<Member>) args[4];
-      return processModifiers(modifiers, name.getName(), null, members.toArray(new Member[members.size()]),
-                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), (LexicalPhrase) args[3], members.getLexicalPhrase(), (LexicalPhrase) args[5]));
+      ParseList<QName> implementsList = (ParseList<QName>) args[3];
+      LexicalPhrase implementsLexicalPhrase = implementsList == null ? null : implementsList.getLexicalPhrase();
+      QName[] interfaceQNames = null;
+      if (implementsList != null)
+      {
+        interfaceQNames = implementsList.toArray(new QName[implementsList.size()]);
+      }
+      @SuppressWarnings("unchecked")
+      ParseList<Member> members = (ParseList<Member>) args[5];
+      return processModifiers(modifiers, name.getName(), null, interfaceQNames, members.toArray(new Member[members.size()]),
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), implementsLexicalPhrase, (LexicalPhrase) args[4], members.getLexicalPhrase(), (LexicalPhrase) args[6]));
     }
     if (production == EXTENDS_PRODUCTION)
     {
@@ -55,14 +63,22 @@ public class ClassDefinitionRule extends Rule<ParseType>
       Name name = (Name) args[2];
       QName superQName = (QName) args[4];
       @SuppressWarnings("unchecked")
-      ParseList<Member> members = (ParseList<Member>) args[6];
-      return processModifiers(modifiers, name.getName(), superQName, members.toArray(new Member[members.size()]),
-                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), (LexicalPhrase) args[3], superQName.getLexicalPhrase(), (LexicalPhrase) args[5], members.getLexicalPhrase(), (LexicalPhrase) args[7]));
+      ParseList<QName> implementsList = (ParseList<QName>) args[5];
+      LexicalPhrase implementsLexicalPhrase = implementsList == null ? null : implementsList.getLexicalPhrase();
+      QName[] interfaceQNames = null;
+      if (implementsList != null)
+      {
+        interfaceQNames = implementsList.toArray(new QName[implementsList.size()]);
+      }
+      @SuppressWarnings("unchecked")
+      ParseList<Member> members = (ParseList<Member>) args[7];
+      return processModifiers(modifiers, name.getName(), superQName, interfaceQNames, members.toArray(new Member[members.size()]),
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), (LexicalPhrase) args[3], superQName.getLexicalPhrase(), implementsLexicalPhrase, (LexicalPhrase) args[6], members.getLexicalPhrase(), (LexicalPhrase) args[8]));
     }
     throw badTypeList();
   }
 
-  private ClassDefinition processModifiers(ParseList<Modifier> modifiers, String name, QName superQName, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  private ClassDefinition processModifiers(ParseList<Modifier> modifiers, String name, QName superQName, QName[] interfaceQNames, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     boolean isAbstract = false;
     boolean isImmutable = false;
@@ -107,6 +123,6 @@ public class ClassDefinitionRule extends Rule<ParseType>
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }
-    return new ClassDefinition(isAbstract, isImmutable, name, superQName, members, lexicalPhrase);
+    return new ClassDefinition(isAbstract, isImmutable, name, superQName, interfaceQNames, members, lexicalPhrase);
   }
 }

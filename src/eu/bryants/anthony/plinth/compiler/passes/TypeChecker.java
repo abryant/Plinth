@@ -7,6 +7,7 @@ import java.util.List;
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression.ArithmeticOperator;
@@ -897,6 +898,21 @@ public class TypeChecker
           return expression.getType();
         }
       }
+      if (exprType instanceof NamedType && castedType instanceof NamedType)
+      {
+        TypeDefinition exprDefinition = ((NamedType) exprType).getResolvedTypeDefinition();
+        TypeDefinition castedDefinition = ((NamedType) castedType).getResolvedTypeDefinition();
+        // allow sideways casts between named types where:
+        // * at least one of the types is an interface
+        // * neither of the types is a compound type
+        // * TODO: neither of the types is a sealed class type
+        if ((exprDefinition instanceof InterfaceDefinition || castedDefinition instanceof InterfaceDefinition) &&
+            !(exprDefinition instanceof CompoundDefinition) && !(castedDefinition instanceof CompoundDefinition))
+        {
+          // return the type of the cast expression (it has already been set during parsing)
+          return expression.getType();
+        }
+      }
       throw new ConceptualException("Cannot cast from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
     }
     else if (expression instanceof ClassCreationExpression)
@@ -1706,6 +1722,47 @@ public class TypeChecker
       if (alteredB.canAssign(a))
       {
         return alteredB;
+      }
+
+      // the two types are not in a parent-child relationship, i.e. neither of the type definitions inherits from the other
+      // so see if they have any super-types in common
+      // if we find a class definition in common, we choose it immediately
+      // if we find any interface definitions in common, we choose the one which is closest to the start of the two types' linearisations (or if two are equally close, we choose object)
+      int bestCombinedIndex = Integer.MAX_VALUE;
+      TypeDefinition bestSuperType = null;
+      TypeDefinition[] linearisationA = namedA.getResolvedTypeDefinition().getInheritanceLinearisation();
+      TypeDefinition[] linearisationB = namedB.getResolvedTypeDefinition().getInheritanceLinearisation();
+      superTypeLoop:
+      for (int indexA = 0; indexA < linearisationA.length; ++indexA)
+      {
+        for (int indexB = 0; indexB < linearisationB.length; ++indexB)
+        {
+          if (linearisationA[indexA] == linearisationB[indexB])
+          {
+            if (linearisationA[indexA] instanceof ClassDefinition)
+            {
+              bestSuperType = linearisationA[indexA];
+              break superTypeLoop;
+            }
+            int combinedIndex = indexA + indexB;
+            if (combinedIndex < bestCombinedIndex)
+            {
+              bestCombinedIndex = combinedIndex;
+              bestSuperType = linearisationA[indexA];
+            }
+            else if (combinedIndex == bestCombinedIndex)
+            {
+              // default to object, unless we can find a better combined index
+              bestSuperType = null;
+            }
+            // skip the rest of the inner loop, since the lists do not contain duplicates
+            continue superTypeLoop;
+          }
+        }
+      }
+      if (bestSuperType != null)
+      {
+        return new NamedType(nullability, explicitImmutability, contextualImmutability, bestSuperType);
       }
     }
     if (a instanceof TupleType && b instanceof TupleType)

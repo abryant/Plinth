@@ -3,8 +3,6 @@ package eu.bryants.anthony.plinth.ast;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -17,57 +15,46 @@ import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
-import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 
 /*
- * Created on 9 Sep 2012
+ * Created on 9 Jan 2013
  */
 
 /**
  * @author Anthony Bryant
  */
-public class ClassDefinition extends TypeDefinition
+public class InterfaceDefinition extends TypeDefinition
 {
 
-  private QName superQName;
-  private QName[] superInterfaceQNames;
-
   private List<Initialiser> initialisers = new LinkedList<Initialiser>();
-  // fields need a guaranteed order, so use a LinkedHashMap to store them
-  private Map<String, Field> fields = new LinkedHashMap<String, Field>();
-  private Set<Constructor> constructors = new HashSet<Constructor>();
+  private Map<String, Field> fields = new HashMap<String, Field>();
   private Map<String, Set<Method>> methods = new HashMap<String, Set<Method>>();
 
-  private Field[] nonStaticFields;
   private Method[] nonStaticMethods;
 
-  private ClassDefinition superClassDefinition;
-  private InterfaceDefinition[] superInterfaceDefinitions;
-
   /**
-   * Creates a new ClassDefinition with the specified members.
-   * @param isAbstract - true if this class definition should be abstract, false otherwise
-   * @param isImmutable - true if this class definition should be immutable, false otherwise
-   * @param name - the name of the class definition
-   * @param superQName - the qualified name of the superclass, or null if there is no superclass
-   * @param superInterfaceQNames - the qualified names of all interfaces that this class implements, or null if it does not implement any
-   * @param members - the list of Members of this ClassDefinition
-   * @param lexicalPhrase - the LexicalPhrase of this ClassDefinition
-   * @throws LanguageParseException - if there is a name collision between any of the Members
+   * Creates a new InterfaceDefinition with the specified members.
+   * @param isImmutable - true if this interface definition should be immutable, false otherwise
+   * @param name - the name of the interface definition
+   * @param members - the list of Members of this InterfaceDefinition
+   * @param lexicalPhrase - the LexicalPhrase of this InterfaceDefinition
+   * @throws LanguageParseException - if there is a name collision between any of the Members, or a conceptual problem with any of them belonging to an interface
    */
-  public ClassDefinition(boolean isAbstract, boolean isImmutable, String name, QName superQName, QName[] superInterfaceQNames, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  public InterfaceDefinition(boolean isImmutable, String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
-    super(isAbstract, isImmutable, name, lexicalPhrase);
-    this.superQName = superQName;
-    this.superInterfaceQNames = superInterfaceQNames;
+    super(true, isImmutable, name, lexicalPhrase);
     // add all of the members by name
     Set<Method> allMethods = new HashSet<Method>();
     for (Member member : members)
     {
       if (member instanceof Initialiser)
       {
+        if (!((Initialiser) member).isStatic())
+        {
+          throw new LanguageParseException("Interfaces cannot contain non-static initialisers", member.getLexicalPhrase());
+        }
         initialisers.add((Initialiser) member);
       }
       if (member instanceof Field)
@@ -81,14 +68,11 @@ public class ClassDefinition extends TypeDefinition
         {
           throw new LanguageParseException("A method with the name '" + field.getName() + "' already exists in '" + name + "', so a field cannot be defined with the same name", field.getLexicalPhrase());
         }
-        if (field.isStatic())
+        if (!field.isStatic())
         {
-          field.setGlobalVariable(new GlobalVariable(field, this));
+          throw new LanguageParseException("Interfaces cannot store (non-static) data", field.getLexicalPhrase());
         }
-        else
-        {
-          field.setMemberVariable(new MemberVariable(field, this));
-        }
+        field.setGlobalVariable(new GlobalVariable(field, this));
         fields.put(field.getName(), field);
         if (field.getInitialiserExpression() != null)
         {
@@ -97,13 +81,7 @@ public class ClassDefinition extends TypeDefinition
       }
       if (member instanceof Constructor)
       {
-        Constructor constructor = (Constructor) member;
-        constructor.setContainingTypeDefinition(this);
-        if (isImmutable)
-        {
-          constructor.setImmutable(true);
-        }
-        constructors.add(constructor);
+        throw new LanguageParseException("Interfaces cannot have constructors", member.getLexicalPhrase());
       }
       if (member instanceof Method)
       {
@@ -123,48 +101,31 @@ public class ClassDefinition extends TypeDefinition
         {
           method.setImmutable(true);
         }
+        if (!method.isStatic())
+        {
+          // all non-static interface methods are implicitly abstract
+          // TODO: add support for mixins (i.e. allow non-abstract methods if they have a block)
+          method.setAbstract(true);
+        }
         methodSet.add(method);
         allMethods.add(method);
       }
     }
-    nonStaticFields = buildNonStaticFieldList(fields.values());
   }
 
   /**
-   * Creates a new ClassDefinition with the specified members.
-   * @param isAbstract - true if this class definition should be abstract, false otherwise
-   * @param isImmutable - true if this class definition should be immutable, false otherwise
-   * @param qname - the qualified name of the class definition
-   * @param superQName - the qualified name of the superclass, or null if there is no superclass
-   * @param superInterfaceQNames - the qualified names of all interfaces that this class implements, or null if it does not implement any
-   * @param nonStaticFields - the non static fields, with their indexes already filled in
+   * Creates a new InterfaceDefinition with the specified members.
+   * @param isImmutable - true if this interface definition should be immutable, false otherwise
+   * @param qname - the qualified name of the interface definition
    * @param staticFields - the static fields
-   * @param newConstructors - the constructors
    * @param nonStaticMethods - the non-static methods, with their indexes already filled in
    * @param staticMethods - the static methods
    * @throws LanguageParseException - if there is a name collision between any of the methods
    */
-  public ClassDefinition(boolean isAbstract, boolean isImmutable, QName qname, QName superQName, QName[] superInterfaceQNames, Field[] nonStaticFields, Field[] staticFields, Constructor[] newConstructors, Method[] nonStaticMethods, Method[] staticMethods) throws LanguageParseException
+  public InterfaceDefinition(boolean isImmutable, QName qname, Field[] staticFields, Method[] nonStaticMethods, Method[] staticMethods) throws LanguageParseException
   {
-    super(isAbstract, isImmutable, qname.getLastName(), null);
+    super(true, isImmutable, qname.getLastName(), null);
     setQualifiedName(qname);
-    this.superQName = superQName;
-    this.superInterfaceQNames = superInterfaceQNames;
-    for (Field f : nonStaticFields)
-    {
-      if (fields.containsKey(f.getName()))
-      {
-        throw new LanguageParseException("A field with the name '" + f.getName() + "' already exists in '" + getName() + "', so another field cannot be defined with the same name", f.getLexicalPhrase());
-      }
-      if (methods.containsKey(f.getName()))
-      {
-        throw new LanguageParseException("A method with the name '" + f.getName() + "' already exists in '" + getName() + "', so a field cannot be defined with the same name", f.getLexicalPhrase());
-      }
-      f.setMemberVariable(new MemberVariable(f, this));
-      // we assume that the fields' indices have already been filled in
-      fields.put(f.getName(), f);
-    }
-    this.nonStaticFields = nonStaticFields;
     for (Field f : staticFields)
     {
       if (fields.containsKey(f.getName()))
@@ -177,11 +138,6 @@ public class ClassDefinition extends TypeDefinition
       }
       f.setGlobalVariable(new GlobalVariable(f, this));
       fields.put(f.getName(), f);
-    }
-    for (Constructor constructor : newConstructors)
-    {
-      constructor.setContainingTypeDefinition(this);
-      constructors.add(constructor);
     }
     for (Method method : nonStaticMethods)
     {
@@ -217,22 +173,6 @@ public class ClassDefinition extends TypeDefinition
   }
 
   /**
-   * @return the superQName
-   */
-  public QName getSuperClassQName()
-  {
-    return superQName;
-  }
-
-  /**
-   * @return the superInterfaceQNames
-   */
-  public QName[] getSuperInterfaceQNames()
-  {
-    return superInterfaceQNames;
-  }
-
-  /**
    * {@inheritDoc}
    */
   @Override
@@ -251,30 +191,22 @@ public class ClassDefinition extends TypeDefinition
   }
 
   /**
-   * @return the fields
+   * {@inheritDoc}
    */
   @Override
   public Field[] getFields()
   {
-    // iterate over the fields LinkedHashMap so that we retain their order
-    Field[] fieldArray = new Field[fields.size()];
-    Iterator<Field> it = fields.values().iterator();
-    int i = 0;
-    while (it.hasNext())
-    {
-      fieldArray[i] = it.next();
-      i++;
-    }
-    return fieldArray;
+    return fields.values().toArray(new Field[fields.size()]);
   }
 
   /**
-   * @return the non-static fields, in order of their indices
+   * {@inheritDoc}
    */
   @Override
   public Field[] getNonStaticFields()
   {
-    return nonStaticFields;
+    // interfaces have no non-static fields
+    return new Field[0];
   }
 
   /**
@@ -283,22 +215,11 @@ public class ClassDefinition extends TypeDefinition
   @Override
   public Field[] getStaticFields()
   {
-    Field[] staticFields = new Field[fields.size() - nonStaticFields.length];
-    int index = 0;
-    for (Field f : fields.values())
-    {
-      if (f.isStatic())
-      {
-        staticFields[index] = f;
-        ++index;
-      }
-    }
-    return staticFields;
+    return getFields();
   }
 
   /**
-   * @param name - the name of the field to get
-   * @return the Field with the specified name, or null if none exists
+   * {@inheritDoc}
    */
   @Override
   public Field getField(String name)
@@ -307,16 +228,17 @@ public class ClassDefinition extends TypeDefinition
   }
 
   /**
-   * @return the constructors of this ClassDefinition
+   * {@inheritDoc}
    */
   @Override
   public Collection<Constructor> getAllConstructors()
   {
-    return constructors;
+    // interfaces have no constructors
+    return new HashSet<Constructor>();
   }
 
   /**
-   * @return an array containing all of the methods in this ClassDefinition
+   * {@inheritDoc}
    */
   @Override
   public Method[] getAllMethods()
@@ -340,7 +262,7 @@ public class ClassDefinition extends TypeDefinition
   }
 
   /**
-   * @return the sorted array of all of the non-static methods in this ClassDefinition
+   * {@inheritDoc}
    */
   @Override
   public Method[] getNonStaticMethods()
@@ -369,8 +291,7 @@ public class ClassDefinition extends TypeDefinition
   }
 
   /**
-   * @param name - the name to get the methods with
-   * @return the set of methods with the specified name
+   * {@inheritDoc}
    */
   @Override
   public Set<Method> getMethodsByName(String name)
@@ -384,79 +305,18 @@ public class ClassDefinition extends TypeDefinition
   }
 
   /**
-   * @return the superClassDefinition
-   */
-  public ClassDefinition getSuperClassDefinition()
-  {
-    return superClassDefinition;
-  }
-
-  /**
-   * @param superClassDefinition - the superClassDefinition to set
-   */
-  public void setSuperClassDefinition(ClassDefinition superClassDefinition)
-  {
-    this.superClassDefinition = superClassDefinition;
-  }
-
-  /**
-   * @return the superInterfaceDefinitions
-   */
-  public InterfaceDefinition[] getSuperInterfaceDefinitions()
-  {
-    return superInterfaceDefinitions;
-  }
-
-  /**
-   * @param superInterfaceDefinitions - the superInterfaceDefinitions to set
-   */
-  public void setSuperInterfaceDefinitions(InterfaceDefinition[] superInterfaceDefinitions)
-  {
-    this.superInterfaceDefinitions = superInterfaceDefinitions;
-  }
-
-  /**
-   * @return the mangled name of the allocator of this type definition
-   */
-  public String getAllocatorMangledName()
-  {
-    return "_A" + getQualifiedName().getMangledName();
-  }
-
-  /**
    * {@inheritDoc}
    */
   @Override
   public String toString()
   {
     StringBuffer buffer = new StringBuffer();
-    if (isAbstract())
-    {
-      buffer.append("abstract ");
-    }
     if (isImmutable())
     {
       buffer.append("immutable ");
     }
-    buffer.append("class ");
+    buffer.append("interface ");
     buffer.append(getName());
-    if (superQName != null)
-    {
-      buffer.append(" extends ");
-      buffer.append(superQName);
-    }
-    if (superInterfaceQNames != null)
-    {
-      buffer.append(" implements ");
-      for (int i = 0; i < superInterfaceQNames.length; ++i)
-      {
-        buffer.append(superInterfaceQNames[i]);
-        if (i != superInterfaceQNames.length - 1)
-        {
-          buffer.append(", ");
-        }
-      }
-    }
     buffer.append('\n');
     buffer.append(getBodyString());
     buffer.append('\n');

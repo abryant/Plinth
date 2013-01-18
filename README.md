@@ -14,7 +14,7 @@ To compile the compiler:
 
     src$ find . -name \*.java | xargs javac -d ../bin -cp ../lib/jna.jar:.
 
-To build the plinth runtime (the runtime is architecture independent, but platform dependent; a pre-built runtime for linux exists at `plinth-lib/core-linux.pbc`):
+To build the plinth runtime (the runtime is architecture independent, but platform dependent; a pre-built runtime for linux exists at `plinth-lib/core-x86_64-linux.pbc`):
 
     plinth-lib$ clang -emit-llvm -o core/c/io.bc -c core/c/io.c
     plinth-lib$ llvm-link -o core.pbc core/c/io.bc core/*.ll

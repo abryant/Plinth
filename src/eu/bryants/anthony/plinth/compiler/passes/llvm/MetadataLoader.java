@@ -15,6 +15,7 @@ import com.sun.jna.ptr.IntByReference;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
@@ -53,44 +54,41 @@ public class MetadataLoader
   {
     LLVMValueRef[] classDefinitionNodes = readNamedMetadataOperands(module, "ClassDefinitions");
     LLVMValueRef[] compoundDefinitionNodes = readNamedMetadataOperands(module, "CompoundDefinitions");
+    LLVMValueRef[] interfaceDefinitionNodes = readNamedMetadataOperands(module, "InterfaceDefinitions");
 
     List<TypeDefinition> results = new LinkedList<TypeDefinition>();
     for (LLVMValueRef classDefinitionNode : classDefinitionNodes)
     {
-      results.add(loadTypeDefinition(classDefinitionNode, true));
+      results.add(loadClassDefinition(classDefinitionNode));
     }
     for (LLVMValueRef compoundDefinitionNode : compoundDefinitionNodes)
     {
-      results.add(loadTypeDefinition(compoundDefinitionNode, false));
+      results.add(loadCompoundDefinition(compoundDefinitionNode));
+    }
+    for (LLVMValueRef interfaceDefinitionNode : interfaceDefinitionNodes)
+    {
+      results.add(loadInterfaceDefinition(interfaceDefinitionNode));
     }
     return results;
   }
 
-  /**
-   * Loads a TypeDefinition from the specified metadata node.
-   * @param metadataNode - the metadata node to load from
-   * @param classDefinition - true if this node represents a ClassDefinition, false if it represents a CompoundDefinition
-   * @return the TypeDefinition loaded
-   * @throws MalformedMetadataException - if the metadata is malformed in some way
-   */
-  private static TypeDefinition loadTypeDefinition(LLVMValueRef metadataNode, boolean classDefinition) throws MalformedMetadataException
+  private static ClassDefinition loadClassDefinition(LLVMValueRef metadataNode) throws MalformedMetadataException
   {
     metadataNode = LLVM.LLVMIsAMDNode(metadataNode);
     if (metadataNode == null)
     {
-      throw new MalformedMetadataException("A type definition must be represented by a metadata node");
+      throw new MalformedMetadataException("A class definition must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    int offset = classDefinition ? 2 : 0;
-    if (values.length != 7 + offset)
+    if (values.length != 10)
     {
-      throw new MalformedMetadataException("A type definition's metadata node must have the correct number of sub-nodes");
+      throw new MalformedMetadataException("A class definition's metadata node must have the correct number of sub-nodes");
     }
 
     String qualifiedNameStr = readMDString(values[0]);
     if (qualifiedNameStr == null)
     {
-      throw new MalformedMetadataException("A type definition must begin with a fully qualified name");
+      throw new MalformedMetadataException("A class definition must begin with a fully qualified name");
     }
     QName qname;
     try
@@ -102,93 +100,207 @@ public class MetadataLoader
       throw new MalformedMetadataException(e.getMessage(), e);
     }
 
-    String immutabilityStr = readMDString(values[1]);
-    if (immutabilityStr == null)
-    {
-      throw new MalformedMetadataException("A type definition must specify an immutability");
-    }
-    boolean isImmutable = immutabilityStr.equals("immutable");
+    boolean isAbstract = readBooleanValue(values[1], "class definition", "abstract");
+    boolean isImmutable = readBooleanValue(values[2], "class definition", "immutable");
 
-    if (LLVM.LLVMIsAMDNode(values[2 + offset]) == null || LLVM.LLVMIsAMDNode(values[3 + offset]) == null || LLVM.LLVMIsAMDNode(values[4 + offset]) == null ||
-        LLVM.LLVMIsAMDNode(values[5 + offset]) == null || LLVM.LLVMIsAMDNode(values[6 + offset]) == null)
+    String superClassQNameStr = readMDString(values[3]);
+    if (superClassQNameStr == null)
     {
-      throw new MalformedMetadataException("The member nodes of a type definition must be metadata nodes");
+      throw new MalformedMetadataException("A class definition must contain the fully qualified name of its superclass (or an empty string in its place)");
     }
-
-    LLVMValueRef[] nonStaticFieldNodes = readOperands(values[2 + offset]);
-    Field[] nonStaticFields = new Field[nonStaticFieldNodes.length];
-    for (int i = 0; i < nonStaticFieldNodes.length; ++i)
-    {
-      nonStaticFields[i] = loadField(nonStaticFieldNodes[i], false, i);
-    }
-
-    LLVMValueRef[] staticFieldNodes = readOperands(values[3 + offset]);
-    Field[] staticFields = new Field[staticFieldNodes.length];
-    for (int i = 0; i < staticFieldNodes.length; ++i)
-    {
-      staticFields[i] = loadField(staticFieldNodes[i], true, i);
-    }
-
-    LLVMValueRef[] constructorNodes = readOperands(values[4 + offset]);
-    Constructor[] constructors = new Constructor[constructorNodes.length];
-    for (int i = 0; i < constructorNodes.length; ++i)
-    {
-      constructors[i] = loadConstructor(constructorNodes[i]);
-    }
-
-    LLVMValueRef[] nonStaticMethodNodes = readOperands(values[5 + offset]);
-    Method[] nonStaticMethods = new Method[nonStaticMethodNodes.length];
-    for (int i = 0; i < nonStaticMethodNodes.length; ++i)
-    {
-      nonStaticMethods[i] = loadMethod(nonStaticMethodNodes[i]);
-    }
-
-    LLVMValueRef[] staticMethodNodes = readOperands(values[6 + offset]);
-    Method[] staticMethods = new Method[staticMethodNodes.length];
-    for (int i = 0; i < staticMethodNodes.length; ++i)
-    {
-      staticMethods[i] = loadMethod(staticMethodNodes[i]);
-    }
-
-    TypeDefinition typeDefinition;
+    QName superClassQName;
     try
     {
-      if (classDefinition)
-      {
-        String abstractnessStr = readMDString(values[2]);
-        if (abstractnessStr == null)
-        {
-          throw new MalformedMetadataException("A class definition must specify whether or not it is abstract");
-        }
-        boolean isAbstract = abstractnessStr.equals("abstract");
+      superClassQName = superClassQNameStr.equals("") ? null : new QName(superClassQNameStr);
+    }
+    catch (ConceptualException e)
+    {
+      throw new MalformedMetadataException(e.getMessage(), e);
+    }
 
-        String superClassQNameStr = readMDString(values[3]);
-        if (superClassQNameStr == null)
-        {
-          throw new MalformedMetadataException("A class definition must contain the fully qualified name of its superclass (or an empty string in its place)");
-        }
-        QName superClassQName;
-        try
-        {
-          superClassQName = superClassQNameStr.equals("") ? null : new QName(superClassQNameStr);
-        }
-        catch (ConceptualException e)
-        {
-          throw new MalformedMetadataException(e.getMessage(), e);
-        }
+    QName[] superInterfaceQNames = loadSuperInterfaces(values[4]);
 
-        typeDefinition = new ClassDefinition(isAbstract, isImmutable, qname, superClassQName, nonStaticFields, staticFields, constructors, nonStaticMethods, staticMethods);
-      }
-      else
-      {
-        typeDefinition = new CompoundDefinition(isImmutable, qname, nonStaticFields, staticFields, constructors, nonStaticMethods, staticMethods);
-      }
+    Field[] nonStaticFields = loadFields(values[5], false);
+    Field[] staticFields = loadFields(values[6], true);
+    Constructor[] constructors = loadConstructors(values[7]);
+    Method[] nonStaticMethods = loadMethods(values[8], false);
+    Method[] staticMethods = loadMethods(values[9], true);
+
+    try
+    {
+      return new ClassDefinition(isAbstract, isImmutable, qname, superClassQName, superInterfaceQNames, nonStaticFields, staticFields, constructors, nonStaticMethods, staticMethods);
     }
     catch (LanguageParseException e)
     {
       throw new MalformedMetadataException(e.getMessage(), e);
     }
-    return typeDefinition;
+  }
+
+  private static CompoundDefinition loadCompoundDefinition(LLVMValueRef metadataNode) throws MalformedMetadataException
+  {
+    metadataNode = LLVM.LLVMIsAMDNode(metadataNode);
+    if (metadataNode == null)
+    {
+      throw new MalformedMetadataException("A compound type definition must be represented by a metadata node");
+    }
+    LLVMValueRef[] values = readOperands(metadataNode);
+    if (values.length != 7)
+    {
+      throw new MalformedMetadataException("A compound type definition's metadata node must have the correct number of sub-nodes");
+    }
+
+    String qualifiedNameStr = readMDString(values[0]);
+    if (qualifiedNameStr == null)
+    {
+      throw new MalformedMetadataException("A compound type definition must begin with a fully qualified name");
+    }
+    QName qname;
+    try
+    {
+      qname = new QName(qualifiedNameStr);
+    }
+    catch (ConceptualException e)
+    {
+      throw new MalformedMetadataException(e.getMessage(), e);
+    }
+
+    boolean isImmutable = readBooleanValue(values[1], "compound type definition", "immutable");
+
+    Field[] nonStaticFields = loadFields(values[2], false);
+    Field[] staticFields = loadFields(values[3], true);
+    Constructor[] constructors = loadConstructors(values[4]);
+    Method[] nonStaticMethods = loadMethods(values[5], false);
+    Method[] staticMethods = loadMethods(values[6], true);
+
+    try
+    {
+      return new CompoundDefinition(isImmutable, qname, nonStaticFields, staticFields, constructors, nonStaticMethods, staticMethods);
+    }
+    catch (LanguageParseException e)
+    {
+      throw new MalformedMetadataException(e.getMessage(), e);
+    }
+  }
+
+  private static InterfaceDefinition loadInterfaceDefinition(LLVMValueRef metadataNode) throws MalformedMetadataException
+  {
+    metadataNode = LLVM.LLVMIsAMDNode(metadataNode);
+    if (metadataNode == null)
+    {
+      throw new MalformedMetadataException("An interface definition must be represented by a metadata node");
+    }
+    LLVMValueRef[] values = readOperands(metadataNode);
+    if (values.length != 5)
+    {
+      throw new MalformedMetadataException("An interface definition's metadata node must have the correct number of sub-nodes");
+    }
+
+    String qualifiedNameStr = readMDString(values[0]);
+    if (qualifiedNameStr == null)
+    {
+      throw new MalformedMetadataException("An interface definition must begin with a fully qualified name");
+    }
+    QName qname;
+    try
+    {
+      qname = new QName(qualifiedNameStr);
+    }
+    catch (ConceptualException e)
+    {
+      throw new MalformedMetadataException(e.getMessage(), e);
+    }
+
+    boolean isImmutable = readBooleanValue(values[1], "interface definition", "immutable");
+
+    Field[] staticFields = loadFields(values[2], true);
+    Method[] nonStaticMethods = loadMethods(values[3], false);
+    Method[] staticMethods = loadMethods(values[4], true);
+
+    try
+    {
+      return new InterfaceDefinition(isImmutable, qname, staticFields, nonStaticMethods, staticMethods);
+    }
+    catch (LanguageParseException e)
+    {
+      throw new MalformedMetadataException(e.getMessage(), e);
+    }
+  }
+
+  private static QName[] loadSuperInterfaces(LLVMValueRef metadataNode) throws MalformedMetadataException
+  {
+    if (LLVM.LLVMIsAMDNode(metadataNode) == null)
+    {
+      throw new MalformedMetadataException("A super-interface list must be represented by a metadata node");
+    }
+    LLVMValueRef[] values = readOperands(metadataNode);
+    if (values.length == 0)
+    {
+      return null;
+    }
+    QName[] qnames = new QName[values.length];
+    for (int i = 0; i < qnames.length; ++i)
+    {
+      String valueStr = readMDString(values[i]);
+      if (valueStr == null)
+      {
+        throw new MalformedMetadataException("A super-interface must be represented by a metadata string");
+      }
+      try
+      {
+        qnames[i] = valueStr.equals("") ? null : new QName(valueStr);
+      }
+      catch (ConceptualException e)
+      {
+        throw new MalformedMetadataException(e.getMessage(), e);
+      }
+    }
+    return qnames;
+  }
+
+
+  private static Field[] loadFields(LLVMValueRef metadataNode, boolean isStatic) throws MalformedMetadataException
+  {
+    if (LLVM.LLVMIsAMDNode(metadataNode) == null)
+    {
+      throw new MalformedMetadataException("A field list must be represented by a metadata node");
+    }
+    LLVMValueRef[] fieldNodes = readOperands(metadataNode);
+    Field[] fields = new Field[fieldNodes.length];
+    for (int i = 0; i < fieldNodes.length; ++i)
+    {
+      fields[i] = loadField(fieldNodes[i], isStatic, i);
+    }
+    return fields;
+  }
+
+  private static Constructor[] loadConstructors(LLVMValueRef metadataNode) throws MalformedMetadataException
+  {
+    if (LLVM.LLVMIsAMDNode(metadataNode) == null)
+    {
+      throw new MalformedMetadataException("A constructor list must be represented by a metadata node");
+    }
+    LLVMValueRef[] constructorNodes = readOperands(metadataNode);
+    Constructor[] constructors = new Constructor[constructorNodes.length];
+    for (int i = 0; i < constructorNodes.length; ++i)
+    {
+      constructors[i] = loadConstructor(constructorNodes[i]);
+    }
+    return constructors;
+  }
+
+  private static Method[] loadMethods(LLVMValueRef metadataNode, boolean isStatic) throws MalformedMetadataException
+  {
+    if (LLVM.LLVMIsAMDNode(metadataNode) == null)
+    {
+      throw new MalformedMetadataException("A method list must be represented by a metadata node");
+    }
+    LLVMValueRef[] methodNodes = readOperands(metadataNode);
+    Method[] methods = new Method[methodNodes.length];
+    for (int i = 0; i < methodNodes.length; ++i)
+    {
+      methods[i] = loadMethod(methodNodes[i], isStatic);
+    }
+    return methods;
   }
 
   private static Field loadField(LLVMValueRef metadataNode, boolean isStatic, int index) throws MalformedMetadataException
@@ -203,19 +315,8 @@ public class MetadataLoader
       throw new MalformedMetadataException("A field's metadata node must have the correct number of sub-nodes");
     }
 
-    String isFinalStr = readMDString(values[0]);
-    if (isFinalStr == null)
-    {
-      throw new MalformedMetadataException("A field must have a valid finality property in its metadata node");
-    }
-    boolean isFinal = isFinalStr.equals("final");
-
-    String isMutableStr = readMDString(values[1]);
-    if (isMutableStr == null)
-    {
-      throw new MalformedMetadataException("A field must have a valid mutability property in its metadata node");
-    }
-    boolean isMutable = isFinalStr.equals("mutable");
+    boolean isFinal = readBooleanValue(values[0], "field", "final");
+    boolean isMutable = readBooleanValue(values[1], "field", "mutable");
 
     SinceSpecifier sinceSpecifier = loadSinceSpecifier(values[2]);
 
@@ -245,35 +346,22 @@ public class MetadataLoader
       throw new MalformedMetadataException("A constructor's metadata node must have the correct number of sub-nodes");
     }
 
-    String isImmutableStr = readMDString(values[0]);
-    if (isImmutableStr == null)
-    {
-      throw new MalformedMetadataException("A constructor must have a valid immutability property in its metadata node");
-    }
-    boolean isImmutable = isImmutableStr.equals("immutable");
-
-    String isSelfishStr = readMDString(values[1]);
-    if (isSelfishStr == null)
-    {
-      throw new MalformedMetadataException("A constructor must have a valid selfishness property in its metadata node");
-    }
-    boolean isSelfish = isSelfishStr.equals("selfish");
-
+    boolean isImmutable = readBooleanValue(values[0], "constructor", "immutable");
+    boolean isSelfish = readBooleanValue(values[1], "constructor", "selfish");
     SinceSpecifier sinceSpecifier = loadSinceSpecifier(values[2]);
-
     Parameter[] parameters = loadParameters(values[3]);
 
     return new Constructor(isImmutable, isSelfish, sinceSpecifier, parameters, null, null);
   }
 
-  private static Method loadMethod(LLVMValueRef metadataNode) throws MalformedMetadataException
+  private static Method loadMethod(LLVMValueRef metadataNode, boolean isStatic) throws MalformedMetadataException
   {
     if (LLVM.LLVMIsAMDNode(metadataNode) == null)
     {
       throw new MalformedMetadataException("A method must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 8)
+    if (values.length != 7)
     {
       throw new MalformedMetadataException("A method's metadata node must have the correct number of sub-nodes");
     }
@@ -283,29 +371,9 @@ public class MetadataLoader
     {
       throw new MalformedMetadataException("A method must have a valid name in its metadata node");
     }
-
-    String isAbstractStr = readMDString(values[1]);
-    if (isAbstractStr == null)
-    {
-      throw new MalformedMetadataException("A method must have a valid abstractness property in its metadata node");
-    }
-    boolean isAbstract = isAbstractStr.equals("abstract");
-
-    String isStaticStr = readMDString(values[2]);
-    if (isStaticStr == null)
-    {
-      throw new MalformedMetadataException("A method must have a valid staticness property in its metadata node");
-    }
-    boolean isStatic = isStaticStr.equals("static");
-
-    String isImmutableStr = readMDString(values[3]);
-    if (isImmutableStr == null)
-    {
-      throw new MalformedMetadataException("A method must have a valid immutability property in its metadata node");
-    }
-    boolean isImmutable = isImmutableStr.equals("immutable");
-
-    String nativeName = readMDString(values[4]);
+    boolean isAbstract = readBooleanValue(values[1], "method", "abstract");
+    boolean isImmutable = readBooleanValue(values[2], "method", "immutable");
+    String nativeName = readMDString(values[3]);
     if (nativeName == null)
     {
       throw new MalformedMetadataException("A method must have a valid native name (or an empty string in its place) in its metadata node");
@@ -315,11 +383,9 @@ public class MetadataLoader
     {
       nativeName = null;
     }
-
-    SinceSpecifier sinceSpecifier = loadSinceSpecifier(values[5]);
-
-    Type returnType = loadType(values[6]);
-    Parameter[] parameters = loadParameters(values[7]);
+    SinceSpecifier sinceSpecifier = loadSinceSpecifier(values[4]);
+    Type returnType = loadType(values[5]);
+    Parameter[] parameters = loadParameters(values[6]);
 
     if (isAbstract && isStatic)
     {
@@ -413,20 +479,8 @@ public class MetadataLoader
       {
         throw new MalformedMetadataException("An array type's metadata node must have the correct number of sub-nodes");
       }
-      String nullabilityStr = readMDString(values[1]);
-      if (nullabilityStr == null)
-      {
-        throw new MalformedMetadataException("An array type must have a valid nullability in its metadata node");
-      }
-      boolean nullable = nullabilityStr.equals("nullable");
-
-      String immutabilityStr = readMDString(values[2]);
-      if (immutabilityStr == null)
-      {
-        throw new MalformedMetadataException("An array type must have a valid immutability in its metadata node");
-      }
-      boolean immutable = immutabilityStr.equals("immutable");
-
+      boolean nullable = readBooleanValue(values[1], "array type", "nullable");
+      boolean immutable = readBooleanValue(values[2], "array type", "immutable");
       Type baseType = loadType(values[3]);
       return new ArrayType(nullable, immutable, baseType, null);
     }
@@ -436,22 +490,9 @@ public class MetadataLoader
       {
         throw new MalformedMetadataException("A function type's metadata node must have the correct number of sub-nodes");
       }
-      String nullabilityStr = readMDString(values[1]);
-      if (nullabilityStr == null)
-      {
-        throw new MalformedMetadataException("A function type must have a valid nullability in its metadata node");
-      }
-      boolean nullable = nullabilityStr.equals("nullable");
-
-      String immutabilityStr = readMDString(values[2]);
-      if (immutabilityStr == null)
-      {
-        throw new MalformedMetadataException("A function type must have a valid immutability in its metadata node");
-      }
-      boolean immutable = nullabilityStr.equals("immutable");
-
+      boolean nullable = readBooleanValue(values[1], "function type", "nullable");
+      boolean immutable = readBooleanValue(values[2], "function type", "immutable");
       Type returnType = loadType(values[3]);
-
       if (LLVM.LLVMIsAMDNode(values[4]) == null)
       {
         throw new MalformedMetadataException("A functions type's parameter type list must be represented by a metadata node");
@@ -470,20 +511,8 @@ public class MetadataLoader
       {
         throw new MalformedMetadataException("A named type's metadata node must have the correct number of sub-nodes");
       }
-      String nullabilityStr = readMDString(values[1]);
-      if (nullabilityStr == null)
-      {
-        throw new MalformedMetadataException("A named type must have a valid nullability in its metadata node");
-      }
-      boolean nullable = nullabilityStr.equals("nullable");
-
-      String immutabilityStr = readMDString(values[2]);
-      if (immutabilityStr == null)
-      {
-        throw new MalformedMetadataException("A named type must have a valid immutability in its metadata node");
-      }
-      boolean immutable = nullabilityStr.equals("immutable");
-
+      boolean nullable = readBooleanValue(values[1], "named type", "nullable");
+      boolean immutable = readBooleanValue(values[2], "named type", "immutable");
       String qualifiedNameStr = readMDString(values[3]);
       if (qualifiedNameStr == null)
       {
@@ -505,13 +534,7 @@ public class MetadataLoader
       {
         throw new MalformedMetadataException("A primitive type's metadata node must have the correct number of sub-nodes");
       }
-      String nullabilityStr = readMDString(values[1]);
-      if (nullabilityStr == null)
-      {
-        throw new MalformedMetadataException("A primitive type must have a valid nullability in its metadata node");
-      }
-      boolean nullable = nullabilityStr.equals("nullable");
-
+      boolean nullable = readBooleanValue(values[1], "primitive type", "nullable");
       String name = readMDString(values[2]);
       PrimitiveTypeType typeType = PrimitiveTypeType.getByName(name);
       if (typeType == null)
@@ -526,13 +549,7 @@ public class MetadataLoader
       {
         throw new MalformedMetadataException("A tuple type's metadata node must have the correct number of sub-nodes");
       }
-      String nullabilityStr = readMDString(values[1]);
-      if (nullabilityStr == null)
-      {
-        throw new MalformedMetadataException("A tuple type must have a valid nullability in its metadata node");
-      }
-      boolean nullable = nullabilityStr.equals("nullable");
-
+      boolean nullable = readBooleanValue(values[1], "tuple type", "nullable");
       if (LLVM.LLVMIsAMDNode(values[2]) == null)
       {
         throw new MalformedMetadataException("A tuple type's sub-type list must be represented by a metadata node");
@@ -633,5 +650,23 @@ public class MetadataLoader
     byte[] bytes = new byte[lengthInt.getValue()];
     resultPointer.read(0, bytes, 0, bytes.length);
     return new String(bytes);
+  }
+
+  /**
+   * Tries to read the specified metadata value as a boolean.
+   * @param metadataString - the MDString to read
+   * @param encapsulatingTypeName - the name of the type which this metadata string is contained in (e.g. "method", "class definition"), only used in MalformedMetadataExceptions
+   * @param trueValue - the value to compare the string to
+   * @return true if the string is equal to trueValue, false otherwise
+   * @throws MalformedMetadataException - if the specified LLVM value is not a metadata string
+   */
+  private static boolean readBooleanValue(LLVMValueRef metadataString, String encapsulatingTypeName, String trueValue) throws MalformedMetadataException
+  {
+    String value = readMDString(metadataString);
+    if (value == null)
+    {
+      throw new MalformedMetadataException("Every " + encapsulatingTypeName + " must have a valid value for: " + trueValue);
+    }
+    return value.equals(trueValue);
   }
 }

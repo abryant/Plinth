@@ -1,12 +1,16 @@
-CompilationUnit = Imports | PackageKeyword QName Semicolon Imports | CompilationUnit CompoundTypeDef | CompilationUnit ClassTypeDef
+CompilationUnit = Imports | PackageKeyword QName Semicolon Imports | CompilationUnit CompoundTypeDef | CompilationUnit ClassTypeDef | CompilationUnit InterfaceTypeDef
 
 Imports = epsilon | Imports ImportKeyword QName Semicolon | Imports ImportKeyword QName Dot Star Semicolon
 
 QName = Name | QName Dot Name
 
-ClassTypeDef = OptionalModifiers ClassKeyword Name LBrace MemberList RBrace |
-               OptionalModifiers ClassKeyword Name ExtendsKeyword QName LBrace MemberList RBrace
+ClassTypeDef = OptionalModifiers ClassKeyword Name ImplementsClause LBrace MemberList RBrace |
+               OptionalModifiers ClassKeyword Name ExtendsKeyword QName ImplementsClause LBrace MemberList RBrace
 CompoundTypeDef = OptionalModifiers CompoundKeyword Name LBrace MemberList RBrace
+InterfaceTypeDef = OptionalModifiers InterfaceKeyword Name LBrace MemberList RBrace
+
+ImplementsClause = epsilon | ImplementsKeyword InterfaceList
+InterfaceList = QName | InterfaceList Comma QName
 
 MemberList = epsilon |
              MemberList Initialiser |

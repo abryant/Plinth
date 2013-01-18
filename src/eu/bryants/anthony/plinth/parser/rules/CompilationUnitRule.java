@@ -6,6 +6,7 @@ import parser.Rule;
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.misc.Import;
 import eu.bryants.anthony.plinth.ast.misc.QName;
@@ -27,10 +28,11 @@ public class CompilationUnitRule extends Rule<ParseType>
   private static Production<ParseType> PACKAGE_IMPORTS_PRODUCTION = new Production<ParseType>(ParseType.PACKAGE_KEYWORD, ParseType.QNAME, ParseType.SEMICOLON, ParseType.IMPORTS);
   private static Production<ParseType> CLASS_PRODUCTION = new Production<ParseType>(ParseType.COMPILATION_UNIT, ParseType.CLASS_DEFINITION);
   private static Production<ParseType> COMPOUND_PRODUCTION = new Production<ParseType>(ParseType.COMPILATION_UNIT, ParseType.COMPOUND_DEFINITION);
+  private static Production<ParseType> INTERFACE_PRODUCTION = new Production<ParseType>(ParseType.COMPILATION_UNIT, ParseType.INTERFACE_DEFINITION);
 
   public CompilationUnitRule()
   {
-    super(ParseType.COMPILATION_UNIT, IMPORTS_PRODUCTION, PACKAGE_IMPORTS_PRODUCTION, CLASS_PRODUCTION, COMPOUND_PRODUCTION);
+    super(ParseType.COMPILATION_UNIT, IMPORTS_PRODUCTION, PACKAGE_IMPORTS_PRODUCTION, CLASS_PRODUCTION, COMPOUND_PRODUCTION, INTERFACE_PRODUCTION);
   }
 
   /**
@@ -64,6 +66,13 @@ public class CompilationUnitRule extends Rule<ParseType>
       CompilationUnit compilationUnit = (CompilationUnit) args[0];
       CompoundDefinition compoundDefinition = (CompoundDefinition) args[1];
       compilationUnit.addType(compoundDefinition, LexicalPhrase.combine(compilationUnit.getLexicalPhrase(), compoundDefinition.getLexicalPhrase()));
+      return compilationUnit;
+    }
+    if (production == INTERFACE_PRODUCTION)
+    {
+      CompilationUnit compilationUnit = (CompilationUnit) args[0];
+      InterfaceDefinition interfaceDefinition = (InterfaceDefinition) args[1];
+      compilationUnit.addType(interfaceDefinition, LexicalPhrase.combine(compilationUnit.getLexicalPhrase(), interfaceDefinition.getLexicalPhrase()));
       return compilationUnit;
     }
     throw badTypeList();

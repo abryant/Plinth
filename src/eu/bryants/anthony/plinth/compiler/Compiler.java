@@ -241,7 +241,7 @@ public class Compiler
       }
       if (mainTypeName != null)
       {
-        mainTypeDefinition = resolver.resolveTypeDefinition(new QName(mainTypeName));
+        mainTypeDefinition = resolver.resolveTypeDefinition(new QName(mainTypeName), null);
         SpecialTypeHandler.checkMainMethod(mainTypeDefinition);
       }
       for (CompilationUnit compilationUnit : compilationUnits)
@@ -250,7 +250,7 @@ public class Compiler
       }
       for (CompilationUnit compilationUnit : compilationUnits)
       {
-        CycleChecker.checkCompoundTypeCycles(compilationUnit);
+        CycleChecker.checkCompoundTypeFieldCycles(compilationUnit);
       }
       for (CompilationUnit compilationUnit : compilationUnits)
       {

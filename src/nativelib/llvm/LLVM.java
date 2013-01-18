@@ -17,7 +17,7 @@ public class LLVM
 {
   static
   {
-    Native.register("LLVM-3.2svn");
+    Native.register("LLVM-3.2");
   }
 
   public static class LLVMBasicBlockRef   extends PointerType { /* custom type name */ }
@@ -221,6 +221,7 @@ public class LLVM
   public static native LLVMValueRef LLVMGetUndef(LLVMTypeRef type);
   public static native LLVMValueRef LLVMConstString(byte[] stringBytes, int length, boolean dontNullTerminate);
   public static native LLVMValueRef LLVMConstBitCast(LLVMValueRef constantVal, LLVMTypeRef toType);
+  public static native LLVMValueRef LLVMConstGEP(LLVMValueRef constantVal, Pointer constantIndices, int numIndices);
 
   public static native LLVMValueRef LLVMMDString(String str, int length);
   public static native LLVMValueRef LLVMMDNode(Pointer values, int count);

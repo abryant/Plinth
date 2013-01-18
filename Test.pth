@@ -1,103 +1,56 @@
 package foo.bar;
 
-abstract class A
+interface Runnable
 {
-  static ?A escaped;
+  void run();
+}
+
+interface Edible
+{
+  void consume();
+}
+
+abstract class Foo implements Runnable, Edible
+{
   this()
   {
-    //escaped = this;
-    stdout::println("Hello, old");
   }
-  since(1.2) this()
+  void consume()
   {
-    stdout::println("Hello, blah");
+    stdout::println("Consuming " + toString());
   }
-  immutable void testImmutable()
+  void run()
   {
-    stdout::println(toString());
-  }
-  abstract immutable string toString();
-}
-
-immutable class B extends A
-{
-  string field;
-  selfish this()
-  {
-    stdout::println("A::escaped.field: " + ((cast<?B> A::escaped)?.field ?: "it's null"));
-    field = "hi";
-    testImmutable();
-  }
-  void testImmutable()
-  {
-    stdout::println(toString());
-  }
-  string toString()
-  {
-    return "B is immutable";
+    stdout::println("Running " + toString());
   }
 }
-
 
 class Test extends Foo
 {
-  {
-    stderr::println("Test initialiser");
-  }
   string field;
   this(uint a)
   {
     stderr::println("Test(uint): " + a.toString());
-    field = "uint";
-  }
-  this(short c)
-  {
-    stderr::println("Test(short): " + c.toString());
-    field = "short";
-  }
-  selfish this(?ubyte b)
-  {
-    stderr::println("Test(?ubyte) before delegate constructor");
-    if b == null
-    {
-      this(cast<uint> 12);
-    }
-    else
-    {
-      this(-8);
-    }
-    (cast<{-> void}> this.foo)();
-    cast<uint> foo();
-    stderr::println("Test(?ubyte) after delegate constructor, field = " + field);
+    field = a.toString();
   }
 
   static uint main([]string args)
   {
-    stdout::println(new B().field);
-    stdout::print("Please enter your name: ");
-    string line = stdin::readLine();
-    // remove the newline
-    line = line.substring(0, line.length() - 1);
-    stdout::println("Hello, " + line + "!");
-
     // find all of the command line arguments
     string fullargs = concatMap(addSpace, args);
     stdout::println("Your " + args.length.toString() + " arguments were: " + args.toString());
 
-    {-> string} toStr = 5.2.toString;
+    object o = new Test(9);
+    Runnable r = cast<Runnable> o;
+    stdout::println("Interface call: " + r.toString());
 
-    stdout::println("2.2250738585072011e-308 = " + 2.2250738585072011e-308.toString());
-    stdout::println("maths::abs(-1) = " + maths::abs(-1).toString());
-    Foo test = new Test(args.length > 2 ? 2 : null);
-    test.argh();
-    test.foo();
-    object o = 99999, toStr(), bigint();
-    o = "hello, world!", 65537, main, args, o, test, 0.3, null, (5, null, test);
-    stderr::println("toString() test: " + o.toString());
-    Test t = cast<Test> test;
-    t.argh();
-    (cast<{-> void}> t.foo)();
-    return args.length;
+    Foo foo = new Test(1);
+    Test test = cast<Test> cast<Edible> foo;
+    Runnable runTest = foo;
+    Edible eatTest = cast<Edible> runTest;
+    runTest.run();
+    eatTest.consume();
+    return 0;
   }
 
   static string concatMap({string -> string} f, []string input)
@@ -107,18 +60,6 @@ class Test extends Foo
     {
       result += f(input[i]);
     }
-    return result;
-  }
-
-  since(2.0)
-  static string concatMap({string -> string} f, []string input)
-  {
-    string result = string();
-    for (uint i = 0; i < input.length; ++i)
-    {
-      result += f(input[i]);
-    }
-    stdout::println("concatMap v2.0");
     return result;
   }
 
@@ -127,30 +68,8 @@ class Test extends Foo
     return " " + x;
   }
 
-  void foo()
+  immutable string toString()
   {
-    stderr::println("Test::foo()");
-  }
-}
-
-class Foo
-{
-  {
-    stderr::println("Foo initialiser");
-  }
-  string field;
-  this()
-  {
-    stderr::println("super constructor!");
-    field = "Foo::argh()";
-  }
-  since(8.12) void argh()
-  {
-    stderr::println(field);
-  }
-  since(10) uint foo()
-  {
-    stderr::println("Foo::foo():2");
-    return 2;
+    return "<Test:" + field + ">";
   }
 }

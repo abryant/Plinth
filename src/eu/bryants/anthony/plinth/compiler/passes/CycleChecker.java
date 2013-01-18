@@ -85,7 +85,7 @@ public class CycleChecker
    * @param compilationUnit - the CompilationUnit to check
    * @throws ConceptualException - if a cycle is found
    */
-  public static void checkCompoundTypeCycles(CompilationUnit compilationUnit) throws ConceptualException
+  public static void checkCompoundTypeFieldCycles(CompilationUnit compilationUnit) throws ConceptualException
   {
     for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
@@ -96,11 +96,11 @@ public class CycleChecker
       CompoundDefinition compoundDefinition = (CompoundDefinition) typeDefinition;
       Set<CompoundDefinition> visited = new HashSet<CompoundDefinition>();
       visited.add(compoundDefinition);
-      checkCompoundTypeCycles(compoundDefinition, new LinkedList<Field>(), visited);
+      checkCompoundTypeFieldCycles(compoundDefinition, new LinkedList<Field>(), visited);
     }
   }
 
-  private static void checkCompoundTypeCycles(CompoundDefinition startDefinition, List<Field> fieldStack, Set<CompoundDefinition> visited) throws ConceptualException
+  private static void checkCompoundTypeFieldCycles(CompoundDefinition startDefinition, List<Field> fieldStack, Set<CompoundDefinition> visited) throws ConceptualException
   {
     CompoundDefinition current = startDefinition;
     if (!fieldStack.isEmpty())
@@ -133,7 +133,7 @@ public class CycleChecker
         }
         fieldStack.add(field);
         visited.add(compoundDefinition);
-        checkCompoundTypeCycles(startDefinition, fieldStack, visited);
+        checkCompoundTypeFieldCycles(startDefinition, fieldStack, visited);
         visited.remove(compoundDefinition);
         fieldStack.remove(fieldStack.size() - 1);
       }

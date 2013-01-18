@@ -1,11 +1,15 @@
 package eu.bryants.anthony.plinth.compiler.passes;
 
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
@@ -48,12 +52,120 @@ public class InheritanceChecker
   }
 
   /**
+   * Finds the linearisation of the inherited classes of the specified type, and returns it after caching it in the TypeDefinition itself
+   * @param typeDefinition - the TypeDefinition to get the linearisation of
+   * @throws ConceptualException - if there is no linearisation for the specified type
+   */
+  private static TypeDefinition[] findInheritanceLinearisation(TypeDefinition typeDefinition) throws ConceptualException
+  {
+    if (typeDefinition.getInheritanceLinearisation() != null)
+    {
+      return typeDefinition.getInheritanceLinearisation();
+    }
+
+    List<TypeDefinition> parents = new LinkedList<TypeDefinition>();
+    if (typeDefinition instanceof ClassDefinition)
+    {
+      ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
+      if (classDefinition.getSuperClassDefinition() != null)
+      {
+        parents.add(classDefinition.getSuperClassDefinition());
+      }
+      if (classDefinition.getSuperInterfaceDefinitions() != null)
+      {
+        for (InterfaceDefinition interfaceDefinition : classDefinition.getSuperInterfaceDefinitions())
+        {
+          parents.add(interfaceDefinition);
+        }
+      }
+    }
+
+    List<List<TypeDefinition>> precedenceLists = new LinkedList<List<TypeDefinition>>();
+    for (TypeDefinition parent : parents)
+    {
+      TypeDefinition[] linearisation = findInheritanceLinearisation(parent);
+      List<TypeDefinition> precedenceList = new LinkedList<TypeDefinition>();
+      for (TypeDefinition t : linearisation)
+      {
+        precedenceList.add(t);
+      }
+      precedenceLists.add(precedenceList);
+    }
+    // add the local precedence order for this type
+    precedenceLists.add(parents);
+
+    List<TypeDefinition> result = new LinkedList<TypeDefinition>();
+    result.add(typeDefinition);
+    while (true)
+    {
+      // remove empty lists
+      Iterator<List<TypeDefinition>> it = precedenceLists.iterator();
+      while (it.hasNext())
+      {
+        if (it.next().isEmpty())
+        {
+          it.remove();
+        }
+      }
+      if (precedenceLists.isEmpty())
+      {
+        break;
+      }
+
+      TypeDefinition next = null;
+      for (List<TypeDefinition> candidateList : precedenceLists)
+      {
+        TypeDefinition candidate = candidateList.get(0);
+        for (List<TypeDefinition> otherList : precedenceLists)
+        {
+          // check the tail of this otherList (this depends on the fact that the lists have no duplicate types)
+          if (otherList.get(0) != candidate && otherList.contains(candidate))
+          {
+            candidate = null;
+            break;
+          }
+        }
+        if (candidate != null)
+        {
+          next = candidate;
+          break;
+        }
+      }
+
+      if (next == null)
+      {
+        StringBuffer buffer = new StringBuffer();
+        for (List<TypeDefinition> currentList : precedenceLists)
+        {
+          buffer.append("\n");
+          TypeDefinition candidate = currentList.get(0);
+          buffer.append(candidate.getQualifiedName().toString());
+        }
+        throw new ConceptualException("Cannot find a good linearisation for the inheritance hierarchy of " + typeDefinition.getQualifiedName() + ": cannot decide which of the following super-types should be preferred:" + buffer, typeDefinition.getLexicalPhrase());
+      }
+      result.add(next);
+      for (List<TypeDefinition> currentList : precedenceLists)
+      {
+        currentList.remove(next);
+      }
+    }
+
+    TypeDefinition[] linearisation = result.toArray(new TypeDefinition[result.size()]);
+    typeDefinition.setInheritanceLinearisation(linearisation);
+    return linearisation;
+  }
+
+  /**
    * Checks the inherited members of the specified TypeDefinition for problems.
    * @param typeDefinition - the TypeDefinition to check all of the inherited members of
    * @throws ConceptualException - if there is a conceptual problem with the specified TypeDefinition
    */
   public static void checkInheritedMembers(TypeDefinition typeDefinition) throws ConceptualException
   {
+    // generate the inheritance linearisation for this TypeDefinition
+    // it will be used during this pass and some others after it, all the way to code generation
+    TypeDefinition[] linearisation = findInheritanceLinearisation(typeDefinition);
+
     Set<Method> inheritedNonStaticMethods = new HashSet<Method>();
     for (Method method : ObjectType.OBJECT_METHODS)
     {
@@ -64,20 +176,23 @@ public class InheritanceChecker
     }
     if (typeDefinition instanceof ClassDefinition)
     {
-      ClassDefinition superClass = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
+      ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
+      ClassDefinition superClass = classDefinition.getSuperClassDefinition();
 
-      if (superClass != null && superClass.isImmutable() && !typeDefinition.isImmutable())
+      if (superClass != null && superClass.isImmutable() && !classDefinition.isImmutable())
       {
-        throw new ConceptualException("Cannot define a non-immutable class to be a subclass of an immutable class", typeDefinition.getLexicalPhrase());
+        throw new ConceptualException("Cannot define a non-immutable class to be a subclass of an immutable class", classDefinition.getLexicalPhrase());
       }
 
-      while (superClass != null)
+      for (TypeDefinition currentType : linearisation)
       {
-        for (Method m : superClass.getNonStaticMethods())
+        if (currentType != typeDefinition)
         {
-          inheritedNonStaticMethods.add(m);
+          for (Method m : currentType.getNonStaticMethods())
+          {
+            inheritedNonStaticMethods.add(m);
+          }
         }
-        superClass = superClass.getSuperClassDefinition();
       }
     }
 
@@ -99,59 +214,53 @@ public class InheritanceChecker
       }
       if (!typeDefinition.isAbstract() && inheritedMethod.isAbstract() && !overridden)
       {
-        // we have not implemented this abstract method, but it could have been implemented higher up the class hierarchy, so check for that
+        // we have not implemented this abstract method, but it could have been implemented higher up the inheritance hierarchy, so check for that
         Method implementation = null;
-        if (typeDefinition instanceof ClassDefinition)
+        for (TypeDefinition currentSuperType : linearisation)
         {
-          ClassDefinition superClass = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
-          while (implementation == null && superClass != null && superClass != inheritedMethod.getContainingTypeDefinition())
+          // ignore the current definition, as it has already been checked
+          // also ignore any definitions which are parents of the declaring type of the method
+          if (currentSuperType == typeDefinition ||
+              (inheritedMethod.getContainingTypeDefinition() != null && isSuperType(currentSuperType, inheritedMethod.getContainingTypeDefinition())))
           {
-            Set<Method> possibleMatches = superClass.getMethodsByName(inheritedMethod.getName());
-            for (Method m : possibleMatches)
-            {
-              if (m.getDisambiguator().matches(inheritedMethod.getDisambiguator()))
-              {
-                // this method matches the disambiguator, so check that it is an implementation of a method (i.e. has a body or is a native down-call)
-                if (m.getBlock() != null || m.getNativeName() != null)
-                {
-                  // this must be the most-derived implementation of this method
-                  implementation = m;
-                  break;
-                }
-              }
-            }
+            continue;
           }
-          if (superClass == null && implementation == null)
+          Set<Method> possibleMatches = currentSuperType.getMethodsByName(inheritedMethod.getName());
+          for (Method m : possibleMatches)
           {
-            // we reached the top of the inheritance hierarchy (i.e. we got all the way up to object without reaching the inheritedMethod's TypeDefinition, so it must be defined in an interface)
-            // and we still haven't found anything, so check the object methods
-            for (Method m : ObjectType.OBJECT_METHODS)
+            if (m.getDisambiguator().matches(inheritedMethod.getDisambiguator()))
             {
-              if (m.getDisambiguator().matches(inheritedMethod.getDisambiguator()))
+              // this method matches the disambiguator, so check that it is an implementation of a method (i.e. it is not abstract)
+              if (!m.isAbstract())
               {
+                // this must be the most-derived implementation of this method
                 implementation = m;
                 break;
               }
             }
           }
-        }
-        if (implementation != null)
-        {
-          try
+          if (implementation != null)
           {
-            checkMethodOverride(inheritedMethod, implementation);
-          }
-          catch (ConceptualException e)
-          {
-            String implementationType = implementation.getContainingTypeDefinition() == null ? "object" : implementation.getContainingTypeDefinition().getQualifiedName().toString();
-            throw new ConceptualException(typeDefinition.getName() + " does not implement the abstract method: " + buildMethodDisambiguatorString(inheritedMethod),
-                                          typeDefinition.getLexicalPhrase(),
-                                          new ConceptualException("Note: It is implemented in " + implementationType + " but that method is incompatible because: " + e.getMessage(), e.getLexicalPhrase()));
+            break;
           }
         }
+
         if (implementation == null)
         {
-          throw new ConceptualException(typeDefinition.getName() + " does not implement the abstract method: " + buildMethodDisambiguatorString(inheritedMethod), typeDefinition.getLexicalPhrase());
+          String declarationType = inheritedMethod.getContainingTypeDefinition() == null ? "object" : inheritedMethod.getContainingTypeDefinition().getQualifiedName().toString();
+          throw new ConceptualException(typeDefinition.getName() + " does not implement the abstract method: " + buildMethodDisambiguatorString(inheritedMethod) + " (from type: " + declarationType + ")", typeDefinition.getLexicalPhrase());
+        }
+        try
+        {
+          checkMethodOverride(inheritedMethod, implementation);
+        }
+        catch (ConceptualException e)
+        {
+          String declarationType = inheritedMethod.getContainingTypeDefinition() == null ? "object" : inheritedMethod.getContainingTypeDefinition().getQualifiedName().toString();
+          String implementationType = implementation.getContainingTypeDefinition() == null ? "object" : implementation.getContainingTypeDefinition().getQualifiedName().toString();
+          throw new ConceptualException(typeDefinition.getName() + " does not implement the abstract method: " + buildMethodDisambiguatorString(inheritedMethod) + " (from type: " + declarationType + ")",
+                                        typeDefinition.getLexicalPhrase(),
+                                        new ConceptualException("Note: It is implemented in " + implementationType + " but that method is incompatible because: " + e.getMessage(), e.getLexicalPhrase()));
         }
       }
     }
@@ -190,6 +299,25 @@ public class InheritanceChecker
     {
       throw new ConceptualException("A non-immutable method cannot override an immutable method", method.getLexicalPhrase());
     }
+  }
+
+  /**
+   * Checks whether parent is a super-type of child.
+   * @param parent - the parent TypeDefinition
+   * @param child - the child TypeDefinition
+   * @return true if parent is a super-type of child, false otherwise
+   * @throws ConceptualException - if the inheritance linearisation for child is not well defined
+   */
+  private static boolean isSuperType(TypeDefinition parent, TypeDefinition child) throws ConceptualException
+  {
+    for (TypeDefinition test : findInheritanceLinearisation(child))
+    {
+      if (test == parent)
+      {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static String buildMethodDisambiguatorString(Method method)

@@ -26,6 +26,14 @@ public class ObjectType extends Type
     new BuiltinMethod(new ObjectType(false, true, null), BuiltinMethodType.TO_STRING),
   };
 
+  static
+  {
+    for (int i = 0; i < OBJECT_METHODS.length; ++i)
+    {
+      OBJECT_METHODS[i].setMethodIndex(i);
+    }
+  }
+
   // a type is explicitly immutable if it has been declared as immutable explicitly,
   // whereas a type is contextually immutable if it is just accessed in an immutable context
   // if a type is explicitly immutable, then it is always also contextually immutable

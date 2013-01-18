@@ -1,14 +1,57 @@
 ; ModuleID = 'vft.ll'
 
-%Descriptor = type { i32, [0 x { %opaque*, i32, [0 x i8] }*] }
-%VFT = type [0 x %opaque*]
-%FunctionSearchList = type {i32, [0 x {%Descriptor*, %VFT*}]}
 %opaque = type opaque
+%VFT = type [0 x %opaque*]
+
+%RawString = type { %opaque*, %opaque*, i32, [0 x i8]}
+%InterfaceSearchList = type {i32, [0 x {%RawString*, %VFT*}]}
+
+%Descriptor = type { i32, [0 x %RawString*] }
+%FunctionSearchList = type {i32, [0 x {%Descriptor*, %VFT*}]}
 
 declare i8* @calloc(i32, i32)
 declare i32 @strncmp(i8* %str1, i8* %str2, i32 %len)
 
-define protected %VFT* @plinth_core_generate_superclass_vft(%Descriptor* %thisDescriptor, %VFT* %thisVFT, %FunctionSearchList* %searchDescriptors) {
+define protected %VFT* @plinth_core_find_interface_vft(%InterfaceSearchList* %interfaceVFTList, %RawString* %searchName) {
+entry:
+  %searchNameLengthPtr = getelementptr %RawString* %searchName, i32 0, i32 2
+  %searchNameLength = load i32* %searchNameLengthPtr
+  %searchNameBytes = getelementptr %RawString* %searchName, i32 0, i32 3, i32 0
+  %numSearchPtr = getelementptr %InterfaceSearchList* %interfaceVFTList, i32 0, i32 0
+  %numSearch = load i32* %numSearchPtr
+  %continueLoop = icmp ult i32 0, %numSearch
+  br i1 %continueLoop, label %searchLoop, label %exit
+
+searchLoop:
+  %i = phi i32 [0, %entry], [%nexti, %endSearchLoop]
+  %namePtr = getelementptr %InterfaceSearchList* %interfaceVFTList, i32 0, i32 1, i32 %i, i32 0
+  %name = load %RawString** %namePtr
+  %nameLengthPtr = getelementptr %RawString* %name, i32 0, i32 2
+  %nameLength = load i32* %nameLengthPtr
+  %check = icmp eq i32 %searchNameLength, %nameLength
+  br i1 %check, label %compareNames, label %endSearchLoop
+
+compareNames:
+  %nameBytes = getelementptr %RawString* %name, i32 0, i32 3, i32 0
+  %comparison = call i32 @strncmp(i8* %nameBytes, i8* %searchNameBytes, i32 %searchNameLength)
+  %match = icmp eq i32 %comparison, 0
+  br i1 %match, label %returnVFT, label %endSearchLoop
+
+returnVFT:
+  %vftPtr = getelementptr %InterfaceSearchList* %interfaceVFTList, i32 0, i32 1, i32 %i, i32 1
+  %vft = load %VFT** %vftPtr
+  ret %VFT* %vft
+
+endSearchLoop:
+  %nexti = add i32 %i, 1
+  %continue = icmp ult i32 %nexti, %numSearch
+  br i1 %continue, label %searchLoop, label %exit
+
+exit:
+  ret %VFT* null
+}
+
+define protected %VFT* @plinth_core_generate_supertype_vft(%Descriptor* %thisDescriptor, %VFT* %thisVFT, %FunctionSearchList* %searchDescriptors) {
 entry:
   %vftLengthPtr = getelementptr %Descriptor* %thisDescriptor, i32 0, i32 0
   %vftLength = load i32* %vftLengthPtr
@@ -20,10 +63,10 @@ entry:
 loop:
   %i = phi i32 [0, %entry], [%nexti, %loop]
   %disambiguatorPtr = getelementptr %Descriptor* %thisDescriptor, i32 0, i32 1, i32 %i
-  %disambiguator = load {%opaque*, i32, [0 x i8]}** %disambiguatorPtr
+  %disambiguator = load %RawString** %disambiguatorPtr
   %defaultPtr = getelementptr %VFT* %thisVFT, i32 0, i32 %i
   %default = load %opaque** %defaultPtr
-  %func = call %opaque* @plinth_find_vft_function({%opaque*, i32, [0 x i8]}* %disambiguator, %opaque* %default, %FunctionSearchList* %searchDescriptors)
+  %func = call %opaque* @plinth_find_vft_function(%RawString* %disambiguator, %opaque* %default, %FunctionSearchList* %searchDescriptors)
   %element = getelementptr %VFT* %vft, i32 0, i32 %i
   store %opaque* %func, %opaque** %element
   %nexti = add i32 %i, 1
@@ -34,9 +77,9 @@ exit:
   ret %VFT* %vft
 }
 
-define private hidden %opaque* @plinth_find_vft_function({%opaque*, i32, [0 x i8]}* %disambiguator, %opaque* %default, %FunctionSearchList* %searchDescriptors) {
+define private hidden %opaque* @plinth_find_vft_function(%RawString* %disambiguator, %opaque* %default, %FunctionSearchList* %searchDescriptors) {
 entry:
-  %disambiguatorLengthPtr = getelementptr {%opaque*, i32, [0 x i8]}* %disambiguator, i32 0, i32 1
+  %disambiguatorLengthPtr = getelementptr %RawString* %disambiguator, i32 0, i32 2
   %disambiguatorLength = load i32* %disambiguatorLengthPtr
   %numSearchPtr = getelementptr %FunctionSearchList* %searchDescriptors, i32 0, i32 0
   %numSearch = load i32* %numSearchPtr
@@ -57,15 +100,15 @@ searchloop:
 functionloop:
   %j = phi i32 [0, %searchloop], [%nextj, %endfunctionloop]
   %currentDisambiguatorPtr = getelementptr %Descriptor* %descriptor, i32 0, i32 1, i32 %j
-  %currentDisambiguator = load {%opaque*, i32, [0 x i8]}** %currentDisambiguatorPtr
-  %currentDisambiguatorLengthPtr = getelementptr {%opaque*, i32, [0 x i8]}* %currentDisambiguator, i32 0, i32 1
+  %currentDisambiguator = load %RawString** %currentDisambiguatorPtr
+  %currentDisambiguatorLengthPtr = getelementptr %RawString* %currentDisambiguator, i32 0, i32 2
   %currentDisambiguatorLength = load i32* %currentDisambiguatorLengthPtr
   %check = icmp eq i32 %disambiguatorLength, %currentDisambiguatorLength
   br i1 %check, label %checkdisambiguator, label %endfunctionloop
 
 checkdisambiguator:
-  %disambiguatorStr = getelementptr {%opaque*, i32, [0 x i8]}* %disambiguator, i32 0, i32 2, i32 0
-  %currentDisambiguatorStr = getelementptr {%opaque*, i32, [0 x i8]}* %currentDisambiguator, i32 0, i32 2, i32 0
+  %disambiguatorStr = getelementptr %RawString* %disambiguator, i32 0, i32 3, i32 0
+  %currentDisambiguatorStr = getelementptr %RawString* %currentDisambiguator, i32 0, i32 3, i32 0
   %comparison = call i32 @strncmp(i8* %disambiguatorStr, i8* %currentDisambiguatorStr, i32 %disambiguatorLength)
   %match = icmp eq i32 %comparison, 0
   br i1 %match, label %foundfunction, label %endfunctionloop

@@ -19,6 +19,7 @@ public enum ParseType
   IMPORTS,                       // ParseList<Import>
   CLASS_DEFINITION,              // ClassDefinition
   COMPOUND_DEFINITION,           // CompoundDefinition
+  INTERFACE_DEFINITION,          // InterfaceDefinition
 
   // Members
   MEMBER_LIST,                   // ParseList<Member>
@@ -37,6 +38,8 @@ public enum ParseType
   PARAMETER_LIST,                // ParseList<Parameter>
   FOR_INIT,                      // ParseContainer<Statement> (possibly containing null)
   FOR_UPDATE,                    // Statement or null
+  IMPLEMENTS_CLAUSE,             // ParseList<QName> or null
+  INTERFACE_LIST,                // ParseList<QName>
   MODIFIERS,                     // ParseList<Modifier>
   OPTIONAL_MODIFIERS,            // ParseList<Modifier>
   QNAME,                         // QName
@@ -166,8 +169,10 @@ public enum ParseType
   FOR_KEYWORD,
   IF_KEYWORD,
   IMMUTABLE_KEYWORD,
+  IMPLEMENTS_KEYWORD,
   IMPORT_KEYWORD,
   INT_KEYWORD,
+  INTERFACE_KEYWORD,
   LONG_KEYWORD,
   MUTABLE_KEYWORD,
   NATIVE_KEYWORD,

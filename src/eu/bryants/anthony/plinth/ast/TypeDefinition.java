@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
@@ -19,8 +18,6 @@ import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
-import eu.bryants.anthony.plinth.ast.type.NamedType;
-import eu.bryants.anthony.plinth.ast.type.ObjectType;
 
 /*
  * Created on 11 Sep 2012
@@ -38,6 +35,9 @@ public abstract class TypeDefinition
   private QName qname;
 
   private LexicalPhrase lexicalPhrase;
+
+  // computed by the InheritanceChecker - specifies which order this type and its supertypes are inherited in
+  private TypeDefinition[] inheritanceLinearisation;
 
   /**
    * Creates a new TypeDefinition with the specified name.
@@ -103,6 +103,22 @@ public abstract class TypeDefinition
   }
 
   /**
+   * @return the order in which this type and its supertypes are inherited
+   */
+  public TypeDefinition[] getInheritanceLinearisation()
+  {
+    return inheritanceLinearisation;
+  }
+
+  /**
+   * @param inheritanceLinearisation - the order in which this type and its supertypes are inherited
+   */
+  public void setInheritanceLinearisation(TypeDefinition[] inheritanceLinearisation)
+  {
+    this.inheritanceLinearisation = inheritanceLinearisation;
+  }
+
+  /**
    * Builds the array of non-static fields and sets the fields' indices.
    * The field order is based on the lexicographical ordering of their names.
    */
@@ -153,32 +169,18 @@ public abstract class TypeDefinition
   /**
    * Builds the array of non-static fields and sets the fields' indices.
    * The field order is based on the lexicographical ordering of their names.
-   * @param includeObjectMethods - true to include all of the methods that are defined in ObjectType, false to leave them out if they are not redefined explicitly
-   *                               this should only be set to false if the type inherits from another type
+   * @return the sorted array of non-static methods for this type
    */
-  protected Method[] buildNonStaticMethodList(boolean includeObjectMethods)
+  protected Method[] buildNonStaticMethodList()
   {
     Method[] allMethods = getAllMethods();
-    // filter out static methods, and methods which exist in ObjectType
+    // filter out static methods
     List<Method> list = new LinkedList<Method>();
-    Method[] objectMethods = new Method[ObjectType.OBJECT_METHODS.length];
-    filterLoop:
     for (Method method : allMethods)
     {
       if (method.isStatic())
       {
         continue;
-      }
-      if (includeObjectMethods)
-      {
-        for (int i = 0; i < ObjectType.OBJECT_METHODS.length; ++i)
-        {
-          if (ObjectType.OBJECT_METHODS[i].getDisambiguator().matches(method.getDisambiguator()))
-          {
-            objectMethods[i] = method;
-            continue filterLoop;
-          }
-        }
       }
       list.add(method);
     }
@@ -191,19 +193,6 @@ public abstract class TypeDefinition
         return o1.getDisambiguator().compareTo(o2.getDisambiguator());
       }
     });
-    if (includeObjectMethods)
-    {
-      // add the methods from ObjectType at the start of the list, in order (overridden by ones from this type wherever possible)
-      for (int i = 0; i < ObjectType.OBJECT_METHODS.length; ++i)
-      {
-        Method method = objectMethods[i];
-        if (method == null)
-        {
-          method = new BuiltinMethod(new NamedType(false, false, this), ObjectType.OBJECT_METHODS[i].getBuiltinType());
-        }
-        list.add(i, method);
-      }
-    }
     Method[] nonStaticMethods = list.toArray(new Method[list.size()]);
     for (int i = 0; i < nonStaticMethods.length; ++i)
     {
@@ -231,6 +220,11 @@ public abstract class TypeDefinition
    * @return the non-static fields, in order of their indices
    */
   public abstract Field[] getNonStaticFields();
+
+  /**
+   * @return the static fields
+   */
+  public abstract Field[] getStaticFields();
 
   /**
    * @param name - the name of the field to get
@@ -281,10 +275,16 @@ public abstract class TypeDefinition
 
   /**
    * NOTE: for a newly parsed TypeDefinition, buildNonStaticMethods() should always be called before this, as before it is called, this will return null
-   * For imported type definitions, the metadata contains the non static method list in the correct order, so this should not be called.
+   * For imported type definitions, the metadata contains the non-static method list in the correct order, so this should not be called.
    * @return the non-static methods, in order of their indices
    */
   public abstract Method[] getNonStaticMethods();
+
+  /**
+   * NOTE: for a newly parsed TypeDefinition, buildNonStaticMethods() should always be called before this, because it can rely on the non-static methods list.
+   * @return all of the static methods in this TypeDefinition
+   */
+  public abstract Method[] getStaticMethods();
 
   /**
    * @param name - the name to get the methods with

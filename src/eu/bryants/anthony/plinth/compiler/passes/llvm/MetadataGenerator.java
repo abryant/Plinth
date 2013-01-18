@@ -9,6 +9,7 @@ import nativelib.llvm.LLVM.LLVMModuleRef;
 import nativelib.llvm.LLVM.LLVMValueRef;
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
@@ -45,66 +46,11 @@ public class MetadataGenerator
 
     LLVMValueRef immutabilityNode = createMDString(typeDefinition.isImmutable() ? "immutable" : "not-immutable");
 
-    Field[] nonStaticFields = typeDefinition.getNonStaticFields();
-    LLVMValueRef[] nonStaticFieldNodes = new LLVMValueRef[nonStaticFields.length];
-    for (int i = 0; i < nonStaticFields.length; ++i)
-    {
-      nonStaticFieldNodes[i] = generateField(nonStaticFields[i]);
-    }
-    LLVMValueRef nonStaticFieldsNode = LLVM.LLVMMDNode(C.toNativePointerArray(nonStaticFieldNodes, false, true), nonStaticFieldNodes.length);
-
-    Field[] allFields = typeDefinition.getFields();
-    LLVMValueRef[] staticFieldNodes = new LLVMValueRef[allFields.length - nonStaticFields.length];
-    int staticIndex = 0;
-    for (int i = 0; i < allFields.length; ++i)
-    {
-      if (allFields[i].isStatic())
-      {
-        staticFieldNodes[staticIndex] = generateField(allFields[i]);
-        ++staticIndex;
-      }
-    }
-    if (staticIndex != staticFieldNodes.length)
-    {
-      throw new IllegalStateException("Failed to generate the correct number of static field metadata nodes!");
-    }
-    LLVMValueRef staticFieldsNode = LLVM.LLVMMDNode(C.toNativePointerArray(staticFieldNodes, false, true), staticFieldNodes.length);
-
-    Collection<Constructor> constructors = typeDefinition.getAllConstructors();
-    LLVMValueRef[] constructorNodes = new LLVMValueRef[constructors.size()];
-    int constructorIndex = 0;
-    for (Constructor constructor : constructors)
-    {
-      constructorNodes[constructorIndex] = generateConstructor(constructor);
-      ++constructorIndex;
-    }
-    LLVMValueRef constructorsNode = LLVM.LLVMMDNode(C.toNativePointerArray(constructorNodes, false, true), constructorNodes.length);
-
-
-    Method[] nonStaticMethods = typeDefinition.getNonStaticMethods();
-    LLVMValueRef[] nonStaticMethodNodes = new LLVMValueRef[nonStaticMethods.length];
-    for (int i = 0; i < nonStaticMethods.length; ++i)
-    {
-      nonStaticMethodNodes[i] = generateMethod(nonStaticMethods[i]);
-    }
-    LLVMValueRef nonStaticMethodsNode = LLVM.LLVMMDNode(C.toNativePointerArray(nonStaticMethodNodes, false, true), nonStaticMethodNodes.length);
-
-    Method[] allMethods = typeDefinition.getAllMethods();
-    LLVMValueRef[] staticMethodNodes = new LLVMValueRef[allMethods.length - nonStaticMethods.length];
-    int staticMethodIndex = 0;
-    for (int i = 0; i < allMethods.length; ++i)
-    {
-      if (allMethods[i].isStatic())
-      {
-        staticMethodNodes[staticMethodIndex] = generateMethod(allMethods[i]);
-        ++staticMethodIndex;
-      }
-    }
-    if (staticMethodIndex != staticMethodNodes.length)
-    {
-      throw new IllegalStateException("Failed to generate the correct number of static method metadata nodes!");
-    }
-    LLVMValueRef staticMethodsNode = LLVM.LLVMMDNode(C.toNativePointerArray(staticMethodNodes, false, true), staticMethodNodes.length);
+    LLVMValueRef nonStaticFieldsNode = generateFieldList(typeDefinition.getNonStaticFields());
+    LLVMValueRef staticFieldsNode = generateFieldList(typeDefinition.getStaticFields());
+    LLVMValueRef constructorsNode = generateConstructorList(typeDefinition.getAllConstructors());
+    LLVMValueRef nonStaticMethodsNode = generateMethodList(typeDefinition.getNonStaticMethods());
+    LLVMValueRef staticMethodsNode = generateMethodList(typeDefinition.getStaticMethods());
 
     if (typeDefinition instanceof ClassDefinition)
     {
@@ -112,8 +58,9 @@ public class MetadataGenerator
 
       ClassDefinition superClass = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
       LLVMValueRef superClassNode = createMDString(superClass == null ? "" : superClass.getQualifiedName().toString());
+      LLVMValueRef superInterfacesNode = generateSuperInterfaces(((ClassDefinition) typeDefinition).getSuperInterfaceDefinitions());
 
-      LLVMValueRef[] values = new LLVMValueRef[] {nameNode, immutabilityNode, abstractnessNode, superClassNode, nonStaticFieldsNode, staticFieldsNode, constructorsNode, nonStaticMethodsNode, staticMethodsNode};
+      LLVMValueRef[] values = new LLVMValueRef[] {nameNode, abstractnessNode, immutabilityNode, superClassNode, superInterfacesNode, nonStaticFieldsNode, staticFieldsNode, constructorsNode, nonStaticMethodsNode, staticMethodsNode};
       LLVMValueRef resultNode = LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
       LLVM.LLVMAddNamedMetadataOperand(module, "ClassDefinitions", resultNode);
     }
@@ -123,6 +70,54 @@ public class MetadataGenerator
       LLVMValueRef resultNode = LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
       LLVM.LLVMAddNamedMetadataOperand(module, "CompoundDefinitions", resultNode);
     }
+    else if (typeDefinition instanceof InterfaceDefinition)
+    {
+      LLVMValueRef[] values = new LLVMValueRef[] {nameNode, immutabilityNode, staticFieldsNode, nonStaticMethodsNode, staticMethodsNode};
+      LLVMValueRef resultNode = LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
+      LLVM.LLVMAddNamedMetadataOperand(module, "InterfaceDefinitions", resultNode);
+    }
+  }
+
+  private static LLVMValueRef generateSuperInterfaces(InterfaceDefinition[] superInterfaces)
+  {
+    LLVMValueRef[] interfaceValues = new LLVMValueRef[superInterfaces == null ? 0 : superInterfaces.length];
+    for (int i = 0; i < interfaceValues.length; ++i)
+    {
+      interfaceValues[i] = createMDString(superInterfaces[i].getQualifiedName().toString());
+    }
+    return LLVM.LLVMMDNode(C.toNativePointerArray(interfaceValues, false, true), interfaceValues.length);
+  }
+
+  private static LLVMValueRef generateFieldList(Field[] fields)
+  {
+    LLVMValueRef[] fieldNodes = new LLVMValueRef[fields.length];
+    for (int i = 0; i < fields.length; ++i)
+    {
+      fieldNodes[i] = generateField(fields[i]);
+    }
+    return LLVM.LLVMMDNode(C.toNativePointerArray(fieldNodes, false, true), fieldNodes.length);
+  }
+
+  private static LLVMValueRef generateConstructorList(Collection<Constructor> constructors)
+  {
+    LLVMValueRef[] constructorNodes = new LLVMValueRef[constructors.size()];
+    int index = 0;
+    for (Constructor constructor : constructors)
+    {
+      constructorNodes[index] = generateConstructor(constructor);
+      ++index;
+    }
+    return LLVM.LLVMMDNode(C.toNativePointerArray(constructorNodes, false, true), constructorNodes.length);
+  }
+
+  private static LLVMValueRef generateMethodList(Method[] methods)
+  {
+    LLVMValueRef[] methodNodes = new LLVMValueRef[methods.length];
+    for (int i = 0; i < methods.length; ++i)
+    {
+      methodNodes[i] = generateMethod(methods[i]);
+    }
+    return LLVM.LLVMMDNode(C.toNativePointerArray(methodNodes, false, true), methodNodes.length);
   }
 
   private static LLVMValueRef generateField(Field field)
@@ -150,13 +145,12 @@ public class MetadataGenerator
   {
     LLVMValueRef nameNode = createMDString(method.getName());
     LLVMValueRef isAbstractNode = createMDString(method.isAbstract() ? "abstract" : "not-abstract");
-    LLVMValueRef isStaticNode = createMDString(method.isStatic() ? "static" : "not-static");
     LLVMValueRef isImmutableNode = createMDString(method.isImmutable() ? "immutable" : "not-immutable");
     LLVMValueRef nativeNameNode = createMDString(method.getNativeName() == null ? "" : method.getNativeName());
     LLVMValueRef sinceSpecifierNode = generateSinceSpecifier(method.getSinceSpecifier());
     LLVMValueRef returnTypeNode = generateType(method.getReturnType());
     LLVMValueRef parametersNode = generateParameters(method.getParameters());
-    LLVMValueRef[] values = new LLVMValueRef[] {nameNode, isAbstractNode, isStaticNode, isImmutableNode, nativeNameNode, sinceSpecifierNode, returnTypeNode, parametersNode};
+    LLVMValueRef[] values = new LLVMValueRef[] {nameNode, isAbstractNode, isImmutableNode, nativeNameNode, sinceSpecifierNode, returnTypeNode, parametersNode};
     return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
   }
 

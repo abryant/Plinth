@@ -96,6 +96,14 @@ public class Method extends Member
   }
 
   /**
+   * @param isAbstract - the isAbstract to set
+   */
+  public void setAbstract(boolean isAbstract)
+  {
+    this.isAbstract = isAbstract;
+  }
+
+  /**
    * @return the isStatic
    */
   public boolean isStatic()
