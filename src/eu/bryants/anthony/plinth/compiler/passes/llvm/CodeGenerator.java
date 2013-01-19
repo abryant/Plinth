@@ -905,6 +905,30 @@ public class CodeGenerator
     {
       throw new IllegalStateException("UTF-8 encoding not supported!", e);
     }
+
+    StringBuffer nameBuffer = new StringBuffer("_STR_");
+    byte[] hexChars = "0123456789ABCDEF".getBytes();
+    for (byte b : bytes)
+    {
+      if (('a' <= b & b <= 'z') | ('A' <= b & b <= 'Z') | ('0' <= b & b <= '9'))
+      {
+        nameBuffer.append((char) b);
+      }
+      else
+      {
+        nameBuffer.append('_');
+        nameBuffer.append((char) hexChars[(b >> 4) & 0xf]);
+        nameBuffer.append((char) hexChars[b & 0xf]);
+      }
+    }
+    String mangledName = nameBuffer.toString();
+
+    LLVMValueRef existingGlobal = LLVM.LLVMGetNamedGlobal(module, mangledName);
+    if (existingGlobal != null)
+    {
+      return existingGlobal;
+    }
+
     // build the []ubyte up from the string value, and store it as a global variable
     ArrayType arrayType = new ArrayType(false, false, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
     LLVMValueRef lengthValue = LLVM.LLVMConstInt(typeHelper.findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE), bytes.length, false);
@@ -917,9 +941,10 @@ public class CodeGenerator
     LLVMTypeRef stringType = LLVM.LLVMArrayType(LLVM.LLVMInt8Type(), bytes.length);
     LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {interfaceSearchListType, vftPointerType, typeHelper.findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE), stringType};
     LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
-    LLVMValueRef globalVariable = LLVM.LLVMAddGlobal(module, structType, "str");
+    LLVMValueRef globalVariable = LLVM.LLVMAddGlobal(module, structType, mangledName);
     LLVM.LLVMSetInitializer(globalVariable, byteArrayStruct);
-    LLVM.LLVMSetLinkage(globalVariable, LLVM.LLVMLinkage.LLVMPrivateLinkage);
+    LLVM.LLVMSetLinkage(globalVariable, LLVM.LLVMLinkage.LLVMLinkOnceODRLinkage);
+    LLVM.LLVMSetVisibility(globalVariable, LLVM.LLVMVisibility.LLVMHiddenVisibility);
     LLVM.LLVMSetGlobalConstant(globalVariable, true);
     return globalVariable;
   }
