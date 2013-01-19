@@ -145,7 +145,7 @@ public class CodeGenerator
       virtualFunctionHandler.addVirtualFunctionTable();
       virtualFunctionHandler.addVirtualFunctionTableDescriptor();
     }
-    if (typeDefinition instanceof ClassDefinition)
+    if (typeDefinition instanceof ClassDefinition && !typeDefinition.isAbstract())
     {
       virtualFunctionHandler.addClassVFTInitialisationFunction();
       addAllocatorFunction();
@@ -229,7 +229,7 @@ public class CodeGenerator
     callocFunction = LLVM.LLVMAddFunction(module, "calloc", LLVM.LLVMFunctionType(callocReturnType, C.toNativePointerArray(callocParamTypes, false, true), callocParamTypes.length, false));
 
     // create the static and non-static initialiser functions
-    if (typeDefinition instanceof ClassDefinition)
+    if (typeDefinition instanceof ClassDefinition && !typeDefinition.isAbstract())
     {
       virtualFunctionHandler.getClassVFTInitialisationFunction();
       getAllocatorFunction((ClassDefinition) typeDefinition);
@@ -270,6 +270,10 @@ public class CodeGenerator
    */
   private LLVMValueRef getAllocatorFunction(ClassDefinition classDefinition)
   {
+    if (classDefinition.isAbstract())
+    {
+      throw new IllegalArgumentException("Abstract classes do not have allocator functions");
+    }
     String mangledName = classDefinition.getAllocatorMangledName();
     LLVMValueRef existingFunc = LLVM.LLVMGetNamedFunction(module, mangledName);
     if (existingFunc != null)

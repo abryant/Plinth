@@ -822,6 +822,10 @@ public class VirtualFunctionHandler
     {
       throw new IllegalStateException("Cannot get a VFT initialisation function for a non-class type");
     }
+    if (typeDefinition.isAbstract())
+    {
+      throw new IllegalStateException("Cannot get a VFT initialisation function for an abstract type");
+    }
     ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
     String mangledName = VFT_INIT_FUNCTION_PREFIX + classDefinition.getQualifiedName().getMangledName();
     LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
