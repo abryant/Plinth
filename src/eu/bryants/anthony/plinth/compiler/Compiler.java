@@ -76,11 +76,6 @@ public class Compiler
           System.err.println("Output already exists, and is not a file: " + outputFile);
           System.exit(2);
         }
-        if (!outputFile.delete())
-        {
-          System.err.println("Output already exists, and could not be deleted: " + outputFile);
-          System.exit(2);
-        }
       }
     }
     File outputDirFile = null;
@@ -321,14 +316,6 @@ public class Compiler
             System.err.println("Cannot create output file for " + typeDefinition.getQualifiedName() + ", a non-file with that name already exists");
             System.exit(8);
           }
-          if (typeOutputFile.exists())
-          {
-            if (!typeOutputFile.delete())
-            {
-              System.err.println("Cannot create output file for " + typeDefinition.getQualifiedName() + ", failed to delete existing file");
-              System.exit(9);
-            }
-          }
           resultFiles.put(typeDefinition, typeOutputFile);
         }
       }
@@ -368,6 +355,14 @@ public class Compiler
         File resultFile = resultFiles.get(typeDefinition);
         if (resultFile != null)
         {
+          if (resultFile.exists())
+          {
+            if (!resultFile.delete())
+            {
+              System.err.println("Cannot create output file for " + typeDefinition.getQualifiedName() + ", failed to delete existing file");
+              System.exit(9);
+            }
+          }
           LLVM.LLVMWriteBitcodeToFile(module, resultFile.getAbsolutePath());
         }
         if (linker != null)
@@ -389,6 +384,14 @@ public class Compiler
 
     if (linker != null)
     {
+      if (outputFile.exists())
+      {
+        if (!outputFile.delete())
+        {
+          System.err.println("Output already exists, and could not be deleted: " + outputFile);
+          System.exit(2);
+        }
+      }
       LLVM.LLVMWriteBitcodeToFile(linker.getLinkedModule(), outputFile.getAbsolutePath());
     }
   }
