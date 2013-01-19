@@ -874,6 +874,14 @@ public class CodeGenerator
       }
 
       LLVMValueRef thisValue = method.isStatic() ? null : LLVM.LLVMGetParam(llvmFunction, 0);
+
+      // convert interface callees from object to their temporary representation
+      if (!method.isStatic() && method.getContainingTypeDefinition() instanceof InterfaceDefinition)
+      {
+        thisValue = typeHelper.convertTemporary(builder, thisValue, new ObjectType(false, method.isImmutable(), null),
+                                                                    new NamedType(false, method.isImmutable(), method.getContainingTypeDefinition()));
+      }
+
       buildStatement(method.getBlock(), method.getReturnType(), builder, thisValue, variables, new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new HashMap<BreakableStatement, LLVM.LLVMBasicBlockRef>(), new Runnable()
       {
         @Override
@@ -3070,19 +3078,14 @@ public class CodeGenerator
         }
         FunctionType functionType = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, null);
 
-        LLVMValueRef firstArgument;
-        if (method.isStatic())
-        {
-          firstArgument = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
-        }
-        else
-        {
-          firstArgument = LLVM.LLVMBuildBitCast(builder, thisValue, typeHelper.getOpaquePointer(), "");
-        }
-        LLVMValueRef callee = method.isStatic() ? null : thisValue;
+        LLVMValueRef callee = method.isStatic() ? LLVM.LLVMConstNull(typeHelper.getOpaquePointer()) : thisValue;
         Type calleeType = method.isStatic() ? null : new NamedType(false, false, typeDefinition);
+
         LLVMValueRef function = lookupMethodFunction(builder, callee, calleeType, method);
         function = LLVM.LLVMBuildBitCast(builder, function, typeHelper.findRawFunctionPointerType(functionType), "");
+
+        LLVMValueRef firstArgument = typeHelper.convertMethodCallee(builder, callee, calleeType, method);
+        firstArgument = LLVM.LLVMBuildBitCast(builder, firstArgument, typeHelper.getOpaquePointer(), "");
 
         LLVMValueRef result = LLVM.LLVMGetUndef(typeHelper.findStandardType(functionType));
         result = LLVM.LLVMBuildInsertValue(builder, result, firstArgument, 0, "");

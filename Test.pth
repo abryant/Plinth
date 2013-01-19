@@ -2,30 +2,30 @@ package foo.bar;
 
 interface Runnable
 {
-  void run();
+  void run()
+  {
+    stdout::println("Runnable::run()");
+  }
 }
 
-interface Edible extends Runnable
+interface DefaultRunnable
 {
-  void consume();
+  void run()
+  {
+    { -> string} x = this.toString;
+    stdout::println("DefaultRunnable::run(): " + x());
+  }
 }
 
-abstract class Foo implements Edible
+abstract class Foo implements Runnable
 {
   this()
   {
   }
-  void consume()
-  {
-    stdout::println("Consuming " + toString());
-  }
-  void run()
-  {
-    stdout::println("Running " + toString());
-  }
+  abstract void run();
 }
 
-class Test extends Foo
+class Test extends Foo implements DefaultRunnable
 {
   string field;
   this(uint a)
@@ -45,11 +45,9 @@ class Test extends Foo
     stdout::println("Interface call: " + r.toString());
 
     Foo foo = new Test(1);
-    Test test = cast<Test> cast<Edible> foo;
+    Test test = cast<Test> foo;
     Runnable runTest = foo;
-    Edible eatTest = cast<Edible> runTest;
     runTest.run();
-    eatTest.consume();
     return 0;
   }
 

@@ -617,6 +617,15 @@ public class VirtualFunctionHandler
   }
 
   /**
+   * @param numElements - the number of elements in the exclude list, or 0 for a generic exclude list type
+   * @return the type of an exclude list in a function search list
+   */
+  private LLVMTypeRef getExcludeListType(int numElements)
+  {
+    return LLVM.LLVMArrayType(LLVM.LLVMInt1Type(), numElements);
+  }
+
+  /**
    * Finds the type of an interface search list, a named struct type representing: {i32, [0 x {%RawString*, %VFT*}]}
    * @return the LLVM type of the an interface search list
    */
@@ -649,7 +658,8 @@ public class VirtualFunctionHandler
     }
     LLVMTypeRef descriptorPointer = LLVM.LLVMPointerType(getGenericDescriptorType(), 0);
     LLVMTypeRef vftPointer = LLVM.LLVMPointerType(getGenericVFTType(), 0);
-    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {descriptorPointer, vftPointer};
+    LLVMTypeRef excludeListPointer = LLVM.LLVMPointerType(getExcludeListType(0), 0);
+    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {descriptorPointer, vftPointer, excludeListPointer};
     LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
     LLVMTypeRef arrayType = LLVM.LLVMArrayType(elementType, 0);
     LLVMTypeRef[] searchListSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), arrayType};
@@ -720,6 +730,52 @@ public class VirtualFunctionHandler
   }
 
   /**
+   * Finds the exclude list for the specified super-type of the current type definition.
+   * @param superType - the super-type to find the exclude list for, or null to find the exclude list for the object type
+   * @return the exclude list for the specified super-type of the current type definition
+   */
+  private LLVMValueRef getExcludeList(TypeDefinition superType)
+  {
+    String mangledName = "ExcludeList_" + typeDefinition.getQualifiedName().getMangledName() + "_" + (superType == null ? ObjectType.MANGLED_NAME : superType.getQualifiedName().getMangledName());
+    LLVMValueRef existingGlobal = LLVM.LLVMGetNamedGlobal(module, mangledName);
+    if (existingGlobal != null)
+    {
+      return existingGlobal;
+    }
+
+    TypeDefinition[] linearisation = typeDefinition.getInheritanceLinearisation();
+
+    // build the exclude list's values, which are only true for super-types of the given superType
+    LLVMValueRef[] excludeListValues = new LLVMValueRef[linearisation.length + 1];
+    for (int i = 0; i < linearisation.length; ++i)
+    {
+      boolean inSuperType = false;
+      if (superType != null)
+      {
+        for (TypeDefinition test : superType.getInheritanceLinearisation())
+        {
+          if (test == linearisation[i])
+          {
+            inSuperType = true;
+            break;
+          }
+        }
+      }
+      excludeListValues[i] = LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), inSuperType ? 1 : 0, false);
+    }
+    // the last value is for the object type, which everything extends, and is therefore always in the exclude list
+    excludeListValues[linearisation.length] = LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false);
+    LLVMValueRef array = LLVM.LLVMConstArray(LLVM.LLVMInt1Type(), C.toNativePointerArray(excludeListValues, false, true), excludeListValues.length);
+
+    LLVMValueRef global = LLVM.LLVMAddGlobal(module, getExcludeListType(linearisation.length + 1), mangledName);
+    LLVM.LLVMSetGlobalConstant(global, true);
+    LLVM.LLVMSetLinkage(global, LLVM.LLVMLinkage.LLVMPrivateLinkage);
+    LLVM.LLVMSetVisibility(global, LLVM.LLVMVisibility.LLVMHiddenVisibility);
+    LLVM.LLVMSetInitializer(global, array);
+    return global;
+  }
+
+  /**
    * Gets the function search list that will be used for looking up methods in the current type definition.
    * @return the function search list
    */
@@ -736,25 +792,31 @@ public class VirtualFunctionHandler
 
     LLVMValueRef[] searchDescriptors = new LLVMValueRef[searchTypes.length + 1];
     LLVMValueRef[] searchVFTs = new LLVMValueRef[searchTypes.length + 1];
+    LLVMValueRef[] searchExcludeLists = new LLVMValueRef[searchTypes.length + 1];
     for (int i = 0; i < searchTypes.length; ++i)
     {
       LLVMValueRef descriptor = getVFTDescriptorPointer(searchTypes[i]);
       searchDescriptors[i] = LLVM.LLVMConstBitCast(descriptor, LLVM.LLVMPointerType(getGenericDescriptorType(), 0));
       LLVMValueRef vft = getVFTGlobal(searchTypes[i]);
       searchVFTs[i] = LLVM.LLVMConstBitCast(vft, LLVM.LLVMPointerType(getGenericVFTType(), 0));
+      LLVMValueRef excludeList = getExcludeList(searchTypes[i]);
+      searchExcludeLists[i] = LLVM.LLVMConstBitCast(excludeList, LLVM.LLVMPointerType(getExcludeListType(0), 0));
     }
     LLVMValueRef objectDescriptor = getObjectVFTDescriptorPointer();
     searchDescriptors[searchTypes.length] = LLVM.LLVMConstBitCast(objectDescriptor, LLVM.LLVMPointerType(getGenericDescriptorType(), 0));
     LLVMValueRef objectVFT = getObjectVFTGlobal();
     searchVFTs[searchTypes.length] = LLVM.LLVMConstBitCast(objectVFT, LLVM.LLVMPointerType(getGenericVFTType(), 0));
+    LLVMValueRef objectExcludeList = getExcludeList(null);
+    searchExcludeLists[searchTypes.length] = LLVM.LLVMConstBitCast(objectExcludeList, LLVM.LLVMPointerType(getExcludeListType(0), 0));
 
     LLVMValueRef[] elements = new LLVMValueRef[searchTypes.length + 1];
     LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {LLVM.LLVMPointerType(getGenericDescriptorType(), 0),
-                                                       LLVM.LLVMPointerType(getGenericVFTType(), 0)};
+                                                       LLVM.LLVMPointerType(getGenericVFTType(), 0),
+                                                       LLVM.LLVMPointerType(getExcludeListType(0), 0)};
     LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
     for (int i = 0; i < elements.length; ++i)
     {
-      LLVMValueRef[] structElements = new LLVMValueRef[] {searchDescriptors[i], searchVFTs[i]};
+      LLVMValueRef[] structElements = new LLVMValueRef[] {searchDescriptors[i], searchVFTs[i], searchExcludeLists[i]};
       elements[i] = LLVM.LLVMConstStruct(C.toNativePointerArray(structElements, false, true), structElements.length, false);
     }
     LLVMValueRef array = LLVM.LLVMConstArray(elementType, C.toNativePointerArray(elements, false, true), elements.length);

@@ -109,9 +109,9 @@ public class InterfaceDefinition extends TypeDefinition
         }
         if (!method.isStatic())
         {
-          // all non-static interface methods are implicitly abstract
-          // TODO: add support for mixins (i.e. allow non-abstract methods if they have a block)
-          method.setAbstract(true);
+          // all non-static interface methods without implementations are implicitly abstract
+          boolean hasImplementation = method.getBlock() != null || method.getNativeName() != null;
+          method.setAbstract(!hasImplementation);
         }
         methodSet.add(method);
         allMethods.add(method);
