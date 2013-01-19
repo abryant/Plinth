@@ -11,6 +11,7 @@ import java.util.Set;
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
@@ -50,12 +51,14 @@ public class CycleChecker
   {
     for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
-      if (!(typeDefinition instanceof ClassDefinition))
+      if (typeDefinition instanceof ClassDefinition)
       {
-        continue;
+        checkInheritanceCycles((ClassDefinition) typeDefinition);
       }
-      ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
-      checkInheritanceCycles(classDefinition);
+      if (typeDefinition instanceof InterfaceDefinition)
+      {
+        checkInheritanceCycles((InterfaceDefinition) typeDefinition);
+      }
     }
   }
 
@@ -72,10 +75,54 @@ public class CycleChecker
     {
       if (visited.contains(current))
       {
-        throw new ConceptualException("Cyclic inheritance hierarchy detected: " + current.getQualifiedName() + " extends itself (perhaps indirectly).", current.getLexicalPhrase());
+        if (current == classDefinition)
+        {
+          throw new ConceptualException("Cyclic inheritance hierarchy detected: " + current.getQualifiedName() + " extends itself (perhaps indirectly).", current.getLexicalPhrase());
+        }
+        // there is a cycle, but it doesn't include the class we're checking, so let another call to checkInheritanceCycles() find it
+        return;
       }
       visited.add(current);
       current = current.getSuperClassDefinition();
+    }
+  }
+
+  /**
+   * Checks for cycles in the specified InterfaceDefinition's inheritance graph.
+   * @param interfaceDefinition - the InterfaceDefinition to check for inheritance cycles
+   * @throws ConceptualException - if a cyclic inheritance graph is detected
+   */
+  public static void checkInheritanceCycles(InterfaceDefinition interfaceDefinition) throws ConceptualException
+  {
+    // do a depth-first search, but maintain the path as we go along so we don't infinite-loop on cycles
+    Set<InterfaceDefinition> path = new HashSet<InterfaceDefinition>();
+    Deque<InterfaceDefinition> stack = new LinkedList<InterfaceDefinition>();
+    stack.push(interfaceDefinition);
+    while (!stack.isEmpty())
+    {
+      InterfaceDefinition current = stack.peek();
+      if (path.contains(current))
+      {
+        path.remove(current);
+        stack.pop();
+        continue;
+      }
+      path.add(current);
+      InterfaceDefinition[] parents = current.getSuperInterfaceDefinitions();
+      if (parents != null)
+      {
+        for (InterfaceDefinition parent : parents)
+        {
+          if (!path.contains(parent))
+          {
+            stack.push(parent);
+          }
+          else if (parent == interfaceDefinition)
+          {
+            throw new ConceptualException("Cyclic inheritance graph detected: " + interfaceDefinition.getQualifiedName() + " extends itself (perhaps indirectly)", interfaceDefinition.getLexicalPhrase());
+          }
+        }
+      }
     }
   }
 
@@ -177,6 +224,7 @@ public class CycleChecker
     }
     for (Constructor constructor : constructorDelegates.keySet())
     {
+      // do a depth-first search, but maintain the path as we go along so we don't infinite-loop on cycles
       Set<Constructor> path = new HashSet<Constructor>();
       Deque<Constructor> stack = new LinkedList<Constructor>();
       stack.push(constructor);

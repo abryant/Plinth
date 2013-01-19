@@ -79,6 +79,17 @@ public class InheritanceChecker
         }
       }
     }
+    if (typeDefinition instanceof InterfaceDefinition)
+    {
+      InterfaceDefinition interfaceDefinition = (InterfaceDefinition) typeDefinition;
+      if (interfaceDefinition.getSuperInterfaceDefinitions() != null)
+      {
+        for (InterfaceDefinition superInterface : interfaceDefinition.getSuperInterfaceDefinitions())
+        {
+          parents.add(superInterface);
+        }
+      }
+    }
 
     List<List<TypeDefinition>> precedenceLists = new LinkedList<List<TypeDefinition>>();
     for (TypeDefinition parent : parents)
@@ -135,10 +146,16 @@ public class InheritanceChecker
       if (next == null)
       {
         StringBuffer buffer = new StringBuffer();
+        Set<TypeDefinition> added = new HashSet<TypeDefinition>();
         for (List<TypeDefinition> currentList : precedenceLists)
         {
-          buffer.append("\n");
           TypeDefinition candidate = currentList.get(0);
+          if (added.contains(candidate))
+          {
+            continue;
+          }
+          added.add(candidate);
+          buffer.append("\n");
           buffer.append(candidate.getQualifiedName().toString());
         }
         throw new ConceptualException("Cannot find a good linearisation for the inheritance hierarchy of " + typeDefinition.getQualifiedName() + ": cannot decide which of the following super-types should be preferred:" + buffer, typeDefinition.getLexicalPhrase());

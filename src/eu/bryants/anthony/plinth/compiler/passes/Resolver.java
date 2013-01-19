@@ -258,6 +258,33 @@ public class Resolver
         classDefinition.setSuperInterfaceDefinitions(resolvedDefinitions);
       }
     }
+    if (typeDefinition instanceof InterfaceDefinition)
+    {
+      InterfaceDefinition interfaceDefinition = (InterfaceDefinition) typeDefinition;
+      QName[] superInterfaceQNames = interfaceDefinition.getSuperInterfaceQNames();
+      if (superInterfaceQNames != null)
+      {
+        InterfaceDefinition[] resolvedDefinitions = new InterfaceDefinition[superInterfaceQNames.length];
+        for (int i = 0; i < superInterfaceQNames.length; ++i)
+        {
+          TypeDefinition resolvedInterface = resolveTypeDefinition(superInterfaceQNames[i], compilationUnit);
+          if (resolvedInterface instanceof ClassDefinition)
+          {
+            throw new ConceptualException("An interface may not extend a class", interfaceDefinition.getLexicalPhrase());
+          }
+          else if (resolvedInterface instanceof CompoundDefinition)
+          {
+            throw new ConceptualException("An interface may not extend a compound type", interfaceDefinition.getLexicalPhrase());
+          }
+          else if (!(resolvedInterface instanceof InterfaceDefinition))
+          {
+            throw new ConceptualException("An interface may only extend other interfaces", interfaceDefinition.getLexicalPhrase());
+          }
+          resolvedDefinitions[i] = (InterfaceDefinition) resolvedInterface;
+        }
+        interfaceDefinition.setSuperInterfaceDefinitions(resolvedDefinitions);
+      }
+    }
 
     for (Field field : typeDefinition.getFields())
     {

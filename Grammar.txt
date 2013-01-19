@@ -7,7 +7,8 @@ QName = Name | QName Dot Name
 ClassTypeDef = OptionalModifiers ClassKeyword Name ImplementsClause LBrace MemberList RBrace |
                OptionalModifiers ClassKeyword Name ExtendsKeyword QName ImplementsClause LBrace MemberList RBrace
 CompoundTypeDef = OptionalModifiers CompoundKeyword Name LBrace MemberList RBrace
-InterfaceTypeDef = OptionalModifiers InterfaceKeyword Name LBrace MemberList RBrace
+InterfaceTypeDef = OptionalModifiers InterfaceKeyword                              Name LBrace MemberList RBrace |
+                   OptionalModifiers InterfaceKeyword ExtendsKeyword InterfaceList Name LBrace MemberList RBrace
 
 ImplementsClause = epsilon | ImplementsKeyword InterfaceList
 InterfaceList = QName | InterfaceList Comma QName

@@ -6,6 +6,7 @@ import parser.Rule;
 import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.Member;
+import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
@@ -23,11 +24,12 @@ public class InterfaceDefinitionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.INTERFACE_KEYWORD, ParseType.NAME, ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
+  private static final Production<ParseType> PRODUCTION         = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.INTERFACE_KEYWORD, ParseType.NAME,                                                      ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
+  private static final Production<ParseType> EXTENDS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.INTERFACE_KEYWORD, ParseType.NAME, ParseType.EXTENDS_KEYWORD, ParseType.INTERFACE_LIST, ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
 
   public InterfaceDefinitionRule()
   {
-    super(ParseType.INTERFACE_DEFINITION, PRODUCTION);
+    super(ParseType.INTERFACE_DEFINITION, PRODUCTION, EXTENDS_PRODUCTION);
   }
 
   /**
@@ -43,13 +45,25 @@ public class InterfaceDefinitionRule extends Rule<ParseType>
       Name name = (Name) args[2];
       @SuppressWarnings("unchecked")
       ParseList<Member> members = (ParseList<Member>) args[4];
-      return processModifiers(modifiers, name.getName(), members.toArray(new Member[members.size()]),
+      return processModifiers(modifiers, name.getName(), null, members.toArray(new Member[members.size()]),
                               LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), (LexicalPhrase) args[3], members.getLexicalPhrase(), (LexicalPhrase) args[5]));
+    }
+    if (production == EXTENDS_PRODUCTION)
+    {
+      @SuppressWarnings("unchecked")
+      ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
+      Name name = (Name) args[2];
+      @SuppressWarnings("unchecked")
+      ParseList<QName> superInterfaceQNames = (ParseList<QName>) args[4];
+      @SuppressWarnings("unchecked")
+      ParseList<Member> members = (ParseList<Member>) args[6];
+      return processModifiers(modifiers, name.getName(), superInterfaceQNames.toArray(new QName[superInterfaceQNames.size()]), members.toArray(new Member[members.size()]),
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), (LexicalPhrase) args[3], superInterfaceQNames.getLexicalPhrase(), (LexicalPhrase) args[5], members.getLexicalPhrase(), (LexicalPhrase) args[7]));
     }
     throw badTypeList();
   }
 
-  private InterfaceDefinition processModifiers(ParseList<Modifier> modifiers, String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  private InterfaceDefinition processModifiers(ParseList<Modifier> modifiers, String name, QName[] superInterfaceQNames, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     boolean isImmutable = false;
     boolean hasSince = false;
@@ -88,6 +102,6 @@ public class InterfaceDefinitionRule extends Rule<ParseType>
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }
-    return new InterfaceDefinition(isImmutable, name, members, lexicalPhrase);
+    return new InterfaceDefinition(isImmutable, name, superInterfaceQNames, members, lexicalPhrase);
   }
 }

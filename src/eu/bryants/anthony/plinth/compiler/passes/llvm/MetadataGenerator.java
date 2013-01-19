@@ -72,7 +72,9 @@ public class MetadataGenerator
     }
     else if (typeDefinition instanceof InterfaceDefinition)
     {
-      LLVMValueRef[] values = new LLVMValueRef[] {nameNode, immutabilityNode, staticFieldsNode, nonStaticMethodsNode, staticMethodsNode};
+      LLVMValueRef superInterfacesNode = generateSuperInterfaces(((InterfaceDefinition) typeDefinition).getSuperInterfaceDefinitions());
+
+      LLVMValueRef[] values = new LLVMValueRef[] {nameNode, immutabilityNode, superInterfacesNode, staticFieldsNode, nonStaticMethodsNode, staticMethodsNode};
       LLVMValueRef resultNode = LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
       LLVM.LLVMAddNamedMetadataOperand(module, "InterfaceDefinitions", resultNode);
     }

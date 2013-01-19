@@ -28,23 +28,29 @@ import eu.bryants.anthony.plinth.parser.LanguageParseException;
 public class InterfaceDefinition extends TypeDefinition
 {
 
+  private QName[] superInterfaceQNames;
+
   private List<Initialiser> initialisers = new LinkedList<Initialiser>();
   private Map<String, Field> fields = new HashMap<String, Field>();
   private Map<String, Set<Method>> methods = new HashMap<String, Set<Method>>();
 
   private Method[] nonStaticMethods;
 
+  private InterfaceDefinition[] superInterfaceDefinitions;
+
   /**
    * Creates a new InterfaceDefinition with the specified members.
    * @param isImmutable - true if this interface definition should be immutable, false otherwise
    * @param name - the name of the interface definition
+   * @param superInterfaceQNames - the qualified names of all of the super-interfaces of this interface, or null if there are no super-interfaces
    * @param members - the list of Members of this InterfaceDefinition
    * @param lexicalPhrase - the LexicalPhrase of this InterfaceDefinition
    * @throws LanguageParseException - if there is a name collision between any of the Members, or a conceptual problem with any of them belonging to an interface
    */
-  public InterfaceDefinition(boolean isImmutable, String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  public InterfaceDefinition(boolean isImmutable, String name, QName[] superInterfaceQNames, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     super(true, isImmutable, name, lexicalPhrase);
+    this.superInterfaceQNames = superInterfaceQNames;
     // add all of the members by name
     Set<Method> allMethods = new HashSet<Method>();
     for (Member member : members)
@@ -117,15 +123,17 @@ public class InterfaceDefinition extends TypeDefinition
    * Creates a new InterfaceDefinition with the specified members.
    * @param isImmutable - true if this interface definition should be immutable, false otherwise
    * @param qname - the qualified name of the interface definition
+   * @param superInterfaceQNames - the qualified names of all of the super-interfaces of this interface, or null if there are no super-interfaces
    * @param staticFields - the static fields
    * @param nonStaticMethods - the non-static methods, with their indexes already filled in
    * @param staticMethods - the static methods
    * @throws LanguageParseException - if there is a name collision between any of the methods
    */
-  public InterfaceDefinition(boolean isImmutable, QName qname, Field[] staticFields, Method[] nonStaticMethods, Method[] staticMethods) throws LanguageParseException
+  public InterfaceDefinition(boolean isImmutable, QName qname, QName[] superInterfaceQNames, Field[] staticFields, Method[] nonStaticMethods, Method[] staticMethods) throws LanguageParseException
   {
     super(true, isImmutable, qname.getLastName(), null);
     setQualifiedName(qname);
+    this.superInterfaceQNames = superInterfaceQNames;
     for (Field f : staticFields)
     {
       if (fields.containsKey(f.getName()))
@@ -170,6 +178,14 @@ public class InterfaceDefinition extends TypeDefinition
       method.setContainingTypeDefinition(this);
       methodSet.add(method);
     }
+  }
+
+  /**
+   * @return the superInterfaceQNames
+   */
+  public QName[] getSuperInterfaceQNames()
+  {
+    return superInterfaceQNames;
   }
 
   /**
@@ -302,6 +318,22 @@ public class InterfaceDefinition extends TypeDefinition
       return new HashSet<Method>();
     }
     return result;
+  }
+
+  /**
+   * @return the superInterfaceDefinitions
+   */
+  public InterfaceDefinition[] getSuperInterfaceDefinitions()
+  {
+    return superInterfaceDefinitions;
+  }
+
+  /**
+   * @param superInterfaceDefinitions - the superInterfaceDefinitions to set
+   */
+  public void setSuperInterfaceDefinitions(InterfaceDefinition[] superInterfaceDefinitions)
+  {
+    this.superInterfaceDefinitions = superInterfaceDefinitions;
   }
 
   /**

@@ -17,6 +17,7 @@ import parser.ParseException;
 import parser.Token;
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.metadata.PackageNode;
@@ -220,6 +221,10 @@ public class Compiler
         if (typeDefinition instanceof ClassDefinition)
         {
           CycleChecker.checkInheritanceCycles((ClassDefinition) typeDefinition);
+        }
+        if (typeDefinition instanceof InterfaceDefinition)
+        {
+          CycleChecker.checkInheritanceCycles((InterfaceDefinition) typeDefinition);
         }
       }
       for (CompilationUnit compilationUnit : compilationUnits)

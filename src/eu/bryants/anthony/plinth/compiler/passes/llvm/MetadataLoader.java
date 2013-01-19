@@ -190,7 +190,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("An interface definition must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 5)
+    if (values.length != 6)
     {
       throw new MalformedMetadataException("An interface definition's metadata node must have the correct number of sub-nodes");
     }
@@ -212,13 +212,15 @@ public class MetadataLoader
 
     boolean isImmutable = readBooleanValue(values[1], "interface definition", "immutable");
 
-    Field[] staticFields = loadFields(values[2], true);
-    Method[] nonStaticMethods = loadMethods(values[3], false);
-    Method[] staticMethods = loadMethods(values[4], true);
+    QName[] superInterfaceQNames = loadSuperInterfaces(values[2]);
+
+    Field[] staticFields = loadFields(values[3], true);
+    Method[] nonStaticMethods = loadMethods(values[4], false);
+    Method[] staticMethods = loadMethods(values[5], true);
 
     try
     {
-      return new InterfaceDefinition(isImmutable, qname, staticFields, nonStaticMethods, staticMethods);
+      return new InterfaceDefinition(isImmutable, qname, superInterfaceQNames, staticFields, nonStaticMethods, staticMethods);
     }
     catch (LanguageParseException e)
     {

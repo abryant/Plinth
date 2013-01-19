@@ -5,12 +5,12 @@ interface Runnable
   void run();
 }
 
-interface Edible
+interface Edible extends Runnable
 {
   void consume();
 }
 
-abstract class Foo implements Runnable, Edible
+abstract class Foo implements Edible
 {
   this()
   {
