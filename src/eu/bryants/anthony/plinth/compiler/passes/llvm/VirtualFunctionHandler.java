@@ -545,7 +545,7 @@ public class VirtualFunctionHandler
     LLVMTypeRef stringType = LLVM.LLVMPointerType(typeHelper.findRawStringType(), 0);
     LLVMTypeRef stringArrayType = LLVM.LLVMArrayType(stringType, 0);
     LLVMTypeRef[] vftDescriptorSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), stringArrayType};
-    vftDescriptorType = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), "VFT_Descriptor");
+    vftDescriptorType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "VFT_Descriptor");
     LLVM.LLVMStructSetBody(vftDescriptorType, C.toNativePointerArray(vftDescriptorSubTypes, false, true), vftDescriptorSubTypes.length, false);
     return vftDescriptorType;
   }
@@ -562,7 +562,7 @@ public class VirtualFunctionHandler
     {
       return cachedResult;
     }
-    LLVMTypeRef result = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), typeDefinition.getQualifiedName().toString() + "_VFT");
+    LLVMTypeRef result = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), typeDefinition.getQualifiedName().toString() + "_VFT");
     // cache the LLVM type before we call findMethodType(), so that once we call it, everything will be able to use this type instead of recreating it and possibly recursing infinitely
     // later on, we add the fields using LLVMStructSetBody
     nativeVirtualTableTypes.put(typeDefinition, result);
@@ -587,7 +587,7 @@ public class VirtualFunctionHandler
     {
       return objectVirtualTableType;
     }
-    LLVMTypeRef result = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), ObjectType.MANGLED_NAME + "_VFT");
+    LLVMTypeRef result = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), ObjectType.MANGLED_NAME + "_VFT");
     // cache the LLVM type before we call findMethodType(), so that once we call it, everything will be able to use this type instead of recreating it and possibly recursing infinitely
     // later on, we add the fields using LLVMStructSetBody
     objectVirtualTableType = result;
@@ -636,7 +636,7 @@ public class VirtualFunctionHandler
       return interfaceSearchListType;
     }
     // store the named struct in interfaceSearchListType first, so that when we get the raw string type we don't infinitely recurse
-    interfaceSearchListType = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), "InterfaceSearchList");
+    interfaceSearchListType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "InterfaceSearchList");
     LLVMTypeRef stringType = LLVM.LLVMPointerType(typeHelper.findRawStringType(), 0);
     LLVMTypeRef vftType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
     LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {stringType, vftType};
@@ -663,7 +663,7 @@ public class VirtualFunctionHandler
     LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
     LLVMTypeRef arrayType = LLVM.LLVMArrayType(elementType, 0);
     LLVMTypeRef[] searchListSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), arrayType};
-    functionSearchListType = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), "FunctionSearchList");
+    functionSearchListType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "FunctionSearchList");
     LLVM.LLVMStructSetBody(functionSearchListType, C.toNativePointerArray(searchListSubTypes, false, true), searchListSubTypes.length, false);
     return functionSearchListType;
   }

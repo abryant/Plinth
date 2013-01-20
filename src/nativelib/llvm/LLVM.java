@@ -270,6 +270,8 @@ public class LLVM
   public static native LLVMTypeRef LLVMVoidType();
   public static native void LLVMStructSetBody(LLVMTypeRef struct, Pointer elementTypes, int elementCount, boolean packed);
 
+  public static native LLVMContextRef LLVMContextCreate();
+  public static native void LLVMContextDispose(LLVMContextRef context);
   public static native LLVMContextRef LLVMGetGlobalContext();
 
   public static native boolean LLVMLinkModules(LLVMModuleRef dest, LLVMModuleRef src, int linkerMode, PointerByReference outMessage);

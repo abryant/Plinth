@@ -65,7 +65,7 @@ public class TypeHelper
     this.codeGenerator = codeGenerator;
     this.virtualFunctionHandler = virtualFunctionHandler;
     this.module = module;
-    opaqueType = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), "opaque");
+    opaqueType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "opaque");
   }
 
   /**
@@ -198,7 +198,7 @@ public class TypeHelper
       {
         // cache the LLVM type before we recurse, so that once we recurse, everything will be able to use this type instead of recreating it and possibly recursing infinitely
         // later on, we add the fields using LLVMStructSetBody
-        LLVMTypeRef structType = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), typeDefinition.getQualifiedName().toString());
+        LLVMTypeRef structType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), typeDefinition.getQualifiedName().toString());
         LLVMTypeRef pointerToStruct = LLVM.LLVMPointerType(structType, 0);
         nativeNamedTypes.put(typeDefinition, pointerToStruct);
 
@@ -211,7 +211,7 @@ public class TypeHelper
       {
         // cache the LLVM type before we recurse, so that once we recurse, everything will be able to use this type instead of recreating it
         // later on, we add the fields using LLVMStructSetBody
-        LLVMTypeRef nonNullableStructType = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), typeDefinition.getQualifiedName().toString());
+        LLVMTypeRef nonNullableStructType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), typeDefinition.getQualifiedName().toString());
         nativeNamedTypes.put(typeDefinition, nonNullableStructType);
 
         // add the fields to the struct recursively
@@ -249,7 +249,7 @@ public class TypeHelper
       {
         return LLVM.LLVMPointerType(objectType, 0);
       }
-      objectType = LLVM.LLVMStructCreateNamed(LLVM.LLVMGetGlobalContext(), "object");
+      objectType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "object");
 
       LLVMTypeRef interfaceSearchListType = LLVM.LLVMPointerType(virtualFunctionHandler.getInterfaceSearchListType(), 0);
       LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
