@@ -52,6 +52,7 @@ public class TypeHelper
 
   private LLVMTypeRef opaqueType;
   private LLVMTypeRef objectType;
+  private Map<String, LLVMTypeRef> nativeArrayTypes = new HashMap<String, LLVMTypeRef>();
   private Map<TypeDefinition, LLVMTypeRef> nativeNamedTypes = new HashMap<TypeDefinition, LLVMTypeRef>();
 
   /**
@@ -132,14 +133,23 @@ public class TypeHelper
     }
     if (type instanceof ArrayType)
     {
-      ArrayType arrayType = (ArrayType) type;
+      ArrayType arrayType = new ArrayType(false, false, ((ArrayType) type).getBaseType(), null);
+      String mangledTypeName = arrayType.getMangledName();
+      LLVMTypeRef existingType = nativeArrayTypes.get(mangledTypeName);
+      if (existingType != null)
+      {
+        return LLVM.LLVMPointerType(existingType, 0);
+      }
+      LLVMTypeRef llvmArrayType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), mangledTypeName);
+      nativeArrayTypes.put(mangledTypeName, llvmArrayType);
+
       LLVMTypeRef baseType = findNativeType(arrayType.getBaseType(), false);
       LLVMTypeRef llvmArray = LLVM.LLVMArrayType(baseType, 0);
       LLVMTypeRef interfaceSearchListType = LLVM.LLVMPointerType(virtualFunctionHandler.getInterfaceSearchListType(), 0);
       LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
       LLVMTypeRef[] structureTypes = new LLVMTypeRef[] {interfaceSearchListType, vftPointerType, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), llvmArray};
-      LLVMTypeRef llvmStructure = LLVM.LLVMStructType(C.toNativePointerArray(structureTypes, false, true), structureTypes.length, false);
-      return LLVM.LLVMPointerType(llvmStructure, 0);
+      LLVM.LLVMStructSetBody(llvmArrayType, C.toNativePointerArray(structureTypes, false, true), structureTypes.length, false);
+      return LLVM.LLVMPointerType(llvmArrayType, 0);
     }
     if (type instanceof FunctionType)
     {
