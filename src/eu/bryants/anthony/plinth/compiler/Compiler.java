@@ -151,11 +151,12 @@ public class Compiler
     {
       searchDirectories.add(outputDirFile);
     }
-    BitcodePackageSearcher bitcodePackageSearcher = new BitcodePackageSearcher(searchDirectories);
 
+    BitcodePackageSearcher bitcodePackageSearcher = new BitcodePackageSearcher(searchDirectories);
     PackageNode rootPackage = new PackageNode(bitcodePackageSearcher);
     Resolver resolver = new Resolver(rootPackage);
-    bitcodePackageSearcher.initialise(rootPackage, resolver);
+    PassManager passManager = new PassManager(resolver, mainTypeName);
+    bitcodePackageSearcher.initialise(rootPackage, passManager);
 
     List<TypeDefinition> importedTypeDefinitions = new LinkedList<TypeDefinition>();
     List<LLVMModuleRef> linkedModules = new LinkedList<LLVM.LLVMModuleRef>();
@@ -184,14 +185,13 @@ public class Compiler
       }
     }
 
-    PassManager passManager = new PassManager(resolver, mainTypeName);
-    passManager.setCompilationUnits(compilationUnits);
-    for (TypeDefinition typeDefinition : importedTypeDefinitions)
-    {
-      passManager.addTypeDefinition(typeDefinition);
-    }
     try
     {
+      passManager.setCompilationUnits(compilationUnits);
+      for (TypeDefinition typeDefinition : importedTypeDefinitions)
+      {
+        passManager.addTypeDefinition(typeDefinition);
+      }
       passManager.runPasses();
     }
     catch (ConceptualException e)

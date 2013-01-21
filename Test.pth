@@ -1,5 +1,7 @@
 package foo.bar;
 
+import metadata.*;
+
 interface Runnable
 {
   void run()
@@ -48,6 +50,10 @@ class Test extends Foo implements DefaultRunnable
     Test test = cast<Test> foo;
     Runnable runTest = foo;
     runTest.run();
+
+    MetadataTest metadataTest = new MetadataTest();
+    metadataTest.someMethod();
+
     return 0;
   }
 

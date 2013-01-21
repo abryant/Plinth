@@ -1,0 +1,16 @@
+package metadata;
+
+interface TestInterface
+{
+  void someMethod()
+  {
+    stdout::println("TestInterface::someMethod()");
+  }
+}
+
+class MetadataTest implements TestInterface
+{
+  this()
+  {
+  }
+}

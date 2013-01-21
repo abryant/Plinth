@@ -98,12 +98,24 @@ public class PassManager
    * Adds the specified TypeDefinition to the PassManager.
    * TypeDefinitions should always be added to the package hierarchy before they are added to the PassManager.
    * @param typeDefinition - the TypeDefinition to add
+   * @throws ConceptualException - if a conceptual error occurs while bringing this TypeDefinition up to speed with the current pass
    */
-  public void addTypeDefinition(TypeDefinition typeDefinition)
+  public void addTypeDefinition(TypeDefinition typeDefinition) throws ConceptualException
   {
-    Set<TypeDefinition> firstPassDefinitions = pendingPasses.get(Pass.TOP_LEVEL_RESOLUTION);
-    firstPassDefinitions.add(typeDefinition);
-    currentPass = Pass.TOP_LEVEL_RESOLUTION;
+    if (currentPass != Pass.TOP_LEVEL_RESOLUTION)
+    {
+      // bring this new TypeDefinition up to speed before we return control back to the Resolver
+      for (Pass pass : Pass.values())
+      {
+        if (pass == currentPass)
+        {
+          break;
+        }
+        runPass(pass, typeDefinition);
+      }
+    }
+    Set<TypeDefinition> currentPassDefinitions = pendingPasses.get(currentPass);
+    currentPassDefinitions.add(typeDefinition);
   }
 
   /**
@@ -138,9 +150,7 @@ public class PassManager
 
     while (currentPass != Pass.FINISHED)
     {
-      Pass workingPass = currentPass;
-
-      if (!doneSpecialTypeChecking & workingPass == Pass.RESOLUTION)
+      if (!doneSpecialTypeChecking & currentPass == Pass.RESOLUTION)
       {
         // the special type checking pass comes just before the main resolution pass, so perform it now (if we haven't already done it)
         if (mainTypeName != null)
@@ -152,100 +162,99 @@ public class PassManager
         doneSpecialTypeChecking = true;
       }
 
-      // we don't have to deal with multi-threading here, so synchronization is not an issue
-      // however, certain resolver calls can perform a search for bitcode files, which will add
-      // any resulting TypeDefinitions to the pass manager and reset us to the first pass,
-      // so we need to go back to currentPass
-      Set<TypeDefinition> currentPassDefinitions = pendingPasses.get(workingPass);
-      while (currentPass == workingPass && !currentPassDefinitions.isEmpty())
+      Set<TypeDefinition> currentPassDefinitions = pendingPasses.get(currentPass);
+      while (!currentPassDefinitions.isEmpty())
       {
         TypeDefinition typeDefinition = currentPassDefinitions.iterator().next();
-        switch (workingPass)
-        {
-        case TOP_LEVEL_RESOLUTION:
-          resolver.resolveTypes(typeDefinition, typeCompilationUnits.get(typeDefinition));
-          if (typeCompilationUnits.containsKey(typeDefinition))
-          {
-            typeDefinition.buildNonStaticMethods();
-          }
-          break;
-        case INHERITANCE_CYCLE_CHECKING:
-          if (typeDefinition instanceof ClassDefinition)
-          {
-            CycleChecker.checkInheritanceCycles((ClassDefinition) typeDefinition);
-          }
-          if (typeDefinition instanceof InterfaceDefinition)
-          {
-            CycleChecker.checkInheritanceCycles((InterfaceDefinition) typeDefinition);
-          }
-          break;
-        case INHERITANCE_CHECKING:
-          InheritanceChecker.checkInheritedMembers(typeDefinition);
-          break;
-        case RESOLUTION:
-          CompilationUnit compilationUnit = typeCompilationUnits.get(typeDefinition);
-          if (compilationUnit != null)
-          {
-            resolver.resolve(typeDefinition, compilationUnit);
-          }
-          break;
-        case CYCLE_CHECKING:
-          if (typeDefinition instanceof CompoundDefinition)
-          {
-            CycleChecker.checkCompoundTypeFieldCycles((CompoundDefinition) typeDefinition);
-          }
-          if (typeCompilationUnits.containsKey(typeDefinition))
-          {
-            CycleChecker.checkConstructorDelegateCycles(typeDefinition);
-          }
-          break;
-        case TYPE_CHECKING:
-          if (typeCompilationUnits.containsKey(typeDefinition))
-          {
-            TypeChecker.checkTypes(typeDefinition);
-          }
-          break;
-        case TYPE_PROPAGATION:
-          if (typeCompilationUnits.containsKey(typeDefinition))
-          {
-            TypePropagator.propagateTypes(typeDefinition);
-          }
-          break;
-        case CONTROL_FLOW_CHECKING:
-          if (typeCompilationUnits.containsKey(typeDefinition))
-          {
-            ControlFlowChecker.checkControlFlow(typeDefinition);
-          }
-          break;
-        case BITCODE_NATIVE_NAME_CHECKING:
-          if (!typeCompilationUnits.containsKey(typeDefinition))
-          {
-            nativeNameChecker.checkNormalNativeNames(typeDefinition);
-            nativeNameChecker.checkSpecifiedNativeNames(typeDefinition);
-          }
-          break;
-        case SOURCE_NATIVE_NAME_CHECKING:
-          if (typeCompilationUnits.containsKey(typeDefinition))
-          {
-            nativeNameChecker.checkNormalNativeNames(typeDefinition);
-            nativeNameChecker.checkSpecifiedNativeNames(typeDefinition);
-          }
-          break;
-        case FINISHED:
-        default:
-          break;
-        }
+        runPass(currentPass, typeDefinition);
+
         currentPassDefinitions.remove(typeDefinition);
-        Pass nextPass = workingPass.getNextPass();
+        Pass nextPass = currentPass.getNextPass();
         if (nextPass != null)
         {
           pendingPasses.get(nextPass).add(typeDefinition);
         }
       }
-      if (currentPass == workingPass)
+      currentPass = currentPass.getNextPass();
+    }
+  }
+
+  private void runPass(Pass pass, TypeDefinition typeDefinition) throws ConceptualException
+  {
+    switch (pass)
+    {
+    case TOP_LEVEL_RESOLUTION:
+      resolver.resolveTypes(typeDefinition, typeCompilationUnits.get(typeDefinition));
+      if (typeCompilationUnits.containsKey(typeDefinition))
       {
-        currentPass = workingPass.getNextPass();
+        typeDefinition.buildNonStaticMethods();
       }
+      break;
+    case INHERITANCE_CYCLE_CHECKING:
+      if (typeDefinition instanceof ClassDefinition)
+      {
+        CycleChecker.checkInheritanceCycles((ClassDefinition) typeDefinition);
+      }
+      if (typeDefinition instanceof InterfaceDefinition)
+      {
+        CycleChecker.checkInheritanceCycles((InterfaceDefinition) typeDefinition);
+      }
+      break;
+    case INHERITANCE_CHECKING:
+      InheritanceChecker.checkInheritedMembers(typeDefinition);
+      break;
+    case RESOLUTION:
+      CompilationUnit compilationUnit = typeCompilationUnits.get(typeDefinition);
+      if (compilationUnit != null)
+      {
+        resolver.resolve(typeDefinition, compilationUnit);
+      }
+      break;
+    case CYCLE_CHECKING:
+      if (typeDefinition instanceof CompoundDefinition)
+      {
+        CycleChecker.checkCompoundTypeFieldCycles((CompoundDefinition) typeDefinition);
+      }
+      if (typeCompilationUnits.containsKey(typeDefinition))
+      {
+        CycleChecker.checkConstructorDelegateCycles(typeDefinition);
+      }
+      break;
+    case TYPE_CHECKING:
+      if (typeCompilationUnits.containsKey(typeDefinition))
+      {
+        TypeChecker.checkTypes(typeDefinition);
+      }
+      break;
+    case TYPE_PROPAGATION:
+      if (typeCompilationUnits.containsKey(typeDefinition))
+      {
+        TypePropagator.propagateTypes(typeDefinition);
+      }
+      break;
+    case CONTROL_FLOW_CHECKING:
+      if (typeCompilationUnits.containsKey(typeDefinition))
+      {
+        ControlFlowChecker.checkControlFlow(typeDefinition);
+      }
+      break;
+    case BITCODE_NATIVE_NAME_CHECKING:
+      if (!typeCompilationUnits.containsKey(typeDefinition))
+      {
+        nativeNameChecker.checkNormalNativeNames(typeDefinition);
+        nativeNameChecker.checkSpecifiedNativeNames(typeDefinition);
+      }
+      break;
+    case SOURCE_NATIVE_NAME_CHECKING:
+      if (typeCompilationUnits.containsKey(typeDefinition))
+      {
+        nativeNameChecker.checkNormalNativeNames(typeDefinition);
+        nativeNameChecker.checkSpecifiedNativeNames(typeDefinition);
+      }
+      break;
+    case FINISHED:
+    default:
+      break;
     }
   }
 }

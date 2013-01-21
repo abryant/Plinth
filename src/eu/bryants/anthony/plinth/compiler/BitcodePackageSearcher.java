@@ -7,12 +7,10 @@ import java.util.List;
 
 import nativelib.llvm.LLVM;
 import nativelib.llvm.LLVM.LLVMModuleRef;
-
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.metadata.PackageNode;
 import eu.bryants.anthony.plinth.ast.metadata.PackageNode.PackageSearcher;
 import eu.bryants.anthony.plinth.ast.misc.QName;
-import eu.bryants.anthony.plinth.compiler.passes.Resolver;
 import eu.bryants.anthony.plinth.compiler.passes.llvm.Linker;
 import eu.bryants.anthony.plinth.compiler.passes.llvm.MalformedMetadataException;
 import eu.bryants.anthony.plinth.compiler.passes.llvm.MetadataLoader;
@@ -29,7 +27,7 @@ public class BitcodePackageSearcher implements PackageSearcher
   private List<File> searchDirectories;
 
   private PackageNode rootPackage;
-  private Resolver resolver;
+  private PassManager passManager;
 
   /**
    * Creates a new BitcodePackageSearcher which will search the specified list of directories for bitcode files.
@@ -44,12 +42,12 @@ public class BitcodePackageSearcher implements PackageSearcher
   /**
    * Initialises this BitcodePackageSearcher with the specified root PackageNode and Resolver.
    * @param rootPackage - the root PackageNode of the package hierarchy to add things to
-   * @param resolver - the Resolver to use to resolve the names in newly-loaded bitcode files
+   * @param passManager - the PassManager to add newly-loaded TypeDefinitions to
    */
-  public void initialise(PackageNode rootPackage, Resolver resolver)
+  public void initialise(PackageNode rootPackage, PassManager passManager)
   {
     this.rootPackage = rootPackage;
-    this.resolver = resolver;
+    this.passManager = passManager;
   }
 
   /**
@@ -147,7 +145,7 @@ public class BitcodePackageSearcher implements PackageSearcher
 
         for (TypeDefinition typeDefinition : loadedDefinitions)
         {
-          resolver.resolveTypes(typeDefinition, null);
+          passManager.addTypeDefinition(typeDefinition);
         }
 
         // we should have found the correct file now, so don't try to load any more
