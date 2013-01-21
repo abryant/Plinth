@@ -10,7 +10,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
-import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.plinth.ast.expression.ArrayAccessExpression;
@@ -88,121 +87,118 @@ import eu.bryants.anthony.plinth.compiler.ConceptualException;
 public class ControlFlowChecker
 {
   /**
-   * Checks that the control flow of the specified compilation unit is well defined.
-   * @param compilationUnit - the CompilationUnit to check
+   * Checks that the control flow of the specified TypeDefinition is well defined.
+   * @param typeDefinition - the TypeDefinition to check
    * @throws ConceptualException - if any control flow related errors are detected
    */
-  public static void checkControlFlow(CompilationUnit compilationUnit) throws ConceptualException
+  public static void checkControlFlow(TypeDefinition typeDefinition) throws ConceptualException
   {
-    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
+    // build the set of variables from superclasses
+    Set<Variable> superClassVariables = new HashSet<Variable>();
+    if (typeDefinition instanceof ClassDefinition)
     {
-      // build the set of variables from superclasses
-      Set<Variable> superClassVariables = new HashSet<Variable>();
-      if (typeDefinition instanceof ClassDefinition)
+      ClassDefinition currentClassDefinition = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
+      while (currentClassDefinition != null)
       {
-        ClassDefinition currentClassDefinition = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
-        while (currentClassDefinition != null)
+        for (Field field : currentClassDefinition.getNonStaticFields())
         {
-          for (Field field : currentClassDefinition.getNonStaticFields())
-          {
-            superClassVariables.add(field.getMemberVariable());
-          }
-          currentClassDefinition = currentClassDefinition.getSuperClassDefinition();
+          superClassVariables.add(field.getMemberVariable());
         }
+        currentClassDefinition = currentClassDefinition.getSuperClassDefinition();
       }
+    }
 
-      // check the initialisers
+    // check the initialisers
 
-      // note: while we check the initialiser, we tell the checker that the initialiser has been run
-      // this is because this assumption allows the user to use 'this' in the initialiser once all other variables are initialised,
-      // which is perfectly legal, since the initialiser must be run after any super-constructors
-      // also, since initialisers cannot call delegate constructors, this cannot do any harm
-      ControlFlowVariables instanceVariables = new ControlFlowVariables(true);
-      ControlFlowVariables staticVariables   = new ControlFlowVariables(true);
+    // note: while we check the initialiser, we tell the checker that the initialiser has been run
+    // this is because this assumption allows the user to use 'this' in the initialiser once all other variables are initialised,
+    // which is perfectly legal, since the initialiser must be run after any super-constructors
+    // also, since initialisers cannot call delegate constructors, this cannot do any harm
+    ControlFlowVariables instanceVariables = new ControlFlowVariables(true);
+    ControlFlowVariables staticVariables   = new ControlFlowVariables(true);
 
-      // the super-class's constructor has always been run by the time we get to the initialiser, so add the superClassVariables to the initialiser's variable set now
-      for (Variable var : superClassVariables)
+    // the super-class's constructor has always been run by the time we get to the initialiser, so add the superClassVariables to the initialiser's variable set now
+    for (Variable var : superClassVariables)
+    {
+      instanceVariables.initialised.add(var);
+      instanceVariables.possiblyInitialised.add(var);
+    }
+
+    for (Field field : typeDefinition.getNonStaticFields())
+    {
+      if (field.getType().hasDefaultValue() && !field.isFinal())
       {
-        instanceVariables.initialised.add(var);
-        instanceVariables.possiblyInitialised.add(var);
+        instanceVariables.initialised.add(field.getMemberVariable());
+        instanceVariables.possiblyInitialised.add(field.getMemberVariable());
       }
+    }
 
-      for (Field field : typeDefinition.getNonStaticFields())
+    // the non-static initialisers are immutable iff there is at least one immutable constructor, so find out whether one exists
+    boolean hasImmutableConstructors = false;
+    // the non-static initialisers are selfish iff all constructors are selfish
+    boolean onlyHasSelfishConstructors = true;
+    for (Constructor constructor : typeDefinition.getAllConstructors())
+    {
+      if (constructor.isImmutable())
       {
-        if (field.getType().hasDefaultValue() && !field.isFinal())
+        hasImmutableConstructors = true;
+      }
+      if (!constructor.isSelfish())
+      {
+        onlyHasSelfishConstructors = false;
+      }
+    }
+
+    for (Initialiser initialiser : typeDefinition.getInitialisers())
+    {
+      if (initialiser instanceof FieldInitialiser)
+      {
+        Field field = ((FieldInitialiser) initialiser).getField();
+        if (field.isStatic())
         {
+          checkControlFlow(field.getInitialiserExpression(), staticVariables.initialised, staticVariables.initialiserState, false, false, true, false);
+          staticVariables.initialised.add(field.getGlobalVariable());
+          staticVariables.possiblyInitialised.add(field.getGlobalVariable());
+        }
+        else
+        {
+          checkControlFlow(field.getInitialiserExpression(), instanceVariables.initialised, instanceVariables.initialiserState, true, onlyHasSelfishConstructors, false, hasImmutableConstructors);
           instanceVariables.initialised.add(field.getMemberVariable());
           instanceVariables.possiblyInitialised.add(field.getMemberVariable());
         }
       }
-
-      // the non-static initialisers are immutable iff there is at least one immutable constructor, so find out whether one exists
-      boolean hasImmutableConstructors = false;
-      // the non-static initialisers are selfish iff all constructors are selfish
-      boolean onlyHasSelfishConstructors = true;
-      for (Constructor constructor : typeDefinition.getAllConstructors())
+      else
       {
-        if (constructor.isImmutable())
+        if (initialiser.isStatic())
         {
-          hasImmutableConstructors = true;
-        }
-        if (!constructor.isSelfish())
-        {
-          onlyHasSelfishConstructors = false;
-        }
-      }
-
-      for (Initialiser initialiser : typeDefinition.getInitialisers())
-      {
-        if (initialiser instanceof FieldInitialiser)
-        {
-          Field field = ((FieldInitialiser) initialiser).getField();
-          if (field.isStatic())
-          {
-            checkControlFlow(field.getInitialiserExpression(), staticVariables.initialised, staticVariables.initialiserState, false, false, true, false);
-            staticVariables.initialised.add(field.getGlobalVariable());
-            staticVariables.possiblyInitialised.add(field.getGlobalVariable());
-          }
-          else
-          {
-            checkControlFlow(field.getInitialiserExpression(), instanceVariables.initialised, instanceVariables.initialiserState, true, onlyHasSelfishConstructors, false, hasImmutableConstructors);
-            instanceVariables.initialised.add(field.getMemberVariable());
-            instanceVariables.possiblyInitialised.add(field.getMemberVariable());
-          }
+          checkControlFlow(initialiser.getBlock(), typeDefinition, staticVariables, null, new LinkedList<BreakableStatement>(), false, false, true, false, true);
         }
         else
         {
-          if (initialiser.isStatic())
-          {
-            checkControlFlow(initialiser.getBlock(), typeDefinition, staticVariables, null, new LinkedList<BreakableStatement>(), false, false, true, false, true);
-          }
-          else
-          {
-            checkControlFlow(initialiser.getBlock(), typeDefinition, instanceVariables, null, new LinkedList<BreakableStatement>(), true, onlyHasSelfishConstructors, false, hasImmutableConstructors, true);
-          }
+          checkControlFlow(initialiser.getBlock(), typeDefinition, instanceVariables, null, new LinkedList<BreakableStatement>(), true, onlyHasSelfishConstructors, false, hasImmutableConstructors, true);
         }
       }
+    }
 
-      for (Field field : typeDefinition.getFields())
+    for (Field field : typeDefinition.getFields())
+    {
+      if (field.isStatic() && field.isFinal() && !staticVariables.initialised.contains(field.getGlobalVariable()))
       {
-        if (field.isStatic() && field.isFinal() && !staticVariables.initialised.contains(field.getGlobalVariable()))
-        {
-          throw new ConceptualException("The static final field '" + field.getName() + "' is not always initialised", field.getLexicalPhrase());
-        }
+        throw new ConceptualException("The static final field '" + field.getName() + "' is not always initialised", field.getLexicalPhrase());
       }
+    }
 
-      DelegateConstructorVariables delegateConstructorVariables = new DelegateConstructorVariables();
-      delegateConstructorVariables.initialiserDefinitelyInitialised = instanceVariables.initialised;
-      delegateConstructorVariables.initialiserPossiblyInitialised = instanceVariables.possiblyInitialised;
-      delegateConstructorVariables.superClassVariables = superClassVariables;
-      for (Constructor constructor : typeDefinition.getAllConstructors())
-      {
-        checkControlFlow(constructor, delegateConstructorVariables);
-      }
-      for (Method method : typeDefinition.getAllMethods())
-      {
-        checkControlFlow(method);
-      }
+    DelegateConstructorVariables delegateConstructorVariables = new DelegateConstructorVariables();
+    delegateConstructorVariables.initialiserDefinitelyInitialised = instanceVariables.initialised;
+    delegateConstructorVariables.initialiserPossiblyInitialised = instanceVariables.possiblyInitialised;
+    delegateConstructorVariables.superClassVariables = superClassVariables;
+    for (Constructor constructor : typeDefinition.getAllConstructors())
+    {
+      checkControlFlow(constructor, delegateConstructorVariables);
+    }
+    for (Method method : typeDefinition.getAllMethods())
+    {
+      checkControlFlow(method);
     }
   }
 

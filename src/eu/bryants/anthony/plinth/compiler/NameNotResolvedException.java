@@ -10,11 +10,9 @@ import eu.bryants.anthony.plinth.ast.LexicalPhrase;
  * An exception that is thrown when resolve() cannot find a matching function or variable for a name.
  * @author Anthony Bryant
  */
-public class NameNotResolvedException extends Exception
+public class NameNotResolvedException extends ConceptualException
 {
   private static final long serialVersionUID = 1L;
-
-  private LexicalPhrase lexicalPhrase;
 
   /**
    * Creates a new NameNotResolvedException with the specified message.
@@ -23,16 +21,7 @@ public class NameNotResolvedException extends Exception
    */
   public NameNotResolvedException(String message, LexicalPhrase lexicalPhrase)
   {
-    super(message);
-    this.lexicalPhrase = lexicalPhrase;
-  }
-
-  /**
-   * @return the lexicalPhrase of the unresolved name
-   */
-  public LexicalPhrase getLexicalPhrase()
-  {
-    return lexicalPhrase;
+    super(message, lexicalPhrase);
   }
 
 }

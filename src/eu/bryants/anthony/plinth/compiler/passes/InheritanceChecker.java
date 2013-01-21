@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
-import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
@@ -38,19 +37,6 @@ import eu.bryants.anthony.plinth.compiler.ConceptualException;
  */
 public class InheritanceChecker
 {
-  /**
-   * Checks the inherited members of TypeDefinitions in the specified CompilationUnit for problems.
-   * @param compilationUnit - the CompilationUnit to check all of the TypeDefinitions of
-   * @throws ConceptualException - if there is a conceptual problem with one of the TypeDefinitions in the specified CompilationUnit
-   */
-  public static void checkInheritedMembers(CompilationUnit compilationUnit) throws ConceptualException
-  {
-    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
-    {
-      checkInheritedMembers(typeDefinition);
-    }
-  }
-
   /**
    * Finds the linearisation of the inherited classes of the specified type, and returns it after caching it in the TypeDefinition itself
    * @param typeDefinition - the TypeDefinition to get the linearisation of

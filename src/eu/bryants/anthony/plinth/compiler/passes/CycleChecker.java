@@ -127,24 +127,16 @@ public class CycleChecker
   }
 
   /**
-   * Checks for any cycles in the non-static fields of compound types, where one of its fields recursively contains a value of the initial type.
+   * Checks for any cycles in the non-static fields of a compound type, where one of its fields recursively contains a value of the initial type.
    * This would result in an impossible infinitely-deep object representation, so this method checks that it does not happen.
-   * @param compilationUnit - the CompilationUnit to check
+   * @param compoundDefinition - the CompoundDefinition to check
    * @throws ConceptualException - if a cycle is found
    */
-  public static void checkCompoundTypeFieldCycles(CompilationUnit compilationUnit) throws ConceptualException
+  public static void checkCompoundTypeFieldCycles(CompoundDefinition compoundDefinition) throws ConceptualException
   {
-    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
-    {
-      if (!(typeDefinition instanceof CompoundDefinition))
-      {
-        continue;
-      }
-      CompoundDefinition compoundDefinition = (CompoundDefinition) typeDefinition;
-      Set<CompoundDefinition> visited = new HashSet<CompoundDefinition>();
-      visited.add(compoundDefinition);
-      checkCompoundTypeFieldCycles(compoundDefinition, new LinkedList<Field>(), visited);
-    }
+    Set<CompoundDefinition> visited = new HashSet<CompoundDefinition>();
+    visited.add(compoundDefinition);
+    checkCompoundTypeFieldCycles(compoundDefinition, new LinkedList<Field>(), visited);
   }
 
   private static void checkCompoundTypeFieldCycles(CompoundDefinition startDefinition, List<Field> fieldStack, Set<CompoundDefinition> visited) throws ConceptualException
@@ -188,26 +180,13 @@ public class CycleChecker
   }
 
   /**
-   * Checks that none of the constructors in any of the TypeDefinitions in the specified CompilationUnit can cyclically call each other.
-   * This method will also populate the Constructors' data on whether they call delegate constructors.
-   * @param compilationUnit - the CompilationUnit to check
-   * @throws ConceptualException - if a cycle is detected in one of the Constructors in the specified CompilationUnit
-   */
-  public static void checkConstructorDelegateCycles(CompilationUnit compilationUnit) throws ConceptualException
-  {
-    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
-    {
-      checkConstructorDelegateCycles(typeDefinition);
-    }
-  }
-
-  /**
    * Checks that none of the constructors in the specified TypeDefinition can cyclically call each other.
    * This method will also populate the Constructors' data on whether they call delegate constructors.
+   * This method should not be called on TypeDefinitions which have no implementations for Constructors, such as those loaded from bitcode.
    * @param typeDefinition - the TypeDefinition to check the Constructors of for cycles
    * @throws ConceptualException - if a cycle is detected in one of the Constructors of the specified TypeDefinition
    */
-  private static void checkConstructorDelegateCycles(TypeDefinition typeDefinition) throws ConceptualException
+  public static void checkConstructorDelegateCycles(TypeDefinition typeDefinition) throws ConceptualException
   {
     Map<Constructor, List<Constructor>> constructorDelegates = new HashMap<Constructor, List<Constructor>>();
     for (Constructor constructor : typeDefinition.getAllConstructors())

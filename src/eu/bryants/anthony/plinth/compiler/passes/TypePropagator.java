@@ -1,6 +1,5 @@
 package eu.bryants.anthony.plinth.compiler.passes;
 
-import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.plinth.ast.expression.ArrayAccessExpression;
@@ -80,32 +79,29 @@ import eu.bryants.anthony.plinth.ast.type.VoidType;
  */
 public class TypePropagator
 {
-  public static void propagateTypes(CompilationUnit compilationUnit)
+  public static void propagateTypes(TypeDefinition typeDefinition)
   {
-    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
+    for (Initialiser initialiser : typeDefinition.getInitialisers())
     {
-      for (Initialiser initialiser : typeDefinition.getInitialisers())
+      if (initialiser instanceof FieldInitialiser)
       {
-        if (initialiser instanceof FieldInitialiser)
-        {
-          Field field = ((FieldInitialiser) initialiser).getField();
-          propagateTypes(field.getInitialiserExpression(), field.getType());
-        }
-        else
-        {
-          propagateTypes(initialiser.getBlock(), VoidType.VOID_TYPE);
-        }
+        Field field = ((FieldInitialiser) initialiser).getField();
+        propagateTypes(field.getInitialiserExpression(), field.getType());
       }
-      for (Constructor constructor : typeDefinition.getAllConstructors())
+      else
       {
-        propagateTypes(constructor.getBlock(), new VoidType(null));
+        propagateTypes(initialiser.getBlock(), VoidType.VOID_TYPE);
       }
-      for (Method method : typeDefinition.getAllMethods())
+    }
+    for (Constructor constructor : typeDefinition.getAllConstructors())
+    {
+      propagateTypes(constructor.getBlock(), new VoidType(null));
+    }
+    for (Method method : typeDefinition.getAllMethods())
+    {
+      if (method.getBlock() != null)
       {
-        if (method.getBlock() != null)
-        {
-          propagateTypes(method.getBlock(), method.getReturnType());
-        }
+        propagateTypes(method.getBlock(), method.getReturnType());
       }
     }
   }

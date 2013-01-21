@@ -15,23 +15,14 @@ import nativelib.llvm.LLVM.LLVMModuleRef;
 import parser.BadTokenException;
 import parser.ParseException;
 import parser.Token;
-import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
-import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.metadata.PackageNode;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
-import eu.bryants.anthony.plinth.compiler.passes.ControlFlowChecker;
-import eu.bryants.anthony.plinth.compiler.passes.CycleChecker;
-import eu.bryants.anthony.plinth.compiler.passes.InheritanceChecker;
-import eu.bryants.anthony.plinth.compiler.passes.NativeNameChecker;
 import eu.bryants.anthony.plinth.compiler.passes.Resolver;
-import eu.bryants.anthony.plinth.compiler.passes.SpecialTypeHandler;
-import eu.bryants.anthony.plinth.compiler.passes.TypeChecker;
-import eu.bryants.anthony.plinth.compiler.passes.TypePropagator;
 import eu.bryants.anthony.plinth.compiler.passes.llvm.CodeGenerator;
 import eu.bryants.anthony.plinth.compiler.passes.llvm.Linker;
 import eu.bryants.anthony.plinth.compiler.passes.llvm.LinkerException;
@@ -193,105 +184,15 @@ public class Compiler
       }
     }
 
-    TypeDefinition mainTypeDefinition = null;
+    PassManager passManager = new PassManager(resolver, mainTypeName);
+    passManager.setCompilationUnits(compilationUnits);
+    for (TypeDefinition typeDefinition : importedTypeDefinitions)
+    {
+      passManager.addTypeDefinition(typeDefinition);
+    }
     try
     {
-      for (CompilationUnit compilationUnit : compilationUnits)
-      {
-        resolver.resolvePackages(compilationUnit);
-      }
-      resolver.resolveSpecialTypes();
-      for (TypeDefinition typeDefinition : importedTypeDefinitions)
-      {
-        resolver.resolveTypes(typeDefinition, null);
-      }
-      for (CompilationUnit compilationUnit : compilationUnits)
-      {
-        resolver.resolveTopLevelTypes(compilationUnit);
-      }
-      for (CompilationUnit compilationUnit : compilationUnits)
-      {
-        for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
-        {
-          typeDefinition.buildNonStaticMethods();
-        }
-      }
-      for (TypeDefinition typeDefinition : importedTypeDefinitions)
-      {
-        if (typeDefinition instanceof ClassDefinition)
-        {
-          CycleChecker.checkInheritanceCycles((ClassDefinition) typeDefinition);
-        }
-        if (typeDefinition instanceof InterfaceDefinition)
-        {
-          CycleChecker.checkInheritanceCycles((InterfaceDefinition) typeDefinition);
-        }
-      }
-      for (CompilationUnit compilationUnit : compilationUnits)
-      {
-        CycleChecker.checkInheritanceCycles(compilationUnit);
-      }
-      for (TypeDefinition typeDefinition : importedTypeDefinitions)
-      {
-        InheritanceChecker.checkInheritedMembers(typeDefinition);
-      }
-      for (CompilationUnit compilationUnit : compilationUnits)
-      {
-        InheritanceChecker.checkInheritedMembers(compilationUnit);
-      }
-      if (mainTypeName != null)
-      {
-        mainTypeDefinition = resolver.resolveTypeDefinition(new QName(mainTypeName), null);
-        SpecialTypeHandler.checkMainMethod(mainTypeDefinition);
-      }
-      for (CompilationUnit compilationUnit : compilationUnits)
-      {
-        resolver.resolve(compilationUnit);
-      }
-      for (CompilationUnit compilationUnit : compilationUnits)
-      {
-        CycleChecker.checkCompoundTypeFieldCycles(compilationUnit);
-      }
-      for (CompilationUnit compilationUnit : compilationUnits)
-      {
-        CycleChecker.checkConstructorDelegateCycles(compilationUnit);
-      }
-      SpecialTypeHandler.verifySpecialTypes();
-      for (CompilationUnit compilationUnit : compilationUnits)
-      {
-        TypeChecker.checkTypes(compilationUnit);
-      }
-      for (CompilationUnit compilationUnit : compilationUnits)
-      {
-        TypePropagator.propagateTypes(compilationUnit);
-      }
-      for (CompilationUnit compilationUnit : compilationUnits)
-      {
-        ControlFlowChecker.checkControlFlow(compilationUnit);
-      }
-
-      NativeNameChecker nativeNameChecker = new NativeNameChecker(mainTypeName != null);
-      for (TypeDefinition imported : importedTypeDefinitions)
-      {
-        nativeNameChecker.checkNormalNativeNames(imported);
-        nativeNameChecker.checkSpecifiedNativeNames(imported);
-      }
-      for (CompilationUnit compilationUnit : compilationUnits)
-      {
-        for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
-        {
-          nativeNameChecker.checkNormalNativeNames(typeDefinition);
-        }
-      }
-      // only check user-specified native names after everything else has been checked,
-      // so that they will be what is reported in the case of a duplicate
-      for (CompilationUnit compilationUnit : compilationUnits)
-      {
-        for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
-        {
-          nativeNameChecker.checkSpecifiedNativeNames(typeDefinition);
-        }
-      }
+      passManager.runPasses();
     }
     catch (ConceptualException e)
     {
@@ -299,12 +200,7 @@ public class Compiler
       e.printStackTrace();
       System.exit(7);
     }
-    catch (NameNotResolvedException e)
-    {
-      printConceptualException(e.getMessage(), e.getLexicalPhrase(), null);
-      e.printStackTrace();
-      System.exit(7);
-    }
+    TypeDefinition mainTypeDefinition = passManager.getMainTypeDefinition();
 
     Map<TypeDefinition, File> resultFiles = new HashMap<TypeDefinition, File>();
     if (outputDirFile != null)

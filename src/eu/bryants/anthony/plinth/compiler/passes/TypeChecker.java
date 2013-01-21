@@ -5,7 +5,6 @@ import java.util.LinkedList;
 import java.util.List;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
-import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
@@ -93,14 +92,6 @@ import eu.bryants.anthony.plinth.compiler.ConceptualException;
  */
 public class TypeChecker
 {
-  public static void checkTypes(CompilationUnit compilationUnit) throws ConceptualException
-  {
-    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
-    {
-      checkTypes(typeDefinition);
-    }
-  }
-
   public static void checkTypes(TypeDefinition typeDefinition) throws ConceptualException
   {
     for (Initialiser initialiser : typeDefinition.getInitialisers())

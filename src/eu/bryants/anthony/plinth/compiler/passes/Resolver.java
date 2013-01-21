@@ -138,15 +138,13 @@ public class Resolver
   }
 
   /**
-   * Resolves the top level types in the specified compilation unit (e.g. function parameters and return types, field types),
-   * so that they can be used anywhere in statements and expressions later on.
-   * @param compilationUnit - the compilation unit to resolve the top level types of
+   * Resolves all of the imports in the specified CompilationUnit
+   * @param compilationUnit - the CompilationUnit to resolve the imports of
    * @throws NameNotResolvedException - if a name could not be resolved
    * @throws ConceptualException - if there is a conceptual problem while resolving the names
    */
-  public void resolveTopLevelTypes(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  public void resolveImports(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
-    // first, check that all of the imports resolve to something
     for (Import currentImport : compilationUnit.getImports())
     {
       QName qname = currentImport.getImported();
@@ -188,24 +186,26 @@ public class Resolver
       currentImport.setResolvedPackage(currentPackage);
       currentImport.setResolvedTypeDefinition(currentTypeDefinition);
     }
+  }
 
+  /**
+   * Resolves the top level types in the specified compilation unit (e.g. function parameters and return types, field types),
+   * so that they can be used anywhere in statements and expressions later on.
+   * @param compilationUnit - the compilation unit to resolve the top level types of
+   * @throws NameNotResolvedException - if a name could not be resolved
+   * @throws ConceptualException - if there is a conceptual problem while resolving the names
+   */
+  public void resolveTypes(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  {
     for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
     {
       resolveTypes(typeDefinition, compilationUnit);
     }
   }
 
-  public void resolve(CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
-  {
-    // resolve the bodies of methods, field assignments, etc.
-    for (TypeDefinition typeDefinition : compilationUnit.getTypeDefinitions())
-    {
-      resolve(typeDefinition, compilationUnit);
-    }
-  }
-
   /**
-   * Resolves all of the types in the specified type definition, optionally trying to resolve them in the context of the specified CompilationUnit.
+   * Resolves the top level types in the specified type definition (e.g. function parameters and return types, field types),
+   * so that they can be used anywhere in statements and expressions later on.
    * @param typeDefinition - the TypeDefinition to resolve the types of
    * @param compilationUnit - the optional CompilationUnit to resolve the types in the context of
    * @throws NameNotResolvedException - if a name could not be resolved
@@ -413,7 +413,14 @@ public class Resolver
     return namedType.getResolvedTypeDefinition();
   }
 
-  private void resolve(TypeDefinition typeDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  /**
+   * Resolves all of the method bodies, field assignments, etc. in the specified TypeDefinition.
+   * @param typeDefinition - the TypeDefinition to resolve
+   * @param compilationUnit - the CompilationUnit that the TypeDefinition was defined in
+   * @throws NameNotResolvedException - if the QName cannot be resolved
+   * @throws ConceptualException - if a conceptual error occurs while resolving the TypeDefinition
+   */
+  public void resolve(TypeDefinition typeDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     // a non-static initialiser is an immutable context if there is at least one immutable constructor
     // so we need to check whether there are any immutable constructors here
