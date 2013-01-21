@@ -245,7 +245,7 @@ public class CycleChecker
           {
             if (!path.contains(delegate))
             {
-              stack.add(delegate);
+              stack.push(delegate);
             }
             else if (delegate == constructor)
             {
