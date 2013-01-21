@@ -167,7 +167,7 @@ public class VirtualFunctionHandler
     BuiltinMethod[] methods = ObjectType.OBJECT_METHODS;
     LLVMValueRef[] llvmStrings = new LLVMValueRef[methods.length];
 
-    LLVMTypeRef stringType = LLVM.LLVMPointerType(typeHelper.findRawStringType(), 0);
+    LLVMTypeRef stringType = typeHelper.findRawStringType();
 
     for (int i = 0; i < methods.length; ++i)
     {
@@ -246,7 +246,7 @@ public class VirtualFunctionHandler
     Method[] methods = typeDefinition.getNonStaticMethods();
     LLVMValueRef[] llvmStrings = new LLVMValueRef[methods.length];
 
-    LLVMTypeRef stringType = LLVM.LLVMPointerType(typeHelper.findRawStringType(), 0);
+    LLVMTypeRef stringType = typeHelper.findRawStringType();
 
     for (int i = 0; i < methods.length; ++i)
     {
@@ -289,7 +289,7 @@ public class VirtualFunctionHandler
     InterfaceDefinition[] interfaces = interfaceList.toArray(new InterfaceDefinition[interfaceList.size()]);
     LLVMValueRef[] elements = new LLVMValueRef[interfaces.length];
 
-    LLVMTypeRef stringType = LLVM.LLVMPointerType(typeHelper.findRawStringType(), 0);
+    LLVMTypeRef stringType = typeHelper.findRawStringType();
     LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
     LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {stringType, vftPointerType};
     LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
@@ -331,7 +331,7 @@ public class VirtualFunctionHandler
       return existingValue;
     }
 
-    LLVMTypeRef stringType = LLVM.LLVMPointerType(typeHelper.findRawStringType(), 0);
+    LLVMTypeRef stringType = typeHelper.findRawStringType();
     LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
     LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {stringType, vftPointerType};
     LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
@@ -526,7 +526,7 @@ public class VirtualFunctionHandler
    */
   private LLVMTypeRef getDescriptorType(int numMethods)
   {
-    LLVMTypeRef stringType = LLVM.LLVMPointerType(typeHelper.findRawStringType(), 0);
+    LLVMTypeRef stringType = typeHelper.findRawStringType();
     LLVMTypeRef arrayType = LLVM.LLVMArrayType(stringType, numMethods);
     LLVMTypeRef[] descriptorSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), arrayType};
     return LLVM.LLVMStructType(C.toNativePointerArray(descriptorSubTypes, false, true), descriptorSubTypes.length, false);
@@ -542,7 +542,7 @@ public class VirtualFunctionHandler
     {
       return vftDescriptorType;
     }
-    LLVMTypeRef stringType = LLVM.LLVMPointerType(typeHelper.findRawStringType(), 0);
+    LLVMTypeRef stringType = typeHelper.findRawStringType();
     LLVMTypeRef stringArrayType = LLVM.LLVMArrayType(stringType, 0);
     LLVMTypeRef[] vftDescriptorSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), stringArrayType};
     vftDescriptorType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "VFT_Descriptor");
@@ -637,7 +637,7 @@ public class VirtualFunctionHandler
     }
     // store the named struct in interfaceSearchListType first, so that when we get the raw string type we don't infinitely recurse
     interfaceSearchListType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "InterfaceSearchList");
-    LLVMTypeRef stringType = LLVM.LLVMPointerType(typeHelper.findRawStringType(), 0);
+    LLVMTypeRef stringType = typeHelper.findRawStringType();
     LLVMTypeRef vftType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
     LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {stringType, vftType};
     LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
@@ -697,7 +697,7 @@ public class VirtualFunctionHandler
     {
       return existingFunction;
     }
-    LLVMTypeRef stringType = LLVM.LLVMPointerType(typeHelper.findRawStringType(), 0);
+    LLVMTypeRef stringType = typeHelper.findRawStringType();
     LLVMTypeRef[] parameterTypes = new LLVMTypeRef[] {LLVM.LLVMPointerType(getInterfaceSearchListType(), 0), stringType};
     LLVMTypeRef resultType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
     LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, C.toNativePointerArray(parameterTypes, false, true), parameterTypes.length, false);
@@ -720,7 +720,7 @@ public class VirtualFunctionHandler
 
     String interfaceMangledName = interfaceDefinition.getQualifiedName().getMangledName();
     LLVMValueRef interfaceRawString = codeGenerator.addStringConstant(interfaceMangledName);
-    LLVMTypeRef stringType = LLVM.LLVMPointerType(typeHelper.findRawStringType(), 0);
+    LLVMTypeRef stringType = typeHelper.findRawStringType();
     interfaceRawString = LLVM.LLVMBuildBitCast(builder, interfaceRawString, stringType, "");
 
     LLVMValueRef[] arguments = new LLVMValueRef[] {interfaceSearchList, interfaceRawString};
