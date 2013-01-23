@@ -145,7 +145,15 @@ public class BitcodePackageSearcher implements PackageSearcher
 
         for (TypeDefinition typeDefinition : loadedDefinitions)
         {
-          passManager.addTypeDefinition(typeDefinition);
+          try
+          {
+            passManager.addTypeDefinition(typeDefinition);
+          }
+          catch (ConceptualException e)
+          {
+            packageNode.removeTypeDefinition(typeDefinition);
+            Compiler.printConceptualException(e);
+          }
         }
 
         // we should have found the correct file now, so don't try to load any more

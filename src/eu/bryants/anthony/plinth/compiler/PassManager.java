@@ -39,7 +39,6 @@ public class PassManager
     RESOLUTION,
     CYCLE_CHECKING,
     TYPE_CHECKING,
-    TYPE_PROPAGATION,
     CONTROL_FLOW_CHECKING,
     BITCODE_NATIVE_NAME_CHECKING,
     SOURCE_NATIVE_NAME_CHECKING,
@@ -150,23 +149,47 @@ public class PassManager
 
     while (currentPass != Pass.FINISHED)
     {
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+
       if (!doneSpecialTypeChecking & currentPass == Pass.RESOLUTION)
       {
         // the special type checking pass comes just before the main resolution pass, so perform it now (if we haven't already done it)
         if (mainTypeName != null)
         {
-          mainTypeDefinition = resolver.resolveTypeDefinition(new QName(mainTypeName), null);
-          SpecialTypeHandler.checkMainMethod(mainTypeDefinition);
+          try
+          {
+            mainTypeDefinition = resolver.resolveTypeDefinition(new QName(mainTypeName), null);
+            SpecialTypeHandler.checkMainMethod(mainTypeDefinition);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException.addException(e);
+          }
         }
-        SpecialTypeHandler.verifySpecialTypes();
+        try
+        {
+          SpecialTypeHandler.verifySpecialTypes();
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
         doneSpecialTypeChecking = true;
       }
 
       Set<TypeDefinition> currentPassDefinitions = pendingPasses.get(currentPass);
+      // we can't just use a for loop here, because addTypeDefinition() might add new ones while we run certain passes
       while (!currentPassDefinitions.isEmpty())
       {
         TypeDefinition typeDefinition = currentPassDefinitions.iterator().next();
-        runPass(currentPass, typeDefinition);
+        try
+        {
+          runPass(currentPass, typeDefinition);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
 
         currentPassDefinitions.remove(typeDefinition);
         Pass nextPass = currentPass.getNextPass();
@@ -175,10 +198,22 @@ public class PassManager
           pendingPasses.get(nextPass).add(typeDefinition);
         }
       }
+
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
+
       currentPass = currentPass.getNextPass();
     }
   }
 
+  /**
+   * Runs the specified pass on the specified TypeDefinition.
+   * @param pass - the pass to run
+   * @param typeDefinition - the TypeDefinition to run it on
+   * @throws ConceptualException - if there is a conceptual problem while running the pass
+   */
   private void runPass(Pass pass, TypeDefinition typeDefinition) throws ConceptualException
   {
     switch (pass)
@@ -211,24 +246,38 @@ public class PassManager
       }
       break;
     case CYCLE_CHECKING:
+      CoalescedConceptualException coalescedConceptualException = new CoalescedConceptualException();
       if (typeDefinition instanceof CompoundDefinition)
       {
-        CycleChecker.checkCompoundTypeFieldCycles((CompoundDefinition) typeDefinition);
+        try
+        {
+          CycleChecker.checkCompoundTypeFieldCycles((CompoundDefinition) typeDefinition);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedConceptualException.addException(e);
+        }
       }
       if (typeCompilationUnits.containsKey(typeDefinition))
       {
-        CycleChecker.checkConstructorDelegateCycles(typeDefinition);
+        try
+        {
+          CycleChecker.checkConstructorDelegateCycles(typeDefinition);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedConceptualException.addException(e);
+        }
+      }
+      if (coalescedConceptualException.hasStoredExceptions())
+      {
+        throw coalescedConceptualException;
       }
       break;
     case TYPE_CHECKING:
       if (typeCompilationUnits.containsKey(typeDefinition))
       {
         TypeChecker.checkTypes(typeDefinition);
-      }
-      break;
-    case TYPE_PROPAGATION:
-      if (typeCompilationUnits.containsKey(typeDefinition))
-      {
         TypePropagator.propagateTypes(typeDefinition);
       }
       break;

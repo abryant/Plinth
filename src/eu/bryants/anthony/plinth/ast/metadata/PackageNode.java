@@ -148,6 +148,15 @@ public class PackageNode
   }
 
   /**
+   * Removes the specified TypeDefinition from this PackageNode.
+   * @param typeDefinition - the TypeDefinition to remove
+   */
+  public void removeTypeDefinition(TypeDefinition typeDefinition)
+  {
+    typeDefinitions.remove(typeDefinition.getName());
+  }
+
+  /**
    * Adds the specified package tree to the root package.
    * If this is not the root package (i.e. it has a name) then calling this will result in an exception.
    * @param treeQName - the qualified package name to create

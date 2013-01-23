@@ -196,8 +196,7 @@ public class Compiler
     }
     catch (ConceptualException e)
     {
-      printConceptualException(e.getMessage(), e.getLexicalPhrase(), e.getAttachedNote());
-      e.printStackTrace();
+      printConceptualException(e);
       System.exit(7);
     }
     TypeDefinition mainTypeDefinition = passManager.getMainTypeDefinition();
@@ -446,6 +445,25 @@ public class Compiler
       {
         System.err.println(phrase.getHighlightedLine());
       }
+    }
+  }
+
+  /**
+   * Prints all of the data from the specified ConceptualException to System.err.
+   * @param exception - the ConceptualException to print
+   */
+  public static void printConceptualException(ConceptualException exception)
+  {
+    if (exception instanceof CoalescedConceptualException)
+    {
+      for (ConceptualException stored : ((CoalescedConceptualException) exception).getStoredExceptions())
+      {
+        printConceptualException(stored);
+      }
+    }
+    else
+    {
+      printConceptualException(exception.getMessage(), exception.getLexicalPhrase(), exception.getAttachedNote());
     }
   }
 

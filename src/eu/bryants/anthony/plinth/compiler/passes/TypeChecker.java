@@ -81,6 +81,7 @@ import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
+import eu.bryants.anthony.plinth.compiler.CoalescedConceptualException;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
 
 /*
@@ -94,9 +95,17 @@ public class TypeChecker
 {
   public static void checkTypes(TypeDefinition typeDefinition) throws ConceptualException
   {
+    CoalescedConceptualException coalescedException = new CoalescedConceptualException();
     for (Initialiser initialiser : typeDefinition.getInitialisers())
     {
-      checkTypes(initialiser);
+      try
+      {
+        checkTypes(initialiser);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
     }
     for (Constructor constructor : typeDefinition.getAllConstructors())
     {
@@ -117,22 +126,48 @@ public class TypeChecker
           }
           if (!hasNoArgsSuper)
           {
-            throw new ConceptualException("This constructor needs to explicitly call a super(...) constructor (as there are no super() constructors which are not selfish and take zero arguments)", constructor.getLexicalPhrase());
+            coalescedException.addException(new ConceptualException("This constructor needs to explicitly call a super(...) constructor (as there are no super() constructors which are not selfish and take zero arguments)", constructor.getLexicalPhrase()));
           }
         }
       }
-      checkTypes(constructor.getBlock(), VoidType.VOID_TYPE);
+      try
+      {
+        checkTypes(constructor.getBlock(), VoidType.VOID_TYPE);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
     }
     for (Field field : typeDefinition.getFields())
     {
-      checkTypes(field);
+      try
+      {
+        checkTypes(field);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
     }
     for (Method method : typeDefinition.getAllMethods())
     {
       if (method.getBlock() != null)
       {
-        checkTypes(method.getBlock(), method.getReturnType());
+        try
+        {
+          checkTypes(method.getBlock(), method.getReturnType());
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
       }
+    }
+
+    if (coalescedException.hasStoredExceptions())
+    {
+      throw coalescedException;
     }
   }
 
@@ -363,9 +398,21 @@ public class TypeChecker
     }
     else if (statement instanceof Block)
     {
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       for (Statement s : ((Block) statement).getStatements())
       {
-        checkTypes(s, returnType);
+        try
+        {
+          checkTypes(s, returnType);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
     }
     else if (statement instanceof BreakStatement)
@@ -403,13 +450,25 @@ public class TypeChecker
         throw new ConceptualException("The constructor '" + constructor.getContainingTypeDefinition().getQualifiedName() + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", delegateConstructorStatement.getLexicalPhrase());
       }
 
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       for (int i = 0; i < arguments.length; i++)
       {
-        Type type = checkTypes(arguments[i]);
-        if (!parameterTypes[i].canAssign(type))
+        try
         {
-          throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", arguments[i].getLexicalPhrase());
+          Type type = checkTypes(arguments[i]);
+          if (!parameterTypes[i].canAssign(type))
+          {
+            throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", arguments[i].getLexicalPhrase());
+          }
         }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
     }
     else if (statement instanceof ExpressionStatement)
@@ -419,39 +478,99 @@ public class TypeChecker
     else if (statement instanceof ForStatement)
     {
       ForStatement forStatement = (ForStatement) statement;
+
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       Statement init = forStatement.getInitStatement();
       if (init != null)
       {
-        checkTypes(init, returnType);
+        try
+        {
+          checkTypes(init, returnType);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
       }
       Expression condition = forStatement.getConditional();
       if (condition != null)
       {
-        Type conditionType = checkTypes(condition);
-        if (conditionType.isNullable() || !(conditionType instanceof PrimitiveType) || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+        try
         {
-          throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + conditionType + "'", condition.getLexicalPhrase());
+          Type conditionType = checkTypes(condition);
+          if (conditionType.isNullable() || !(conditionType instanceof PrimitiveType) || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+          {
+            throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + conditionType + "'", condition.getLexicalPhrase());
+          }
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
         }
       }
       Statement update = forStatement.getUpdateStatement();
       if (update != null)
       {
-        checkTypes(update, returnType);
+        try
+        {
+          checkTypes(update, returnType);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
       }
-      checkTypes(forStatement.getBlock(), returnType);
+      try
+      {
+        checkTypes(forStatement.getBlock(), returnType);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
     }
     else if (statement instanceof IfStatement)
     {
       IfStatement ifStatement = (IfStatement) statement;
-      Type exprType = checkTypes(ifStatement.getExpression());
-      if (exprType.isNullable() || !(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      try
       {
-        throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", ifStatement.getExpression().getLexicalPhrase());
+        Type exprType = checkTypes(ifStatement.getExpression());
+        if (exprType.isNullable() || !(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+        {
+          throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", ifStatement.getExpression().getLexicalPhrase());
+        }
       }
-      checkTypes(ifStatement.getThenClause(), returnType);
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        checkTypes(ifStatement.getThenClause(), returnType);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
       if (ifStatement.getElseClause() != null)
       {
-        checkTypes(ifStatement.getElseClause(), returnType);
+        try
+        {
+          checkTypes(ifStatement.getElseClause(), returnType);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
     }
     else if (statement instanceof PrefixIncDecStatement)
@@ -685,12 +804,31 @@ public class TypeChecker
     else if (statement instanceof WhileStatement)
     {
       WhileStatement whileStatement = (WhileStatement) statement;
-      Type exprType = checkTypes(whileStatement.getExpression());
-      if (exprType.isNullable() || !(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      try
       {
-        throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", whileStatement.getExpression().getLexicalPhrase());
+        Type exprType = checkTypes(whileStatement.getExpression());
+        if (exprType.isNullable() || !(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+        {
+          throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", whileStatement.getExpression().getLexicalPhrase());
+        }
       }
-      checkTypes(whileStatement.getStatement(), returnType);
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        checkTypes(whileStatement.getStatement(), returnType);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
     }
     else
     {
@@ -710,8 +848,29 @@ public class TypeChecker
     if (expression instanceof ArithmeticExpression)
     {
       ArithmeticExpression arithmeticExpression = (ArithmeticExpression) expression;
-      Type leftType = checkTypes(arithmeticExpression.getLeftSubExpression());
-      Type rightType = checkTypes(arithmeticExpression.getRightSubExpression());
+      Type leftType = null;
+      Type rightType = null;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      try
+      {
+        leftType = checkTypes(arithmeticExpression.getLeftSubExpression());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        rightType = checkTypes(arithmeticExpression.getRightSubExpression());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
       if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.isNullable() && !rightType.isNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
@@ -738,15 +897,35 @@ public class TypeChecker
     else if (expression instanceof ArrayAccessExpression)
     {
       ArrayAccessExpression arrayAccessExpression = (ArrayAccessExpression) expression;
-      Type type = checkTypes(arrayAccessExpression.getArrayExpression());
-      if (!(type instanceof ArrayType) || type.isNullable())
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      Type type = null;
+      try
       {
-        throw new ConceptualException("Array accesses are not defined for type " + type, arrayAccessExpression.getLexicalPhrase());
+        type = checkTypes(arrayAccessExpression.getArrayExpression());
+        if (!(type instanceof ArrayType) || type.isNullable())
+        {
+          throw new ConceptualException("Array accesses are not defined for type " + type, arrayAccessExpression.getLexicalPhrase());
+        }
       }
-      Type dimensionType = checkTypes(arrayAccessExpression.getDimensionExpression());
-      if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
+      catch (ConceptualException e)
       {
-        throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, arrayAccessExpression.getDimensionExpression().getLexicalPhrase());
+        coalescedException.addException(e);
+      }
+      try
+      {
+        Type dimensionType = checkTypes(arrayAccessExpression.getDimensionExpression());
+        if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
+        {
+          throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, arrayAccessExpression.getDimensionExpression().getLexicalPhrase());
+        }
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
       Type baseType = ((ArrayType) type).getBaseType();
       arrayAccessExpression.setType(baseType);
@@ -755,14 +934,22 @@ public class TypeChecker
     else if (expression instanceof ArrayCreationExpression)
     {
       ArrayCreationExpression creationExpression = (ArrayCreationExpression) expression;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       if (creationExpression.getDimensionExpressions() != null)
       {
-        for (Expression e : creationExpression.getDimensionExpressions())
+        for (Expression expr : creationExpression.getDimensionExpressions())
         {
-          Type type = checkTypes(e);
-          if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(type))
+          try
           {
-            throw new ConceptualException("Cannot use an expression of type " + type + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, e.getLexicalPhrase());
+            Type type = checkTypes(expr);
+            if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(type))
+            {
+              throw new ConceptualException("Cannot use an expression of type " + type + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, expr.getLexicalPhrase());
+            }
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException.addException(e);
           }
         }
       }
@@ -772,19 +959,30 @@ public class TypeChecker
       {
         if (!baseType.hasDefaultValue())
         {
-          throw new ConceptualException("Cannot create an array of '" + baseType + "' without an initialiser.", creationExpression.getLexicalPhrase());
+          coalescedException.addException(new ConceptualException("Cannot create an array of '" + baseType + "' without an initialiser.", creationExpression.getLexicalPhrase()));
         }
       }
       else
       {
-        for (Expression e : creationExpression.getValueExpressions())
+        for (Expression expr : creationExpression.getValueExpressions())
         {
-          Type type = checkTypes(e);
-          if (!baseType.canAssign(type))
+          try
           {
-            throw new ConceptualException("Cannot add an expression of type " + type + " to an array of type " + baseType, e.getLexicalPhrase());
+            Type type = checkTypes(expr);
+            if (!baseType.canAssign(type))
+            {
+              throw new ConceptualException("Cannot add an expression of type " + type + " to an array of type " + baseType, expr.getLexicalPhrase());
+            }
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException.addException(e);
           }
         }
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
       creationExpression.setType(declaredType);
       return declaredType;
@@ -936,13 +1134,25 @@ public class TypeChecker
         }
         throw new ConceptualException("The constructor '" + constructor.getContainingTypeDefinition().getQualifiedName() + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", classCreationExpression.getLexicalPhrase());
       }
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       for (int i = 0; i < arguments.length; ++i)
       {
-        Type argumentType = checkTypes(arguments[i]);
-        if (!parameters[i].getType().canAssign(argumentType))
+        try
         {
-          throw new ConceptualException("Cannot pass an argument of type '" + argumentType + "' as a parameter of type '" + parameters[i].getType() + "'", arguments[i].getLexicalPhrase());
+          Type argumentType = checkTypes(arguments[i]);
+          if (!parameters[i].getType().canAssign(argumentType))
+          {
+            throw new ConceptualException("Cannot pass an argument of type '" + argumentType + "' as a parameter of type '" + parameters[i].getType() + "'", arguments[i].getLexicalPhrase());
+          }
         }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
       classCreationExpression.setType(type);
       return type;
@@ -950,9 +1160,31 @@ public class TypeChecker
     else if (expression instanceof EqualityExpression)
     {
       EqualityExpression equalityExpression = (EqualityExpression) expression;
+      Type leftType = null;
+      Type rightType = null;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      try
+      {
+        leftType = checkTypes(equalityExpression.getLeftSubExpression());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        rightType = checkTypes(equalityExpression.getRightSubExpression());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
+
       EqualityOperator operator = equalityExpression.getOperator();
-      Type leftType = checkTypes(equalityExpression.getLeftSubExpression());
-      Type rightType = checkTypes(equalityExpression.getRightSubExpression());
       if ((leftType instanceof NullType && !rightType.isNullable()) ||
           (!leftType.isNullable() && rightType instanceof NullType))
       {
@@ -1103,6 +1335,7 @@ public class TypeChecker
     else if (expression instanceof FunctionCallExpression)
     {
       FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       Expression[] arguments = functionCallExpression.getArguments();
       Parameter[] parameters = null;
       Type[] parameterTypes = null;
@@ -1112,14 +1345,23 @@ public class TypeChecker
       {
         if (functionCallExpression.getResolvedBaseExpression() != null)
         {
-          Type type = checkTypes(functionCallExpression.getResolvedBaseExpression());
-          if (type.isNullable() && !functionCallExpression.getResolvedNullTraversal())
+          try
           {
-            throw new ConceptualException("Cannot access the method '" + functionCallExpression.getResolvedMethod().getName() + "' on something which is nullable. Consider using the '?.' operator.", functionCallExpression.getLexicalPhrase());
+            Type type = checkTypes(functionCallExpression.getResolvedBaseExpression());
+            if (type.isNullable() && !functionCallExpression.getResolvedNullTraversal())
+            {
+              throw new ConceptualException("Cannot access the method '" + functionCallExpression.getResolvedMethod().getName() + "' on something which is nullable. Consider using the '?.' operator.", functionCallExpression.getLexicalPhrase());
+            }
+            if (!type.isNullable() && functionCallExpression.getResolvedNullTraversal())
+            {
+              throw new ConceptualException("Cannot use the null traversing method call operator '?.' on a non nullable expression", functionCallExpression.getLexicalPhrase());
+            }
           }
-          if (!type.isNullable() && functionCallExpression.getResolvedNullTraversal())
+          catch (ConceptualException e)
           {
-            throw new ConceptualException("Cannot use the null traversing method call operator '?.' on a non nullable expression", functionCallExpression.getLexicalPhrase());
+            // we can continue despite this for now, because the base expression doesn't affect the function parameter or result types in this case
+            // however, we cannot ignore the case where all we have is a resolvedBaseExpression, because there it does determine the parameters and result types
+            coalescedException.addException(e);
           }
         }
         parameters = functionCallExpression.getResolvedMethod().getParameters();
@@ -1176,16 +1418,28 @@ public class TypeChecker
             buffer.append(", ");
           }
         }
-        throw new ConceptualException("The function '" + (name == null ? "" : name) + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", functionCallExpression.getLexicalPhrase());
+        coalescedException.addException(new ConceptualException("The function '" + (name == null ? "" : name) + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", functionCallExpression.getLexicalPhrase()));
+        throw coalescedException;
       }
 
       for (int i = 0; i < arguments.length; i++)
       {
-        Type type = checkTypes(arguments[i]);
-        if (!parameterTypes[i].canAssign(type))
+        try
         {
-          throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", arguments[i].getLexicalPhrase());
+          Type type = checkTypes(arguments[i]);
+          if (!parameterTypes[i].canAssign(type))
+          {
+            throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", arguments[i].getLexicalPhrase());
+          }
         }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
       functionCallExpression.setType(resultType);
       return resultType;
@@ -1193,13 +1447,41 @@ public class TypeChecker
     else if (expression instanceof InlineIfExpression)
     {
       InlineIfExpression inlineIf = (InlineIfExpression) expression;
-      Type conditionType = checkTypes(inlineIf.getCondition());
-      if (!(conditionType instanceof PrimitiveType) || conditionType.isNullable() || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      try
       {
-        throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + conditionType + "'", inlineIf.getCondition().getLexicalPhrase());
+        Type conditionType = checkTypes(inlineIf.getCondition());
+        if (!(conditionType instanceof PrimitiveType) || conditionType.isNullable() || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+        {
+          throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + conditionType + "'", inlineIf.getCondition().getLexicalPhrase());
+        }
       }
-      Type thenType = checkTypes(inlineIf.getThenExpression());
-      Type elseType = checkTypes(inlineIf.getElseExpression());
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      Type thenType = null;
+      Type elseType = null;
+      try
+      {
+        thenType = checkTypes(inlineIf.getThenExpression());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        elseType = checkTypes(inlineIf.getElseExpression());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
       Type resultType = findCommonSuperType(thenType, elseType);
       if (resultType != null)
       {
@@ -1270,8 +1552,29 @@ public class TypeChecker
     else if (expression instanceof LogicalExpression)
     {
       LogicalExpression logicalExpression = (LogicalExpression) expression;
-      Type leftType = checkTypes(logicalExpression.getLeftSubExpression());
-      Type rightType = checkTypes(logicalExpression.getRightSubExpression());
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      Type leftType = null;
+      Type rightType = null;
+      try
+      {
+        leftType = checkTypes(logicalExpression.getLeftSubExpression());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        rightType = checkTypes(logicalExpression.getRightSubExpression());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
       if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.isNullable() && !rightType.isNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
@@ -1369,12 +1672,33 @@ public class TypeChecker
     else if (expression instanceof NullCoalescingExpression)
     {
       NullCoalescingExpression nullCoalescingExpression = (NullCoalescingExpression) expression;
-      Type nullableType = checkTypes(nullCoalescingExpression.getNullableExpression());
-      if (!nullableType.isNullable())
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      Type nullableType = null;
+      Type alternativeType = null;
+      try
       {
-        throw new ConceptualException("The null-coalescing operator '?:' is not defined when the left hand side (here '" + nullableType + "') is not nullable", expression.getLexicalPhrase());
+        nullableType = checkTypes(nullCoalescingExpression.getNullableExpression());
+        if (!nullableType.isNullable())
+        {
+          throw new ConceptualException("The null-coalescing operator '?:' is not defined when the left hand side (here '" + nullableType + "') is not nullable", expression.getLexicalPhrase());
+        }
       }
-      Type alternativeType = checkTypes(nullCoalescingExpression.getAlternativeExpression());
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        alternativeType = checkTypes(nullCoalescingExpression.getAlternativeExpression());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
       if (nullableType instanceof NullType)
       {
         // if the left hand side has the null type, just use the right hand side's type as the result of the expression
@@ -1404,9 +1728,31 @@ public class TypeChecker
     else if (expression instanceof RelationalExpression)
     {
       RelationalExpression relationalExpression = (RelationalExpression) expression;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      Type leftType = null;
+      Type rightType = null;
+      try
+      {
+        leftType = checkTypes(relationalExpression.getLeftSubExpression());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        rightType = checkTypes(relationalExpression.getRightSubExpression());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
+
       RelationalOperator operator = relationalExpression.getOperator();
-      Type leftType = checkTypes(relationalExpression.getLeftSubExpression());
-      Type rightType = checkTypes(relationalExpression.getRightSubExpression());
       if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.isNullable() && !rightType.isNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
@@ -1440,8 +1786,29 @@ public class TypeChecker
     else if (expression instanceof ShiftExpression)
     {
       ShiftExpression shiftExpression = (ShiftExpression) expression;
-      Type leftType = checkTypes(shiftExpression.getLeftExpression());
-      Type rightType = checkTypes(shiftExpression.getRightExpression());
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      Type leftType = null;
+      Type rightType = null;
+      try
+      {
+        leftType = checkTypes(shiftExpression.getLeftExpression());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        rightType = checkTypes(shiftExpression.getRightExpression());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
       if (leftType instanceof PrimitiveType && rightType instanceof PrimitiveType && !leftType.isNullable() && !rightType.isNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
@@ -1474,9 +1841,21 @@ public class TypeChecker
       TupleExpression tupleExpression = (TupleExpression) expression;
       Expression[] subExpressions = tupleExpression.getSubExpressions();
       Type[] subTypes = new Type[subExpressions.length];
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       for (int i = 0; i < subTypes.length; i++)
       {
-        subTypes[i] = checkTypes(subExpressions[i]);
+        try
+        {
+          subTypes[i] = checkTypes(subExpressions[i]);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
       TupleType type = new TupleType(false, subTypes, null);
       tupleExpression.setType(type);

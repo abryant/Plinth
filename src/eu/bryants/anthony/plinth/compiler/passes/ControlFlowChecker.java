@@ -75,6 +75,7 @@ import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
+import eu.bryants.anthony.plinth.compiler.CoalescedConceptualException;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
 
 /*
@@ -149,34 +150,42 @@ public class ControlFlowChecker
       }
     }
 
+    CoalescedConceptualException coalescedException = new CoalescedConceptualException();
     for (Initialiser initialiser : typeDefinition.getInitialisers())
     {
-      if (initialiser instanceof FieldInitialiser)
+      try
       {
-        Field field = ((FieldInitialiser) initialiser).getField();
-        if (field.isStatic())
+        if (initialiser instanceof FieldInitialiser)
         {
-          checkControlFlow(field.getInitialiserExpression(), staticVariables.initialised, staticVariables.initialiserState, false, false, true, false);
-          staticVariables.initialised.add(field.getGlobalVariable());
-          staticVariables.possiblyInitialised.add(field.getGlobalVariable());
+          Field field = ((FieldInitialiser) initialiser).getField();
+          if (field.isStatic())
+          {
+            checkControlFlow(field.getInitialiserExpression(), staticVariables.initialised, staticVariables.initialiserState, false, false, true, false);
+            staticVariables.initialised.add(field.getGlobalVariable());
+            staticVariables.possiblyInitialised.add(field.getGlobalVariable());
+          }
+          else
+          {
+            checkControlFlow(field.getInitialiserExpression(), instanceVariables.initialised, instanceVariables.initialiserState, true, onlyHasSelfishConstructors, false, hasImmutableConstructors);
+            instanceVariables.initialised.add(field.getMemberVariable());
+            instanceVariables.possiblyInitialised.add(field.getMemberVariable());
+          }
         }
         else
         {
-          checkControlFlow(field.getInitialiserExpression(), instanceVariables.initialised, instanceVariables.initialiserState, true, onlyHasSelfishConstructors, false, hasImmutableConstructors);
-          instanceVariables.initialised.add(field.getMemberVariable());
-          instanceVariables.possiblyInitialised.add(field.getMemberVariable());
+          if (initialiser.isStatic())
+          {
+            checkControlFlow(initialiser.getBlock(), typeDefinition, staticVariables, null, new LinkedList<BreakableStatement>(), false, false, true, false, true);
+          }
+          else
+          {
+            checkControlFlow(initialiser.getBlock(), typeDefinition, instanceVariables, null, new LinkedList<BreakableStatement>(), true, onlyHasSelfishConstructors, false, hasImmutableConstructors, true);
+          }
         }
       }
-      else
+      catch (ConceptualException e)
       {
-        if (initialiser.isStatic())
-        {
-          checkControlFlow(initialiser.getBlock(), typeDefinition, staticVariables, null, new LinkedList<BreakableStatement>(), false, false, true, false, true);
-        }
-        else
-        {
-          checkControlFlow(initialiser.getBlock(), typeDefinition, instanceVariables, null, new LinkedList<BreakableStatement>(), true, onlyHasSelfishConstructors, false, hasImmutableConstructors, true);
-        }
+        coalescedException.addException(e);
       }
     }
 
@@ -184,7 +193,7 @@ public class ControlFlowChecker
     {
       if (field.isStatic() && field.isFinal() && !staticVariables.initialised.contains(field.getGlobalVariable()))
       {
-        throw new ConceptualException("The static final field '" + field.getName() + "' is not always initialised", field.getLexicalPhrase());
+        coalescedException.addException(new ConceptualException("The static final field '" + field.getName() + "' is not always initialised", field.getLexicalPhrase()));
       }
     }
 
@@ -194,11 +203,30 @@ public class ControlFlowChecker
     delegateConstructorVariables.superClassVariables = superClassVariables;
     for (Constructor constructor : typeDefinition.getAllConstructors())
     {
-      checkControlFlow(constructor, delegateConstructorVariables);
+      try
+      {
+        checkControlFlow(constructor, delegateConstructorVariables);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
     }
     for (Method method : typeDefinition.getAllMethods())
     {
-      checkControlFlow(method);
+      try
+      {
+        checkControlFlow(method);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+    }
+
+    if (coalescedException.hasStoredExceptions())
+    {
+      throw coalescedException;
     }
   }
 
@@ -224,10 +252,18 @@ public class ControlFlowChecker
       variables.initialised.add(p.getVariable());
       variables.possiblyInitialised.add(p.getVariable());
     }
-    checkControlFlow(constructor.getBlock(), constructor.getContainingTypeDefinition(), variables, delegateConstructorVariables, new LinkedList<BreakableStatement>(), true, constructor.isSelfish(), false, constructor.isImmutable(), false);
+    CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+    try
+    {
+      checkControlFlow(constructor.getBlock(), constructor.getContainingTypeDefinition(), variables, delegateConstructorVariables, new LinkedList<BreakableStatement>(), true, constructor.isSelfish(), false, constructor.isImmutable(), false);
+    }
+    catch (ConceptualException e)
+    {
+      coalescedException.addException(e);
+    }
     if (variables.initialiserState != InitialiserState.DEFINITELY_RUN)
     {
-      throw new ConceptualException("Constructor does not always call a delegate constructor, i.e. this(...) or super(...), or otherwise implicitly run the initialiser", constructor.getLexicalPhrase());
+      coalescedException.addException(new ConceptualException("Constructor does not always call a delegate constructor, i.e. this(...) or super(...), or otherwise implicitly run the initialiser", constructor.getLexicalPhrase()));
     }
     for (Field field : constructor.getContainingTypeDefinition().getNonStaticFields())
     {
@@ -235,13 +271,17 @@ public class ControlFlowChecker
       {
         if (!field.getType().hasDefaultValue())
         {
-          throw new ConceptualException("Constructor does not always initialise the non-static field '" + field.getName() + "', which does not have a default value", constructor.getLexicalPhrase());
+          coalescedException.addException(new ConceptualException("Constructor does not always initialise the non-static field '" + field.getName() + "', which does not have a default value", constructor.getLexicalPhrase()));
         }
         if (field.isFinal())
         {
-          throw new ConceptualException("Constructor does not always initialise the non-static final field '" + field.getName() + "'", constructor.getLexicalPhrase());
+          coalescedException.addException(new ConceptualException("Constructor does not always initialise the non-static final field '" + field.getName() + "'", constructor.getLexicalPhrase()));
         }
       }
+    }
+    if (coalescedException.hasStoredExceptions())
+    {
+      throw coalescedException;
     }
   }
 
@@ -296,6 +336,7 @@ public class ControlFlowChecker
     if (statement instanceof AssignStatement)
     {
       AssignStatement assignStatement = (AssignStatement) statement;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       Assignee[] assignees = assignStatement.getAssignees();
       Set<Variable> nowInitialisedVariables = new HashSet<Variable>();
       for (int i = 0; i < assignees.length; i++)
@@ -314,17 +355,17 @@ public class ControlFlowChecker
                 {
                   if (variables.possiblyInitialised.contains(var))
                   {
-                    throw new ConceptualException("Final field '" + var.getName() + "' may already have been initialised", assignStatement.getLexicalPhrase());
+                    coalescedException.addException(new ConceptualException("Final field '" + var.getName() + "' may already have been initialised", assignStatement.getLexicalPhrase()));
                   }
                 }
                 else
                 {
-                  throw new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignStatement.getLexicalPhrase());
+                  coalescedException.addException(new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignStatement.getLexicalPhrase()));
                 }
               }
               if (inImmutableContext && !inConstructor)
               {
-                throw new ConceptualException("Cannot assign to the member variable '" + var.getName() + "' in an immutable context", assignStatement.getLexicalPhrase());
+                coalescedException.addException(new ConceptualException("Cannot assign to the member variable '" + var.getName() + "' in an immutable context", assignStatement.getLexicalPhrase()));
               }
               nowInitialisedVariables.add(var);
             }
@@ -336,17 +377,17 @@ public class ControlFlowChecker
                 {
                   if (variables.possiblyInitialised.contains(var))
                   {
-                    throw new ConceptualException("The static final field '" + var.getName() + "' may already have been initialised", assignStatement.getLexicalPhrase());
+                    coalescedException.addException(new ConceptualException("The static final field '" + var.getName() + "' may already have been initialised", assignStatement.getLexicalPhrase()));
                   }
                 }
                 else // if not in a static initialiser
                 {
-                  throw new ConceptualException("The static final field '" + var.getName() + "' cannot be modified", assignStatement.getLexicalPhrase());
+                  coalescedException.addException(new ConceptualException("The static final field '" + var.getName() + "' cannot be modified", assignStatement.getLexicalPhrase()));
                 }
               }
               if (inImmutableContext)
               {
-                throw new ConceptualException("Cannot assign to the static variable '" + var.getName() + "' in an immutable context", assignStatement.getLexicalPhrase());
+                coalescedException.addException(new ConceptualException("Cannot assign to the static variable '" + var.getName() + "' in an immutable context", assignStatement.getLexicalPhrase()));
               }
               nowInitialisedVariables.add(var);
             }
@@ -354,7 +395,7 @@ public class ControlFlowChecker
             {
               if (var.isFinal() && variables.possiblyInitialised.contains(var))
               {
-                throw new ConceptualException("Variable '" + var.getName() + "' may already have been initialised.", assignStatement.getLexicalPhrase());
+                coalescedException.addException(new ConceptualException("Variable '" + var.getName() + "' may already have been initialised.", assignStatement.getLexicalPhrase()));
               }
               nowInitialisedVariables.add(var);
             }
@@ -363,12 +404,26 @@ public class ControlFlowChecker
         else if (assignees[i] instanceof ArrayElementAssignee)
         {
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
-          checkControlFlow(arrayElementAssignee.getArrayExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
-          checkControlFlow(arrayElementAssignee.getDimensionExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          try
+          {
+            checkControlFlow(arrayElementAssignee.getArrayExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException.addException(e);
+          }
+          try
+          {
+            checkControlFlow(arrayElementAssignee.getDimensionExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException.addException(e);
+          }
           ArrayType baseType = (ArrayType) arrayElementAssignee.getArrayExpression().getType();
           if (baseType.isContextuallyImmutable())
           {
-            throw new ConceptualException("Cannot assign to an element of an immutable array", arrayElementAssignee.getLexicalPhrase());
+            coalescedException.addException(new ConceptualException("Cannot assign to an element of an immutable array", arrayElementAssignee.getLexicalPhrase()));
           }
         }
         else if (assignees[i] instanceof FieldAssignee)
@@ -407,12 +462,19 @@ public class ControlFlowChecker
             if (fieldAccessExpression.getBaseExpression() != null)
             {
               // if we aren't in a constructor, or the base expression isn't 'this', but we do have a base expression, then check the uninitialised variables for the base expression normally
-              checkControlFlow(fieldAccessExpression.getBaseExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+              try
+              {
+                checkControlFlow(fieldAccessExpression.getBaseExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+              }
+              catch (ConceptualException e)
+              {
+                coalescedException.addException(e);
+              }
 
               Type baseType = fieldAccessExpression.getBaseExpression().getType();
               if (baseType instanceof NamedType && ((NamedType) baseType).isContextuallyImmutable() && !isMutableField)
               {
-                throw new ConceptualException("Cannot assign to a non-mutable field of an immutable type", fieldAccessExpression.getLexicalPhrase());
+                coalescedException.addException(new ConceptualException("Cannot assign to a non-mutable field of an immutable type", fieldAccessExpression.getLexicalPhrase()));
               }
             }
             else
@@ -422,7 +484,7 @@ public class ControlFlowChecker
 
               if (inImmutableContext & !isMutableField)
               {
-                throw new ConceptualException("Cannot assign to a static non-mutable field in an immutable context", fieldAccessExpression.getLexicalPhrase());
+                coalescedException.addException(new ConceptualException("Cannot assign to a static non-mutable field in an immutable context", fieldAccessExpression.getLexicalPhrase()));
               }
             }
             if (resolvedMember instanceof Field)
@@ -437,13 +499,13 @@ public class ControlFlowChecker
                   {
                     if (variables.possiblyInitialised.contains(globalVar))
                     {
-                      throw new ConceptualException("The static final field '" + globalVar.getName() + "' may already have been initialised", assignStatement.getLexicalPhrase());
+                      coalescedException.addException(new ConceptualException("The static final field '" + globalVar.getName() + "' may already have been initialised", assignStatement.getLexicalPhrase()));
                     }
                     nowInitialisedVariables.add(globalVar);
                   }
                   else // if not in a static initialiser
                   {
-                    throw new ConceptualException("The static final field '" + globalVar.getName() + "' cannot be modified", assignStatement.getLexicalPhrase());
+                    coalescedException.addException(new ConceptualException("The static final field '" + globalVar.getName() + "' cannot be modified", assignStatement.getLexicalPhrase()));
                   }
                 }
               }
@@ -452,7 +514,7 @@ public class ControlFlowChecker
                 MemberVariable var = field.getMemberVariable();
                 if (var != null && var.isFinal())
                 {
-                  throw new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignStatement.getLexicalPhrase());
+                  coalescedException.addException(new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignStatement.getLexicalPhrase()));
                 }
               }
             }
@@ -469,22 +531,46 @@ public class ControlFlowChecker
       }
       if (assignStatement.getExpression() != null)
       {
-        checkControlFlow(assignStatement.getExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        try
+        {
+          checkControlFlow(assignStatement.getExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
       }
       variables.initialised.addAll(nowInitialisedVariables);
       variables.possiblyInitialised.addAll(nowInitialisedVariables);
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
       return false;
     }
     else if (statement instanceof Block)
     {
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       boolean returned = false;
       for (Statement s : ((Block) statement).getStatements())
       {
         if (returned)
         {
-          throw new ConceptualException("Unreachable code", s.getLexicalPhrase());
+          coalescedException.addException(new ConceptualException("Unreachable code", s.getLexicalPhrase()));
+          throw coalescedException;
         }
-        returned = checkControlFlow(s, enclosingTypeDefinition, variables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+        try
+        {
+          returned = checkControlFlow(s, enclosingTypeDefinition, variables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
       return returned;
     }
@@ -548,31 +634,39 @@ public class ControlFlowChecker
     else if (statement instanceof DelegateConstructorStatement)
     {
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       if (!inConstructor | inStaticContext | inInitialiser)
       {
-        throw new ConceptualException("Delegate constructors may only be called from other constructors", delegateConstructorStatement.getLexicalPhrase());
+        coalescedException.addException(new ConceptualException("Delegate constructors may only be called from other constructors", delegateConstructorStatement.getLexicalPhrase()));
       }
       if (variables.initialiserState != InitialiserState.NOT_RUN)
       {
-        throw new ConceptualException("A delegate constructor may already have been run", delegateConstructorStatement.getLexicalPhrase());
+        coalescedException.addException(new ConceptualException("A delegate constructor may already have been run", delegateConstructorStatement.getLexicalPhrase()));
       }
       if (inImmutableContext && !delegateConstructorStatement.getResolvedConstructor().isImmutable())
       {
-        throw new ConceptualException("Cannot call a non-immutable delegate constructor from an immutable constructor", delegateConstructorStatement.getLexicalPhrase());
+        coalescedException.addException(new ConceptualException("Cannot call a non-immutable delegate constructor from an immutable constructor", delegateConstructorStatement.getLexicalPhrase()));
       }
 
       if (delegateConstructorStatement.isSuperConstructor() && delegateConstructorStatement.getResolvedConstructor().isSelfish())
       {
-        throw new ConceptualException("Cannot call a selfish constructor as a super() constructor", delegateConstructorStatement.getLexicalPhrase());
+        coalescedException.addException(new ConceptualException("Cannot call a selfish constructor as a super() constructor", delegateConstructorStatement.getLexicalPhrase()));
       }
       if (!inSelfishContext && delegateConstructorStatement.getResolvedConstructor().isSelfish())
       {
-        throw new ConceptualException("Cannot call a selfish delegate constructor from a not-selfish constructor", delegateConstructorStatement.getLexicalPhrase());
+        coalescedException.addException(new ConceptualException("Cannot call a selfish delegate constructor from a not-selfish constructor", delegateConstructorStatement.getLexicalPhrase()));
       }
 
       for (Expression argument : delegateConstructorStatement.getArguments())
       {
-        checkControlFlow(argument, variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        try
+        {
+          checkControlFlow(argument, variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
       }
 
       variables.initialiserState = InitialiserState.DEFINITELY_RUN;
@@ -582,7 +676,7 @@ public class ControlFlowChecker
       {
         if (var instanceof MemberVariable && var.isFinal() && variables.possiblyInitialised.contains(var))
         {
-          throw new ConceptualException("Cannot call a delegate constructor here, since it would overwrite the value of '" + var.getName() + "' (in: " + ((MemberVariable) var).getEnclosingTypeDefinition().getQualifiedName() + "), which may already have been initialised", delegateConstructorStatement.getLexicalPhrase());
+          coalescedException.addException(new ConceptualException("Cannot call a delegate constructor here, since it would overwrite the value of '" + var.getName() + "' (in: " + ((MemberVariable) var).getEnclosingTypeDefinition().getQualifiedName() + "), which may already have been initialised", delegateConstructorStatement.getLexicalPhrase()));
         }
         variables.initialised.add(var);
         variables.possiblyInitialised.add(var);
@@ -604,11 +698,15 @@ public class ControlFlowChecker
           MemberVariable var = field.getMemberVariable();
           if (field.isFinal() && variables.possiblyInitialised.contains(var))
           {
-            throw new ConceptualException("Cannot call a this() constructor here, since it would overwrite the value of '" + field.getName() + "', which may already have been initialised", delegateConstructorStatement.getLexicalPhrase());
+            coalescedException.addException(new ConceptualException("Cannot call a this() constructor here, since it would overwrite the value of '" + field.getName() + "', which may already have been initialised", delegateConstructorStatement.getLexicalPhrase()));
           }
           variables.initialised.add(var);
           variables.possiblyInitialised.add(var);
         }
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
       return false;
     }
@@ -627,21 +725,44 @@ public class ControlFlowChecker
 
       enclosingBreakableStack.push(forStatement);
 
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       if (init != null)
       {
-        // check the loop initialisation variable in the block outside the loop, because it may add new variables which have now been initialised
-        boolean returned = checkControlFlow(init, enclosingTypeDefinition, variables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
-        if (returned)
+        try
         {
-          throw new IllegalStateException("Reached a state where a for loop initialisation statement returned");
+          // check the loop initialisation variable in the block outside the loop, because it may add new variables which have now been initialised
+          boolean returned = checkControlFlow(init, enclosingTypeDefinition, variables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+          if (returned)
+          {
+            throw new IllegalStateException("Reached a state where a for loop initialisation statement returned");
+          }
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
         }
       }
       ControlFlowVariables loopVariables = variables.copy();
       if (condition != null)
       {
-        checkControlFlow(condition, loopVariables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        try
+        {
+          checkControlFlow(condition, loopVariables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
       }
-      boolean returned = checkControlFlow(block, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      boolean returned = block.stopsExecution();
+      try
+      {
+        returned = checkControlFlow(block, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
       if (returned)
       {
         loopVariables.overwriteWithContinueVariables(forStatement);
@@ -655,22 +776,49 @@ public class ControlFlowChecker
       {
         if (returned && !forStatement.isContinuedThrough())
         {
-          throw new ConceptualException("Unreachable code", update.getLexicalPhrase());
+          coalescedException.addException(new ConceptualException("Unreachable code", update.getLexicalPhrase()));
         }
-        boolean updateReturned = checkControlFlow(update, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
-        if (updateReturned)
+        try
         {
-          throw new IllegalStateException("Reached a state where a for loop update statement returned");
+          boolean updateReturned = checkControlFlow(update, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+          if (updateReturned)
+          {
+            throw new IllegalStateException("Reached a state where a for loop update statement returned");
+          }
         }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
+      }
+
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
 
       // run through the conditional, loop block, and update again, so that we catch any final variables that are initialised in the loop
       loopVariables.combine(variables);
       if (condition != null)
       {
-        checkControlFlow(condition, loopVariables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        try
+        {
+          checkControlFlow(condition, loopVariables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
       }
-      boolean secondReturned = checkControlFlow(block, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      boolean secondReturned = returned;
+      try
+      {
+        secondReturned = checkControlFlow(block, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
       if (secondReturned)
       {
         loopVariables.overwriteWithContinueVariables(forStatement);
@@ -681,7 +829,14 @@ public class ControlFlowChecker
       }
       if (update != null)
       {
-        checkControlFlow(update, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+        try
+        {
+          checkControlFlow(update, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
       }
 
       if (returned)
@@ -706,19 +861,39 @@ public class ControlFlowChecker
 
       enclosingBreakableStack.pop();
 
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
       // if there is no conditional and the for statement is never broken out of, then control cannot continue after the end of the loop
       return condition == null && !forStatement.isBrokenOutOf();
     }
     else if (statement instanceof IfStatement)
     {
       IfStatement ifStatement = (IfStatement) statement;
-      checkControlFlow(ifStatement.getExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      try
+      {
+        checkControlFlow(ifStatement.getExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
       Statement thenClause = ifStatement.getThenClause();
       Statement elseClause = ifStatement.getElseClause();
       if (elseClause == null)
       {
         ControlFlowVariables thenClauseVariables = variables.copy();
-        boolean thenReturned = checkControlFlow(thenClause, enclosingTypeDefinition, thenClauseVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+        boolean thenReturned = thenClause.stopsExecution();
+        try
+        {
+          thenReturned = checkControlFlow(thenClause, enclosingTypeDefinition, thenClauseVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
         if (thenReturned)
         {
           variables.combineReturned(thenClauseVariables);
@@ -727,12 +902,32 @@ public class ControlFlowChecker
         {
           variables.combine(thenClauseVariables);
         }
+        if (coalescedException.hasStoredExceptions())
+        {
+          throw coalescedException;
+        }
         return false;
       }
       ControlFlowVariables thenClauseVariables = variables.copy();
       ControlFlowVariables elseClauseVariables = variables.copy();
-      boolean thenReturned = checkControlFlow(thenClause, enclosingTypeDefinition, thenClauseVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
-      boolean elseReturned = checkControlFlow(elseClause, enclosingTypeDefinition, elseClauseVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      boolean thenReturned = thenClause.stopsExecution();
+      boolean elseReturned = elseClause.stopsExecution();
+      try
+      {
+        thenReturned = checkControlFlow(thenClause, enclosingTypeDefinition, thenClauseVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        elseReturned = checkControlFlow(elseClause, enclosingTypeDefinition, elseClauseVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
       if (!thenReturned & !elseReturned)
       {
         variables.overwrite(thenClauseVariables);
@@ -753,47 +948,66 @@ public class ControlFlowChecker
         variables.combineReturned(thenClauseVariables);
         variables.combineReturned(elseClauseVariables);
       }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
       return thenReturned & elseReturned;
     }
     else if (statement instanceof PrefixIncDecStatement)
     {
       PrefixIncDecStatement prefixIncDecStatement = (PrefixIncDecStatement) statement;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       Assignee assignee = prefixIncDecStatement.getAssignee();
       if (assignee instanceof VariableAssignee)
       {
         Variable var = ((VariableAssignee) assignee).getResolvedVariable();
         if (!(var instanceof GlobalVariable) && !variables.initialised.contains(var) && (inConstructor || !(var instanceof MemberVariable)))
         {
-          throw new ConceptualException("Variable '" + ((VariableAssignee) assignee).getVariableName() + "' may not have been initialised", assignee.getLexicalPhrase());
+          coalescedException.addException(new ConceptualException("Variable '" + ((VariableAssignee) assignee).getVariableName() + "' may not have been initialised", assignee.getLexicalPhrase()));
         }
         if (inStaticContext && var instanceof MemberVariable)
         {
-          throw new ConceptualException("The non-static member variable '" + ((VariableAssignee) assignee).getVariableName() + "' does not exist in static methods", assignee.getLexicalPhrase());
+          coalescedException.addException(new ConceptualException("The non-static member variable '" + ((VariableAssignee) assignee).getVariableName() + "' does not exist in static methods", assignee.getLexicalPhrase()));
         }
         if (var.isFinal())
         {
-          throw new ConceptualException("Final variable '" + ((VariableAssignee) assignee).getVariableName() + "' cannot be modified", assignee.getLexicalPhrase());
+          coalescedException.addException(new ConceptualException("Final variable '" + ((VariableAssignee) assignee).getVariableName() + "' cannot be modified", assignee.getLexicalPhrase()));
         }
         if (inImmutableContext)
         {
           if (!inConstructor && var instanceof MemberVariable)
           {
-            throw new ConceptualException("Cannot modify the member variable '" + var.getName() + "' in an immutable context", assignee.getLexicalPhrase());
+            coalescedException.addException(new ConceptualException("Cannot modify the member variable '" + var.getName() + "' in an immutable context", assignee.getLexicalPhrase()));
           }
           else if (var instanceof GlobalVariable)
           {
-            throw new ConceptualException("Cannot modify the static variable '" + var.getName() + "' in an immutable context", assignee.getLexicalPhrase());
+            coalescedException.addException(new ConceptualException("Cannot modify the static variable '" + var.getName() + "' in an immutable context", assignee.getLexicalPhrase()));
           }
         }
       }
       else if (assignee instanceof ArrayElementAssignee)
       {
         ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
-        checkControlFlow(arrayElementAssignee.getArrayExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
-        checkControlFlow(arrayElementAssignee.getDimensionExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        try
+        {
+          checkControlFlow(arrayElementAssignee.getArrayExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
+        try
+        {
+          checkControlFlow(arrayElementAssignee.getDimensionExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
         if (((ArrayType) arrayElementAssignee.getArrayExpression().getType()).isContextuallyImmutable())
         {
-          throw new ConceptualException("Cannot modify an element of an immutable array", assignee.getLexicalPhrase());
+          coalescedException.addException(new ConceptualException("Cannot modify an element of an immutable array", assignee.getLexicalPhrase()));
         }
       }
       else if (assignee instanceof FieldAssignee)
@@ -802,7 +1016,14 @@ public class ControlFlowChecker
         FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
         Member resolvedMember = fieldAccessExpression.getResolvedMember();
         // treat this as a field access, and check for uninitialised variables as normal
-        checkControlFlow(fieldAccessExpression, variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        try
+        {
+          checkControlFlow(fieldAccessExpression, variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
 
         boolean isMutableField = resolvedMember instanceof Field && ((Field) resolvedMember).isMutable();
         if (fieldAccessExpression.getBaseExpression() != null)
@@ -810,14 +1031,14 @@ public class ControlFlowChecker
           Type baseType = fieldAccessExpression.getBaseExpression().getType();
           if (baseType instanceof NamedType && ((NamedType) baseType).isContextuallyImmutable() && !isMutableField)
           {
-            throw new ConceptualException("Cannot modify a non-mutable field of an immutable type", assignee.getLexicalPhrase());
+            coalescedException.addException(new ConceptualException("Cannot modify a non-mutable field of an immutable type", assignee.getLexicalPhrase()));
           }
         }
         else
         {
           if (inImmutableContext & !isMutableField)
           {
-            throw new ConceptualException("Cannot modify a static non-mutable field in an immutable context", assignee.getLexicalPhrase());
+            coalescedException.addException(new ConceptualException("Cannot modify a static non-mutable field in an immutable context", assignee.getLexicalPhrase()));
           }
         }
         // make sure we don't modify any final variables
@@ -828,7 +1049,7 @@ public class ControlFlowChecker
             GlobalVariable globalVar = ((Field) resolvedMember).getGlobalVariable();
             if (globalVar != null && globalVar.isFinal())
             {
-              throw new ConceptualException("Static final field '" + globalVar.getName() + "' cannot be modified", assignee.getLexicalPhrase());
+              coalescedException.addException(new ConceptualException("Static final field '" + globalVar.getName() + "' cannot be modified", assignee.getLexicalPhrase()));
             }
           }
           else
@@ -836,7 +1057,7 @@ public class ControlFlowChecker
             MemberVariable var = ((Field) resolvedMember).getMemberVariable();
             if (var != null && var.isFinal())
             {
-              throw new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignee.getLexicalPhrase());
+              coalescedException.addException(new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignee.getLexicalPhrase()));
             }
           }
         }
@@ -845,6 +1066,10 @@ public class ControlFlowChecker
       {
         // ignore blank assignees, they shouldn't be able to get through variable resolution
         throw new IllegalStateException("Unknown Assignee type: " + assignee);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
       return false;
     }
@@ -864,6 +1089,7 @@ public class ControlFlowChecker
     else if (statement instanceof ShorthandAssignStatement)
     {
       ShorthandAssignStatement shorthandAssignStatement = (ShorthandAssignStatement) statement;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       for (Assignee assignee : shorthandAssignStatement.getAssignees())
       {
         if (assignee instanceof VariableAssignee)
@@ -872,36 +1098,50 @@ public class ControlFlowChecker
           Variable var = variableAssignee.getResolvedVariable();
           if (!(var instanceof GlobalVariable) && !variables.initialised.contains(var) && (inConstructor || !(var instanceof MemberVariable)))
           {
-            throw new ConceptualException("Variable '" + variableAssignee.getVariableName() + "' may not have been initialised", variableAssignee.getLexicalPhrase());
+            coalescedException.addException(new ConceptualException("Variable '" + variableAssignee.getVariableName() + "' may not have been initialised", variableAssignee.getLexicalPhrase()));
           }
           if (inStaticContext && var instanceof MemberVariable)
           {
-            throw new ConceptualException("The non-static member variable '" + variableAssignee.getVariableName() + "' does not exist in static methods", variableAssignee.getLexicalPhrase());
+            coalescedException.addException(new ConceptualException("The non-static member variable '" + variableAssignee.getVariableName() + "' does not exist in static methods", variableAssignee.getLexicalPhrase()));
           }
           if (var.isFinal())
           {
-            throw new ConceptualException("Final variable '" + variableAssignee.getVariableName() + "' cannot be modified", assignee.getLexicalPhrase());
+            coalescedException.addException(new ConceptualException("Final variable '" + variableAssignee.getVariableName() + "' cannot be modified", assignee.getLexicalPhrase()));
           }
           if (inImmutableContext)
           {
             if (!inConstructor && var instanceof MemberVariable)
             {
-              throw new ConceptualException("Cannot modify the member variable '" + var.getName() + "' in an immutable context", assignee.getLexicalPhrase());
+              coalescedException.addException(new ConceptualException("Cannot modify the member variable '" + var.getName() + "' in an immutable context", assignee.getLexicalPhrase()));
             }
             else if (var instanceof GlobalVariable)
             {
-              throw new ConceptualException("Cannot modify the static variable '" + var.getName() + "' in an immutable context", assignee.getLexicalPhrase());
+              coalescedException.addException(new ConceptualException("Cannot modify the static variable '" + var.getName() + "' in an immutable context", assignee.getLexicalPhrase()));
             }
           }
         }
         else if (assignee instanceof ArrayElementAssignee)
         {
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
-          checkControlFlow(arrayElementAssignee.getArrayExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
-          checkControlFlow(arrayElementAssignee.getDimensionExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          try
+          {
+            checkControlFlow(arrayElementAssignee.getArrayExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException.addException(e);
+          }
+          try
+          {
+            checkControlFlow(arrayElementAssignee.getDimensionExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException.addException(e);
+          }
           if (((ArrayType) arrayElementAssignee.getArrayExpression().getType()).isContextuallyImmutable())
           {
-            throw new ConceptualException("Cannot modify an element of an immutable array", assignee.getLexicalPhrase());
+            coalescedException.addException(new ConceptualException("Cannot modify an element of an immutable array", assignee.getLexicalPhrase()));
           }
         }
         else if (assignee instanceof FieldAssignee)
@@ -910,7 +1150,14 @@ public class ControlFlowChecker
           FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
           Member resolvedMember = fieldAccessExpression.getResolvedMember();
           // treat this as a field access, and check for uninitialised variables as normal
-          checkControlFlow(fieldAccessExpression, variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          try
+          {
+            checkControlFlow(fieldAccessExpression, variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException.addException(e);
+          }
 
           boolean isMutableField = resolvedMember instanceof Field && ((Field) resolvedMember).isMutable();
           if (fieldAccessExpression.getBaseExpression() != null)
@@ -918,14 +1165,14 @@ public class ControlFlowChecker
             Type baseType = fieldAccessExpression.getBaseExpression().getType();
             if (baseType instanceof NamedType && ((NamedType) baseType).isContextuallyImmutable() && !isMutableField)
             {
-              throw new ConceptualException("Cannot modify a non-mutable field of an immutable type", assignee.getLexicalPhrase());
+              coalescedException.addException(new ConceptualException("Cannot modify a non-mutable field of an immutable type", assignee.getLexicalPhrase()));
             }
           }
           else
           {
             if (inImmutableContext & !isMutableField)
             {
-              throw new ConceptualException("Cannot modify a static non-mutable field in an immutable context", assignee.getLexicalPhrase());
+              coalescedException.addException(new ConceptualException("Cannot modify a static non-mutable field in an immutable context", assignee.getLexicalPhrase()));
             }
           }
           // make sure we don't modify any final variables
@@ -936,7 +1183,7 @@ public class ControlFlowChecker
               GlobalVariable globalVar = ((Field) resolvedMember).getGlobalVariable();
               if (globalVar != null && globalVar.isFinal())
               {
-                throw new ConceptualException("Static final field '" + globalVar.getName() + "' cannot be modified", assignee.getLexicalPhrase());
+                coalescedException.addException(new ConceptualException("Static final field '" + globalVar.getName() + "' cannot be modified", assignee.getLexicalPhrase()));
               }
             }
             else
@@ -944,7 +1191,7 @@ public class ControlFlowChecker
               MemberVariable var = ((Field) resolvedMember).getMemberVariable();
               if (var != null && var.isFinal())
               {
-                throw new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignee.getLexicalPhrase());
+                coalescedException.addException(new ConceptualException("Final field '" + var.getName() + "' cannot be modified", assignee.getLexicalPhrase()));
               }
             }
           }
@@ -958,20 +1205,47 @@ public class ControlFlowChecker
           throw new IllegalStateException("Unknown Assignee type: " + assignee);
         }
       }
-      checkControlFlow(shorthandAssignStatement.getExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      try
+      {
+        checkControlFlow(shorthandAssignStatement.getExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
       return false;
     }
     else if (statement instanceof WhileStatement)
     {
       WhileStatement whileStatement = (WhileStatement) statement;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
 
       ControlFlowVariables loopVariables = variables.copy();
 
-      checkControlFlow(whileStatement.getExpression(), loopVariables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      try
+      {
+        checkControlFlow(whileStatement.getExpression(), loopVariables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
 
       // we don't care about the result of this, as the loop could execute zero times
       enclosingBreakableStack.push(whileStatement);
-      boolean whileReturned = checkControlFlow(whileStatement.getStatement(), enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      boolean whileReturned = whileStatement.getStatement().stopsExecution();
+      try
+      {
+        whileReturned = checkControlFlow(whileStatement.getStatement(), enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
       if (whileReturned)
       {
         loopVariables.overwriteWithContinueVariables(whileStatement);
@@ -981,9 +1255,29 @@ public class ControlFlowChecker
         loopVariables.reintegrateContinueVariables(whileStatement);
       }
 
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
+
       // run through the conditional and loop block again, so that we catch any final variables that are initialised in the loop
-      checkControlFlow(whileStatement.getExpression(), loopVariables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
-      boolean secondReturned = checkControlFlow(whileStatement.getStatement(), enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      try
+      {
+        checkControlFlow(whileStatement.getExpression(), loopVariables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      boolean secondReturned = whileStatement.getStatement().stopsExecution();
+      try
+      {
+        secondReturned = checkControlFlow(whileStatement.getStatement(), enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
       if (secondReturned)
       {
         loopVariables.overwriteWithContinueVariables(whileStatement);
@@ -1004,6 +1298,11 @@ public class ControlFlowChecker
       variables.reintegrateBreakVariables(whileStatement);
 
       enclosingBreakableStack.pop();
+
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
       return false;
     }
     throw new ConceptualException("Internal control flow checking error: Unknown statement type", statement.getLexicalPhrase());
@@ -1014,32 +1313,89 @@ public class ControlFlowChecker
     if (expression instanceof ArithmeticExpression)
     {
       ArithmeticExpression arithmeticExpression = (ArithmeticExpression) expression;
-      checkControlFlow(arithmeticExpression.getLeftSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
-      checkControlFlow(arithmeticExpression.getRightSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      try
+      {
+        checkControlFlow(arithmeticExpression.getLeftSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        checkControlFlow(arithmeticExpression.getRightSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
     }
     else if (expression instanceof ArrayAccessExpression)
     {
       ArrayAccessExpression arrayAccessExpression = (ArrayAccessExpression) expression;
-      checkControlFlow(arrayAccessExpression.getArrayExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
-      checkControlFlow(arrayAccessExpression.getDimensionExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      try
+      {
+        checkControlFlow(arrayAccessExpression.getArrayExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        checkControlFlow(arrayAccessExpression.getDimensionExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
     }
     else if (expression instanceof ArrayCreationExpression)
     {
       ArrayCreationExpression creationExpression = (ArrayCreationExpression) expression;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       // TODO: when we add the "new [7]Foo(creationFunction)" syntax, make sure creationFunction is immutable if we are in an immutable context
       if (creationExpression.getDimensionExpressions() != null)
       {
-        for (Expression e : creationExpression.getDimensionExpressions())
+        for (Expression expr : creationExpression.getDimensionExpressions())
         {
-          checkControlFlow(e, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          try
+          {
+            checkControlFlow(expr, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException.addException(e);
+          }
         }
       }
       if (creationExpression.getValueExpressions() != null)
       {
-        for (Expression e : creationExpression.getValueExpressions())
+        for (Expression expr : creationExpression.getValueExpressions())
         {
-          checkControlFlow(e, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          try
+          {
+            checkControlFlow(expr, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException.addException(e);
+          }
         }
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
     }
     else if (expression instanceof BitwiseNotExpression)
@@ -1065,24 +1421,56 @@ public class ControlFlowChecker
     else if (expression instanceof ClassCreationExpression)
     {
       ClassCreationExpression classCreationExpression = (ClassCreationExpression) expression;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       for (Expression argument : classCreationExpression.getArguments())
       {
-        checkControlFlow(argument, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        try
+        {
+          checkControlFlow(argument, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
       }
       if (inImmutableContext && !classCreationExpression.getResolvedConstructor().isImmutable())
       {
-        throw new ConceptualException("Cannot call a non-immutable constructor from an immutable context (it may alter global variables)", classCreationExpression.getLexicalPhrase());
+        coalescedException.addException(new ConceptualException("Cannot call a non-immutable constructor from an immutable context (it may alter global variables)", classCreationExpression.getLexicalPhrase()));
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
     }
     else if (expression instanceof EqualityExpression)
     {
       EqualityExpression equalityExpression = (EqualityExpression) expression;
-      checkControlFlow(equalityExpression.getLeftSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
-      checkControlFlow(equalityExpression.getRightSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      try
+      {
+        checkControlFlow(equalityExpression.getLeftSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        checkControlFlow(equalityExpression.getRightSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
     }
     else if (expression instanceof FieldAccessExpression)
     {
       FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       Expression subExpression = fieldAccessExpression.getBaseExpression();
 
       // if we're in a constructor, we only want to check the sub-expression for uninitialised variables if it doesn't just access 'this'
@@ -1097,7 +1485,7 @@ public class ControlFlowChecker
         Member resolvedMember = fieldAccessExpression.getResolvedMember();
         if (resolvedMember instanceof Field && !((Field) resolvedMember).isStatic() && !initialisedVariables.contains(((Field) resolvedMember).getMemberVariable()))
         {
-          throw new ConceptualException("Field '" + ((Field) resolvedMember).getName() + "' may not have been initialised", fieldAccessExpression.getLexicalPhrase());
+          coalescedException.addException(new ConceptualException("Field '" + ((Field) resolvedMember).getName() + "' may not have been initialised", fieldAccessExpression.getLexicalPhrase()));
         }
         if (resolvedMember instanceof Method && !((Method) resolvedMember).isStatic())
         {
@@ -1105,17 +1493,21 @@ public class ControlFlowChecker
           Method resolvedMethod = (Method) resolvedMember;
           if (!inSelfishContext)
           {
-            throw new ConceptualException("Cannot access methods on 'this' unless we are within a selfish constructor", expression.getLexicalPhrase());
+            coalescedException.addException(new ConceptualException("Cannot access methods on 'this' unless we are within a selfish constructor", expression.getLexicalPhrase()));
           }
-          if (initialiserState != InitialiserState.DEFINITELY_RUN)
+          else if (initialiserState != InitialiserState.DEFINITELY_RUN)
           {
-            throw new ConceptualException("Cannot access methods on 'this' here. The initialiser of this '" + new NamedType(false, false, resolvedMethod.getContainingTypeDefinition()) + "' may not have been run yet", expression.getLexicalPhrase());
+            coalescedException.addException(new ConceptualException("Cannot access methods on 'this' here. The initialiser of this '" + new NamedType(false, false, resolvedMethod.getContainingTypeDefinition()) + "' may not have been run yet", expression.getLexicalPhrase()));
           }
-          for (Field field : resolvedMethod.getContainingTypeDefinition().getNonStaticFields())
+          else
           {
-            if (!initialisedVariables.contains(field.getMemberVariable()))
+            for (Field field : resolvedMethod.getContainingTypeDefinition().getNonStaticFields())
             {
-              throw new ConceptualException("Cannot access methods on 'this' here. Not all of the non-static fields of this '" + new NamedType(false, false, resolvedMethod.getContainingTypeDefinition()) + "' have been initialised (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to initialise them before they're used", expression.getLexicalPhrase());
+              if (!initialisedVariables.contains(field.getMemberVariable()))
+              {
+                coalescedException.addException(new ConceptualException("Cannot access methods on 'this' here. Not all of the non-static fields of this '" + new NamedType(false, false, resolvedMethod.getContainingTypeDefinition()) + "' have been initialised (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to initialise them before they're used", expression.getLexicalPhrase()));
+                break;
+              }
             }
           }
         }
@@ -1123,12 +1515,23 @@ public class ControlFlowChecker
       else if (subExpression != null)
       {
         // otherwise (if we aren't in a constructor, or the base expression isn't 'this', but we do have a base expression) check the uninitialised variables normally
-        checkControlFlow(fieldAccessExpression.getBaseExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        try
+        {
+          checkControlFlow(fieldAccessExpression.getBaseExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
       }
       else
       {
         // otherwise, we do not have a base expression, so we must have a base type, so the field must be static
         // in this case, since static variables must always be initialised to a default value, the control flow checker does not need to check anything
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
     }
     else if (expression instanceof FloatingLiteralExpression)
@@ -1138,11 +1541,12 @@ public class ControlFlowChecker
     else if (expression instanceof FunctionCallExpression)
     {
       FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       if (functionCallExpression.getResolvedMethod() != null)
       {
         if (inImmutableContext && !functionCallExpression.getResolvedMethod().isImmutable())
         {
-          throw new ConceptualException("Cannot call a non-immutable method from an immutable context", functionCallExpression.getLexicalPhrase());
+          coalescedException.addException(new ConceptualException("Cannot call a non-immutable method from an immutable context", functionCallExpression.getLexicalPhrase()));
         }
         Expression resolvedBaseExpression = functionCallExpression.getResolvedBaseExpression();
         if (resolvedBaseExpression == null)
@@ -1154,35 +1558,46 @@ public class ControlFlowChecker
             // this should only be allowed if 'this' is fully initialised
             if (!inSelfishContext)
             {
-              throw new ConceptualException("Cannot call methods on 'this' unless we are within a selfish constructor", expression.getLexicalPhrase());
+              coalescedException.addException(new ConceptualException("Cannot call methods on 'this' unless we are within a selfish constructor", expression.getLexicalPhrase()));
             }
-            if (initialiserState != InitialiserState.DEFINITELY_RUN)
+            else if (initialiserState != InitialiserState.DEFINITELY_RUN)
             {
-              throw new ConceptualException("Cannot call methods on 'this' here. The initialiser of this '" + new NamedType(false, false, resolvedMethod.getContainingTypeDefinition()) + "' may not have been run yet", expression.getLexicalPhrase());
+              coalescedException.addException(new ConceptualException("Cannot call methods on 'this' here. The initialiser of this '" + new NamedType(false, false, resolvedMethod.getContainingTypeDefinition()) + "' may not have been run yet", expression.getLexicalPhrase()));
             }
-            for (Field field : resolvedMethod.getContainingTypeDefinition().getNonStaticFields())
+            else
             {
-              if (!initialisedVariables.contains(field.getMemberVariable()))
+              for (Field field : resolvedMethod.getContainingTypeDefinition().getNonStaticFields())
               {
-                throw new ConceptualException("Cannot call methods on 'this' here. Not all of the non-static fields of this '" + new NamedType(false, false, resolvedMethod.getContainingTypeDefinition()) + "' have been initialised (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to initialise them before they're used", expression.getLexicalPhrase());
+                if (!initialisedVariables.contains(field.getMemberVariable()))
+                {
+                  coalescedException.addException(new ConceptualException("Cannot call methods on 'this' here. Not all of the non-static fields of this '" + new NamedType(false, false, resolvedMethod.getContainingTypeDefinition()) + "' have been initialised (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to initialise them before they're used", expression.getLexicalPhrase()));
+                  break;
+                }
               }
             }
           }
           if (inStaticContext && !resolvedMethod.isStatic())
           {
-            throw new ConceptualException("Cannot call the non-static method '" + resolvedMethod.getName() + "' from a static context", functionCallExpression.getLexicalPhrase());
+            coalescedException.addException(new ConceptualException("Cannot call the non-static method '" + resolvedMethod.getName() + "' from a static context", functionCallExpression.getLexicalPhrase()));
           }
         }
         else // resolvedBaseExpression != null
         {
-          checkControlFlow(resolvedBaseExpression, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          try
+          {
+            checkControlFlow(resolvedBaseExpression, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException.addException(e);
+          }
           Type baseType = resolvedBaseExpression.getType();
           if ((baseType instanceof ArrayType && ((ArrayType) baseType).isContextuallyImmutable()) ||
               (baseType instanceof NamedType && ((NamedType) baseType).isContextuallyImmutable()))
           {
             if (!functionCallExpression.getResolvedMethod().isImmutable())
             {
-              throw new ConceptualException("Cannot call a non-immutable method on an immutable object", functionCallExpression.getLexicalPhrase());
+              coalescedException.addException(new ConceptualException("Cannot call a non-immutable method on an immutable object", functionCallExpression.getLexicalPhrase()));
             }
           }
         }
@@ -1191,7 +1606,7 @@ public class ControlFlowChecker
       {
         if (inImmutableContext && !functionCallExpression.getResolvedConstructor().isImmutable())
         {
-          throw new ConceptualException("Cannot call a non-immutable constructor from an immutable context (it may alter global variables)", functionCallExpression.getLexicalPhrase());
+          coalescedException.addException(new ConceptualException("Cannot call a non-immutable constructor from an immutable context (it may alter global variables)", functionCallExpression.getLexicalPhrase()));
         }
       }
       else if (functionCallExpression.getResolvedBaseExpression() != null)
@@ -1200,7 +1615,7 @@ public class ControlFlowChecker
         FunctionType type = (FunctionType) functionCallExpression.getResolvedBaseExpression().getType();
         if (inImmutableContext && !type.isImmutable())
         {
-          throw new ConceptualException("Cannot call a non-immutable function from an immutable context", functionCallExpression.getLexicalPhrase());
+          coalescedException.addException(new ConceptualException("Cannot call a non-immutable function from an immutable context", functionCallExpression.getLexicalPhrase()));
         }
       }
       else
@@ -1208,17 +1623,54 @@ public class ControlFlowChecker
         throw new IllegalStateException("Unresolved function call: " + functionCallExpression);
       }
       // check that the arguments are all initialised
-      for (Expression e : functionCallExpression.getArguments())
+      for (Expression expr : functionCallExpression.getArguments())
       {
-        checkControlFlow(e, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        try
+        {
+          checkControlFlow(expr, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
     }
     else if (expression instanceof InlineIfExpression)
     {
       InlineIfExpression inlineIfExpression = (InlineIfExpression) expression;
-      checkControlFlow(inlineIfExpression.getCondition(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
-      checkControlFlow(inlineIfExpression.getThenExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
-      checkControlFlow(inlineIfExpression.getElseExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      try
+      {
+        checkControlFlow(inlineIfExpression.getCondition(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        checkControlFlow(inlineIfExpression.getThenExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        checkControlFlow(inlineIfExpression.getElseExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
     }
     else if (expression instanceof IntegerLiteralExpression)
     {
@@ -1227,8 +1679,27 @@ public class ControlFlowChecker
     else if (expression instanceof LogicalExpression)
     {
       LogicalExpression logicalExpression = (LogicalExpression) expression;
-      checkControlFlow(logicalExpression.getLeftSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
-      checkControlFlow(logicalExpression.getRightSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      try
+      {
+        checkControlFlow(logicalExpression.getLeftSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        checkControlFlow(logicalExpression.getRightSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
     }
     else if (expression instanceof MinusExpression)
     {
@@ -1236,8 +1707,27 @@ public class ControlFlowChecker
     }
     else if (expression instanceof NullCoalescingExpression)
     {
-      checkControlFlow(((NullCoalescingExpression) expression).getNullableExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
-      checkControlFlow(((NullCoalescingExpression) expression).getAlternativeExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      try
+      {
+        checkControlFlow(((NullCoalescingExpression) expression).getNullableExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        checkControlFlow(((NullCoalescingExpression) expression).getAlternativeExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
     }
     else if (expression instanceof NullLiteralExpression)
     {
@@ -1250,14 +1740,52 @@ public class ControlFlowChecker
     else if (expression instanceof RelationalExpression)
     {
       RelationalExpression relationalExpression = (RelationalExpression) expression;
-      checkControlFlow(relationalExpression.getLeftSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
-      checkControlFlow(relationalExpression.getRightSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      try
+      {
+        checkControlFlow(relationalExpression.getLeftSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        checkControlFlow(relationalExpression.getRightSubExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
     }
     else if (expression instanceof ShiftExpression)
     {
       ShiftExpression shiftExpression = (ShiftExpression) expression;
-      checkControlFlow(shiftExpression.getLeftExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
-      checkControlFlow(shiftExpression.getRightExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      try
+      {
+        checkControlFlow(shiftExpression.getLeftExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      try
+      {
+        checkControlFlow(shiftExpression.getRightExpression(), initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException.addException(e);
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
+      }
     }
     else if (expression instanceof StringLiteralExpression)
     {
@@ -1277,15 +1805,18 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Cannot use 'this' unless we are within a selfish constructor", expression.getLexicalPhrase());
         }
-        if (initialiserState != InitialiserState.DEFINITELY_RUN)
+        else if (initialiserState != InitialiserState.DEFINITELY_RUN)
         {
           throw new ConceptualException("Cannot use 'this' here. The initialiser of this '" + type + "' may not have been run yet.", expression.getLexicalPhrase());
         }
-        for (Field field : type.getResolvedTypeDefinition().getNonStaticFields())
+        else
         {
-          if (!initialisedVariables.contains(field.getMemberVariable()))
+          for (Field field : type.getResolvedTypeDefinition().getNonStaticFields())
           {
-            throw new ConceptualException("Cannot use 'this' here. Not all of the non-static fields of this '" + type + "' have been initialised (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to initialise them before they're used", expression.getLexicalPhrase());
+            if (!initialisedVariables.contains(field.getMemberVariable()))
+            {
+              throw new ConceptualException("Cannot use 'this' here. Not all of the non-static fields of this '" + type + "' have been initialised (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to initialise them before they're used", expression.getLexicalPhrase());
+            }
           }
         }
       }
@@ -1293,10 +1824,22 @@ public class ControlFlowChecker
     else if (expression instanceof TupleExpression)
     {
       TupleExpression tupleExpression = (TupleExpression) expression;
+      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
       Expression[] subExpressions = tupleExpression.getSubExpressions();
       for (int i = 0; i < subExpressions.length; i++)
       {
-        checkControlFlow(subExpressions[i], initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        try
+        {
+          checkControlFlow(subExpressions[i], initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException.addException(e);
+        }
+      }
+      if (coalescedException.hasStoredExceptions())
+      {
+        throw coalescedException;
       }
     }
     else if (expression instanceof TupleIndexExpression)
@@ -1333,15 +1876,18 @@ public class ControlFlowChecker
           {
             throw new ConceptualException("Cannot access methods on 'this' unless we are within a selfish constructor", expression.getLexicalPhrase());
           }
-          if (initialiserState != InitialiserState.DEFINITELY_RUN)
+          else if (initialiserState != InitialiserState.DEFINITELY_RUN)
           {
             throw new ConceptualException("Cannot access methods on 'this' here. The initialiser of this '" + new NamedType(false, false, method.getContainingTypeDefinition()) + "' may not have been run yet", expression.getLexicalPhrase());
           }
-          for (Field field : method.getContainingTypeDefinition().getNonStaticFields())
+          else
           {
-            if (!initialisedVariables.contains(field.getMemberVariable()))
+            for (Field field : method.getContainingTypeDefinition().getNonStaticFields())
             {
-              throw new ConceptualException("Cannot access methods on 'this' here. Not all of the non-static fields of this '" + new NamedType(false, false, method.getContainingTypeDefinition()) + "' have been initialised (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to initialise them before they're used", expression.getLexicalPhrase());
+              if (!initialisedVariables.contains(field.getMemberVariable()))
+              {
+                throw new ConceptualException("Cannot access methods on 'this' here. Not all of the non-static fields of this '" + new NamedType(false, false, method.getContainingTypeDefinition()) + "' have been initialised (specifically: '" + field.getName() + "'), and I can't work out whether or not you're going to initialise them before they're used", expression.getLexicalPhrase());
+              }
             }
           }
         }
@@ -1353,7 +1899,7 @@ public class ControlFlowChecker
     }
     else
     {
-      throw new ConceptualException("Internal control flow checking error: Unknown expression type", expression.getLexicalPhrase());
+      throw new IllegalArgumentException("Internal control flow checking error: Unknown expression type: " + expression);
     }
   }
 
