@@ -149,7 +149,7 @@ public class PassManager
 
     while (currentPass != Pass.FINISHED)
     {
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
 
       if (!doneSpecialTypeChecking & currentPass == Pass.RESOLUTION)
       {
@@ -163,7 +163,7 @@ public class PassManager
           }
           catch (ConceptualException e)
           {
-            coalescedException.addException(e);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
         try
@@ -172,7 +172,7 @@ public class PassManager
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
         doneSpecialTypeChecking = true;
       }
@@ -188,7 +188,7 @@ public class PassManager
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
 
         currentPassDefinitions.remove(typeDefinition);
@@ -199,7 +199,7 @@ public class PassManager
         }
       }
 
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -246,7 +246,7 @@ public class PassManager
       }
       break;
     case CYCLE_CHECKING:
-      CoalescedConceptualException coalescedConceptualException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       if (typeDefinition instanceof CompoundDefinition)
       {
         try
@@ -255,7 +255,7 @@ public class PassManager
         }
         catch (ConceptualException e)
         {
-          coalescedConceptualException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
       if (typeCompilationUnits.containsKey(typeDefinition))
@@ -266,12 +266,12 @@ public class PassManager
         }
         catch (ConceptualException e)
         {
-          coalescedConceptualException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
-      if (coalescedConceptualException.hasStoredExceptions())
+      if (coalescedException != null)
       {
-        throw coalescedConceptualException;
+        throw coalescedException;
       }
       break;
     case TYPE_CHECKING:

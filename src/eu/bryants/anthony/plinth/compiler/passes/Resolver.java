@@ -198,7 +198,7 @@ public class Resolver
    */
   public void resolveTypes(TypeDefinition typeDefinition, CompilationUnit compilationUnit) throws ConceptualException
   {
-    CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+    CoalescedConceptualException coalescedException = null;
     if (typeDefinition instanceof ClassDefinition)
     {
       ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
@@ -224,7 +224,7 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
       QName[] superInterfaceQNames = classDefinition.getSuperInterfaceQNames();
@@ -252,7 +252,7 @@ public class Resolver
           }
           catch (ConceptualException e)
           {
-            coalescedException.addException(e);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
         classDefinition.setSuperInterfaceDefinitions(resolvedDefinitions);
@@ -286,7 +286,7 @@ public class Resolver
           }
           catch (ConceptualException e)
           {
-            coalescedException.addException(e);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
         interfaceDefinition.setSuperInterfaceDefinitions(resolvedDefinitions);
@@ -303,7 +303,7 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         continue;
       }
 
@@ -316,7 +316,7 @@ public class Resolver
         if (field.isFinal() && !isAlterable)
         {
           // the field is both final and not alterable (e.g. a final uint, or a final #Object), so it cannot be mutable
-          coalescedException.addException(new ConceptualException("A final, immutably-typed field cannot be mutable", field.getLexicalPhrase()));
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A final, immutably-typed field cannot be mutable", field.getLexicalPhrase()));
         }
       }
     }
@@ -342,7 +342,7 @@ public class Resolver
         Variable oldVar = mainBlock.addVariable(p.getVariable());
         if (oldVar != null)
         {
-          coalescedException.addException(new ConceptualException("Duplicate parameter: " + p.getName(), p.getLexicalPhrase()));
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Duplicate parameter: " + p.getName(), p.getLexicalPhrase()));
         }
         try
         {
@@ -351,7 +351,7 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           parameterResolveFailed = true;
         }
       }
@@ -361,7 +361,7 @@ public class Resolver
         Constructor existing = allConstructors.put(disambiguator, constructor);
         if (existing != null)
         {
-          coalescedException.addException(new ConceptualException("Duplicate constructor", constructor.getLexicalPhrase()));
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Duplicate constructor", constructor.getLexicalPhrase()));
         }
       }
     }
@@ -378,7 +378,7 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         typeResolveFailed = true;
       }
       Block mainBlock = method.getBlock();
@@ -393,7 +393,7 @@ public class Resolver
         Variable oldVar = mainBlock.addVariable(parameters[i].getVariable());
         if (oldVar != null)
         {
-          coalescedException.addException(new ConceptualException("Duplicate parameter: " + parameters[i].getName(), parameters[i].getLexicalPhrase()));
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Duplicate parameter: " + parameters[i].getName(), parameters[i].getLexicalPhrase()));
         }
         try
         {
@@ -401,7 +401,7 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           typeResolveFailed = true;
         }
       }
@@ -424,7 +424,7 @@ public class Resolver
           if (!method.isStatic())
           {
             // disallow all duplicates for non-static methods (this works because Disambiguators take staticness into account)
-            coalescedException.addException(new ConceptualException("Duplicate non-static method: " + method.getName(), method.getLexicalPhrase()));
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Duplicate non-static method: " + method.getName(), method.getLexicalPhrase()));
           }
           else
           {
@@ -435,7 +435,7 @@ public class Resolver
               SinceSpecifier currentSpecifier = existing.getSinceSpecifier();
               if (newSpecifier == null ? currentSpecifier == null : newSpecifier.compareTo(currentSpecifier) == 0)
               {
-                coalescedException.addException(new ConceptualException("Duplicate static method: " + method.getName(), method.getLexicalPhrase()));
+                coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Duplicate static method: " + method.getName(), method.getLexicalPhrase()));
                 break;
               }
             }
@@ -446,7 +446,7 @@ public class Resolver
       }
     }
 
-    if (coalescedException.hasStoredExceptions())
+    if (coalescedException != null)
     {
       throw coalescedException;
     }
@@ -476,7 +476,7 @@ public class Resolver
    */
   public void resolve(TypeDefinition typeDefinition, CompilationUnit compilationUnit) throws ConceptualException
   {
-    CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+    CoalescedConceptualException coalescedException = null;
     // a non-static initialiser is an immutable context if there is at least one immutable constructor
     // so we need to check whether there are any immutable constructors here
     boolean hasImmutableConstructors = false;
@@ -495,7 +495,7 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
     }
@@ -510,7 +510,7 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
       else
@@ -524,7 +524,7 @@ public class Resolver
           }
           catch (ConceptualException e)
           {
-            coalescedException.addException(e);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
       }
@@ -542,13 +542,13 @@ public class Resolver
           }
           catch (ConceptualException e)
           {
-            coalescedException.addException(e);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
       }
     }
 
-    if (coalescedException.hasStoredExceptions())
+    if (coalescedException != null)
     {
       throw coalescedException;
     }
@@ -703,7 +703,7 @@ public class Resolver
       {
         resolve(type, compilationUnit);
       }
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       Assignee[] assignees = assignStatement.getAssignees();
       boolean distributedTupleType = type != null && type instanceof TupleType && !type.isNullable() && ((TupleType) type).getSubTypes().length == assignees.length;
       boolean madeVariableDeclaration = false;
@@ -771,7 +771,7 @@ public class Resolver
           }
           if (variable == null)
           {
-            coalescedException.addException(new NameNotResolvedException("Unable to resolve: " + variableAssignee.getVariableName(), variableAssignee.getLexicalPhrase()));
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new NameNotResolvedException("Unable to resolve: " + variableAssignee.getVariableName(), variableAssignee.getLexicalPhrase()));
           }
           else
           {
@@ -787,7 +787,7 @@ public class Resolver
           }
           catch (ConceptualException e)
           {
-            coalescedException.addException(e);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
           try
           {
@@ -795,7 +795,7 @@ public class Resolver
           }
           catch (ConceptualException e)
           {
-            coalescedException.addException(e);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
         else if (assignees[i] instanceof FieldAssignee)
@@ -809,7 +809,7 @@ public class Resolver
           }
           catch (ConceptualException e)
           {
-            coalescedException.addException(e);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
         else if (assignees[i] instanceof BlankAssignee)
@@ -828,7 +828,7 @@ public class Resolver
         if (alreadyDeclaredVariables.size() == 1)
         {
           VariableAssignee variableAssignee = alreadyDeclaredVariables.get(0);
-          coalescedException.addException(new ConceptualException("'" + variableAssignee.getVariableName() + "' has already been declared, and cannot be redeclared", variableAssignee.getLexicalPhrase()));
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("'" + variableAssignee.getVariableName() + "' has already been declared, and cannot be redeclared", variableAssignee.getLexicalPhrase()));
         }
         else
         {
@@ -844,7 +844,7 @@ public class Resolver
               buffer.append(", ");
             }
           }
-          coalescedException.addException(new ConceptualException("The variables " + buffer + " have all already been declared, and cannot be redeclared", assignStatement.getLexicalPhrase()));
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The variables " + buffer + " have all already been declared, and cannot be redeclared", assignStatement.getLexicalPhrase()));
         }
       }
       if (assignStatement.getExpression() != null)
@@ -855,10 +855,10 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -870,7 +870,7 @@ public class Resolver
       {
         subBlock.addVariable(v);
       }
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       for (Statement s : subBlock.getStatements())
       {
         try
@@ -879,10 +879,10 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -898,7 +898,7 @@ public class Resolver
     else if (statement instanceof DelegateConstructorStatement)
     {
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
-      CoalescedConceptualException coalescedConceptualException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       Expression[] arguments = delegateConstructorStatement.getArguments();
       for (Expression argument : arguments)
       {
@@ -908,7 +908,7 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedConceptualException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
       TypeDefinition constructorTypeDefinition;
@@ -916,20 +916,20 @@ public class Resolver
       {
         if (enclosingDefinition instanceof CompoundDefinition)
         {
-          coalescedConceptualException.addException(new ConceptualException("Cannot call a super(...) constructor from a compound type", delegateConstructorStatement.getLexicalPhrase()));
-          throw coalescedConceptualException;
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a super(...) constructor from a compound type", delegateConstructorStatement.getLexicalPhrase()));
+          throw coalescedException;
         }
         else if (!(enclosingDefinition instanceof ClassDefinition))
         {
-          coalescedConceptualException.addException(new ConceptualException("A super(...) constructor can only be called from inside a class definition", delegateConstructorStatement.getLexicalPhrase()));
-          throw coalescedConceptualException;
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A super(...) constructor can only be called from inside a class definition", delegateConstructorStatement.getLexicalPhrase()));
+          throw coalescedException;
         }
         ClassDefinition superClassDefinition = ((ClassDefinition) enclosingDefinition).getSuperClassDefinition();
         if (superClassDefinition == null)
         {
           // TODO: once the type system has been unified under a single common super-type, remove this restriction, and allow super() to mean just calling the object() constructor (a no-op) and running the initialisers
-          coalescedConceptualException.addException(new ConceptualException("Cannot call a super(...) constructor from a class with no superclass", delegateConstructorStatement.getLexicalPhrase()));
-          throw coalescedConceptualException;
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a super(...) constructor from a class with no superclass", delegateConstructorStatement.getLexicalPhrase()));
+          throw coalescedException;
         }
         constructorTypeDefinition = superClassDefinition;
       }
@@ -937,9 +937,9 @@ public class Resolver
       {
         constructorTypeDefinition = enclosingDefinition;
       }
-      if (coalescedConceptualException.hasStoredExceptions())
+      if (coalescedException != null)
       {
-        throw coalescedConceptualException;
+        throw coalescedException;
       }
       Constructor resolvedConstructor = resolveConstructor(constructorTypeDefinition, arguments, delegateConstructorStatement.getLexicalPhrase());
       delegateConstructorStatement.setResolvedConstructor(resolvedConstructor);
@@ -964,7 +964,7 @@ public class Resolver
       {
         block.addVariable(v);
       }
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       if (init != null)
       {
         try
@@ -973,7 +973,7 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
       if (condition != null)
@@ -984,7 +984,7 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
       if (update != null)
@@ -995,7 +995,7 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
       for (Statement s : block.getStatements())
@@ -1006,10 +1006,10 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -1017,14 +1017,14 @@ public class Resolver
     else if (statement instanceof IfStatement)
     {
       IfStatement ifStatement = (IfStatement) statement;
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       try
       {
         resolve(ifStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       try
       {
@@ -1032,7 +1032,7 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       if (ifStatement.getElseClause() != null)
       {
@@ -1042,10 +1042,10 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -1102,14 +1102,14 @@ public class Resolver
       else if (assignee instanceof ArrayElementAssignee)
       {
         ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
-        CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+        CoalescedConceptualException coalescedException = null;
         try
         {
           resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
         try
         {
@@ -1117,9 +1117,9 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
-        if (coalescedException.hasStoredExceptions())
+        if (coalescedException != null)
         {
           throw coalescedException;
         }
@@ -1154,7 +1154,7 @@ public class Resolver
     else if (statement instanceof ShorthandAssignStatement)
     {
       ShorthandAssignStatement shorthandAssignStatement = (ShorthandAssignStatement) statement;
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       for (Assignee assignee : shorthandAssignStatement.getAssignees())
       {
         if (assignee instanceof VariableAssignee)
@@ -1198,7 +1198,7 @@ public class Resolver
           }
           if (variable == null)
           {
-            coalescedException.addException(new NameNotResolvedException("Unable to resolve: " + variableAssignee.getVariableName(), variableAssignee.getLexicalPhrase()));
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new NameNotResolvedException("Unable to resolve: " + variableAssignee.getVariableName(), variableAssignee.getLexicalPhrase()));
           }
           else
           {
@@ -1214,7 +1214,7 @@ public class Resolver
           }
           catch (ConceptualException e)
           {
-            coalescedException.addException(e);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
           try
           {
@@ -1222,7 +1222,7 @@ public class Resolver
           }
           catch (ConceptualException e)
           {
-            coalescedException.addException(e);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
         else if (assignee instanceof FieldAssignee)
@@ -1235,7 +1235,7 @@ public class Resolver
           }
           catch (ConceptualException e)
           {
-            coalescedException.addException(e);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
         else if (assignee instanceof BlankAssignee)
@@ -1253,9 +1253,9 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -1263,14 +1263,14 @@ public class Resolver
     else if (statement instanceof WhileStatement)
     {
       WhileStatement whileStatement = (WhileStatement) statement;
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       try
       {
         resolve(whileStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       try
       {
@@ -1278,9 +1278,9 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -1295,14 +1295,14 @@ public class Resolver
   {
     if (expression instanceof ArithmeticExpression)
     {
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       try
       {
         resolve(((ArithmeticExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       try
       {
@@ -1310,9 +1310,9 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -1320,14 +1320,14 @@ public class Resolver
     else if (expression instanceof ArrayAccessExpression)
     {
       ArrayAccessExpression arrayAccessExpression = (ArrayAccessExpression) expression;
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       try
       {
         resolve(arrayAccessExpression.getArrayExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       try
       {
@@ -1335,9 +1335,9 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -1345,14 +1345,14 @@ public class Resolver
     else if (expression instanceof ArrayCreationExpression)
     {
       ArrayCreationExpression creationExpression = (ArrayCreationExpression) expression;
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       try
       {
         resolve(creationExpression.getDeclaredType(), compilationUnit);
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       if (creationExpression.getDimensionExpressions() != null)
       {
@@ -1364,7 +1364,7 @@ public class Resolver
           }
           catch (ConceptualException e)
           {
-            coalescedException.addException(e);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
       }
@@ -1378,11 +1378,11 @@ public class Resolver
           }
           catch (ConceptualException e)
           {
-            coalescedException.addException(e);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -1407,7 +1407,7 @@ public class Resolver
     {
       CastExpression castExpression = (CastExpression) expression;
       Type castType = expression.getType();
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       try
       {
         resolve(castType, compilationUnit);
@@ -1445,7 +1445,7 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
 
       try
@@ -1454,9 +1454,9 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -1464,7 +1464,7 @@ public class Resolver
     else if (expression instanceof ClassCreationExpression)
     {
       ClassCreationExpression classCreationExpression = (ClassCreationExpression) expression;
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       NamedType type = new NamedType(false, false, classCreationExpression.getQualifiedName(), null);
       try
       {
@@ -1473,7 +1473,7 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       Expression[] arguments = classCreationExpression.getArguments();
       for (Expression argument : arguments)
@@ -1484,10 +1484,10 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -1496,14 +1496,14 @@ public class Resolver
     }
     else if (expression instanceof EqualityExpression)
     {
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       try
       {
         resolve(((EqualityExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       try
       {
@@ -1511,9 +1511,9 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -1609,7 +1609,7 @@ public class Resolver
     {
       FunctionCallExpression expr = (FunctionCallExpression) expression;
       // resolve all of the sub-expressions
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       for (Expression e : expr.getArguments())
       {
         try
@@ -1619,10 +1619,10 @@ public class Resolver
         }
         catch (ConceptualException exception)
         {
-          coalescedException.addException(exception);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, exception);
         }
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -1935,14 +1935,14 @@ public class Resolver
     else if (expression instanceof InlineIfExpression)
     {
       InlineIfExpression inlineIfExpression = (InlineIfExpression) expression;
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       try
       {
         resolve(inlineIfExpression.getCondition(), block, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       try
       {
@@ -1950,7 +1950,7 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       try
       {
@@ -1958,9 +1958,9 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -1971,14 +1971,14 @@ public class Resolver
     }
     else if (expression instanceof LogicalExpression)
     {
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       try
       {
         resolve(((LogicalExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       try
       {
@@ -1986,9 +1986,9 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -1999,14 +1999,14 @@ public class Resolver
     }
     else if (expression instanceof NullCoalescingExpression)
     {
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       try
       {
         resolve(((NullCoalescingExpression) expression).getNullableExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       try
       {
@@ -2014,9 +2014,9 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -2031,14 +2031,14 @@ public class Resolver
     }
     else if (expression instanceof RelationalExpression)
     {
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       try
       {
         resolve(((RelationalExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       try
       {
@@ -2046,23 +2046,23 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
     }
     else if (expression instanceof ShiftExpression)
     {
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       try
       {
         resolve(((ShiftExpression) expression).getLeftExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       try
       {
@@ -2070,9 +2070,9 @@ public class Resolver
       }
       catch (ConceptualException e)
       {
-        coalescedException.addException(e);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }
@@ -2094,7 +2094,7 @@ public class Resolver
     else if (expression instanceof TupleExpression)
     {
       TupleExpression tupleExpression = (TupleExpression) expression;
-      CoalescedConceptualException coalescedException = new CoalescedConceptualException();
+      CoalescedConceptualException coalescedException = null;
       Expression[] subExpressions = tupleExpression.getSubExpressions();
       for (int i = 0; i < subExpressions.length; i++)
       {
@@ -2104,10 +2104,10 @@ public class Resolver
         }
         catch (ConceptualException e)
         {
-          coalescedException.addException(e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
-      if (coalescedException.hasStoredExceptions())
+      if (coalescedException != null)
       {
         throw coalescedException;
       }

@@ -18,10 +18,12 @@ public class CoalescedConceptualException extends ConceptualException
 
   /**
    * Creates a new CoalescedConceptualException, which can store any number of ConceptualExceptions
+   * @param e - the first ConceptualException to store
    */
-  public CoalescedConceptualException()
+  public CoalescedConceptualException(ConceptualException e)
   {
     super("Coalesced ConceptualException set, not for displaying as a group", null);
+    addException(e);
   }
 
   /**
@@ -44,11 +46,19 @@ public class CoalescedConceptualException extends ConceptualException
   }
 
   /**
-   * @return true iff this CoalescedConceptualException has some stored ConceptualExceptions
+   * Coalesces the specified ConceptualException into the specified CoalescedConceptualException. If CoalescedConceptualException is null, a new one is created.
+   * @param coalescedException - the CoalescedConceptualException to coalesce the new ConceptualException into, or null to create a new one
+   * @param e - the ConceptualException
+   * @return the coalesced exception, including the new ConceptualException
    */
-  public boolean hasStoredExceptions()
+  public static CoalescedConceptualException coalesce(CoalescedConceptualException coalescedException, ConceptualException e)
   {
-    return !storedExceptions.isEmpty();
+    if (coalescedException == null)
+    {
+      return new CoalescedConceptualException(e);
+    }
+    coalescedException.addException(e);
+    return coalescedException;
   }
 
   /**
