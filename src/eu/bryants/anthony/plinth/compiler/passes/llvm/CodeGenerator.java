@@ -164,7 +164,7 @@ public class CodeGenerator
     // set the llvm.global_ctors variable, to contain things which need to run before main()
     LLVMValueRef[] globalConstructorFunctions;
     int[] priorities;
-    if (typeDefinition instanceof ClassDefinition && ((ClassDefinition) typeDefinition).getSuperClassDefinition() != null)
+    if (typeDefinition instanceof ClassDefinition && !typeDefinition.isAbstract())
     {
       globalConstructorFunctions = new LLVMValueRef[] {virtualFunctionHandler.getClassVFTInitialisationFunction(),
                                                        getInitialiserFunction(true)};
