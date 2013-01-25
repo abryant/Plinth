@@ -4,7 +4,7 @@
 %VFT = type [0 x %opaque*]
 
 %RawString = type { %opaque*, %opaque*, i32, [0 x i8]}
-%InterfaceSearchList = type {i32, [0 x {%RawString*, %VFT*}]}
+%VFTSearchList = type {i32, [0 x {%RawString*, %VFT*}]}
 
 %ExcludeList = type [0 x i1]
 %Descriptor = type { i32, [0 x %RawString*] }
@@ -14,19 +14,19 @@ declare i8* @calloc(i32, i32)
 declare void @free(i8*)
 declare i32 @strncmp(i8* %str1, i8* %str2, i32 %len)
 
-define protected %VFT* @plinth_core_find_interface_vft(%InterfaceSearchList* %interfaceVFTList, %RawString* %searchName) {
+define protected %VFT* @plinth_core_find_vft(%VFTSearchList* %interfaceVFTList, %RawString* %searchName) {
 entry:
   %searchNameLengthPtr = getelementptr %RawString* %searchName, i32 0, i32 2
   %searchNameLength = load i32* %searchNameLengthPtr
   %searchNameBytes = getelementptr %RawString* %searchName, i32 0, i32 3, i32 0
-  %numSearchPtr = getelementptr %InterfaceSearchList* %interfaceVFTList, i32 0, i32 0
+  %numSearchPtr = getelementptr %VFTSearchList* %interfaceVFTList, i32 0, i32 0
   %numSearch = load i32* %numSearchPtr
   %continueLoop = icmp ult i32 0, %numSearch
   br i1 %continueLoop, label %searchLoop, label %exit
 
 searchLoop:
   %i = phi i32 [0, %entry], [%nexti, %endSearchLoop]
-  %namePtr = getelementptr %InterfaceSearchList* %interfaceVFTList, i32 0, i32 1, i32 %i, i32 0
+  %namePtr = getelementptr %VFTSearchList* %interfaceVFTList, i32 0, i32 1, i32 %i, i32 0
   %name = load %RawString** %namePtr
   %nameLengthPtr = getelementptr %RawString* %name, i32 0, i32 2
   %nameLength = load i32* %nameLengthPtr
@@ -40,7 +40,7 @@ compareNames:
   br i1 %match, label %returnVFT, label %endSearchLoop
 
 returnVFT:
-  %vftPtr = getelementptr %InterfaceSearchList* %interfaceVFTList, i32 0, i32 1, i32 %i, i32 1
+  %vftPtr = getelementptr %VFTSearchList* %interfaceVFTList, i32 0, i32 1, i32 %i, i32 1
   %vft = load %VFT** %vftPtr
   ret %VFT* %vft
 

@@ -116,6 +116,7 @@ public class CodeGenerator
 
   private TypeHelper typeHelper;
   private VirtualFunctionHandler virtualFunctionHandler;
+  private RTTIHelper rttiHelper;
   private BuiltinCodeGenerator builtinGenerator;
 
   public CodeGenerator(TypeDefinition typeDefinition)
@@ -135,8 +136,10 @@ public class CodeGenerator
 
     virtualFunctionHandler = new VirtualFunctionHandler(this, typeDefinition, module);
     typeHelper = new TypeHelper(this, virtualFunctionHandler, module);
-    virtualFunctionHandler.setTypeHelper(typeHelper);
-    builtinGenerator = new BuiltinCodeGenerator(module, this, typeHelper);
+    rttiHelper = new RTTIHelper(module, this, typeHelper, virtualFunctionHandler);
+    virtualFunctionHandler.initialise(typeHelper, rttiHelper);
+    typeHelper.initialise(rttiHelper);
+    builtinGenerator = new BuiltinCodeGenerator(module, this, typeHelper, rttiHelper);
 
     // add all of the global (static) variables
     addGlobalVariables();
@@ -631,11 +634,10 @@ public class CodeGenerator
     LLVMValueRef memory = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(callocArguments, false, true), callocArguments.length, "");
     LLVMValueRef pointer = LLVM.LLVMBuildBitCast(builder, memory, nativeType, "");
 
-    // store the interface search list
-    LLVMValueRef interfaceSearchList = virtualFunctionHandler.getInterfaceSearchList();
-    interfaceSearchList = LLVM.LLVMBuildBitCast(builder, interfaceSearchList, LLVM.LLVMPointerType(virtualFunctionHandler.getInterfaceSearchListType(), 0), "");
-    LLVMValueRef interfaceSearchListPointer = virtualFunctionHandler.getInterfaceSearchListPointer(builder, pointer);
-    LLVM.LLVMBuildStore(builder, interfaceSearchList, interfaceSearchListPointer);
+    // store the run-time type information
+    LLVMValueRef rtti = rttiHelper.getInstanceRTTI(new NamedType(false, false, typeDefinition));
+    LLVMValueRef rttiPointer = rttiHelper.getRTTIPointer(builder, pointer);
+    LLVM.LLVMBuildStore(builder, rtti, rttiPointer);
 
     // set up the virtual function tables
     for (TypeDefinition current : typeDefinition.getInheritanceLinearisation())
@@ -653,7 +655,7 @@ public class CodeGenerator
       LLVMValueRef vftPointer = virtualFunctionHandler.getVirtualFunctionTablePointer(builder, pointer, (ClassDefinition) typeDefinition, current);
       LLVM.LLVMBuildStore(builder, currentVFT, vftPointer);
     }
-    LLVMValueRef objectVFTGlobal = virtualFunctionHandler.getObjectSuperTypeVFTGlobal();
+    LLVMValueRef objectVFTGlobal = virtualFunctionHandler.getSuperTypeVFTGlobal(null);
     LLVMValueRef objectVFT = LLVM.LLVMBuildLoad(builder, objectVFTGlobal, "");
     LLVMValueRef objectVFTPointer = virtualFunctionHandler.getFirstVirtualFunctionTablePointer(builder, pointer);
     LLVM.LLVMBuildStore(builder, objectVFT, objectVFTPointer);
@@ -954,17 +956,18 @@ public class CodeGenerator
     }
 
     // build the []ubyte up from the string value, and store it as a global variable
-    ArrayType arrayType = new ArrayType(false, false, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
+    ArrayType arrayType = new ArrayType(false, true, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
     LLVMValueRef lengthValue = LLVM.LLVMConstInt(typeHelper.findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE), bytes.length, false);
     LLVMValueRef constString = LLVM.LLVMConstString(bytes, bytes.length, true);
-    LLVMValueRef[] arrayValues = new LLVMValueRef[] {virtualFunctionHandler.getEmptyInterfaceSearchList(), virtualFunctionHandler.getBaseChangeObjectVFT(arrayType), lengthValue, constString};
+    LLVMValueRef[] arrayValues = new LLVMValueRef[] {rttiHelper.getInstanceRTTI(arrayType), virtualFunctionHandler.getBaseChangeObjectVFT(arrayType), lengthValue, constString};
     LLVMValueRef byteArrayStruct = LLVM.LLVMConstStruct(C.toNativePointerArray(arrayValues, false, true), arrayValues.length, false);
 
-    LLVMTypeRef interfaceSearchListType = LLVM.LLVMPointerType(virtualFunctionHandler.getInterfaceSearchListType(), 0);
+    LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
     LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
     LLVMTypeRef stringType = LLVM.LLVMArrayType(LLVM.LLVMInt8Type(), bytes.length);
-    LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {interfaceSearchListType, vftPointerType, typeHelper.findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE), stringType};
+    LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {rttiType, vftPointerType, typeHelper.findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE), stringType};
     LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
+
     LLVMValueRef globalVariable = LLVM.LLVMAddGlobal(module, structType, mangledName);
     LLVM.LLVMSetInitializer(globalVariable, byteArrayStruct);
     LLVM.LLVMSetLinkage(globalVariable, LLVM.LLVMLinkage.LLVMLinkOnceODRLinkage);
@@ -982,10 +985,20 @@ public class CodeGenerator
   public LLVMValueRef buildStringCreation(LLVMBuilderRef builder, String value)
   {
     LLVMValueRef globalVariable = addStringConstant(value);
+    return buildStringCreation(builder, globalVariable);
+  }
 
+  /**
+   * Builds a string creation for the specified []ubyte value.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param ubyteArrayValue - the value of the string to create
+   * @return the result of creating the string, in a temporary type representation
+   */
+  public LLVMValueRef buildStringCreation(LLVMBuilderRef builder, LLVMValueRef ubyteArrayValue)
+  {
     // extract the string([]ubyte) constructor from the type of this expression
     LLVMValueRef constructorFunction = getConstructorFunction(SpecialTypeHandler.stringArrayConstructor);
-    LLVMValueRef bitcastedArray = LLVM.LLVMBuildBitCast(builder, globalVariable, typeHelper.findRawStringType(), "");
+    LLVMValueRef bitcastedArray = LLVM.LLVMBuildBitCast(builder, ubyteArrayValue, typeHelper.findRawStringType(), "");
 
     // find the type to alloca, which is the standard representation of a non-nullable version of this type
     // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with any nullability)
@@ -1100,9 +1113,9 @@ public class CodeGenerator
     LLVMValueRef stringArray = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(callocArgs, false, true), callocArgs.length, "");
     stringArray = LLVM.LLVMBuildBitCast(builder, stringArray, llvmArrayType, "");
 
-    LLVMValueRef stringsInterfaceSearchList = virtualFunctionHandler.getEmptyInterfaceSearchList();
-    LLVMValueRef stringsInterfaceSearchListPointer = virtualFunctionHandler.getInterfaceSearchListPointer(builder, stringArray);
-    LLVM.LLVMBuildStore(builder, stringsInterfaceSearchList, stringsInterfaceSearchListPointer);
+    LLVMValueRef stringsRTTI = rttiHelper.getInstanceRTTI(stringArrayType);
+    LLVMValueRef stringsRTTIPointer = rttiHelper.getRTTIPointer(builder, stringArray);
+    LLVM.LLVMBuildStore(builder, stringsRTTI, stringsRTTIPointer);
     LLVMValueRef stringsVFT = virtualFunctionHandler.getBaseChangeObjectVFT(stringArrayType);
     LLVMValueRef stringsVFTPointer = virtualFunctionHandler.getFirstVirtualFunctionTablePointer(builder, stringArray);
     LLVM.LLVMBuildStore(builder, stringsVFT, stringsVFTPointer);
@@ -1134,9 +1147,9 @@ public class CodeGenerator
     LLVMValueRef bytes = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(ubyteCallocArgs, false, true), ubyteCallocArgs.length, "");
     bytes = LLVM.LLVMBuildBitCast(builder, bytes, llvmUbyteArrayType, "");
 
-    LLVMValueRef bytesInterfaceSearchList = virtualFunctionHandler.getEmptyInterfaceSearchList();
-    LLVMValueRef bytesInterfaceSearchListPointer = virtualFunctionHandler.getInterfaceSearchListPointer(builder, bytes);
-    LLVM.LLVMBuildStore(builder, bytesInterfaceSearchList, bytesInterfaceSearchListPointer);
+    LLVMValueRef bytesRTTI = rttiHelper.getInstanceRTTI(ubyteArrayType);
+    LLVMValueRef bytesRTTIPointer = rttiHelper.getRTTIPointer(builder, bytes);
+    LLVM.LLVMBuildStore(builder, bytesRTTI, bytesRTTIPointer);
     LLVMValueRef bytesVFT = virtualFunctionHandler.getBaseChangeObjectVFT(ubyteArrayType);
     LLVMValueRef bytesVFTPointer = virtualFunctionHandler.getFirstVirtualFunctionTablePointer(builder, bytes);
     LLVM.LLVMBuildStore(builder, bytesVFT, bytesVFTPointer);
@@ -1886,9 +1899,9 @@ public class CodeGenerator
     LLVMValueRef memoryPointer = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
     LLVMValueRef allocatedPointer = LLVM.LLVMBuildBitCast(builder, memoryPointer, llvmArrayType, "");
 
-    LLVMValueRef interfaceSearchList = virtualFunctionHandler.getEmptyInterfaceSearchList();
-    LLVMValueRef interfaceSearchListPointer = virtualFunctionHandler.getInterfaceSearchListPointer(builder, allocatedPointer);
-    LLVM.LLVMBuildStore(builder, interfaceSearchList, interfaceSearchListPointer);
+    LLVMValueRef rtti = rttiHelper.getInstanceRTTI(TypeChecker.findTypeWithNullability(type, false));
+    LLVMValueRef rttiPointer = rttiHelper.getRTTIPointer(builder, allocatedPointer);
+    LLVM.LLVMBuildStore(builder, rtti, rttiPointer);
     LLVMValueRef vftPointer = virtualFunctionHandler.getFirstVirtualFunctionTablePointer(builder, allocatedPointer);
     LLVMValueRef vft = virtualFunctionHandler.getBaseChangeObjectVFT(type);
     LLVM.LLVMBuildStore(builder, vft, vftPointer);
@@ -2941,9 +2954,9 @@ public class CodeGenerator
       LLVMValueRef pointer = LLVM.LLVMBuildBitCast(builder, memory, nativeType, "");
 
       // store the VFT
-      LLVMValueRef interfaceSearchList = virtualFunctionHandler.getEmptyInterfaceSearchList();
-      LLVMValueRef interfaceSearchListPointer = virtualFunctionHandler.getInterfaceSearchListPointer(builder, pointer);
-      LLVM.LLVMBuildStore(builder, interfaceSearchList, interfaceSearchListPointer);
+      LLVMValueRef rtti = rttiHelper.getInstanceRTTI(objectType);
+      LLVMValueRef rttiPointer = rttiHelper.getRTTIPointer(builder, pointer);
+      LLVM.LLVMBuildStore(builder, rtti, rttiPointer);
       LLVMValueRef objectVFT = virtualFunctionHandler.getObjectVFTGlobal();
       LLVMValueRef vftElementPointer = virtualFunctionHandler.getFirstVirtualFunctionTablePointer(builder, pointer);
       LLVM.LLVMBuildStore(builder, objectVFT, vftElementPointer);

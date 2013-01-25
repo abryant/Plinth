@@ -1,8 +1,6 @@
 package eu.bryants.anthony.plinth.compiler.passes.llvm;
 
 import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 
 import nativelib.c.C;
@@ -31,18 +29,18 @@ import eu.bryants.anthony.plinth.ast.type.Type;
 public class VirtualFunctionHandler
 {
   private static final String SUPERTYPE_VFT_GENERATOR_FUNCTION_NAME = "plinth_core_generate_supertype_vft";
-  private static final String INTERFACE_VFT_LOOKUP_FUNCTION_NAME = "plinth_core_find_interface_vft";
+  private static final String VFT_LOOKUP_FUNCTION_NAME = "plinth_core_find_vft";
   private static final String VFT_PREFIX = "_VFT_";
   private static final String VFT_DESCRIPTOR_PREFIX = "_VFT_DESC_";
   private static final String VFT_INIT_FUNCTION_PREFIX = "_SUPER_VFT_INIT_";
-  private static final String SUPERCLASS_VFT_GLOBAL_PREFIX = "_SUPER_VFT_";
   private static final String BASE_CHANGE_OBJECT_VFT_PREFIX = "_base_change_o_VFT_";
-  private static final String INTERFACE_SEARCH_LIST_PREFIX = "_INTERFACE_SEARCH_LIST_";
+  private static final String VFT_SEARCH_LIST_PREFIX = "_VFT_SEARCH_LIST_";
 
   private CodeGenerator codeGenerator;
-  private TypeDefinition typeDefinition;
   private TypeHelper typeHelper;
+  private RTTIHelper rttiHelper;
 
+  private TypeDefinition typeDefinition;
   private LLVMModuleRef module;
 
   private LLVMTypeRef vftDescriptorType;
@@ -61,12 +59,14 @@ public class VirtualFunctionHandler
   }
 
   /**
-   * Sets the TypeHelper on this VirtualFunctionHandler, so that it can be used.
+   * Initialises this VirtualFunctionHandler, so that it has all of the references required to operate..
    * @param typeHelper - the TypeHelper to set
+   * @param rttiHelper - the RTTIHelper to set
    */
-  public void setTypeHelper(TypeHelper typeHelper)
+  public void initialise(TypeHelper typeHelper, RTTIHelper rttiHelper)
   {
     this.typeHelper = typeHelper;
+    this.rttiHelper = rttiHelper;
   }
 
   /**
@@ -262,32 +262,25 @@ public class VirtualFunctionHandler
   }
 
   /**
-   * Gets the interface search list for the current class definition. This method assumes that the current type definition is a class definition.
-   * @return the interface search list for the current class definition
+   * Gets the VFT search list for the specified class definition. This method assumes that the specified type definition is a class definition.
+   * @param typeDefinition - the TypeDefinition to get the VFT search list global for
+   * @return the VFT search list for the current class definition
    */
-  public LLVMValueRef getInterfaceSearchList()
+  public LLVMValueRef getVFTSearchList(TypeDefinition typeDefinition)
   {
     if (!(typeDefinition instanceof ClassDefinition))
     {
-      throw new IllegalStateException("Cannot get an interface search list for a non-class type");
+      throw new IllegalArgumentException("Cannot get a VFT search list for a non-class type");
     }
-    String mangledName = INTERFACE_SEARCH_LIST_PREFIX + typeDefinition.getQualifiedName().getMangledName();
+    String mangledName = VFT_SEARCH_LIST_PREFIX + typeDefinition.getQualifiedName().getMangledName();
     LLVMValueRef existingValue = LLVM.LLVMGetNamedGlobal(module, mangledName);
     if (existingValue != null)
     {
       return existingValue;
     }
 
-    List<InterfaceDefinition> interfaceList = new LinkedList<InterfaceDefinition>();
-    for (TypeDefinition t : typeDefinition.getInheritanceLinearisation())
-    {
-      if (t instanceof InterfaceDefinition)
-      {
-        interfaceList.add((InterfaceDefinition) t);
-      }
-    }
-    InterfaceDefinition[] interfaces = interfaceList.toArray(new InterfaceDefinition[interfaceList.size()]);
-    LLVMValueRef[] elements = new LLVMValueRef[interfaces.length];
+    TypeDefinition[] inheritanceLinearisation = typeDefinition.getInheritanceLinearisation();
+    LLVMValueRef[] elements = new LLVMValueRef[inheritanceLinearisation.length + 1];
 
     LLVMTypeRef stringType = typeHelper.findRawStringType();
     LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
@@ -297,34 +290,45 @@ public class VirtualFunctionHandler
     LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), arrayType};
     LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
 
-    for (int i = 0; i < interfaces.length; ++i)
+    LLVMValueRef global = LLVM.LLVMAddGlobal(module, structType, mangledName);
+    LLVM.LLVMSetVisibility(global, LLVM.LLVMVisibility.LLVMProtectedVisibility);
+
+    // only give it a definition if it is for the current type definition
+    if (typeDefinition == this.typeDefinition)
     {
-      LLVMValueRef stringValue = codeGenerator.addStringConstant(interfaces[i].getQualifiedName().getMangledName());
+      for (int i = 0; i < inheritanceLinearisation.length; ++i)
+      {
+        LLVMValueRef stringValue = codeGenerator.addStringConstant(inheritanceLinearisation[i].getQualifiedName().toString());
+        LLVMValueRef convertedString = LLVM.LLVMConstBitCast(stringValue, stringType);
+        LLVMValueRef nullVFTValue = LLVM.LLVMConstNull(vftPointerType);
+        LLVMValueRef[] elementSubValues = new LLVMValueRef[] {convertedString, nullVFTValue};
+        elements[i] = LLVM.LLVMConstStruct(C.toNativePointerArray(elementSubValues, false, true), elementSubValues.length, false);
+      }
+      LLVMValueRef stringValue = codeGenerator.addStringConstant("object");
       LLVMValueRef convertedString = LLVM.LLVMConstBitCast(stringValue, stringType);
       LLVMValueRef nullVFTValue = LLVM.LLVMConstNull(vftPointerType);
       LLVMValueRef[] elementSubValues = new LLVMValueRef[] {convertedString, nullVFTValue};
-      elements[i] = LLVM.LLVMConstStruct(C.toNativePointerArray(elementSubValues, false, true), elementSubValues.length, false);
+      elements[inheritanceLinearisation.length] = LLVM.LLVMConstStruct(C.toNativePointerArray(elementSubValues, false, true), elementSubValues.length, false);
+
+      LLVMValueRef array = LLVM.LLVMConstArray(elementType, C.toNativePointerArray(elements, false, true), elements.length);
+
+      LLVMValueRef lengthValue = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), elements.length, false);
+      LLVMValueRef[] structSubValues = new LLVMValueRef[] {lengthValue, array};
+      LLVMValueRef struct = LLVM.LLVMConstStruct(C.toNativePointerArray(structSubValues, false, true), structSubValues.length, false);
+
+      LLVM.LLVMSetInitializer(global, struct);
     }
-
-    LLVMValueRef array = LLVM.LLVMConstArray(elementType, C.toNativePointerArray(elements, false, true), elements.length);
-
-    LLVMValueRef lengthValue = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), elements.length, false);
-    LLVMValueRef[] structSubValues = new LLVMValueRef[] {lengthValue, array};
-    LLVMValueRef struct = LLVM.LLVMConstStruct(C.toNativePointerArray(structSubValues, false, true), structSubValues.length, false);
-
-    LLVMValueRef global = LLVM.LLVMAddGlobal(module, structType, mangledName);
-    LLVM.LLVMSetLinkage(global, LLVM.LLVMLinkage.LLVMPrivateLinkage);
-    LLVM.LLVMSetVisibility(global, LLVM.LLVMVisibility.LLVMHiddenVisibility);
-    LLVM.LLVMSetInitializer(global, struct);
     return global;
   }
 
   /**
-   * @return the interface search list for any types which don't implement any interfaces
+   * @param type - the Type to get the VFT search list for
+   * @param objectVFT - the object VFT for the specified Type, to store in the created search list
+   * @return the VFT search list for the object type with the specified object VFT
    */
-  public LLVMValueRef getEmptyInterfaceSearchList()
+  public LLVMValueRef getObjectVFTSearchList(Type type, LLVMValueRef objectVFT)
   {
-    String mangledName = INTERFACE_SEARCH_LIST_PREFIX + ObjectType.MANGLED_NAME;
+    String mangledName = VFT_SEARCH_LIST_PREFIX + type.getMangledName();
     LLVMValueRef existingValue = LLVM.LLVMGetNamedGlobal(module, mangledName);
     if (existingValue != null)
     {
@@ -336,11 +340,18 @@ public class VirtualFunctionHandler
     LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {stringType, vftPointerType};
     LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
 
-    LLVMValueRef[] elements = new LLVMValueRef[0];
+    LLVMValueRef[] elements = new LLVMValueRef[1];
+
+    LLVMValueRef stringValue = codeGenerator.addStringConstant("object");
+    LLVMValueRef convertedString = LLVM.LLVMConstBitCast(stringValue, stringType);
+    LLVMValueRef nullVFTValue = LLVM.LLVMConstBitCast(objectVFT, vftPointerType);
+    LLVMValueRef[] elementSubValues = new LLVMValueRef[] {convertedString, nullVFTValue};
+    elements[0] = LLVM.LLVMConstStruct(C.toNativePointerArray(elementSubValues, false, true), elementSubValues.length, false);
+
     LLVMValueRef array = LLVM.LLVMConstArray(elementType, C.toNativePointerArray(elements, false, true), elements.length);
     LLVMValueRef lengthValue = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), elements.length, false);
 
-    LLVMTypeRef structType = getInterfaceSearchListType();
+    LLVMTypeRef structType = getVFTSearchListType();
     LLVMValueRef[] structSubValues = new LLVMValueRef[] {lengthValue, array};
     LLVMValueRef struct = LLVM.LLVMConstNamedStruct(structType, C.toNativePointerArray(structSubValues, false, true), structSubValues.length);
 
@@ -349,19 +360,6 @@ public class VirtualFunctionHandler
     LLVM.LLVMSetVisibility(global, LLVM.LLVMVisibility.LLVMHiddenVisibility);
     LLVM.LLVMSetInitializer(global, struct);
     return global;
-  }
-
-  /**
-   * Finds a pointer to the interface lookup table pointer inside the specified base value.
-   * @param builder - the LLVMBuilderRef to build instructions with
-   * @param baseValue - the base value to find the interface lookup table pointer inside
-   * @return a pointer to the interface lookup table pointer inside the specified base value
-   */
-  public LLVMValueRef getInterfaceSearchListPointer(LLVMBuilderRef builder, LLVMValueRef baseValue)
-  {
-    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
-    return LLVM.LLVMBuildGEP(builder, baseValue, C.toNativePointerArray(indices, false, true), indices.length, "");
   }
 
   /**
@@ -419,7 +417,7 @@ public class VirtualFunctionHandler
         throw new IllegalArgumentException("Cannot find a VFT pointer for " + searchTypeDefinition.getQualifiedName() + " inside " + subclassDefinition.getQualifiedName());
       }
     }
-    // start at 2 to skip the interface search list and the object VFT
+    // start at 2 to skip the VFT search list and the object VFT
     int index = 2;
     ClassDefinition superClassDefinition = encapsulatingClassDefinition.getSuperClassDefinition();
     while (superClassDefinition != null)
@@ -626,17 +624,17 @@ public class VirtualFunctionHandler
   }
 
   /**
-   * Finds the type of an interface search list, a named struct type representing: {i32, [0 x {%RawString*, %VFT*}]}
-   * @return the LLVM type of the an interface search list
+   * Finds the type of a VFT search list, a named struct type representing: {i32, [0 x {%RawString*, %VFT*}]}
+   * @return the LLVM type of the an VFT search list
    */
-  public LLVMTypeRef getInterfaceSearchListType()
+  public LLVMTypeRef getVFTSearchListType()
   {
     if (interfaceSearchListType != null)
     {
       return interfaceSearchListType;
     }
     // store the named struct in interfaceSearchListType first, so that when we get the raw string type we don't infinitely recurse
-    interfaceSearchListType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "InterfaceSearchList");
+    interfaceSearchListType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "VFTSearchList");
     LLVMTypeRef stringType = typeHelper.findRawStringType();
     LLVMTypeRef vftType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
     LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {stringType, vftType};
@@ -688,25 +686,25 @@ public class VirtualFunctionHandler
   }
 
   /**
-   * @return the interface VFT lookup function
+   * @return the VFT lookup function
    */
-  private LLVMValueRef getInterfaceVFTLookupFunction()
+  private LLVMValueRef getVFTLookupFunction()
   {
-    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, INTERFACE_VFT_LOOKUP_FUNCTION_NAME);
+    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, VFT_LOOKUP_FUNCTION_NAME);
     if (existingFunction != null)
     {
       return existingFunction;
     }
     LLVMTypeRef stringType = typeHelper.findRawStringType();
-    LLVMTypeRef[] parameterTypes = new LLVMTypeRef[] {LLVM.LLVMPointerType(getInterfaceSearchListType(), 0), stringType};
+    LLVMTypeRef[] parameterTypes = new LLVMTypeRef[] {LLVM.LLVMPointerType(getVFTSearchListType(), 0), stringType};
     LLVMTypeRef resultType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
     LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, C.toNativePointerArray(parameterTypes, false, true), parameterTypes.length, false);
-    LLVMValueRef function = LLVM.LLVMAddFunction(module, INTERFACE_VFT_LOOKUP_FUNCTION_NAME, functionType);
+    LLVMValueRef function = LLVM.LLVMAddFunction(module, VFT_LOOKUP_FUNCTION_NAME, functionType);
     return function;
   }
 
   /**
-   * Builds code to lookup the specified interface's VFT inside the specified object value.
+   * Builds code to lookup the specified interface's VFT inside the specified object's VFT search list.
    * @param builder - the builder to build code with
    * @param objectValue - the object to look up the interface's VFT inside
    * @param interfaceDefinition - the InterfaceDefinition to search for
@@ -714,17 +712,15 @@ public class VirtualFunctionHandler
    */
   public LLVMValueRef lookupInterfaceVFT(LLVMBuilderRef builder, LLVMValueRef objectValue, InterfaceDefinition interfaceDefinition)
   {
-    LLVMValueRef interfaceSearchListPointer = getInterfaceSearchListPointer(builder, objectValue);
-    LLVMValueRef interfaceSearchList = LLVM.LLVMBuildLoad(builder, interfaceSearchListPointer, "");
-    interfaceSearchList = LLVM.LLVMBuildBitCast(builder, interfaceSearchList, LLVM.LLVMPointerType(getInterfaceSearchListType(), 0), "");
+    LLVMValueRef vftSearchList = rttiHelper.lookupVFTSearchList(builder, objectValue);
 
-    String interfaceMangledName = interfaceDefinition.getQualifiedName().getMangledName();
-    LLVMValueRef interfaceRawString = codeGenerator.addStringConstant(interfaceMangledName);
+    String interfaceName = interfaceDefinition.getQualifiedName().toString();
+    LLVMValueRef interfaceRawString = codeGenerator.addStringConstant(interfaceName);
     LLVMTypeRef stringType = typeHelper.findRawStringType();
     interfaceRawString = LLVM.LLVMBuildBitCast(builder, interfaceRawString, stringType, "");
 
-    LLVMValueRef[] arguments = new LLVMValueRef[] {interfaceSearchList, interfaceRawString};
-    LLVMValueRef interfaceVFTLookupFunction = getInterfaceVFTLookupFunction();
+    LLVMValueRef[] arguments = new LLVMValueRef[] {vftSearchList, interfaceRawString};
+    LLVMValueRef interfaceVFTLookupFunction = getVFTLookupFunction();
     LLVMValueRef result = LLVM.LLVMBuildCall(builder, interfaceVFTLookupFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
     return result;
   }
@@ -916,72 +912,39 @@ public class VirtualFunctionHandler
       throw new IllegalStateException("Cannot get a superclass's VFT global variable for a non-class type");
     }
 
-    ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
-    if (superType instanceof InterfaceDefinition)
+    // super-type VFTs are stored inside the VFT search list, so find the index and return the pointer
+    TypeDefinition[] inheritanceLinearisation = typeDefinition.getInheritanceLinearisation();
+
+    int index = -1;
+    if (superType == null)
     {
-      // interface VFTs are stored inside the interface search list, so find the index and return the pointer
-      int interfaceIndex = 0;
-      for (TypeDefinition t : classDefinition.getInheritanceLinearisation())
+      // the object VFT is at the end of the VFT search list
+      index = inheritanceLinearisation.length;
+    }
+    else
+    {
+      for (int i = 0; i < inheritanceLinearisation.length; ++i)
       {
-        if (t instanceof InterfaceDefinition)
+        if (inheritanceLinearisation[i] == superType)
         {
-          if (t == superType)
-          {
-            break;
-          }
-          ++interfaceIndex;
+          index = i;
+          break;
         }
       }
-      LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
-                                                   LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false),
-                                                   LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), interfaceIndex, false),
-                                                   LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false)};
-      LLVMValueRef value = LLVM.LLVMConstGEP(getInterfaceSearchList(), C.toNativePointerArray(indices, false, true), indices.length);
-      LLVMTypeRef type = LLVM.LLVMPointerType(LLVM.LLVMPointerType(getVFTType(superType), 0), 0);
-      return LLVM.LLVMConstBitCast(value, type);
+      if (index == -1)
+      {
+        // the super-type was not in the linearisation
+        throw new IllegalStateException("Cannot find the super-type VFT for something which is not a super-type of the current TypeDefinition");
+      }
     }
-
-    String mangledName = SUPERCLASS_VFT_GLOBAL_PREFIX + classDefinition.getQualifiedName().getMangledName() + "_" + superType.getQualifiedName().getMangledName();
-
-    LLVMValueRef existingGlobal = LLVM.LLVMGetNamedGlobal(module, mangledName);
-    if (existingGlobal != null)
-    {
-      return existingGlobal;
-    }
-
-    LLVMTypeRef type = LLVM.LLVMPointerType(getVFTType(superType), 0);
-    LLVMValueRef global = LLVM.LLVMAddGlobal(module, type, mangledName);
-    LLVM.LLVMSetLinkage(global, LLVM.LLVMLinkage.LLVMPrivateLinkage);
-    LLVM.LLVMSetVisibility(global, LLVM.LLVMVisibility.LLVMHiddenVisibility);
-    LLVM.LLVMSetInitializer(global, LLVM.LLVMConstNull(type));
-    return global;
-  }
-
-  /**
-   * Gets the global variable that will be used to store a pointer to the virtual funtion table for the 'object' super-type of the current type definition.
-   * @return the object super-type VFT global variable for the current type definition
-   */
-  public LLVMValueRef getObjectSuperTypeVFTGlobal()
-  {
-    if (!(typeDefinition instanceof ClassDefinition))
-    {
-      throw new IllegalStateException("Cannot get a superclass's VFT global variable for a non-class type");
-    }
-    ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
-    String mangledName = SUPERCLASS_VFT_GLOBAL_PREFIX + classDefinition.getQualifiedName().getMangledName() + "_" + ObjectType.MANGLED_NAME;
-
-    LLVMValueRef existingGlobal = LLVM.LLVMGetNamedGlobal(module, mangledName);
-    if (existingGlobal != null)
-    {
-      return existingGlobal;
-    }
-
-    LLVMTypeRef type = LLVM.LLVMPointerType(getObjectVFTType(), 0);
-    LLVMValueRef global = LLVM.LLVMAddGlobal(module, type, mangledName);
-    LLVM.LLVMSetLinkage(global, LLVM.LLVMLinkage.LLVMPrivateLinkage);
-    LLVM.LLVMSetVisibility(global, LLVM.LLVMVisibility.LLVMHiddenVisibility);
-    LLVM.LLVMSetInitializer(global, LLVM.LLVMConstNull(type));
-    return global;
+    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), index, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false)};
+    LLVMValueRef value = LLVM.LLVMConstGEP(getVFTSearchList(typeDefinition), C.toNativePointerArray(indices, false, true), indices.length);
+    LLVMTypeRef vftType = superType == null ? getObjectVFTType() : getVFTType(superType);
+    LLVMTypeRef type = LLVM.LLVMPointerType(LLVM.LLVMPointerType(vftType, 0), 0);
+    return LLVM.LLVMConstBitCast(value, type);
   }
 
   /**
@@ -1009,7 +972,7 @@ public class VirtualFunctionHandler
     }
     LLVMValueRef objectVFT = buildObjectSuperTypeVFTGeneration(builder);
     objectVFT = LLVM.LLVMBuildBitCast(builder, objectVFT, LLVM.LLVMPointerType(getObjectVFTType(), 0), "");
-    LLVMValueRef objectVFTGlobal = getObjectSuperTypeVFTGlobal();
+    LLVMValueRef objectVFTGlobal = getSuperTypeVFTGlobal(null);
     LLVM.LLVMBuildStore(builder, objectVFT, objectVFTGlobal);
 
     LLVM.LLVMBuildRetVoid(builder);

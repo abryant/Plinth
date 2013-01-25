@@ -23,17 +23,17 @@ public class PrimitiveType extends Type
    */
   public enum PrimitiveTypeType
   {
-    BOOLEAN("boolean", "z", false, 1,  false),
-    UBYTE  ("ubyte",   "B", false, 8,  false),
-    USHORT ("ushort",  "S", false, 16, false),
-    UINT   ("uint",    "I", false, 32, false),
-    ULONG  ("ulong",   "L", false, 64, false),
-    BYTE   ("byte",    "b", false, 8,  true),
-    SHORT  ("short",   "s", false, 16, true),
-    INT    ("int",     "i", false, 32, true),
-    LONG   ("long",    "l", false, 64, true),
-    FLOAT  ("float",   "f", true,  32, true),
-    DOUBLE ("double",  "d", true,  64, true),
+    BOOLEAN("boolean", "z", false, 1,  false, (byte)  1),
+    UBYTE  ("ubyte",   "B", false, 8,  false, (byte)  2),
+    USHORT ("ushort",  "S", false, 16, false, (byte)  3),
+    UINT   ("uint",    "I", false, 32, false, (byte)  4),
+    ULONG  ("ulong",   "L", false, 64, false, (byte)  5),
+    BYTE   ("byte",    "b", false, 8,  true,  (byte)  6),
+    SHORT  ("short",   "s", false, 16, true,  (byte)  7),
+    INT    ("int",     "i", false, 32, true,  (byte)  8),
+    LONG   ("long",    "l", false, 64, true,  (byte)  9),
+    FLOAT  ("float",   "f", true,  32, true,  (byte) 10),
+    DOUBLE ("double",  "d", true,  64, true,  (byte) 11),
     ;
 
     public final String name;
@@ -41,14 +41,16 @@ public class PrimitiveType extends Type
     private boolean floating;
     private int bitCount;
     private boolean signed;
+    private byte runTimeId;
 
-    PrimitiveTypeType(String name, String mangledName, boolean floating, int bitCount, boolean signed)
+    PrimitiveTypeType(String name, String mangledName, boolean floating, int bitCount, boolean signed, byte runTimeId)
     {
       this.name = name;
       this.mangledName = mangledName;
       this.floating = floating;
       this.bitCount = bitCount;
       this.signed = signed;
+      this.runTimeId = runTimeId;
     }
 
     /**
@@ -73,6 +75,14 @@ public class PrimitiveType extends Type
     public boolean isSigned()
     {
       return signed;
+    }
+
+    /**
+     * @return the runTimeId
+     */
+    public byte getRunTimeId()
+    {
+      return runTimeId;
     }
 
     /**

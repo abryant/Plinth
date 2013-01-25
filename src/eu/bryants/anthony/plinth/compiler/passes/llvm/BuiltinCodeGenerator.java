@@ -41,18 +41,21 @@ public class BuiltinCodeGenerator
 
   private CodeGenerator codeGenerator;
   private TypeHelper typeHelper;
+  private RTTIHelper rttiHelper;
 
   /**
    * Creates a new BuiltinCodeGenerator to generate code for special types.
    * @param module - the LLVMModuleRef to add new functions to
    * @param codeGenerator - the CodeGenerator to use to build certain elements of the module
    * @param typeHelper - the TypeHelper to find native types with, and to use to convert between types
+   * @param rttiHelper - the RTTIHelper to use to extract run-time type information in builtin methods
    */
-  public BuiltinCodeGenerator(LLVMModuleRef module, CodeGenerator codeGenerator, TypeHelper typeHelper)
+  public BuiltinCodeGenerator(LLVMModuleRef module, CodeGenerator codeGenerator, TypeHelper typeHelper, RTTIHelper rttiHelper)
   {
     this.module = module;
     this.codeGenerator = codeGenerator;
     this.typeHelper = typeHelper;
+    this.rttiHelper = rttiHelper;
   }
 
   public LLVMValueRef generateMethod(BuiltinMethod method)
@@ -284,13 +287,67 @@ public class BuiltinCodeGenerator
     LLVMValueRef[] longToStringArguments = new LLVMValueRef[] {integerValue, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 16, false)};
     LLVMValueRef pointerString = LLVM.LLVMBuildCall(builder, longToStringFunction, C.toNativePointerArray(longToStringArguments, false, true), longToStringArguments.length, "");
 
-    // TODO: when we get run-time type information, for class types, put the fully qualified name of the run-time type here instead of "object"
-    TypeDefinition resolvedDefinition = baseType instanceof NamedType ? ((NamedType) baseType).getResolvedTypeDefinition() : null;
-    String prefixString = "[" + (resolvedDefinition instanceof CompoundDefinition ? ((CompoundDefinition) resolvedDefinition).getQualifiedName() : "object") + "@";
-    String suffixString = "]";
 
-    LLVMValueRef startString = codeGenerator.buildStringCreation(builder, prefixString);
-    startString = typeHelper.convertTemporaryToStandard(builder, startString, SpecialTypeHandler.STRING_TYPE);
+    LLVMValueRef startString;
+    // for compound types, we can hard-code the start string, but for object and class types, we must extract it from the run-time type information
+    TypeDefinition resolvedDefinition = baseType instanceof NamedType ? ((NamedType) baseType).getResolvedTypeDefinition() : null;
+    if (resolvedDefinition instanceof CompoundDefinition)
+    {
+      String prefixString = "[" + (resolvedDefinition instanceof CompoundDefinition ? ((CompoundDefinition) resolvedDefinition).getQualifiedName() : "object") + "@";
+      startString = codeGenerator.buildStringCreation(builder, prefixString);
+      startString = typeHelper.convertTemporaryToStandard(builder, startString, SpecialTypeHandler.STRING_TYPE);
+    }
+    else
+    {
+      // use the run-time type information to find the real type
+      LLVMValueRef rttiPointer = rttiHelper.lookupPureRTTI(builder, parameter);
+      LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                   LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false)};
+      LLVMValueRef sortIdPointer = LLVM.LLVMBuildGEP(builder, rttiPointer, C.toNativePointerArray(indices, false, true), indices.length, "");
+      LLVMValueRef sortId = LLVM.LLVMBuildLoad(builder, sortIdPointer, "");
+      LLVMValueRef isObject = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, sortId, LLVM.LLVMConstInt(LLVM.LLVMInt8Type(), RTTIHelper.OBJECT_SORT_ID, false), "");
+
+      LLVMBasicBlockRef continuationBlock = LLVM.LLVMAddBasicBlock(builder, "continuation");
+      LLVMBasicBlockRef isNotObjectBlock = LLVM.LLVMAddBasicBlock(builder, "extractClassName");
+      LLVMBasicBlockRef isObjectBlock = LLVM.LLVMAddBasicBlock(builder, "generateObjectString");
+
+      LLVM.LLVMBuildCondBr(builder, isObject, isObjectBlock, isNotObjectBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, isObjectBlock);
+      LLVMValueRef objectStartString = codeGenerator.buildStringCreation(builder, "[object@");
+      objectStartString = typeHelper.convertTemporaryToStandard(builder, objectStartString, SpecialTypeHandler.STRING_TYPE);
+      LLVMBasicBlockRef endIsObjectBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, isNotObjectBlock);
+      // cast the generic RTTI struct to a NamedType RTTI struct
+      // (we do not need to give the NamedType a TypeDefinition here, all pure RTTI structs for NamedTypes have the same LLVM types)
+      LLVMValueRef castedObjectRTTI = LLVM.LLVMBuildBitCast(builder, rttiPointer, LLVM.LLVMPointerType(rttiHelper.getPureRTTIStructType(new NamedType(false, false, null, null)), 0), "");
+      LLVMValueRef[] stringIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                         LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 4, false)};
+      LLVMValueRef classQualifiedNameUbyteArrayPointer = LLVM.LLVMBuildGEP(builder, castedObjectRTTI, C.toNativePointerArray(stringIndices, false, true), stringIndices.length, "");
+      LLVMValueRef classQualifiedNameUbyteArray = LLVM.LLVMBuildLoad(builder, classQualifiedNameUbyteArrayPointer, "");
+
+      LLVMValueRef classStringPrefix = codeGenerator.buildStringCreation(builder, "[");
+      LLVMValueRef classQualifiedNameString = codeGenerator.buildStringCreation(builder, classQualifiedNameUbyteArray);
+      LLVMValueRef classStringSuffix = codeGenerator.buildStringCreation(builder, "@");
+      classStringPrefix = typeHelper.convertTemporaryToStandard(builder, classStringPrefix, SpecialTypeHandler.STRING_TYPE);
+      classQualifiedNameString = typeHelper.convertTemporaryToStandard(builder, classQualifiedNameString, SpecialTypeHandler.STRING_TYPE);
+      classStringSuffix = typeHelper.convertTemporaryToStandard(builder, classStringSuffix, SpecialTypeHandler.STRING_TYPE);
+
+      LLVMValueRef classStartString = codeGenerator.buildStringConcatenation(builder, classStringPrefix, classQualifiedNameString, classStringSuffix);
+      classStartString = typeHelper.convertTemporaryToStandard(builder, classStartString, SpecialTypeHandler.STRING_TYPE);
+      LLVMBasicBlockRef endIsNotObjectBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+      startString = LLVM.LLVMBuildPhi(builder, typeHelper.findStandardType(SpecialTypeHandler.STRING_TYPE), "");
+      LLVMValueRef[] incomingValues = new LLVMValueRef[] {objectStartString, classStartString};
+      LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {endIsObjectBlock, endIsNotObjectBlock};
+      LLVM.LLVMAddIncoming(startString, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+    }
+
+    String suffixString = "]";
     LLVMValueRef endString = codeGenerator.buildStringCreation(builder, suffixString);
     endString = typeHelper.convertTemporaryToStandard(builder, endString, SpecialTypeHandler.STRING_TYPE);
 

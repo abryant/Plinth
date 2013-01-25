@@ -53,6 +53,14 @@ class Test extends Foo implements DefaultRunnable
 
     MetadataTest metadataTest = new MetadataTest();
     metadataTest.someMethod();
+    stdout::println("metadataTest.toString(): " + metadataTest.toString());
+    TestInterface testInterface = metadataTest;
+    stdout::println("interface toString(): " + testInterface.toString());
+
+    stdout::println("Foo toString(): " + foo.toString());
+
+    stdout::println("object toString(): " + new object().toString());
+    stdout::println("bigint toString(): " + bigint().toString());
 
     return 0;
   }
@@ -70,10 +78,5 @@ class Test extends Foo implements DefaultRunnable
   static string addSpace(string x)
   {
     return " " + x;
-  }
-
-  immutable string toString()
-  {
-    return "<Test:" + field + ">";
   }
 }

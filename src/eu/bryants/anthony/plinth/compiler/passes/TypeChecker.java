@@ -2337,4 +2337,24 @@ public class TypeChecker
     }
     throw new IllegalArgumentException("Cannot find the " + (contextuallyImmutable ? "" : "non-") + "contextually-immutable version of: " + type);
   }
+
+  /**
+   * Finds a version of the specified type without any type modifiers (i.e. without nullability and immutability).
+   * @param type - the Type to find without any type modifiers
+   * @return a version of the specified type without any type modifiers
+   */
+  public static Type findTypeWithoutModifiers(Type type)
+  {
+    Type result = findTypeWithNullability(type, false);
+    result = findTypeWithDataImmutability(type, false, false);
+    if (result instanceof FunctionType)
+    {
+      FunctionType functionType = (FunctionType) result;
+      if (functionType.isImmutable())
+      {
+        result = new FunctionType(false, false, functionType.getReturnType(), functionType.getParameterTypes(), null);
+      }
+    }
+    return result;
+  }
 }

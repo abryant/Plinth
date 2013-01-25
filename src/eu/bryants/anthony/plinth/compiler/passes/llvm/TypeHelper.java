@@ -47,6 +47,7 @@ public class TypeHelper
 
   private CodeGenerator codeGenerator;
   private VirtualFunctionHandler virtualFunctionHandler;
+  private RTTIHelper rttiHelper;
 
   private LLVMModuleRef module;
 
@@ -67,6 +68,15 @@ public class TypeHelper
     this.virtualFunctionHandler = virtualFunctionHandler;
     this.module = module;
     opaqueType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "opaque");
+  }
+
+  /**
+   * Initialises this TypeHelper, so that it has all of the references required to operate..
+   * @param rttiHelper - the RTTIHelper to set
+   */
+  public void initialise(RTTIHelper rttiHelper)
+  {
+    this.rttiHelper = rttiHelper;
   }
 
   /**
@@ -145,9 +155,9 @@ public class TypeHelper
 
       LLVMTypeRef baseType = findNativeType(arrayType.getBaseType(), false);
       LLVMTypeRef llvmArray = LLVM.LLVMArrayType(baseType, 0);
-      LLVMTypeRef interfaceSearchListType = LLVM.LLVMPointerType(virtualFunctionHandler.getInterfaceSearchListType(), 0);
+      LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
       LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
-      LLVMTypeRef[] structureTypes = new LLVMTypeRef[] {interfaceSearchListType, vftPointerType, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), llvmArray};
+      LLVMTypeRef[] structureTypes = new LLVMTypeRef[] {rttiType, vftPointerType, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), llvmArray};
       LLVM.LLVMStructSetBody(llvmArrayType, C.toNativePointerArray(structureTypes, false, true), structureTypes.length, false);
       return LLVM.LLVMPointerType(llvmArrayType, 0);
     }
@@ -261,9 +271,9 @@ public class TypeHelper
       }
       objectType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "object");
 
-      LLVMTypeRef interfaceSearchListType = LLVM.LLVMPointerType(virtualFunctionHandler.getInterfaceSearchListType(), 0);
+      LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
       LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
-      LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {interfaceSearchListType, vftPointerType};
+      LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {rttiType, vftPointerType};
       LLVM.LLVMStructSetBody(objectType, C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
       return LLVM.LLVMPointerType(objectType, 0);
     }
@@ -315,10 +325,10 @@ public class TypeHelper
    */
   public LLVMTypeRef findSpecialisedObjectType(Type specialisationType)
   {
-    LLVMTypeRef interfaceSearchListType = LLVM.LLVMPointerType(virtualFunctionHandler.getInterfaceSearchListType(), 0);
+    LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
     LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
     LLVMTypeRef llvmSpecialisedType = findStandardType(specialisationType);
-    LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {interfaceSearchListType, vftPointerType, llvmSpecialisedType};
+    LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {rttiType, vftPointerType, llvmSpecialisedType};
     LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
     return structType;
   }
@@ -377,9 +387,9 @@ public class TypeHelper
     int offset; // offset to the class VFT
     if (superClassDefinition == null)
     {
-      // 1 interface search list, 1 object-VFT (for builtin methods), 1 class VFT, some interface VFTs, and some fields
+      // 1 RTTI pointer, 1 object-VFT (for builtin methods), 1 class VFT, some interface VFTs, and some fields
       subTypes = new LLVMTypeRef[3 + implementedInterfaces.length + nonStaticFields.length];
-      subTypes[0] = LLVM.LLVMPointerType(virtualFunctionHandler.getInterfaceSearchListType(), 0);
+      subTypes[0] = rttiHelper.getGenericInstanceRTTIType();
       subTypes[1] = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
       offset = 2;
     }
@@ -450,7 +460,7 @@ public class TypeHelper
     int index = field.getMemberIndex();
     if (typeDefinition instanceof ClassDefinition)
     {
-      // skip the interface search list and the object VFT from the top-level class
+      // skip the RTTI pointer and the object VFT from the top-level class
       index += 2;
       // skip the super-class representations
       ClassDefinition superClassDefinition = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
@@ -978,10 +988,10 @@ public class TypeHelper
       LLVMValueRef memory = LLVM.LLVMBuildCall(builder, codeGenerator.getCallocFunction(), C.toNativePointerArray(callocArguments, false, true), callocArguments.length, "");
       LLVMValueRef pointer = LLVM.LLVMBuildBitCast(builder, memory, nativeType, "");
 
-      // store the object's empty interface search list
-      LLVMValueRef interfaceSearchList = virtualFunctionHandler.getEmptyInterfaceSearchList();
-      LLVMValueRef interfaceSearchListPointer = virtualFunctionHandler.getInterfaceSearchListPointer(builder, pointer);
-      LLVM.LLVMBuildStore(builder, interfaceSearchList, interfaceSearchListPointer);
+      // store the object's run-time type information
+      LLVMValueRef rtti = rttiHelper.getInstanceRTTI(TypeChecker.findTypeWithoutModifiers(notNullFromType));
+      LLVMValueRef rttiPointer = rttiHelper.getRTTIPointer(builder, pointer);
+      LLVM.LLVMBuildStore(builder, rtti, rttiPointer);
 
       // build the base change VFT, and store it as the object's VFT
       LLVMValueRef baseChangeVFT = virtualFunctionHandler.getBaseChangeObjectVFT(notNullFromType);
