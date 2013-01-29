@@ -59,7 +59,7 @@ public class VirtualFunctionHandler
   }
 
   /**
-   * Initialises this VirtualFunctionHandler, so that it has all of the references required to operate..
+   * Initialises this VirtualFunctionHandler, so that it has all of the references required to operate.
    * @param typeHelper - the TypeHelper to set
    * @param rttiHelper - the RTTIHelper to set
    */

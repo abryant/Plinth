@@ -17,6 +17,7 @@ import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
+import eu.bryants.anthony.plinth.ast.type.VoidType;
 
 /*
  * Created on 23 Jan 2013
@@ -38,6 +39,7 @@ public class RTTIHelper
   public static final byte CLASS_SORT_ID = 6;
   public static final byte COMPOUND_SORT_ID = 7;
   public static final byte INTERFACE_SORT_ID = 8;
+  public static final byte VOID_SORT_ID = 9;
 
   private LLVMModuleRef module;
 
@@ -300,6 +302,12 @@ public class RTTIHelper
       LLVMValueRef[] values = new LLVMValueRef[] {sortId, size, nullable, numSubTypes, subTypeArray};
       return LLVM.LLVMConstStruct(C.toNativePointerArray(values, false, true), values.length, false);
     }
+    if (type instanceof VoidType)
+    {
+      LLVMValueRef sortId = LLVM.LLVMConstInt(LLVM.LLVMInt8Type(), VOID_SORT_ID, false);
+      LLVMValueRef[] values = new LLVMValueRef[] {sortId, size};
+      return LLVM.LLVMConstStruct(C.toNativePointerArray(values, false, true), values.length, false);
+    }
     throw new IllegalArgumentException("Cannot create a run-time type information struct for the unknown type: " + type);
   }
 
@@ -362,6 +370,11 @@ public class RTTIHelper
       LLVMTypeRef[] types = new LLVMTypeRef[] {sortIdType, sizeType, nullableType, numParametersType, parameterArrayType};
       return LLVM.LLVMStructType(C.toNativePointerArray(types, false, true), types.length, false);
     }
+    if (type instanceof VoidType)
+    {
+      LLVMTypeRef[] types = new LLVMTypeRef[] {sortIdType, sizeType};
+      return LLVM.LLVMStructType(C.toNativePointerArray(types, false, true), types.length, false);
+    }
     throw new IllegalArgumentException("Cannot find a run-time type information struct type for the unknown type: " + type);
   }
 
@@ -400,6 +413,11 @@ public class RTTIHelper
    */
   private LLVMValueRef findTypeSize(Type type)
   {
+    if (type instanceof VoidType)
+    {
+      // void types have zero size, but sometimes need RTTI blocks (e.g. for function return types)
+      return LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false);
+    }
     LLVMTypeRef llvmType = typeHelper.findStandardType(type);
     LLVMTypeRef arrayType = LLVM.LLVMPointerType(LLVM.LLVMArrayType(llvmType, 0), 0);
     LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
