@@ -15,17 +15,16 @@ import eu.bryants.anthony.plinth.parser.parseAST.QNameElement;
 /**
  * @author Anthony Bryant
  */
-public class OptionalTypeListRule extends Rule<ParseType>
+public class TypeListRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
   private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.TYPE_LIST_NO_QNAME);
   private static final Production<ParseType> QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_LIST);
-  private static final Production<ParseType> BLANK_PRODUCTION = new Production<ParseType>();
 
-  public OptionalTypeListRule()
+  public TypeListRule()
   {
-    super(ParseType.OPTIONAL_TYPE_LIST, PRODUCTION, QNAME_PRODUCTION, BLANK_PRODUCTION);
+    super(ParseType.TYPE_LIST, PRODUCTION, QNAME_PRODUCTION);
   }
 
   /**
@@ -49,10 +48,6 @@ public class OptionalTypeListRule extends Rule<ParseType>
         types[i] = elements[i].convertToType();
       }
       return new ParseList<Type>(types, list.getLexicalPhrase());
-    }
-    if (production == BLANK_PRODUCTION)
-    {
-      return new ParseList<Type>(null);
     }
     throw badTypeList();
   }

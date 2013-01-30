@@ -1048,12 +1048,7 @@ public class TypeChecker
       {
         throw new ConceptualException("Cannot cast away contextual immutability, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
       }
-      // forbid casting anything but an immutable FunctionType to an immutable FunctionType
-      if (!(exprType instanceof FunctionType && ((FunctionType) exprType).isImmutable()) &&
-          castedType instanceof FunctionType && ((FunctionType) castedType).isImmutable())
-      {
-        throw new ConceptualException("Cannot cast to an immutable function, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
-      }
+      // NOTE: we allow casting function values to and from immutable, since the immutability constraints will be checked at run-time
 
       // we have checked the immutability constraints properly, so we can ignore them in this next check
       // we need to do this so that e.g. casts from A to #B work, if A is a supertype of B
@@ -2057,14 +2052,14 @@ public class TypeChecker
       FunctionType functionA = (FunctionType) a;
       FunctionType functionB = (FunctionType) b;
       boolean nullability = a.isNullable() | b.isNullable();
-      boolean explicitImmutability = functionA.isImmutable() & functionB.isImmutable();
+      boolean immutability = functionA.isImmutable() & functionB.isImmutable();
       // alter one of the types to have the minimum nullability and immutability that we need
       // if the altered type cannot assign the other one, then altering the other type would not help,
       // since the only other variables in function.canAssign() are the parameter and return types, and the checking for those is symmetric
       FunctionType alteredA = (FunctionType) findTypeWithNullability(functionA, nullability);
-      if (alteredA.isImmutable() != explicitImmutability)
+      if (alteredA.isImmutable() != immutability)
       {
-        alteredA = new FunctionType(alteredA.isNullable(), explicitImmutability, alteredA.getReturnType(), alteredA.getParameterTypes(), null);
+        alteredA = new FunctionType(alteredA.isNullable(), immutability, alteredA.getReturnType(), alteredA.getParameterTypes(), null);
       }
       if (alteredA.canAssign(b))
       {
@@ -2346,15 +2341,6 @@ public class TypeChecker
   public static Type findTypeWithoutModifiers(Type type)
   {
     Type result = findTypeWithNullability(type, false);
-    result = findTypeWithDataImmutability(type, false, false);
-    if (result instanceof FunctionType)
-    {
-      FunctionType functionType = (FunctionType) result;
-      if (functionType.isImmutable())
-      {
-        result = new FunctionType(false, false, functionType.getReturnType(), functionType.getParameterTypes(), null);
-      }
-    }
-    return result;
+    return findTypeWithDataImmutability(result, false, false);
   }
 }

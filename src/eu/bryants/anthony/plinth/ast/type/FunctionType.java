@@ -200,10 +200,6 @@ public class FunctionType extends Type
     {
       buffer.append('?');
     }
-    if (isImmutable())
-    {
-      buffer.append('#');
-    }
     buffer.append('{');
     for (int i = 0; i < parameterTypes.length; i++)
     {
@@ -213,7 +209,12 @@ public class FunctionType extends Type
         buffer.append(", ");
       }
     }
-    buffer.append(" -> ");
+    buffer.append(' ');
+    if (isImmutable())
+    {
+      buffer.append('#');
+    }
+    buffer.append("-> ");
     buffer.append(returnType);
     buffer.append('}');
     return buffer.toString();

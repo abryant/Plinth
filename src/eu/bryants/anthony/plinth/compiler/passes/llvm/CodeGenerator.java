@@ -1969,7 +1969,7 @@ public class CodeGenerator
     }
     if (type instanceof FunctionType)
     {
-      LLVMValueRef functionPointer = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
+      LLVMValueRef functionPointer = LLVM.LLVMBuildExtractValue(builder, value, 2, "");
       LLVMTypeRef llvmFunctionPointerType = typeHelper.findRawFunctionPointerType((FunctionType) type);
       return LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntNE, functionPointer, LLVM.LLVMConstNull(llvmFunctionPointerType), "");
     }
@@ -2024,11 +2024,11 @@ public class CodeGenerator
     }
     if (type instanceof FunctionType)
     {
-      LLVMValueRef leftOpaque = LLVM.LLVMBuildExtractValue(builder, left, 0, "");
-      LLVMValueRef rightOpaque = LLVM.LLVMBuildExtractValue(builder, right, 0, "");
+      LLVMValueRef leftOpaque = LLVM.LLVMBuildExtractValue(builder, left, 1, "");
+      LLVMValueRef rightOpaque = LLVM.LLVMBuildExtractValue(builder, right, 1, "");
       LLVMValueRef opaqueComparison = LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), leftOpaque, rightOpaque, "");
-      LLVMValueRef leftFunction = LLVM.LLVMBuildExtractValue(builder, left, 1, "");
-      LLVMValueRef rightFunction = LLVM.LLVMBuildExtractValue(builder, right, 1, "");
+      LLVMValueRef leftFunction = LLVM.LLVMBuildExtractValue(builder, left, 2, "");
+      LLVMValueRef rightFunction = LLVM.LLVMBuildExtractValue(builder, right, 2, "");
       LLVMValueRef functionComparison = LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), leftFunction, rightFunction, "");
       if (operator == EqualityOperator.EQUAL)
       {
@@ -2562,8 +2562,9 @@ public class CodeGenerator
           LLVMValueRef firstArgument = typeHelper.convertTemporary(builder, notNullValue, notNullType, objectType);
           firstArgument = LLVM.LLVMBuildBitCast(builder, firstArgument, typeHelper.getOpaquePointer(), "");
           result = LLVM.LLVMGetUndef(typeHelper.findStandardType(functionType));
-          result = LLVM.LLVMBuildInsertValue(builder, result, firstArgument, 0, "");
-          result = LLVM.LLVMBuildInsertValue(builder, result, function, 1, "");
+          result = LLVM.LLVMBuildInsertValue(builder, result, rttiHelper.getInstanceRTTI(functionType), 0, "");
+          result = LLVM.LLVMBuildInsertValue(builder, result, firstArgument, 1, "");
+          result = LLVM.LLVMBuildInsertValue(builder, result, function, 2, "");
           result = typeHelper.convertStandardToTemporary(builder, result, functionType, fieldAccessExpression.getType());
         }
         else
@@ -2617,8 +2618,9 @@ public class CodeGenerator
         function = LLVM.LLVMBuildBitCast(builder, function, typeHelper.findRawFunctionPointerType(functionType), "");
         LLVMValueRef firstArgument = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
         LLVMValueRef result = LLVM.LLVMGetUndef(typeHelper.findStandardType(functionType));
-        result = LLVM.LLVMBuildInsertValue(builder, result, firstArgument, 0, "");
-        result = LLVM.LLVMBuildInsertValue(builder, result, function, 1, "");
+        result = LLVM.LLVMBuildInsertValue(builder, result, rttiHelper.getInstanceRTTI(functionType), 0, "");
+        result = LLVM.LLVMBuildInsertValue(builder, result, firstArgument, 1, "");
+        result = LLVM.LLVMBuildInsertValue(builder, result, function, 2, "");
         return typeHelper.convertStandardToTemporary(builder, result, functionType, fieldAccessExpression.getType());
       }
       throw new IllegalArgumentException("Unknown member type for a FieldAccessExpression: " + member);
@@ -2741,9 +2743,9 @@ public class CodeGenerator
       }
       else if (resolvedBaseExpression != null)
       {
-        // callee here is actually a tuple of an opaque pointer and a function type, where the first argument to the function is the opaque pointer
-        LLVMValueRef firstArgument = LLVM.LLVMBuildExtractValue(builder, callee, 0, "");
-        LLVMValueRef calleeFunction = LLVM.LLVMBuildExtractValue(builder, callee, 1, "");
+        // callee here is actually a tuple of an RTTI pointer, an opaque pointer, and a function type, where the first argument to the function is the opaque pointer
+        LLVMValueRef firstArgument = LLVM.LLVMBuildExtractValue(builder, callee, 1, "");
+        LLVMValueRef calleeFunction = LLVM.LLVMBuildExtractValue(builder, callee, 2, "");
         LLVMValueRef[] realArguments = new LLVMValueRef[values.length + 1];
         realArguments[0] = firstArgument;
         System.arraycopy(values, 0, realArguments, 1, values.length);
@@ -3113,8 +3115,9 @@ public class CodeGenerator
         firstArgument = LLVM.LLVMBuildBitCast(builder, firstArgument, typeHelper.getOpaquePointer(), "");
 
         LLVMValueRef result = LLVM.LLVMGetUndef(typeHelper.findStandardType(functionType));
-        result = LLVM.LLVMBuildInsertValue(builder, result, firstArgument, 0, "");
-        result = LLVM.LLVMBuildInsertValue(builder, result, function, 1, "");
+        result = LLVM.LLVMBuildInsertValue(builder, result, rttiHelper.getInstanceRTTI(functionType), 0, "");
+        result = LLVM.LLVMBuildInsertValue(builder, result, firstArgument, 1, "");
+        result = LLVM.LLVMBuildInsertValue(builder, result, function, 2, "");
         return typeHelper.convertStandardToTemporary(builder, result, functionType, variableExpression.getType());
       }
     }

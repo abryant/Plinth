@@ -65,7 +65,7 @@ public enum ParseType
   TYPE,                          // Type
   TYPE_NO_QNAME,                 // Type
   TYPE_LIST_NO_QNAME,            // ParseList<Type>
-  OPTIONAL_TYPE_LIST,            // ParseList<Type>
+  TYPE_LIST,                     // ParseList<Type>
 
   // Expressions
   EXPRESSION,                    // Expression

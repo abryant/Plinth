@@ -40,7 +40,7 @@ class Test extends Foo implements DefaultRunnable
   {
     // find all of the command line arguments
     string fullargs = concatMap(addSpace, args);
-    stdout::println("Your " + args.length.toString() + " arguments were: " + args.toString());
+    stdout::println("Your " + args.length.toString() + " arguments were:" + fullargs);
 
     object o = new Test(9);
     Runnable r = cast<Runnable> o;
@@ -65,7 +65,7 @@ class Test extends Foo implements DefaultRunnable
     return 0;
   }
 
-  static string concatMap({string -> string} f, []string input)
+  static string concatMap({string #-> string} f, []string input)
   {
     string result = string();
     for (uint i = 0; i < input.length; ++i)
@@ -75,7 +75,7 @@ class Test extends Foo implements DefaultRunnable
     return result;
   }
 
-  static string addSpace(string x)
+  static immutable string addSpace(string x)
   {
     return " " + x;
   }

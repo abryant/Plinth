@@ -165,9 +165,10 @@ public class TypeHelper
     {
       // create a tuple of an opaque pointer and a function pointer which has an opaque pointer as its first argument
       FunctionType functionType = (FunctionType) type;
+      LLVMTypeRef rttiPointerType = rttiHelper.getGenericInstanceRTTIType();
       LLVMTypeRef llvmOpaquePointerType = LLVM.LLVMPointerType(opaqueType, 0);
       LLVMTypeRef llvmFunctionPointer = findRawFunctionPointerType(functionType);
-      LLVMTypeRef[] subTypes = new LLVMTypeRef[] {llvmOpaquePointerType, llvmFunctionPointer};
+      LLVMTypeRef[] subTypes = new LLVMTypeRef[] {rttiPointerType, llvmOpaquePointerType, llvmFunctionPointer};
       return LLVM.LLVMStructType(C.toNativePointerArray(subTypes, false, true), subTypes.length, false);
     }
     if (type instanceof TupleType)
@@ -289,7 +290,7 @@ public class TypeHelper
   }
 
   /**
-   * Finds a function pointer type in its raw form, before being tupled with its first argument (always an opaque pointer).
+   * Finds a function pointer type in its raw form, before being tupled with its RTTI and first argument (always an opaque pointer).
    * This <b>IS NOT</b> a full function type, and should not be used as such.
    * @param functionType - the function type to find the raw LLVM form of
    * @return the LLVMTypeRef corresponding to the raw form of the specified function type
@@ -671,6 +672,9 @@ public class TypeHelper
       // function casts are illegal unless the parameter and return types are the same, so they must have the same basic type
       // nullability and immutability will be checked by the type checker, but have no effect on the native type, so we do not need to do anything special here
 
+      // if from is not immutable and to is immutable, then the result here is undefined
+      // TODO: throw an exception if we break immutability constraints for function casting
+
       // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined
       // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
       return value;
@@ -989,7 +993,16 @@ public class TypeHelper
       LLVMValueRef pointer = LLVM.LLVMBuildBitCast(builder, memory, nativeType, "");
 
       // store the object's run-time type information
-      LLVMValueRef rtti = rttiHelper.getInstanceRTTI(TypeChecker.findTypeWithoutModifiers(notNullFromType));
+      LLVMValueRef rtti;
+      if (notNullFromType instanceof FunctionType)
+      {
+        // for function types, take the RTTI out of the value, don't generate it from the static type
+        rtti = LLVM.LLVMBuildExtractValue(builder, notNullValue, 0, "");
+      }
+      else
+      {
+        rtti = rttiHelper.getInstanceRTTI(TypeChecker.findTypeWithoutModifiers(notNullFromType));
+      }
       LLVMValueRef rttiPointer = rttiHelper.getRTTIPointer(builder, pointer);
       LLVM.LLVMBuildStore(builder, rtti, rttiPointer);
 

@@ -110,10 +110,12 @@ TypeNoQName = BooleanKeyword |                 QuestionMark BooleanKeyword |
               QuestionMark QName | QuestionMark Hash QName | Hash QName |
               LSquare RSquare Type   | QuestionMark LSquare RSquare Type | Hash LSquare RSquare Type   | QuestionMark Hash LSquare RSquare Type |
               LParen TypeListNoQName RParen | QuestionMark LParen TypeListNoQName RParen | QuestionMark NestedQNameList |
-                   LBrace OptionalTypeList Arrow ReturnType RBrace | QuestionMark      LBrace OptionalTypeList Arrow ReturnType RBrace |
-              Hash LBrace OptionalTypeList Arrow ReturnType RBrace | QuestionMark Hash LBrace OptionalTypeList Arrow ReturnType RBrace |
+              LBrace TypeList      Arrow ReturnType RBrace | QuestionMark LBrace TypeList      Arrow ReturnType RBrace |
+              LBrace TypeList Hash Arrow ReturnType RBrace | QuestionMark LBrace TypeList Hash Arrow ReturnType RBrace |
+              LBrace               Arrow ReturnType RBrace | QuestionMark LBrace               Arrow ReturnType RBrace |
+              LBrace          Hash Arrow ReturnType RBrace | QuestionMark LBrace          Hash Arrow ReturnType RBrace |
               ObjectKeyword | QuestionMark ObjectKeyword | Hash ObjectKeyword | QuestionMark Hash ObjectKeyword
-OptionalTypeList = TypeListNoQName | QNameList | epsilon
+TypeList = TypeListNoQName | QNameList
 Type = TypeNoQName | QName | NestedQNameList
 ReturnType = Type | VoidKeyword
 TypeListNoQName = QName           Comma TypeListNoQName |

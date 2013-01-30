@@ -59,9 +59,9 @@ import eu.bryants.anthony.plinth.parser.rules.statement.ShorthandAssignmentRule;
 import eu.bryants.anthony.plinth.parser.rules.statement.StatementRule;
 import eu.bryants.anthony.plinth.parser.rules.statement.StatementsRule;
 import eu.bryants.anthony.plinth.parser.rules.statement.WhileStatementRule;
-import eu.bryants.anthony.plinth.parser.rules.type.OptionalTypeListRule;
 import eu.bryants.anthony.plinth.parser.rules.type.ReturnTypeRule;
 import eu.bryants.anthony.plinth.parser.rules.type.TypeListNoQNameRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeListRule;
 import eu.bryants.anthony.plinth.parser.rules.type.TypeNoQNameRule;
 import eu.bryants.anthony.plinth.parser.rules.type.TypeRule;
 
@@ -141,9 +141,9 @@ public class PlinthParseRules
     new WhileStatementRule(),
 
     // type
-    new OptionalTypeListRule(),
     new ReturnTypeRule(),
     new TypeListNoQNameRule(),
+    new TypeListRule(),
     new TypeNoQNameRule(),
     new TypeRule(),
 

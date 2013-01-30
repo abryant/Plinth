@@ -496,9 +496,9 @@ public class BuiltinCodeGenerator
     LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
 
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
-    LLVMValueRef calleeValue = LLVM.LLVMBuildExtractValue(builder, parameter, 0, "");
+    LLVMValueRef calleeValue = LLVM.LLVMBuildExtractValue(builder, parameter, 1, "");
     LLVMValueRef calleeIntegerValue = LLVM.LLVMBuildPtrToInt(builder, calleeValue, LLVM.LLVMInt64Type(), "");
-    LLVMValueRef functionValue = LLVM.LLVMBuildExtractValue(builder, parameter, 1, "");
+    LLVMValueRef functionValue = LLVM.LLVMBuildExtractValue(builder, parameter, 2, "");
     LLVMValueRef functionIntegerValue = LLVM.LLVMBuildPtrToInt(builder, functionValue, LLVM.LLVMInt64Type(), "");
 
     Type ulongType = new PrimitiveType(false, PrimitiveTypeType.ULONG, null);

@@ -65,10 +65,14 @@ public class TypeNoQNameRule extends Rule<ParseType>
   private static final Production<ParseType> NULLABLE_TUPLE_PRODUCTION       = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LPAREN, ParseType.TYPE_LIST_NO_QNAME, ParseType.RPAREN);
   private static final Production<ParseType> NULLABLE_QNAME_TUPLE_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.NESTED_QNAME_LIST);
 
-  private static final Production<ParseType> FUNCTION_PRODUCTION                    = new Production<ParseType>(                                         ParseType.LBRACE, ParseType.OPTIONAL_TYPE_LIST, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
-  private static final Production<ParseType> NULLABLE_FUNCTION_PRODUCTION           = new Production<ParseType>(ParseType.QUESTION_MARK,                 ParseType.LBRACE, ParseType.OPTIONAL_TYPE_LIST, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
-  private static final Production<ParseType> IMMUTABLE_FUNCTION_PRODUCTION          = new Production<ParseType>(                         ParseType.HASH, ParseType.LBRACE, ParseType.OPTIONAL_TYPE_LIST, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
-  private static final Production<ParseType> NULLABLE_IMMUTABLE_FUNCTION_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.HASH, ParseType.LBRACE, ParseType.OPTIONAL_TYPE_LIST, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
+  private static final Production<ParseType> FUNCTION_PRODUCTION                              = new Production<ParseType>(                         ParseType.LBRACE, ParseType.TYPE_LIST,                 ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
+  private static final Production<ParseType> NULLABLE_FUNCTION_PRODUCTION                     = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE, ParseType.TYPE_LIST,                 ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
+  private static final Production<ParseType> IMMUTABLE_FUNCTION_PRODUCTION                    = new Production<ParseType>(                         ParseType.LBRACE, ParseType.TYPE_LIST, ParseType.HASH, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
+  private static final Production<ParseType> NULLABLE_IMMUTABLE_FUNCTION_PRODUCTION           = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE, ParseType.TYPE_LIST, ParseType.HASH, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
+  private static final Production<ParseType> NO_PARAMS_FUNCTION_PRODUCTION                    = new Production<ParseType>(                         ParseType.LBRACE,                                      ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
+  private static final Production<ParseType> NULLABLE_NO_PARAMS_FUNCTION_PRODUCTION           = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE,                                      ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
+  private static final Production<ParseType> IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION          = new Production<ParseType>(                         ParseType.LBRACE,                      ParseType.HASH, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
+  private static final Production<ParseType> NULLABLE_IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE,                      ParseType.HASH, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.RBRACE);
 
   private static final Production<ParseType> OBJECT_PRODUCTION = new Production<ParseType>(ParseType.OBJECT_KEYWORD);
   private static final Production<ParseType> NULLABLE_OBJECT_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.OBJECT_KEYWORD);
@@ -87,6 +91,7 @@ public class TypeNoQNameRule extends Rule<ParseType>
                                    ARRAY_PRODUCTION, NULLABLE_ARRAY_PRODUCTION, IMMUTABLE_ARRAY_PRODUCTION, NULLABLE_IMMUTABLE_ARRAY_PRODUCTION,
                                    TUPLE_PRODUCTION, NULLABLE_TUPLE_PRODUCTION, NULLABLE_QNAME_TUPLE_PRODUCTION,
                                    FUNCTION_PRODUCTION, NULLABLE_FUNCTION_PRODUCTION, IMMUTABLE_FUNCTION_PRODUCTION, NULLABLE_IMMUTABLE_FUNCTION_PRODUCTION,
+                                   NO_PARAMS_FUNCTION_PRODUCTION, NULLABLE_NO_PARAMS_FUNCTION_PRODUCTION, IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION, NULLABLE_IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION,
                                    OBJECT_PRODUCTION, NULLABLE_OBJECT_PRODUCTION, IMMUTABLE_OBJECT_PRODUCTION, NULLABLE_IMMUTABLE_OBJECT_PRODUCTION);
   }
 
@@ -173,18 +178,42 @@ public class TypeNoQNameRule extends Rule<ParseType>
     if (production == IMMUTABLE_FUNCTION_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
-      ParseList<Type> list = (ParseList<Type>) args[2];
+      ParseList<Type> list = (ParseList<Type>) args[1];
       Type returnType = (Type) args[4];
       Type[] paramTypes = list.toArray(new Type[list.size()]);
-      return new FunctionType(false, true, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], list.getLexicalPhrase(), (LexicalPhrase) args[3], returnType.getLexicalPhrase(), (LexicalPhrase) args[5]));
+      return new FunctionType(false, true, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], list.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3], returnType.getLexicalPhrase(), (LexicalPhrase) args[5]));
     }
     if (production == NULLABLE_IMMUTABLE_FUNCTION_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
-      ParseList<Type> list = (ParseList<Type>) args[3];
+      ParseList<Type> list = (ParseList<Type>) args[2];
       Type returnType = (Type) args[5];
       Type[] paramTypes = list.toArray(new Type[list.size()]);
-      return new FunctionType(true, true, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], list.getLexicalPhrase(), (LexicalPhrase) args[4], returnType.getLexicalPhrase(), (LexicalPhrase) args[6]));
+      return new FunctionType(true, true, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], list.getLexicalPhrase(), (LexicalPhrase) args[3], (LexicalPhrase) args[4], returnType.getLexicalPhrase(), (LexicalPhrase) args[6]));
+    }
+    if (production == NO_PARAMS_FUNCTION_PRODUCTION)
+    {
+      Type returnType = (Type) args[2];
+      Type[] paramTypes = new Type[0];
+      return new FunctionType(false, false, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], returnType.getLexicalPhrase(), (LexicalPhrase) args[3]));
+    }
+    if (production == NULLABLE_NO_PARAMS_FUNCTION_PRODUCTION)
+    {
+      Type returnType = (Type) args[3];
+      Type[] paramTypes = new Type[0];
+      return new FunctionType(true, false, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], returnType.getLexicalPhrase(), (LexicalPhrase) args[4]));
+    }
+    if (production == IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION)
+    {
+      Type returnType = (Type) args[3];
+      Type[] paramTypes = new Type[0];
+      return new FunctionType(false, true, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], returnType.getLexicalPhrase(), (LexicalPhrase) args[4]));
+    }
+    if (production == NULLABLE_IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION)
+    {
+      Type returnType = (Type) args[4];
+      Type[] paramTypes = new Type[0];
+      return new FunctionType(true, true, returnType, paramTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], (LexicalPhrase) args[3], returnType.getLexicalPhrase(), (LexicalPhrase) args[5]));
     }
 
     if (production == OBJECT_PRODUCTION)
