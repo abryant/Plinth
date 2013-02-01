@@ -25,6 +25,7 @@ import eu.bryants.anthony.plinth.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.plinth.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.plinth.ast.expression.InlineIfExpression;
+import eu.bryants.anthony.plinth.ast.expression.InstanceOfExpression;
 import eu.bryants.anthony.plinth.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.LogicalExpression;
 import eu.bryants.anthony.plinth.ast.expression.LogicalExpression.LogicalOperator;
@@ -1485,6 +1486,46 @@ public class TypeChecker
       }
       throw new ConceptualException("The types of the then and else clauses of this inline if expression are incompatible, they are: " + thenType + " and " + elseType, inlineIf.getLexicalPhrase());
     }
+    else if (expression instanceof InstanceOfExpression)
+    {
+      InstanceOfExpression instanceOfExpression = (InstanceOfExpression) expression;
+      CoalescedConceptualException coalescedException = null;
+      Type checkType = instanceOfExpression.getInstanceOfType();
+      if (checkType.isNullable())
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot use 'instanceof' to check whether something is nullable", checkType.getLexicalPhrase()));
+      }
+      if ((checkType instanceof ArrayType && ((ArrayType) checkType).isExplicitlyImmutable()) ||
+          (checkType instanceof NamedType && ((NamedType) checkType).isExplicitlyImmutable() && !((NamedType) checkType).getResolvedTypeDefinition().isImmutable()) ||
+          (checkType instanceof ObjectType && ((ObjectType) checkType).isExplicitlyImmutable()))
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot use 'instanceof' to check whether something is an immutable value", checkType.getLexicalPhrase()));
+      }
+      Type expressionType;
+      try
+      {
+        expressionType = checkTypes(instanceOfExpression.getExpression());
+        if (expressionType instanceof VoidType)
+        {
+          throw new ConceptualException("Cannot check whether void is an instance of " + checkType, instanceOfExpression.getLexicalPhrase());
+        }
+      }
+      catch (ConceptualException e)
+      {
+        throw CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+      if (!isInstanceOfCompatible(expressionType, checkType))
+      {
+        throw CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot check whether a " + expressionType + " is an instance of " + checkType + " (the result would always be false)", instanceOfExpression.getLexicalPhrase()));
+      }
+      if (coalescedException != null)
+      {
+        throw coalescedException;
+      }
+      Type resultType = new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null);
+      instanceOfExpression.setType(resultType);
+      return resultType;
+    }
     else if (expression instanceof IntegerLiteralExpression)
     {
       BigInteger value = ((IntegerLiteralExpression) expression).getLiteral().getValue();
@@ -1842,6 +1883,7 @@ public class TypeChecker
         try
         {
           subTypes[i] = checkTypes(subExpressions[i]);
+          // TODO: shouldn't void be forbidden here?
         }
         catch (ConceptualException e)
         {
@@ -1920,6 +1962,141 @@ public class TypeChecker
       }
     }
     throw new ConceptualException("Internal type checking error: Unknown expression type", expression.getLexicalPhrase());
+  }
+
+  /**
+   * Checks whether the specified expression type is instanceof-compatible with the specified check type.
+   * @param expressionType - the type of the Expression which instanceof is being applied to
+   * @param checkType - the type that the expression is being checked against
+   * @return true if the types are compatible for an instanceof check, false otherwise
+   */
+  private static boolean isInstanceOfCompatible(Type expressionType, Type checkType)
+  {
+    if (expressionType instanceof NullType)
+    {
+      // null can be checked against anything
+      return true;
+    }
+    if (expressionType instanceof ObjectType)
+    {
+      // object can be checked against anything
+      return true;
+    }
+
+    if (checkType instanceof ArrayType)
+    {
+      if (expressionType instanceof ArrayType)
+      {
+        return ((ArrayType) checkType).getBaseType().isEquivalent(((ArrayType) expressionType).getBaseType());
+      }
+    }
+    if (checkType instanceof FunctionType)
+    {
+      if (expressionType instanceof FunctionType)
+      {
+        // don't check the immutability, since the value could have any immutability, and we wouldn't know about it from the static type
+        // check that the parameter and return types match
+        if (!((FunctionType) checkType).getReturnType().isEquivalent(((FunctionType) expressionType).getReturnType()))
+        {
+          return false;
+        }
+        Type[] checkParams = ((FunctionType) checkType).getParameterTypes();
+        Type[] expressionParams = ((FunctionType) expressionType).getParameterTypes();
+        if (checkParams.length != expressionParams.length)
+        {
+          return false;
+        }
+        for (int i = 0; i < checkParams.length; ++i)
+        {
+          if (!checkParams[i].isEquivalent(expressionParams[i]))
+          {
+            return false;
+          }
+        }
+        return true;
+      }
+    }
+    if (checkType instanceof NamedType)
+    {
+      if (expressionType instanceof NamedType)
+      {
+        NamedType checkNamedType = (NamedType) checkType;
+        NamedType expressionNamedType = (NamedType) expressionType;
+        if (checkNamedType.getResolvedTypeDefinition() instanceof ClassDefinition)
+        {
+          if (expressionNamedType.getResolvedTypeDefinition() instanceof ClassDefinition)
+          {
+            for (TypeDefinition t : checkNamedType.getResolvedTypeDefinition().getInheritanceLinearisation())
+            {
+              if (t == expressionNamedType.getResolvedTypeDefinition())
+              {
+                return true;
+              }
+            }
+            for (TypeDefinition t : expressionNamedType.getResolvedTypeDefinition().getInheritanceLinearisation())
+            {
+              if (t == checkNamedType.getResolvedTypeDefinition())
+              {
+                return true;
+              }
+            }
+          }
+          else if (expressionNamedType.getResolvedTypeDefinition() instanceof InterfaceDefinition)
+          {
+            // TODO: when we have sealed classes, disallow checking whether an interface is an instance of a sealed class which does not implement it
+            return true;
+          }
+        }
+        else if (checkNamedType.getResolvedTypeDefinition() instanceof InterfaceDefinition)
+        {
+          if (expressionNamedType.getResolvedTypeDefinition() instanceof ClassDefinition)
+          {
+            // TODO: when we have sealed classes, disallow checking whether a sealed class is an instance of an interface which it does not implement
+            return true;
+          }
+          else if (expressionNamedType.getResolvedTypeDefinition() instanceof InterfaceDefinition)
+          {
+            return true;
+          }
+        }
+        else if (checkNamedType.getResolvedTypeDefinition() instanceof CompoundDefinition)
+        {
+          return checkNamedType.getResolvedTypeDefinition() == expressionNamedType.getResolvedTypeDefinition();
+        }
+      }
+    }
+    if (checkType instanceof ObjectType)
+    {
+      return true;
+    }
+    if (checkType instanceof PrimitiveType)
+    {
+      if (expressionType instanceof PrimitiveType)
+      {
+        return ((PrimitiveType) checkType).getPrimitiveTypeType() == ((PrimitiveType) expressionType).getPrimitiveTypeType();
+      }
+    }
+    if (checkType instanceof TupleType)
+    {
+      if (expressionType instanceof TupleType)
+      {
+        Type[] checkSubTypes = ((TupleType) checkType).getSubTypes();
+        Type[] expressionSubTypes = ((TupleType) expressionType).getSubTypes();
+        if (checkSubTypes.length != expressionSubTypes.length)
+        {
+          return false;
+        }
+        for (int i = 0; i < checkSubTypes.length; ++i)
+        {
+          if (!expressionSubTypes[i].isEquivalent(checkSubTypes[i]))
+          {
+            return false;
+          }
+        }
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

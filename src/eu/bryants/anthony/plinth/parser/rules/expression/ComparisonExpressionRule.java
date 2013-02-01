@@ -22,31 +22,31 @@ public class ComparisonExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static Production<ParseType> NORMAL_PRODUCTION                      = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION);
-  private static Production<ParseType> EQUAL_PRODUCTION                       = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.DOUBLE_EQUALS,            ParseType.ADDITIVE_EXPRESSION);
-  private static Production<ParseType> EQUAL_QNAME_PRODUCTION                 = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.DOUBLE_EQUALS,            ParseType.QNAME_EXPRESSION);
-  private static Production<ParseType> QNAME_EQUAL_PRODUCTION                 = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.DOUBLE_EQUALS,            ParseType.ADDITIVE_EXPRESSION);
-  private static Production<ParseType> QNAME_EQUAL_QNAME_PRODUCTION           = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.DOUBLE_EQUALS,            ParseType.QNAME_EXPRESSION);
-  private static Production<ParseType> NOT_EQUAL_PRODUCTION                   = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.EXCLAIMATION_MARK_EQUALS, ParseType.ADDITIVE_EXPRESSION);
-  private static Production<ParseType> NOT_EQUAL_QNAME_PRODUCTION             = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.EXCLAIMATION_MARK_EQUALS, ParseType.QNAME_EXPRESSION);
-  private static Production<ParseType> QNAME_NOT_EQUAL_PRODUCTION             = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.EXCLAIMATION_MARK_EQUALS, ParseType.ADDITIVE_EXPRESSION);
-  private static Production<ParseType> QNAME_NOT_EQUAL_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.EXCLAIMATION_MARK_EQUALS, ParseType.QNAME_EXPRESSION);
-  private static Production<ParseType> LESS_THAN_PRODUCTION                   = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.LANGLE,                   ParseType.ADDITIVE_EXPRESSION);
-  private static Production<ParseType> LESS_THAN_QNAME_PRODUCTION             = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.LANGLE,                   ParseType.QNAME_EXPRESSION);
-  private static Production<ParseType> QNAME_LESS_THAN_PRODUCTION             = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.LANGLE,                   ParseType.ADDITIVE_EXPRESSION);
-  private static Production<ParseType> QNAME_LESS_THAN_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.LANGLE,                   ParseType.QNAME_EXPRESSION);
-  private static Production<ParseType> LESS_THAN_EQUAL_PRODUCTION             = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.LANGLE_EQUALS,            ParseType.ADDITIVE_EXPRESSION);
-  private static Production<ParseType> LESS_THAN_EQUAL_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.LANGLE_EQUALS,            ParseType.QNAME_EXPRESSION);
-  private static Production<ParseType> QNAME_LESS_THAN_EQUAL_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.LANGLE_EQUALS,            ParseType.ADDITIVE_EXPRESSION);
-  private static Production<ParseType> QNAME_LESS_THAN_EQUAL_QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.LANGLE_EQUALS,            ParseType.QNAME_EXPRESSION);
-  private static Production<ParseType> MORE_THAN_PRODUCTION                   = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.RANGLE,                   ParseType.ADDITIVE_EXPRESSION);
-  private static Production<ParseType> MORE_THAN_QNAME_PRODUCTION             = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.RANGLE,                   ParseType.QNAME_EXPRESSION);
-  private static Production<ParseType> QNAME_MORE_THAN_PRODUCTION             = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.RANGLE,                   ParseType.ADDITIVE_EXPRESSION);
-  private static Production<ParseType> QNAME_MORE_THAN_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.RANGLE,                   ParseType.QNAME_EXPRESSION);
-  private static Production<ParseType> MORE_THAN_EQUAL_PRODUCTION             = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.RANGLE_EQUALS,            ParseType.ADDITIVE_EXPRESSION);
-  private static Production<ParseType> MORE_THAN_EQUAL_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.ADDITIVE_EXPRESSION, ParseType.RANGLE_EQUALS,            ParseType.QNAME_EXPRESSION);
-  private static Production<ParseType> QNAME_MORE_THAN_EQUAL_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.RANGLE_EQUALS,            ParseType.ADDITIVE_EXPRESSION);
-  private static Production<ParseType> QNAME_MORE_THAN_EQUAL_QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_EXPRESSION,    ParseType.RANGLE_EQUALS,            ParseType.QNAME_EXPRESSION);
+  private static Production<ParseType> NORMAL_PRODUCTION                      = new Production<ParseType>(ParseType.INSTANCEOF_EXPRESSION);
+  private static Production<ParseType> EQUAL_PRODUCTION                       = new Production<ParseType>(ParseType.INSTANCEOF_EXPRESSION, ParseType.DOUBLE_EQUALS,            ParseType.INSTANCEOF_EXPRESSION);
+  private static Production<ParseType> EQUAL_QNAME_PRODUCTION                 = new Production<ParseType>(ParseType.INSTANCEOF_EXPRESSION, ParseType.DOUBLE_EQUALS,            ParseType.QNAME_EXPRESSION);
+  private static Production<ParseType> QNAME_EQUAL_PRODUCTION                 = new Production<ParseType>(ParseType.QNAME_EXPRESSION,      ParseType.DOUBLE_EQUALS,            ParseType.INSTANCEOF_EXPRESSION);
+  private static Production<ParseType> QNAME_EQUAL_QNAME_PRODUCTION           = new Production<ParseType>(ParseType.QNAME_EXPRESSION,      ParseType.DOUBLE_EQUALS,            ParseType.QNAME_EXPRESSION);
+  private static Production<ParseType> NOT_EQUAL_PRODUCTION                   = new Production<ParseType>(ParseType.INSTANCEOF_EXPRESSION, ParseType.EXCLAIMATION_MARK_EQUALS, ParseType.INSTANCEOF_EXPRESSION);
+  private static Production<ParseType> NOT_EQUAL_QNAME_PRODUCTION             = new Production<ParseType>(ParseType.INSTANCEOF_EXPRESSION, ParseType.EXCLAIMATION_MARK_EQUALS, ParseType.QNAME_EXPRESSION);
+  private static Production<ParseType> QNAME_NOT_EQUAL_PRODUCTION             = new Production<ParseType>(ParseType.QNAME_EXPRESSION,      ParseType.EXCLAIMATION_MARK_EQUALS, ParseType.INSTANCEOF_EXPRESSION);
+  private static Production<ParseType> QNAME_NOT_EQUAL_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION,      ParseType.EXCLAIMATION_MARK_EQUALS, ParseType.QNAME_EXPRESSION);
+  private static Production<ParseType> LESS_THAN_PRODUCTION                   = new Production<ParseType>(ParseType.INSTANCEOF_EXPRESSION, ParseType.LANGLE,                   ParseType.INSTANCEOF_EXPRESSION);
+  private static Production<ParseType> LESS_THAN_QNAME_PRODUCTION             = new Production<ParseType>(ParseType.INSTANCEOF_EXPRESSION, ParseType.LANGLE,                   ParseType.QNAME_EXPRESSION);
+  private static Production<ParseType> QNAME_LESS_THAN_PRODUCTION             = new Production<ParseType>(ParseType.QNAME_EXPRESSION,      ParseType.LANGLE,                   ParseType.INSTANCEOF_EXPRESSION);
+  private static Production<ParseType> QNAME_LESS_THAN_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION,      ParseType.LANGLE,                   ParseType.QNAME_EXPRESSION);
+  private static Production<ParseType> LESS_THAN_EQUAL_PRODUCTION             = new Production<ParseType>(ParseType.INSTANCEOF_EXPRESSION, ParseType.LANGLE_EQUALS,            ParseType.INSTANCEOF_EXPRESSION);
+  private static Production<ParseType> LESS_THAN_EQUAL_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.INSTANCEOF_EXPRESSION, ParseType.LANGLE_EQUALS,            ParseType.QNAME_EXPRESSION);
+  private static Production<ParseType> QNAME_LESS_THAN_EQUAL_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION,      ParseType.LANGLE_EQUALS,            ParseType.INSTANCEOF_EXPRESSION);
+  private static Production<ParseType> QNAME_LESS_THAN_EQUAL_QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_EXPRESSION,      ParseType.LANGLE_EQUALS,            ParseType.QNAME_EXPRESSION);
+  private static Production<ParseType> MORE_THAN_PRODUCTION                   = new Production<ParseType>(ParseType.INSTANCEOF_EXPRESSION, ParseType.RANGLE,                   ParseType.INSTANCEOF_EXPRESSION);
+  private static Production<ParseType> MORE_THAN_QNAME_PRODUCTION             = new Production<ParseType>(ParseType.INSTANCEOF_EXPRESSION, ParseType.RANGLE,                   ParseType.QNAME_EXPRESSION);
+  private static Production<ParseType> QNAME_MORE_THAN_PRODUCTION             = new Production<ParseType>(ParseType.QNAME_EXPRESSION,      ParseType.RANGLE,                   ParseType.INSTANCEOF_EXPRESSION);
+  private static Production<ParseType> QNAME_MORE_THAN_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION,      ParseType.RANGLE,                   ParseType.QNAME_EXPRESSION);
+  private static Production<ParseType> MORE_THAN_EQUAL_PRODUCTION             = new Production<ParseType>(ParseType.INSTANCEOF_EXPRESSION, ParseType.RANGLE_EQUALS,            ParseType.INSTANCEOF_EXPRESSION);
+  private static Production<ParseType> MORE_THAN_EQUAL_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.INSTANCEOF_EXPRESSION, ParseType.RANGLE_EQUALS,            ParseType.QNAME_EXPRESSION);
+  private static Production<ParseType> QNAME_MORE_THAN_EQUAL_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION,      ParseType.RANGLE_EQUALS,            ParseType.INSTANCEOF_EXPRESSION);
+  private static Production<ParseType> QNAME_MORE_THAN_EQUAL_QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_EXPRESSION,      ParseType.RANGLE_EQUALS,            ParseType.QNAME_EXPRESSION);
 
   public ComparisonExpressionRule()
   {

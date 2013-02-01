@@ -300,8 +300,17 @@ public class VirtualFunctionHandler
       {
         LLVMValueRef stringValue = codeGenerator.addStringConstant(inheritanceLinearisation[i].getQualifiedName().toString());
         LLVMValueRef convertedString = LLVM.LLVMConstBitCast(stringValue, stringType);
-        LLVMValueRef nullVFTValue = LLVM.LLVMConstNull(vftPointerType);
-        LLVMValueRef[] elementSubValues = new LLVMValueRef[] {convertedString, nullVFTValue};
+        LLVMValueRef vftValue;
+        if (inheritanceLinearisation[i] == typeDefinition)
+        {
+          vftValue = getVFTGlobal(typeDefinition);
+          vftValue = LLVM.LLVMConstBitCast(vftValue, LLVM.LLVMPointerType(getGenericVFTType(), 0));
+        }
+        else
+        {
+          vftValue = LLVM.LLVMConstNull(vftPointerType);
+        }
+        LLVMValueRef[] elementSubValues = new LLVMValueRef[] {convertedString, vftValue};
         elements[i] = LLVM.LLVMConstStruct(C.toNativePointerArray(elementSubValues, false, true), elementSubValues.length, false);
       }
       LLVMValueRef stringValue = codeGenerator.addStringConstant("object");
@@ -704,17 +713,17 @@ public class VirtualFunctionHandler
   }
 
   /**
-   * Builds code to lookup the specified interface's VFT inside the specified object's VFT search list.
+   * Builds code to lookup the specified type's VFT inside the specified object's VFT search list.
    * @param builder - the builder to build code with
-   * @param objectValue - the object to look up the interface's VFT inside
-   * @param interfaceDefinition - the InterfaceDefinition to search for
-   * @return an LLVMValueRef representing a pointer to the resulting VFT, or a null pointer if this object does not implement the specified interface
+   * @param objectValue - the object to look up the specified search type's VFT inside
+   * @param searchTypeDefinition - the type definition to search for
+   * @return an LLVMValueRef representing a pointer to the resulting VFT, or a null pointer if this object does not implement the specified search type
    */
-  public LLVMValueRef lookupInterfaceVFT(LLVMBuilderRef builder, LLVMValueRef objectValue, InterfaceDefinition interfaceDefinition)
+  public LLVMValueRef lookupInstanceVFT(LLVMBuilderRef builder, LLVMValueRef objectValue, TypeDefinition searchTypeDefinition)
   {
     LLVMValueRef vftSearchList = rttiHelper.lookupVFTSearchList(builder, objectValue);
 
-    String interfaceName = interfaceDefinition.getQualifiedName().toString();
+    String interfaceName = searchTypeDefinition.getQualifiedName().toString();
     LLVMValueRef interfaceRawString = codeGenerator.addStringConstant(interfaceName);
     LLVMTypeRef stringType = typeHelper.findRawStringType();
     interfaceRawString = LLVM.LLVMBuildBitCast(builder, interfaceRawString, stringType, "");

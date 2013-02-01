@@ -15,6 +15,7 @@ import eu.bryants.anthony.plinth.parser.rules.expression.ExpressionListRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.ExpressionNoTupleRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.ExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.FunctionCallExpressionRule;
+import eu.bryants.anthony.plinth.parser.rules.expression.InstanceOfExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.LogicalExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.MultiplicativeExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.PrimaryNoThisRule;
@@ -89,6 +90,7 @@ public class PlinthParseRules
     new ExpressionNoTupleRule(),
     new ExpressionRule(),
     new FunctionCallExpressionRule(),
+    new InstanceOfExpressionRule(),
     new LogicalExpressionRule(),
     new MultiplicativeExpressionRule(),
     new PrimaryNoThisRule(),

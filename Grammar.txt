@@ -141,13 +141,16 @@ LogicalExpression = ComparisonExpression |
                     LogicalExpression Caret           ComparisonExpression | QNameExpression Caret           ComparisonExpression | LogicalExpression Caret           QNameExpression | QNameExpression Caret           QNameExpression |
                     LogicalExpression DoubleAmpersand ComparisonExpression | QNameExpression DoubleAmpersand ComparisonExpression | LogicalExpression DoubleAmpersand QNameExpression | QNameExpression DoubleAmpersand QNameExpression |
                     LogicalExpression DoublePipe      ComparisonExpression | QNameExpression DoublePipe      ComparisonExpression | LogicalExpression DoublePipe      QNameExpression | QNameExpression DoublePipe      QNameExpression
-ComparisonExpression = AdditiveExpression |
-                       AdditiveExpression DoubleEquals          AdditiveExpression | QNameExpression DoubleEquals          AdditiveExpression | AdditiveExpression DoubleEquals          QNameExpression | QNameExpression DoubleEquals          QNameExpression |
-                       AdditiveExpression ExclamationMarkEquals AdditiveExpression | QNameExpression ExclamationMarkEquals AdditiveExpression | AdditiveExpression ExclamationMarkEquals QNameExpression | QNameExpression ExclamationMarkEquals QNameExpression |
-                       AdditiveExpression LAngle                AdditiveExpression | QNameExpression LAngle                AdditiveExpression | AdditiveExpression LAngle                QNameExpression | QNameExpression LAngle                QNameExpression |
-                       AdditiveExpression LAngleEquals          AdditiveExpression | QNameExpression LAngleEquals          AdditiveExpression | AdditiveExpression LAngleEquals          QNameExpression | QNameExpression LAngleEquals          QNameExpression |
-                       AdditiveExpression RAngle                AdditiveExpression | QNameExpression RAngle                AdditiveExpression | AdditiveExpression RAngle                QNameExpression | QNameExpression RAngle                QNameExpression |
-                       AdditiveExpression RAngleEquals          AdditiveExpression | QNameExpression RAngleEquals          AdditiveExpression | AdditiveExpression RAngleEquals          QNameExpression | QNameExpression RAngleEquals          QNameExpression
+ComparisonExpression = InstanceOfExpression |
+                       InstanceOfExpression DoubleEquals          InstanceOfExpression | QNameExpression DoubleEquals          InstanceOfExpression | InstanceOfExpression DoubleEquals          QNameExpression | QNameExpression DoubleEquals          QNameExpression |
+                       InstanceOfExpression ExclamationMarkEquals InstanceOfExpression | QNameExpression ExclamationMarkEquals InstanceOfExpression | InstanceOfExpression ExclamationMarkEquals QNameExpression | QNameExpression ExclamationMarkEquals QNameExpression |
+                       InstanceOfExpression LAngle                InstanceOfExpression | QNameExpression LAngle                InstanceOfExpression | InstanceOfExpression LAngle                QNameExpression | QNameExpression LAngle                QNameExpression |
+                       InstanceOfExpression LAngleEquals          InstanceOfExpression | QNameExpression LAngleEquals          InstanceOfExpression | InstanceOfExpression LAngleEquals          QNameExpression | QNameExpression LAngleEquals          QNameExpression |
+                       InstanceOfExpression RAngle                InstanceOfExpression | QNameExpression RAngle                InstanceOfExpression | InstanceOfExpression RAngle                QNameExpression | QNameExpression RAngle                QNameExpression |
+                       InstanceOfExpression RAngleEquals          InstanceOfExpression | QNameExpression RAngleEquals          InstanceOfExpression | InstanceOfExpression RAngleEquals          QNameExpression | QNameExpression RAngleEquals          QNameExpression
+InstanceOfExpression = AdditiveExpression |
+                       InstanceOfExpression InstanceOfKeyword Type |
+                       QNameExpression instanceof Type
 AdditiveExpression = MultiplicativeExpression |
                      AdditiveExpression Plus  MultiplicativeExpression | QNameExpression Plus  MultiplicativeExpression | AdditiveExpression Plus  QNameExpression | QNameExpression Plus  QNameExpression |
                      AdditiveExpression Minus MultiplicativeExpression | QNameExpression Minus MultiplicativeExpression | AdditiveExpression Minus QNameExpression | QNameExpression Minus QNameExpression

@@ -16,6 +16,7 @@ import eu.bryants.anthony.plinth.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.plinth.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.plinth.ast.expression.InlineIfExpression;
+import eu.bryants.anthony.plinth.ast.expression.InstanceOfExpression;
 import eu.bryants.anthony.plinth.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.LogicalExpression;
 import eu.bryants.anthony.plinth.ast.expression.MinusExpression;
@@ -458,6 +459,12 @@ public class TypePropagator
       inlineIfExpression.setType(type);
       propagateTypes(inlineIfExpression.getThenExpression(), type);
       propagateTypes(inlineIfExpression.getElseExpression(), type);
+    }
+    else if (expression instanceof InstanceOfExpression)
+    {
+      InstanceOfExpression instanceOfExpression = (InstanceOfExpression) expression;
+      // propagate with the expression's type here, since we have no better type to use (we can't use the checking type, as that could defeat the purpose of the check)
+      propagateTypes(instanceOfExpression.getExpression(), instanceOfExpression.getExpression().getType());
     }
     else if (expression instanceof IntegerLiteralExpression)
     {

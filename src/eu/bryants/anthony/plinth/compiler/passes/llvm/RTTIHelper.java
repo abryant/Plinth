@@ -2,6 +2,7 @@ package eu.bryants.anthony.plinth.compiler.passes.llvm;
 
 import nativelib.c.C;
 import nativelib.llvm.LLVM;
+import nativelib.llvm.LLVM.LLVMBasicBlockRef;
 import nativelib.llvm.LLVM.LLVMBuilderRef;
 import nativelib.llvm.LLVM.LLVMModuleRef;
 import nativelib.llvm.LLVM.LLVMTypeRef;
@@ -13,11 +14,13 @@ import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
+import eu.bryants.anthony.plinth.ast.type.NullType;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
+import eu.bryants.anthony.plinth.compiler.passes.TypeChecker;
 
 /*
  * Created on 23 Jan 2013
@@ -40,6 +43,7 @@ public class RTTIHelper
   public static final byte COMPOUND_SORT_ID = 7;
   public static final byte INTERFACE_SORT_ID = 8;
   public static final byte VOID_SORT_ID = 9;
+  public static final byte NULL_SORT_ID = 10;
 
   private LLVMModuleRef module;
 
@@ -110,7 +114,9 @@ public class RTTIHelper
   {
     // every sort of type except interface stores its pure RTTI inside its instance RTTI,
     // but interfaces do not have instanec RTTI, so they must store their pure RTTI on its own
-    if (type instanceof NamedType && ((NamedType) type).getResolvedTypeDefinition() instanceof InterfaceDefinition)
+    if ((type instanceof NamedType && ((NamedType) type).getResolvedTypeDefinition() instanceof InterfaceDefinition) ||
+        type instanceof NullType ||
+        type instanceof VoidType)
     {
       String mangledName = PURE_RTTI_MANGLED_NAME_PREFIX + type.getMangledName();
       LLVMValueRef existingGlobal = LLVM.LLVMGetNamedGlobal(module, mangledName);
@@ -268,6 +274,12 @@ public class RTTIHelper
       LLVMValueRef[] values = new LLVMValueRef[] {sortId, size, nullable, immutable, qualifiedName};
       return LLVM.LLVMConstStruct(C.toNativePointerArray(values, false, true), values.length, false);
     }
+    if (type instanceof NullType)
+    {
+      LLVMValueRef sortId = LLVM.LLVMConstInt(LLVM.LLVMInt8Type(), NULL_SORT_ID, false);
+      LLVMValueRef[] values = new LLVMValueRef[] {sortId, size};
+      return LLVM.LLVMConstStruct(C.toNativePointerArray(values, false, true), values.length, false);
+    }
     if (type instanceof ObjectType)
     {
       ObjectType objectType = (ObjectType) type;
@@ -347,6 +359,11 @@ public class RTTIHelper
       LLVMTypeRef[] types = new LLVMTypeRef[] {sortIdType, sizeType, nullableType, immutableType, qualifiedNameType};
       return LLVM.LLVMStructType(C.toNativePointerArray(types, false, true), types.length, false);
     }
+    if (type instanceof NullType)
+    {
+      LLVMTypeRef[] types = new LLVMTypeRef[] {sortIdType, sizeType};
+      return LLVM.LLVMStructType(C.toNativePointerArray(types, false, true), types.length, false);
+    }
     if (type instanceof ObjectType)
     {
       LLVMTypeRef nullableType = LLVM.LLVMInt1Type();
@@ -424,5 +441,463 @@ public class RTTIHelper
                                                  LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false)};
     LLVMValueRef pointer = LLVM.LLVMConstGEP(LLVM.LLVMConstNull(arrayType), C.toNativePointerArray(indices, false, true), indices.length);
     return LLVM.LLVMConstPtrToInt(pointer, LLVM.LLVMInt32Type());
+  }
+
+  /**
+   * Builds an instanceof check, to check whether the specified value is an instance of the specified checkType.
+   * This method assumes that the value and the expression type are not nullable. However, null instanceof &lt;anything&gt; should always return false.
+   * @param builder - the LLVMBuilderRef to build the check with
+   * @param value - the not-null value to check, in a temporary type representation
+   * @param expressionType - the type of the value, which must not be nullable
+   * @param checkType - the type to check the RTTI against (note: nullability and data-immutability on the top level of this type are ignored)
+   * @return an LLVMValueRef representing an i1 (boolean), which will be true iff value is an instance of checkType
+   */
+  public LLVMValueRef buildInstanceOfCheck(LLVMBuilderRef builder, LLVMValueRef value, Type expressionType, Type checkType)
+  {
+    checkType = TypeChecker.findTypeWithoutModifiers(checkType);
+    if (checkType instanceof ObjectType)
+    {
+      // catch-all: any not-null type instanceof object is always true
+      return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false);
+    }
+    if (expressionType instanceof ArrayType)
+    {
+      boolean baseTypesMatch = checkType instanceof ArrayType &&
+                               ((ArrayType) checkType).getBaseType().isEquivalent(((ArrayType) expressionType).getBaseType());
+      return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), baseTypesMatch ? 1 : 0, false);
+    }
+    if (expressionType instanceof FunctionType)
+    {
+      boolean signaturesMatch = checkType instanceof FunctionType;
+      if (signaturesMatch)
+      {
+        FunctionType expressionFunctionType = (FunctionType) expressionType;
+        FunctionType checkFunctionType = (FunctionType) checkType;
+        Type[] expressionParameterTypes = expressionFunctionType.getParameterTypes();
+        Type[] checkParameterTypes = checkFunctionType.getParameterTypes();
+        signaturesMatch = expressionFunctionType.getReturnType().isEquivalent(checkFunctionType.getReturnType());
+        signaturesMatch &= expressionParameterTypes.length == checkParameterTypes.length;
+        for (int i = 0; signaturesMatch & i < expressionParameterTypes.length; ++i)
+        {
+          signaturesMatch = expressionParameterTypes[i].isEquivalent(checkParameterTypes[i]);
+        }
+      }
+      if (signaturesMatch && !((FunctionType) expressionType).isImmutable() & ((FunctionType) checkType).isImmutable())
+      {
+        // the result depends on the immutability of the actual function in the value, so check its RTTI
+        LLVMValueRef rttiPointer = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
+        LLVMValueRef[] rttiIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                         LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false)};
+        LLVMValueRef pureRTTIPointer = LLVM.LLVMBuildGEP(builder, rttiPointer, C.toNativePointerArray(rttiIndices, false, true), rttiIndices.length, "");
+        pureRTTIPointer = LLVM.LLVMBuildBitCast(builder, pureRTTIPointer, LLVM.LLVMPointerType(getPureRTTIStructType(expressionType), 0), "");
+        LLVMValueRef[] immutabilityIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                                 LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 3, false)};
+        LLVMValueRef immutabilityPointer = LLVM.LLVMBuildGEP(builder, pureRTTIPointer, C.toNativePointerArray(immutabilityIndices, false, true), immutabilityIndices.length, "");
+        return LLVM.LLVMBuildLoad(builder, immutabilityPointer, "");
+      }
+      // the result does not depend on the immutability of the run-time type, so just return whether or not the signatures match
+      return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), signaturesMatch ? 1 : 0, false);
+    }
+    if (expressionType instanceof NamedType && ((NamedType) expressionType).getResolvedTypeDefinition() instanceof CompoundDefinition)
+    {
+      boolean matches = checkType instanceof NamedType &&
+                        ((NamedType) expressionType).getResolvedTypeDefinition() == ((NamedType) checkType).getResolvedTypeDefinition();
+      return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), matches ? 1 : 0, false);
+    }
+    if (expressionType instanceof PrimitiveType)
+    {
+      // primitive types are only instances of themselves (and the object type, covered above)
+      boolean result = checkType instanceof PrimitiveType &&
+                       ((PrimitiveType) expressionType).getPrimitiveTypeType() == ((PrimitiveType) checkType).getPrimitiveTypeType();
+      return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), result ? 1 : 0, false);
+    }
+    if (expressionType instanceof TupleType)
+    {
+      // neither the expression nor the check type can be nullable, and instanceof doesn't check sub-types, so we can just do an equivalence check
+      boolean result = expressionType.isEquivalent(checkType);
+      return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), result ? 1 : 0, false);
+    }
+    if (expressionType instanceof NamedType && checkType instanceof NamedType)
+    {
+      TypeDefinition expressionTypeDefinition = ((NamedType) expressionType).getResolvedTypeDefinition();
+      if (expressionTypeDefinition instanceof ClassDefinition || expressionTypeDefinition instanceof InterfaceDefinition)
+      {
+        TypeDefinition checkTypeDefinition = ((NamedType) checkType).getResolvedTypeDefinition();
+        for (TypeDefinition t : expressionTypeDefinition.getInheritanceLinearisation())
+        {
+          if (t == checkTypeDefinition)
+          {
+            return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false);
+          }
+        }
+        // TODO: if expressionTypeDefinition is sealed, return false
+      }
+    }
+    if (expressionType instanceof NamedType && (((NamedType) expressionType).getResolvedTypeDefinition() instanceof ClassDefinition ||
+                                                 ((NamedType) expressionType).getResolvedTypeDefinition() instanceof InterfaceDefinition))
+    {
+      if (checkType instanceof NamedType && (((NamedType) checkType).getResolvedTypeDefinition() instanceof ClassDefinition ||
+                                             ((NamedType) checkType).getResolvedTypeDefinition() instanceof InterfaceDefinition))
+      {
+        LLVMValueRef objectValue = value;
+        if (((NamedType) expressionType).getResolvedTypeDefinition() instanceof InterfaceDefinition)
+        {
+          objectValue = typeHelper.convertTemporary(builder, value, expressionType, new ObjectType(false, false, null));
+        }
+        // instead of building our own search through the super-type VFT list for checkType's TypeDefinition,
+        // we can just search for the super-type's VFT pointer, which will come out as null iff the value does not implement checkType
+        LLVMValueRef instanceVFTPointer = virtualFunctionHandler.lookupInstanceVFT(builder, objectValue, ((NamedType) checkType).getResolvedTypeDefinition());
+        return LLVM.LLVMBuildIsNotNull(builder, instanceVFTPointer, "");
+      }
+      // we are checking against something which is not a class, interface, or object, so it is definitely false
+      return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false);
+    }
+    if (expressionType instanceof ObjectType)
+    {
+      if (checkType instanceof NamedType && (((NamedType) checkType).getResolvedTypeDefinition() instanceof ClassDefinition ||
+                                             ((NamedType) checkType).getResolvedTypeDefinition() instanceof InterfaceDefinition))
+      {
+        // instead of building our own search through the super-type VFT list for checkType's TypeDefinition,
+        // we can just search for the super-type's VFT pointer, which will come out as null iff the value does not implement checkType
+        LLVMValueRef instanceVFTPointer = virtualFunctionHandler.lookupInstanceVFT(builder, value, ((NamedType) checkType).getResolvedTypeDefinition());
+        return LLVM.LLVMBuildIsNotNull(builder, instanceVFTPointer, "");
+      }
+      // we are checking against a non-pointer-type, so compare the type info to what we are asking about
+      LLVMValueRef pureRTTIPointer = lookupPureRTTI(builder, value);
+      return buildTypeInfoCheck(builder, pureRTTIPointer, checkType);
+    }
+    throw new IllegalArgumentException("Cannot build instanceof check from " + expressionType + " to " + checkType);
+  }
+
+  /**
+   * Builds a check as to whether the specified RTTI pointer represents the specified checkType
+   * @param builder - the LLVMBuilderRef to build the check with
+   * @param pureRTTIPointer - the pointer to the RTTI to check
+   * @param checkType - the Type to check against
+   * @return a LLVMValueRef representing an i1 (boolean), which will be true iff the RTTI pointer represents the checkType
+   */
+  private LLVMValueRef buildTypeInfoCheck(LLVMBuilderRef builder, LLVMValueRef pureRTTIPointer, Type checkType)
+  {
+    byte sortId = getSortId(checkType);
+    LLVMValueRef sortIdPointer = LLVM.LLVMBuildStructGEP(builder, pureRTTIPointer, 0, "");
+    LLVMValueRef sortIdValue = LLVM.LLVMBuildLoad(builder, sortIdPointer, "");
+    LLVMValueRef sortEqual = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, sortIdValue, LLVM.LLVMConstInt(LLVM.LLVMInt8Type(), sortId, false), "");
+
+    LLVMBasicBlockRef startBlock = LLVM.LLVMGetInsertBlock(builder);
+    LLVMBasicBlockRef continuationBlock = LLVM.LLVMAddBasicBlock(builder, "typeInfoContinue");
+    LLVMBasicBlockRef checkBlock = LLVM.LLVMAddBasicBlock(builder, "typeInfoCheck");
+    LLVM.LLVMBuildCondBr(builder, sortEqual, checkBlock, continuationBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, checkBlock);
+    LLVMValueRef castedRTTIPointer = LLVM.LLVMBuildBitCast(builder, pureRTTIPointer, LLVM.LLVMPointerType(getPureRTTIStructType(checkType), 0), "");
+    LLVMValueRef resultValue;
+    LLVMBasicBlockRef endResultBlock;
+    if (checkType instanceof ArrayType)
+    {
+      ArrayType arrayType = (ArrayType) checkType;
+      LLVMValueRef nullabilityPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 2, "");
+      LLVMValueRef nullabilityValue = LLVM.LLVMBuildLoad(builder, nullabilityPointer, "");
+      LLVMValueRef nullabilityMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, nullabilityValue, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), arrayType.isNullable() ? 1 : 0, false), "");
+      LLVMValueRef immutabilityPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 3, "");
+      LLVMValueRef immutabilityValue = LLVM.LLVMBuildLoad(builder, immutabilityPointer, "");
+      LLVMValueRef immutabilityMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, immutabilityValue, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), arrayType.isContextuallyImmutable() ? 1 : 0, false), "");
+      LLVMValueRef baseTypePointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 4, "");
+      LLVMValueRef baseTypeValue = LLVM.LLVMBuildLoad(builder, baseTypePointer, "");
+      LLVMValueRef baseTypeMatches = buildTypeInfoCheck(builder, baseTypeValue, arrayType.getBaseType());
+      resultValue = LLVM.LLVMBuildAnd(builder, nullabilityMatches, immutabilityMatches, "");
+      resultValue = LLVM.LLVMBuildAnd(builder, resultValue, baseTypeMatches, "");
+      endResultBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+    }
+    else if (checkType instanceof FunctionType)
+    {
+      FunctionType functionType = (FunctionType) checkType;
+      Type[] parameterTypes = functionType.getParameterTypes();
+      // check the always-present header data
+      LLVMValueRef nullabilityPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 2, "");
+      LLVMValueRef nullabilityValue = LLVM.LLVMBuildLoad(builder, nullabilityPointer, "");
+      LLVMValueRef nullabilityMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, nullabilityValue, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), functionType.isNullable() ? 1 : 0, false), "");
+      LLVMValueRef immutabilityPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 3, "");
+      LLVMValueRef immutabilityValue = LLVM.LLVMBuildLoad(builder, immutabilityPointer, "");
+      LLVMValueRef immutabilityMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, immutabilityValue, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), functionType.isImmutable() ? 1 : 0, false), "");
+      LLVMValueRef returnTypePointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 4, "");
+      LLVMValueRef returnTypeValue = LLVM.LLVMBuildLoad(builder, returnTypePointer, "");
+      LLVMValueRef returnTypeMatches = buildTypeInfoCheck(builder, returnTypeValue, functionType.getReturnType());
+      LLVMValueRef numParametersPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 5, "");
+      LLVMValueRef numParametersValue = LLVM.LLVMBuildLoad(builder, numParametersPointer, "");
+      LLVMValueRef numParametersMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, numParametersValue, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), parameterTypes.length, false), "");
+      LLVMValueRef nullabilityImmutabilityMatches = LLVM.LLVMBuildAnd(builder, nullabilityMatches, immutabilityMatches, "");
+      LLVMValueRef matches = LLVM.LLVMBuildAnd(builder, returnTypeMatches, numParametersMatches, "");
+      matches = LLVM.LLVMBuildAnd(builder, nullabilityImmutabilityMatches, matches, "");
+
+      if (parameterTypes.length == 0)
+      {
+        // there are no parameters to check, so return whether or not the header data matched
+        resultValue = matches;
+        endResultBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildBr(builder, continuationBlock);
+      }
+      else
+      {
+        // we have parameters to check, so check them if the header data matched
+        // (if it didn't match we might have the number of parameters wrong)
+        LLVMBasicBlockRef checkParametersContinuationBlock = LLVM.LLVMAddBasicBlock(builder, "typeInfoCheckParametersContinue");
+        LLVMBasicBlockRef checkParametersBlock = LLVM.LLVMAddBasicBlock(builder, "typeInfoCheckParameters");
+        LLVMBasicBlockRef checkParametersStartBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildCondBr(builder, matches, checkParametersBlock, checkParametersContinuationBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, checkParametersBlock);
+        // the RTTI block has already been casted to the right struct for this number of parameters, so just index through it
+        LLVMValueRef currentMatches = null;
+        for (int i = 0; i < parameterTypes.length; ++i)
+        {
+          LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 6, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), i, false)};
+          LLVMValueRef paramTypePointer = LLVM.LLVMBuildGEP(builder, castedRTTIPointer, C.toNativePointerArray(indices, false, true), indices.length, "");
+          LLVMValueRef paramType = LLVM.LLVMBuildLoad(builder, paramTypePointer, "");
+          LLVMValueRef paramTypeMatches = buildTypeInfoCheck(builder, paramType, parameterTypes[i]);
+          if (currentMatches == null)
+          {
+            currentMatches = paramTypeMatches;
+          }
+          else
+          {
+            currentMatches = LLVM.LLVMBuildAnd(builder, currentMatches, paramTypeMatches, "");
+          }
+        }
+        LLVMBasicBlockRef endCheckParametersBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildBr(builder, checkParametersContinuationBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, checkParametersContinuationBlock);
+        LLVMValueRef parametersPhi = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt1Type(), "");
+        LLVMValueRef[] parametersIncomingValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false), currentMatches};
+        LLVMBasicBlockRef[] parametersIncomingBlocks = new LLVMBasicBlockRef[] {checkParametersStartBlock, endCheckParametersBlock};
+        LLVM.LLVMAddIncoming(parametersPhi, C.toNativePointerArray(parametersIncomingValues, false, true), C.toNativePointerArray(parametersIncomingBlocks, false, true), parametersIncomingValues.length);
+
+        resultValue = parametersPhi;
+        endResultBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildBr(builder, continuationBlock);
+      }
+    }
+    else if (checkType instanceof NamedType)
+    {
+      NamedType namedType = (NamedType) checkType;
+      LLVMValueRef nullabilityPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 2, "");
+      LLVMValueRef nullabilityValue = LLVM.LLVMBuildLoad(builder, nullabilityPointer, "");
+      LLVMValueRef nullabilityMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, nullabilityValue, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), namedType.isNullable() ? 1 : 0, false), "");
+      LLVMValueRef immutabilityPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 3, "");
+      LLVMValueRef immutabilityValue = LLVM.LLVMBuildLoad(builder, immutabilityPointer, "");
+      LLVMValueRef immutabilityMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, immutabilityValue, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), namedType.isContextuallyImmutable() ? 1 : 0, false), "");
+      LLVMValueRef qualifiedNameByteArrayPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 4, "");
+      LLVMValueRef qualifiedNameByteArray = LLVM.LLVMBuildLoad(builder, qualifiedNameByteArrayPointer, "");
+      LLVMValueRef qualifiedNameLengthPointer = typeHelper.getArrayLengthPointer(builder, qualifiedNameByteArray);
+      LLVMValueRef qualifiedNameLength = LLVM.LLVMBuildLoad(builder, qualifiedNameLengthPointer, "");
+
+      LLVMValueRef checkQualifiedNameString = codeGenerator.addStringConstant(namedType.getResolvedTypeDefinition().getQualifiedName().toString());
+      LLVMValueRef checkQualifiedNameLengthPointer = typeHelper.getArrayLengthPointer(builder, checkQualifiedNameString);
+      LLVMValueRef checkQualifiedNameLength = LLVM.LLVMBuildLoad(builder, checkQualifiedNameLengthPointer, "");
+      LLVMValueRef lengthMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, qualifiedNameLength, checkQualifiedNameLength, "");
+
+      LLVMValueRef headerMatches = LLVM.LLVMBuildAnd(builder, nullabilityMatches, immutabilityMatches, "");
+      headerMatches = LLVM.LLVMBuildAnd(builder, headerMatches, lengthMatches, "");
+
+      LLVMBasicBlockRef checkNameContinuationBlock = LLVM.LLVMAddBasicBlock(builder, "typeInfoCheckQNameContinue");
+      LLVMBasicBlockRef checkNameBlock = LLVM.LLVMAddBasicBlock(builder, "typeInfoCheckQName");
+      LLVMBasicBlockRef checkNameStartBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildCondBr(builder, headerMatches, checkNameBlock, checkNameContinuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, checkNameBlock);
+      LLVMValueRef firstBytePointer = typeHelper.getArrayElementPointer(builder, qualifiedNameByteArray, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false));
+      LLVMValueRef checkFirstBytePointer = typeHelper.getArrayElementPointer(builder, checkQualifiedNameString, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false));
+      LLVMValueRef strncmpFunction = getStringComparisonFunction();
+      LLVMValueRef[] strncmpArguments = new LLVMValueRef[] {firstBytePointer, checkFirstBytePointer, checkQualifiedNameLength};
+      LLVMValueRef strncmpResult = LLVM.LLVMBuildCall(builder, strncmpFunction, C.toNativePointerArray(strncmpArguments, false, true), strncmpArguments.length, "");
+      LLVMValueRef nameMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, strncmpResult, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false), "");
+      LLVMBasicBlockRef endCheckNameBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, checkNameContinuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, checkNameContinuationBlock);
+      LLVMValueRef namePhi = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt1Type(), "");
+      LLVMValueRef[] nameIncomingValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false), nameMatches};
+      LLVMBasicBlockRef[] nameIncomingBlocks = new LLVMBasicBlockRef[] {checkNameStartBlock, endCheckNameBlock};
+      LLVM.LLVMAddIncoming(namePhi, C.toNativePointerArray(nameIncomingValues, false, true), C.toNativePointerArray(nameIncomingBlocks, false, true), nameIncomingValues.length);
+
+      resultValue = namePhi;
+      endResultBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+    }
+    else if (checkType instanceof NullType)
+    {
+      resultValue = LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false);
+      endResultBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+    }
+    else if (checkType instanceof ObjectType)
+    {
+      ObjectType objectType = (ObjectType) checkType;
+      LLVMValueRef nullabilityPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 2, "");
+      LLVMValueRef nullabilityValue = LLVM.LLVMBuildLoad(builder, nullabilityPointer, "");
+      LLVMValueRef nullabilityMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, nullabilityValue, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), objectType.isNullable() ? 1 : 0, false), "");
+      LLVMValueRef immutabilityPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 3, "");
+      LLVMValueRef immutabilityValue = LLVM.LLVMBuildLoad(builder, immutabilityPointer, "");
+      LLVMValueRef immutabilityMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, immutabilityValue, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), objectType.isContextuallyImmutable() ? 1 : 0, false), "");
+
+      resultValue = LLVM.LLVMBuildAnd(builder, nullabilityMatches, immutabilityMatches, "");
+      endResultBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+    }
+    else if (checkType instanceof PrimitiveType)
+    {
+      PrimitiveType primitiveType = (PrimitiveType) checkType;
+      LLVMValueRef nullabilityPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 2, "");
+      LLVMValueRef nullabilityValue = LLVM.LLVMBuildLoad(builder, nullabilityPointer, "");
+      LLVMValueRef nullabilityMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, nullabilityValue, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), primitiveType.isNullable() ? 1 : 0, false), "");
+      LLVMValueRef primitiveIdPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 3, "");
+      LLVMValueRef primitiveIdValue = LLVM.LLVMBuildLoad(builder, primitiveIdPointer, "");
+      LLVMValueRef primitiveIdMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, primitiveIdValue, LLVM.LLVMConstInt(LLVM.LLVMInt8Type(), primitiveType.getPrimitiveTypeType().getRunTimeId(), false), "");
+
+      resultValue = LLVM.LLVMBuildAnd(builder, nullabilityMatches, primitiveIdMatches, "");
+      endResultBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+    }
+    else if (checkType instanceof TupleType)
+    {
+      TupleType tupleType = (TupleType) checkType;
+      Type[] subTypes = tupleType.getSubTypes();
+      // check the always-present header data
+      LLVMValueRef nullabilityPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 2, "");
+      LLVMValueRef nullabilityValue = LLVM.LLVMBuildLoad(builder, nullabilityPointer, "");
+      LLVMValueRef nullabilityMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, nullabilityValue, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), tupleType.isNullable() ? 1 : 0, false), "");
+      LLVMValueRef numSubTypesPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 3, "");
+      LLVMValueRef numSubTypesValue = LLVM.LLVMBuildLoad(builder, numSubTypesPointer, "");
+      LLVMValueRef numSubTypesMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, numSubTypesValue, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), subTypes.length, false), "");
+      LLVMValueRef headerMatches = LLVM.LLVMBuildAnd(builder, nullabilityMatches, numSubTypesMatches, "");
+
+      // check the sub-types if the header data matched
+      // (if it didn't match we might have the number of parameters wrong)
+      LLVMBasicBlockRef checkSubTypesContinuationBlock = LLVM.LLVMAddBasicBlock(builder, "typeInfoCheckSubTypesContinue");
+      LLVMBasicBlockRef checkSubTypesBlock = LLVM.LLVMAddBasicBlock(builder, "typeInfoCheckSubTypes");
+      LLVMBasicBlockRef checkSubTypesStartBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildCondBr(builder, headerMatches, checkSubTypesBlock, checkSubTypesContinuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, checkSubTypesBlock);
+      // the RTTI block has already been casted to the right struct for this number of sub-types, so just index through it
+      LLVMValueRef currentMatches = null;
+      for (int i = 0; i < subTypes.length; ++i)
+      {
+        LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                     LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 4, false),
+                                                     LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), i, false)};
+        LLVMValueRef subTypePointer = LLVM.LLVMBuildGEP(builder, castedRTTIPointer, C.toNativePointerArray(indices, false, true), indices.length, "");
+        LLVMValueRef subType = LLVM.LLVMBuildLoad(builder, subTypePointer, "");
+        LLVMValueRef subTypeMatches = buildTypeInfoCheck(builder, subType, subTypes[i]);
+        if (currentMatches == null)
+        {
+          currentMatches = subTypeMatches;
+        }
+        else
+        {
+          currentMatches = LLVM.LLVMBuildAnd(builder, currentMatches, subTypeMatches, "");
+        }
+      }
+      LLVMBasicBlockRef endCheckSubTypesBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, checkSubTypesContinuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, checkSubTypesContinuationBlock);
+      LLVMValueRef subTypesPhi = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt1Type(), "");
+      LLVMValueRef[] subTypesIncomingValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false), currentMatches};
+      LLVMBasicBlockRef[] subTypesIncomingBlocks = new LLVMBasicBlockRef[] {checkSubTypesStartBlock, endCheckSubTypesBlock};
+      LLVM.LLVMAddIncoming(subTypesPhi, C.toNativePointerArray(subTypesIncomingValues, false, true), C.toNativePointerArray(subTypesIncomingBlocks, false, true), subTypesIncomingValues.length);
+
+      resultValue = subTypesPhi;
+      endResultBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+    }
+    else if (checkType instanceof VoidType)
+    {
+      resultValue = LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false);
+      endResultBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+    }
+    else
+    {
+      throw new IllegalArgumentException("Cannot generate RTTI check - unknown sort of Type: " + checkType);
+    }
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+    LLVMValueRef phi = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt1Type(), "");
+    LLVMValueRef[] incomingValues = new LLVMValueRef[] {resultValue, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false)};
+    LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {endResultBlock, startBlock};
+    LLVM.LLVMAddIncoming(phi, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+    return phi;
+  }
+
+  /**
+   * @return an LLVM function representing: i32 strncmp(i8*, i8*, i32)
+   */
+  private LLVMValueRef getStringComparisonFunction()
+  {
+    final String STRNCMP_NAME = "strncmp";
+    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, STRNCMP_NAME);
+    if (existingFunction != null)
+    {
+      return existingFunction;
+    }
+    LLVMTypeRef bytePoinerType = LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0);
+    LLVMTypeRef[] parameterTypes = new LLVMTypeRef[] {bytePoinerType, bytePoinerType, LLVM.LLVMInt32Type()};
+    LLVMTypeRef functionType = LLVM.LLVMFunctionType(LLVM.LLVMInt32Type(), C.toNativePointerArray(parameterTypes, false, true), parameterTypes.length, false);
+    LLVMValueRef strncmpFunction = LLVM.LLVMAddFunction(module, STRNCMP_NAME, functionType);
+    return strncmpFunction;
+  }
+
+  /**
+   * Finds the sort id of the specified Type.
+   * @param type - the Type to get the sort id of
+   * @return the sort id of the specified Type
+   */
+  private static byte getSortId(Type type)
+  {
+    if (type instanceof ArrayType)
+    {
+      return ARRAY_SORT_ID;
+    }
+    if (type instanceof FunctionType)
+    {
+      return FUNCTION_SORT_ID;
+    }
+    if (type instanceof NamedType && ((NamedType) type).getResolvedTypeDefinition() instanceof ClassDefinition)
+    {
+      return CLASS_SORT_ID;
+    }
+    if (type instanceof NamedType && ((NamedType) type).getResolvedTypeDefinition() instanceof InterfaceDefinition)
+    {
+      return INTERFACE_SORT_ID;
+    }
+    if (type instanceof NamedType && ((NamedType) type).getResolvedTypeDefinition() instanceof CompoundDefinition)
+    {
+      return COMPOUND_SORT_ID;
+    }
+    if (type instanceof NullType)
+    {
+      return NULL_SORT_ID;
+    }
+    if (type instanceof ObjectType)
+    {
+      return OBJECT_SORT_ID;
+    }
+    if (type instanceof PrimitiveType)
+    {
+      return PRIMITIVE_SORT_ID;
+    }
+    if (type instanceof TupleType)
+    {
+      return TUPLE_SORT_ID;
+    }
+    if (type instanceof VoidType)
+    {
+      return VOID_SORT_ID;
+    }
+    throw new IllegalArgumentException("Unknown sort of Type: " + type);
   }
 }

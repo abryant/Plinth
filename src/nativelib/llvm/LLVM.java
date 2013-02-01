@@ -199,6 +199,7 @@ public class LLVM
   public static native LLVMValueRef LLVMBuildSExt(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
   public static native LLVMValueRef LLVMBuildShl(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildSIToFP(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
+  public static native LLVMValueRef LLVMBuildStructGEP(LLVMBuilderRef builder, LLVMValueRef pointer, int index, String name);
   public static native LLVMValueRef LLVMBuildUIToFP(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
   public static native LLVMValueRef LLVMBuildSRem(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildStore(LLVMBuilderRef builder, LLVMValueRef value, LLVMValueRef pointer);

@@ -35,6 +35,7 @@ import eu.bryants.anthony.plinth.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.plinth.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.plinth.ast.expression.InlineIfExpression;
+import eu.bryants.anthony.plinth.ast.expression.InstanceOfExpression;
 import eu.bryants.anthony.plinth.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.LogicalExpression;
 import eu.bryants.anthony.plinth.ast.expression.LogicalExpression.LogicalOperator;
@@ -1996,6 +1997,10 @@ public class CodeGenerator
     {
       return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false);
     }
+    if (type instanceof ObjectType)
+    {
+      return LLVM.LLVMBuildIsNotNull(builder, value, "");
+    }
     if (type instanceof PrimitiveType)
     {
       return LLVM.LLVMBuildExtractValue(builder, value, 0, "");
@@ -2824,6 +2829,51 @@ public class CodeGenerator
       LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {thenBranchBlock, elseBranchBlock};
       LLVM.LLVMAddIncoming(result, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), 2);
       return result;
+    }
+    if (expression instanceof InstanceOfExpression)
+    {
+      InstanceOfExpression instanceOfExpression = (InstanceOfExpression) expression;
+      LLVMValueRef expressionResult = buildExpression(instanceOfExpression.getExpression(), builder, thisValue, variables);
+      Type expressionType = instanceOfExpression.getExpression().getType();
+      Type checkType = instanceOfExpression.getInstanceOfType();
+      if (expressionType instanceof NullType)
+      {
+        // null is never an instance of anything
+        return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false);
+      }
+
+      Type notNullType = expressionType;
+      LLVMValueRef notNullValue = expressionResult;
+      LLVMBasicBlockRef startBlock = null;
+      LLVMBasicBlockRef continuationBlock = null;
+      if (expressionType.isNullable())
+      {
+        continuationBlock = LLVM.LLVMAddBasicBlock(builder, "instanceofCheckContinuation");
+        LLVMBasicBlockRef nullCheckBlock = LLVM.LLVMAddBasicBlock(builder, "instanceofCheck");
+        LLVMValueRef nullCheckResult = buildNullCheck(builder, expressionResult, expressionType);
+        startBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildCondBr(builder, nullCheckResult, nullCheckBlock, continuationBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, nullCheckBlock);
+        notNullType = TypeChecker.findTypeWithNullability(expressionType, false);
+        notNullValue = typeHelper.convertTemporary(builder, expressionResult, expressionType, notNullType);
+      }
+
+      LLVMValueRef checkResult = rttiHelper.buildInstanceOfCheck(builder, notNullValue, notNullType, checkType);
+
+      if (expressionType.isNullable())
+      {
+        LLVMBasicBlockRef endCheckBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildBr(builder, continuationBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+        LLVMValueRef phi = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt1Type(), "");
+        LLVMValueRef[] incomingValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false), checkResult};
+        LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, endCheckBlock};
+        LLVM.LLVMAddIncoming(phi, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+        return phi;
+      }
+      return checkResult;
     }
     if (expression instanceof IntegerLiteralExpression)
     {

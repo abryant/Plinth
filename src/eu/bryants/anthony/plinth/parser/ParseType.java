@@ -73,9 +73,10 @@ public enum ParseType
   EXPRESSION_NO_TUPLE,           // Expression
   LOGICAL_EXPRESSION,            // Expression
   COMPARISON_EXPRESSION,         // Expression
-  SHIFT_EXPRESSION,              // Expression
+  INSTANCEOF_EXPRESSION,         // Expression
   ADDITIVE_EXPRESSION,           // Expression
   MULTIPLICATIVE_EXPRESSION,     // Expression
+  SHIFT_EXPRESSION,              // Expression
   TUPLE_INDEX_EXPRESSION,        // Expression
   UNARY_EXPRESSION,              // Expression
   PRIMARY,                       // Expression
@@ -171,6 +172,7 @@ public enum ParseType
   IMMUTABLE_KEYWORD,
   IMPLEMENTS_KEYWORD,
   IMPORT_KEYWORD,
+  INSTANCEOF_KEYWORD,
   INT_KEYWORD,
   INTERFACE_KEYWORD,
   LONG_KEYWORD,

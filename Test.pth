@@ -36,13 +36,22 @@ class Test extends Foo implements DefaultRunnable
     field = a.toString();
   }
 
+  void alterField()
+  {
+    field += " (altered)";
+  }
+
   static uint main([]string args)
   {
     // find all of the command line arguments
     string fullargs = concatMap(addSpace, args);
     stdout::println("Your " + args.length.toString() + " arguments were:" + fullargs);
 
-    object o = new Test(9);
+    {string -> string} instance = addSpace;
+    stdout::println("test: " + (instance instanceof {string #-> string}).toString());
+
+    ?object o = new Test(9);
+    stdout::println("o instanceof Foo: " + (o instanceof Foo).toString() + ", o instanceof Test: " + (o instanceof Test).toString());
     Runnable r = cast<Runnable> o;
     stdout::println("Interface call: " + r.toString());
 
@@ -50,6 +59,13 @@ class Test extends Foo implements DefaultRunnable
     Test test = cast<Test> foo;
     Runnable runTest = foo;
     runTest.run();
+
+    {-> void} alter = test.alterField;
+    object alterObj = alter;
+    // needs to throw a cast exception:
+    {#-> void} immutableAlter = cast<{#-> void}> alterObj;
+    immutableAlter();
+    stdout::println("Field: " + test.field);
 
     MetadataTest metadataTest = new MetadataTest();
     metadataTest.someMethod();

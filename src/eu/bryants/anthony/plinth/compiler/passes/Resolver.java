@@ -33,6 +33,7 @@ import eu.bryants.anthony.plinth.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.plinth.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.plinth.ast.expression.InlineIfExpression;
+import eu.bryants.anthony.plinth.ast.expression.InstanceOfExpression;
 import eu.bryants.anthony.plinth.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.LogicalExpression;
 import eu.bryants.anthony.plinth.ast.expression.MinusExpression;
@@ -1955,6 +1956,31 @@ public class Resolver
       try
       {
         resolve(inlineIfExpression.getElseExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+      if (coalescedException != null)
+      {
+        throw coalescedException;
+      }
+    }
+    else if (expression instanceof InstanceOfExpression)
+    {
+      InstanceOfExpression instanceOfExpression = (InstanceOfExpression) expression;
+      CoalescedConceptualException coalescedException = null;
+      try
+      {
+        resolve(instanceOfExpression.getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+      try
+      {
+        resolve(instanceOfExpression.getInstanceOfType(), compilationUnit);
       }
       catch (ConceptualException e)
       {

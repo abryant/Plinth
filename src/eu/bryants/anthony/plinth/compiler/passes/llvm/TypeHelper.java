@@ -807,7 +807,7 @@ public class TypeHelper
         LLVMTypeRef resultNativeType = findNativeType(to, false);
 
         InterfaceDefinition toInterfaceDefinition = (InterfaceDefinition) ((NamedType) to).getResolvedTypeDefinition();
-        LLVMValueRef vftPointer = virtualFunctionHandler.lookupInterfaceVFT(builder, objectValue, toInterfaceDefinition);
+        LLVMValueRef vftPointer = virtualFunctionHandler.lookupInstanceVFT(builder, objectValue, toInterfaceDefinition);
         LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getVFTType(toInterfaceDefinition), 0);
         vftPointer = LLVM.LLVMBuildBitCast(builder, vftPointer, vftPointerType, "");
         // TODO: if the VFT pointer is null (i.e. the object doesn't implement this interface), throw an exception here instead of just storing null in the interface's VFT field (and causing undefined behaviour)
@@ -1044,6 +1044,8 @@ public class TypeHelper
         // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
         return LLVM.LLVMBuildBitCast(builder, value, findTemporaryType(to), "");
       }
+
+      // TODO: if the object's RTTI conflicts with the thing we are converting to, throw a cast exception (i.e. do an instanceof check first)
 
       LLVMValueRef notNullValue = value;
       LLVMBasicBlockRef startBlock = null;
