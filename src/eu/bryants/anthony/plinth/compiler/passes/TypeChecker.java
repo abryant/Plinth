@@ -1883,7 +1883,10 @@ public class TypeChecker
         try
         {
           subTypes[i] = checkTypes(subExpressions[i]);
-          // TODO: shouldn't void be forbidden here?
+          if (subTypes[i] instanceof VoidType)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot create a tuple containing a void value", subExpressions[i].getLexicalPhrase()));
+          }
         }
         catch (ConceptualException e)
         {
