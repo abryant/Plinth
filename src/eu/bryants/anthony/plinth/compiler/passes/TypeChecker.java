@@ -1021,12 +1021,20 @@ public class TypeChecker
     else if (expression instanceof BracketedExpression)
     {
       Type type = checkTypes(((BracketedExpression) expression).getExpression());
+      if (type instanceof VoidType)
+      {
+        throw new ConceptualException("Cannot enclose a void value in brackets", expression.getLexicalPhrase());
+      }
       expression.setType(type);
       return type;
     }
     else if (expression instanceof CastExpression)
     {
       Type exprType = checkTypes(((CastExpression) expression).getExpression());
+      if (exprType instanceof VoidType)
+      {
+        throw new ConceptualException("Cannot perform a cast on void", expression.getLexicalPhrase());
+      }
       Type castedType = expression.getType();
       // forbid casting away immutability (both explicit and contextual)
       boolean fromExplicitlyImmutable = (exprType instanceof ArrayType  && ((ArrayType)  exprType).isExplicitlyImmutable()) ||
@@ -1178,6 +1186,11 @@ public class TypeChecker
       if (coalescedException != null)
       {
         throw coalescedException;
+      }
+
+      if (leftType instanceof VoidType || rightType instanceof VoidType)
+      {
+        throw new ConceptualException("Cannot check whether a void value is/is not equal to something", expression.getLexicalPhrase());
       }
 
       EqualityOperator operator = equalityExpression.getOperator();
@@ -1478,11 +1491,14 @@ public class TypeChecker
       {
         throw coalescedException;
       }
-      Type resultType = findCommonSuperType(thenType, elseType);
-      if (resultType != null)
+      if (!(thenType instanceof VoidType) && !(elseType instanceof VoidType))
       {
-        inlineIf.setType(resultType);
-        return resultType;
+        Type resultType = findCommonSuperType(thenType, elseType);
+        if (resultType != null)
+        {
+          inlineIf.setType(resultType);
+          return resultType;
+        }
       }
       throw new ConceptualException("The types of the then and else clauses of this inline if expression are incompatible, they are: " + thenType + " and " + elseType, inlineIf.getLexicalPhrase());
     }
@@ -1735,19 +1751,22 @@ public class TypeChecker
       {
         throw coalescedException;
       }
-      if (nullableType instanceof NullType)
+      if (!(nullableType instanceof VoidType) && !(alternativeType instanceof VoidType))
       {
-        // if the left hand side has the null type, just use the right hand side's type as the result of the expression
-        nullCoalescingExpression.setType(alternativeType);
-        return alternativeType;
+        if (nullableType instanceof NullType)
+        {
+          // if the left hand side has the null type, just use the right hand side's type as the result of the expression
+          nullCoalescingExpression.setType(alternativeType);
+          return alternativeType;
+        }
+        Type resultType = findCommonSuperType(findTypeWithNullability(nullableType, false), alternativeType);
+        if (resultType != null)
+        {
+          nullCoalescingExpression.setType(resultType);
+          return resultType;
+        }
       }
-      Type resultType = findCommonSuperType(findTypeWithNullability(nullableType, false), alternativeType);
-      if (resultType == null)
-      {
-        throw new ConceptualException("The null-coalescing operator '?:' is not defined for the types '" + nullableType + "' and '" + alternativeType + "'", expression.getLexicalPhrase());
-      }
-      nullCoalescingExpression.setType(resultType);
-      return resultType;
+      throw new ConceptualException("The null-coalescing operator '?:' is not defined for the types '" + nullableType + "' and '" + alternativeType + "'", expression.getLexicalPhrase());
     }
     else if (expression instanceof NullLiteralExpression)
     {
