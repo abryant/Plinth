@@ -1706,7 +1706,6 @@ public class CodeGenerator
         }
         Type type = assignees[i].getResolvedType();
         LLVMValueRef leftValue = LLVM.LLVMBuildLoad(builder, llvmAssigneePointers[i], "");
-        LLVMValueRef rightValue = typeHelper.convertTemporary(builder, resultValues[i], resultValueTypes[i], type);
         LLVMValueRef assigneeResult;
         if (shorthandAssignStatement.getOperator() == ShorthandAssignmentOperator.ADD && type.isEquivalent(SpecialTypeHandler.STRING_TYPE))
         {
@@ -1714,8 +1713,8 @@ public class CodeGenerator
           {
             leftValue = typeHelper.convertTemporaryToStandard(builder, leftValue, type);
           }
-          rightValue = typeHelper.convertTemporaryToStandard(builder, rightValue, type);
-          assigneeResult = buildStringConcatenation(builder, leftValue, rightValue);
+          LLVMValueRef rightStringValue = typeHelper.convertToString(builder, resultValues[i], resultValueTypes[i]);
+          assigneeResult = buildStringConcatenation(builder, leftValue, rightStringValue);
         }
         else if (type instanceof PrimitiveType)
         {
@@ -1723,6 +1722,7 @@ public class CodeGenerator
           {
             leftValue = typeHelper.convertStandardToTemporary(builder, leftValue, type);
           }
+          LLVMValueRef rightValue = typeHelper.convertTemporary(builder, resultValues[i], resultValueTypes[i], type);
           PrimitiveTypeType primitiveType = ((PrimitiveType) type).getPrimitiveTypeType();
           boolean floating = primitiveType.isFloating();
           boolean signed = primitiveType.isSigned();
@@ -2266,16 +2266,16 @@ public class CodeGenerator
       Type leftType = arithmeticExpression.getLeftSubExpression().getType();
       Type rightType = arithmeticExpression.getRightSubExpression().getType();
       Type resultType = arithmeticExpression.getType();
-      // cast if necessary
-      left = typeHelper.convertTemporary(builder, left, leftType, resultType);
-      right = typeHelper.convertTemporary(builder, right, rightType, resultType);
       if (arithmeticExpression.getOperator() == ArithmeticOperator.ADD && resultType.isEquivalent(SpecialTypeHandler.STRING_TYPE))
       {
-        LLVMValueRef leftString = typeHelper.convertTemporaryToStandard(builder, left, resultType);
-        LLVMValueRef rightString = typeHelper.convertTemporaryToStandard(builder, right, resultType);
+        LLVMValueRef leftString = typeHelper.convertToString(builder, left, leftType);
+        LLVMValueRef rightString = typeHelper.convertToString(builder, right, rightType);
         LLVMValueRef result = buildStringConcatenation(builder, leftString, rightString);
         return typeHelper.convertTemporary(builder, result, SpecialTypeHandler.STRING_TYPE, resultType);
       }
+      // cast if necessary
+      left = typeHelper.convertTemporary(builder, left, leftType, resultType);
+      right = typeHelper.convertTemporary(builder, right, rightType, resultType);
       boolean floating = ((PrimitiveType) resultType).getPrimitiveTypeType().isFloating();
       boolean signed = ((PrimitiveType) resultType).getPrimitiveTypeType().isSigned();
       switch (arithmeticExpression.getOperator())

@@ -53,6 +53,7 @@ import eu.bryants.anthony.plinth.ast.statement.IfStatement;
 import eu.bryants.anthony.plinth.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.plinth.ast.statement.ReturnStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
+import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement.ShorthandAssignmentOperator;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
@@ -264,22 +265,48 @@ public class TypePropagator
           FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
           propagateTypes(fieldAssignee.getFieldAccessExpression(), fieldAssignee.getResolvedType());
         }
+        else if (assignees[i] instanceof BlankAssignee)
+        {
+          // nothing to propagate
+        }
         else
         {
           // ignore blank assignees, they shouldn't be able to get through variable resolution
           throw new IllegalStateException("Unknown Assignee type: " + assignees[i]);
         }
-        types[i] = assignees[i].getResolvedType();
+        if (shorthandAssignStatement.getOperator() == ShorthandAssignmentOperator.ADD && assignees[i].getResolvedType().isEquivalent(SpecialTypeHandler.STRING_TYPE))
+        {
+          // for string concatenations, don't propagate the string type on to the sub-expressions, or the conversion will fail during code generation
+          // instead, propagate the expressions types down to them, since they are guaranteed to work
+          types[i] = null;
+        }
+        else
+        {
+          types[i] = assignees[i].getResolvedType();
+        }
       }
       Type expressionType = shorthandAssignStatement.getExpression().getType();
       if (expressionType instanceof TupleType && !expressionType.isNullable() && ((TupleType) expressionType).getSubTypes().length == assignees.length)
       {
+        // fill in any missing types from the expression type, as we have nothing else to propagate to them
+        for (int i = 0; i < types.length; ++i)
+        {
+          if (types[i] == null)
+          {
+            types[i] = ((TupleType) expressionType).getSubTypes()[i];
+          }
+        }
         // the expression is distributed over the assignees, so propagate the assignee types back up
         TupleType assigneeTypes = new TupleType(false, types, null);
         propagateTypes(shorthandAssignStatement.getExpression(), assigneeTypes);
       }
       else if (assignees.length == 1)
       {
+        // fill in a missing type from the expression type, as we have nothing else to propagate to it
+        if (types[0] == null)
+        {
+          types[0] = expressionType;
+        }
         // there is only a single assignee, so propagate its type
         propagateTypes(shorthandAssignStatement.getExpression(), types[0]);
       }
@@ -307,8 +334,18 @@ public class TypePropagator
     {
       ArithmeticExpression arithmeticExpression = (ArithmeticExpression) expression;
       Type arithmeticType = arithmeticExpression.getType();
-      propagateTypes(arithmeticExpression.getLeftSubExpression(), arithmeticType);
-      propagateTypes(arithmeticExpression.getRightSubExpression(), arithmeticType);
+      if (arithmeticType.isEquivalent(SpecialTypeHandler.STRING_TYPE))
+      {
+        // for string concatenations, don't propagate the string type on to the sub-expressions, or the conversion will fail during code generation
+        // instead, propagate the expressions types down to them, since they are guaranteed to work
+        propagateTypes(arithmeticExpression.getLeftSubExpression(), arithmeticExpression.getLeftSubExpression().getType());
+        propagateTypes(arithmeticExpression.getRightSubExpression(), arithmeticExpression.getRightSubExpression().getType());
+      }
+      else
+      {
+        propagateTypes(arithmeticExpression.getLeftSubExpression(), arithmeticType);
+        propagateTypes(arithmeticExpression.getRightSubExpression(), arithmeticType);
+      }
     }
     else if (expression instanceof ArrayAccessExpression)
     {

@@ -654,7 +654,7 @@ public class TypeChecker
         }
         Type exprType = checkTypes(returnExpression);
         Type resultType = exprType;
-        if (returnStatement.getCanReturnAgainstContextualImmutability())
+        if (returnStatement.getCanReturnAgainstContextualImmutability() && !(resultType instanceof VoidType))
         {
           // turn off contextual immutability (unless the type is explicitly immutable), so that only-contextually-immutable things can still be returned from immutable functions
           resultType = findTypeWithDeepContextualImmutability(resultType, false);
@@ -758,7 +758,7 @@ public class TypeChecker
           types[i] = left;
           assignees[i].setResolvedType(left);
         }
-        if (operator == ShorthandAssignmentOperator.ADD && left.isEquivalent(SpecialTypeHandler.STRING_TYPE) && right.isEquivalent(SpecialTypeHandler.STRING_TYPE))
+        if (operator == ShorthandAssignmentOperator.ADD && left.isEquivalent(SpecialTypeHandler.STRING_TYPE) && !(right instanceof VoidType))
         {
           // do nothing, this is a shorthand string concatenation, which is allowed
         }
@@ -887,11 +887,12 @@ public class TypeChecker
           // the type will now only be null if no conversion can be done, e.g. if leftType is UINT and rightType is INT
         }
       }
-      if (arithmeticExpression.getOperator() == ArithmeticOperator.ADD && leftType.isEquivalent(SpecialTypeHandler.STRING_TYPE) && rightType.isEquivalent(SpecialTypeHandler.STRING_TYPE))
+      if (arithmeticExpression.getOperator() == ArithmeticOperator.ADD && (leftType.isEquivalent(SpecialTypeHandler.STRING_TYPE) || rightType.isEquivalent(SpecialTypeHandler.STRING_TYPE)) &&
+          !(leftType instanceof VoidType) && !(rightType instanceof VoidType))
       {
-        Type resultType = findCommonSuperType(leftType, rightType);
-        arithmeticExpression.setType(resultType);
-        return resultType;
+        // if either side of this addition expression is a string, make the result type string, so that both of them are converted to strings
+        arithmeticExpression.setType(SpecialTypeHandler.STRING_TYPE);
+        return SpecialTypeHandler.STRING_TYPE;
       }
       throw new ConceptualException("The operator '" + arithmeticExpression.getOperator() + "' is not defined for types '" + leftType + "' and '" + rightType + "'", arithmeticExpression.getLexicalPhrase());
     }

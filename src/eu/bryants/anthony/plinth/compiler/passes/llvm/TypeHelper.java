@@ -18,6 +18,7 @@ import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
+import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
@@ -31,6 +32,7 @@ import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
+import eu.bryants.anthony.plinth.compiler.passes.SpecialTypeHandler;
 import eu.bryants.anthony.plinth.compiler.passes.TypeChecker;
 
 /*
@@ -1180,6 +1182,72 @@ public class TypeHelper
     // if from was null, then the value we are returning here is undefined
     // TODO: if from was null, throw an exception here instead of having undefined behaviour
     return primitiveValue;
+  }
+
+  /**
+   * Builds a conversion of the specified value from the specified type into the string type, by calling toString() or using the constant "null" string as necessary.
+   * @param builder - the builder to build the conversion with
+   * @param value - the value to convert to a string, in a temporary type representation
+   * @param type - the type of the value to convert, which can be any type except VoidType (including NullType and any nullable types)
+   * @return an LLVMValueRef containing the string representation of value, in a standard type representation
+   */
+  public LLVMValueRef convertToString(LLVMBuilderRef builder, LLVMValueRef value, Type type)
+  {
+    if (type.isEquivalent(SpecialTypeHandler.STRING_TYPE))
+    {
+      return convertTemporaryToStandard(builder, value, SpecialTypeHandler.STRING_TYPE);
+    }
+    if (type instanceof NullType)
+    {
+      LLVMValueRef stringValue = codeGenerator.buildStringCreation(builder, "null");
+      return convertTemporaryToStandard(builder, stringValue, SpecialTypeHandler.STRING_TYPE);
+    }
+    LLVMValueRef notNullValue = value;
+    Type notNullType = type;
+    LLVMBasicBlockRef alternativeBlock = null;
+    LLVMBasicBlockRef continuationBlock = null;
+    if (type.isNullable())
+    {
+      continuationBlock = LLVM.LLVMAddBasicBlock(builder, "stringConversionContinuation");
+      alternativeBlock = LLVM.LLVMAddBasicBlock(builder, "stringConversionNull");
+      LLVMBasicBlockRef conversionBlock = LLVM.LLVMAddBasicBlock(builder, "stringConversion");
+
+      LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, type);
+      LLVM.LLVMBuildCondBr(builder, isNotNull, conversionBlock, alternativeBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, conversionBlock);
+      notNullType = TypeChecker.findTypeWithNullability(type, false);
+      notNullValue = convertTemporary(builder, value, type, notNullType);
+    }
+    Method method = notNullType.getMethod(new BuiltinMethod(notNullType, BuiltinMethodType.TO_STRING).getDisambiguator());
+    if (method == null)
+    {
+      throw new IllegalStateException("Type " + type + " does not have a 'toString()' method!");
+    }
+    LLVMValueRef function = codeGenerator.lookupMethodFunction(builder, notNullValue, notNullType, method);
+    LLVMValueRef callee = convertMethodCallee(builder, notNullValue, notNullType, method);
+    LLVMValueRef[] arguments = new LLVMValueRef[] {callee};
+    LLVMValueRef stringValue = LLVM.LLVMBuildCall(builder, function, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+
+    if (type.isNullable())
+    {
+      LLVMBasicBlockRef endConversionBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, alternativeBlock);
+      LLVMValueRef alternativeStringValue = codeGenerator.buildStringCreation(builder, "null");
+      alternativeStringValue = convertTemporaryToStandard(builder, alternativeStringValue, SpecialTypeHandler.STRING_TYPE);
+      LLVMBasicBlockRef endAlternativeBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, continuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+      LLVMValueRef phi = LLVM.LLVMBuildPhi(builder, findStandardType(SpecialTypeHandler.STRING_TYPE), "");
+      LLVMValueRef[] incomingValues = new LLVMValueRef[] {stringValue, alternativeStringValue};
+      LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {endConversionBlock, endAlternativeBlock};
+      LLVM.LLVMAddIncoming(phi, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+      return phi;
+    }
+    return stringValue;
   }
 
   /**

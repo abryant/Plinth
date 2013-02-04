@@ -14,8 +14,7 @@ interface DefaultRunnable
 {
   void run()
   {
-    { -> string} x = this.toString;
-    stdout::println("DefaultRunnable::run(): " + x());
+    stdout::println("DefaultRunnable::run(): " + this);
   }
 }
 
@@ -32,7 +31,7 @@ class Test extends Foo implements DefaultRunnable
   string field;
   this(uint a)
   {
-    stderr::println("Test(uint): " + a.toString());
+    stderr::println("Test(uint): " + a);
     field = a.toString();
   }
 
@@ -43,40 +42,43 @@ class Test extends Foo implements DefaultRunnable
 
   static uint main([]string args)
   {
+    ?uint a = null;
+    string s = "";
+    s += a;
+    stdout::println("s=" + s);
     // find all of the command line arguments
     string fullargs = concatMap(addSpace, args);
-    stdout::println("Your " + args.length.toString() + " arguments were:" + fullargs);
+    stdout::println("Your " + args.length + " arguments were:" + fullargs);
 
     {string -> string} instance = addSpace;
-    stdout::println("test: " + (instance instanceof {string #-> string}).toString());
+    stdout::println("test: " + (instance instanceof {string #-> string}));
 
     ?object o = new Test(9);
-    stdout::println("o instanceof Foo: " + (o instanceof Foo).toString() + ", o instanceof Test: " + (o instanceof Test).toString());
+    stdout::println("o instanceof Foo: " + (o instanceof Foo) + ", o instanceof Test: " + (o instanceof Test));
     Runnable r = cast<Runnable> o;
-    stdout::println("Interface call: " + r.toString());
+    stdout::println("Interface call: " + r);
 
-    Foo foo = new Test(1);
+    Foo foo = cast<Foo> o;
     Test test = cast<Test> foo;
     Runnable runTest = foo;
     runTest.run();
 
-    {-> void} alter = test.alterField;
-    object alterObj = alter;
     // needs to throw a cast exception:
-    {#-> void} immutableAlter = cast<{#-> void}> alterObj;
+    {#-> void} immutableAlter = cast<{#-> void}> cast<object> test.alterField;
     immutableAlter();
     stdout::println("Field: " + test.field);
 
     MetadataTest metadataTest = new MetadataTest();
     metadataTest.someMethod();
-    stdout::println("metadataTest.toString(): " + metadataTest.toString());
+    stdout::println("metadataTest: " + metadataTest);
     TestInterface testInterface = metadataTest;
-    stdout::println("interface toString(): " + testInterface.toString());
+    stdout::println("interface: " + testInterface);
 
-    stdout::println("Foo toString(): " + foo.toString());
+    stdout::println("Foo: " + foo);
 
-    stdout::println("object toString(): " + new object().toString());
-    stdout::println("bigint toString(): " + bigint().toString());
+    stdout::println("object: " + new object());
+    stdout::println("bigint: " + bigint());
+    stdout::println("null: " + null);
 
     return 0;
   }
