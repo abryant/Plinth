@@ -10,21 +10,234 @@ compound stdout
   static immutable native "plinth_stdout_write" void write(#[]ubyte bytes);
 
   /**
-   * Prints the specified string, followed by a newline, to the standard output stream.
-   * @param s - the string to write
-   */
-  static immutable void println(string s)
-  {
-    write(s.bytes);
-    write("\n".bytes);
-  }
-
-  /**
    * Prints the specified string to the standard output stream.
    * @param s - the string to write
    */
   static immutable void print(string s)
   {
     write(s.bytes);
+  }
+
+  /**
+   * Prints the specified string, followed by a newline, to the standard output stream.
+   * @param s - the string to write
+   */
+  static immutable void println(string s)
+  {
+    write((s + "\n").bytes);
+  }
+
+  /**
+   * Prints a newline to the standard output stream.
+   */
+  static immutable void println()
+  {
+    write("\n".bytes);
+  }
+
+  /**
+   * Prints the specified ulong to the standard output stream.
+   * @param value - the value to write
+   */
+  static immutable void print(?#object value)
+  {
+    write((value?.toString() ?: "null").bytes);
+  }
+
+  /**
+   * Prints the specified ulong to the standard output stream.
+   * @param value - the value to write
+   */
+  static immutable void println(?#object value)
+  {
+    write((value == null ? "null\n" : (cast<#object> value).toString() + "\n").bytes);
+  }
+
+  /*
+   * ================================================
+   * More efficient overrides for the primitive types
+   * ================================================
+   * The following methods allow each of the primitive types to be printed
+   * without requiring a heap allocation to cast it to object first.
+   * There are versions which print the value with and without a new-line.
+   */
+
+  /**
+   * Prints the specified boolean to the standard output stream.
+   * @param value - the value to write
+   */
+  static immutable void print(?boolean value)
+  {
+    write((value?.toString() ?: "null").bytes);
+  }
+  /**
+   * Prints the specified ubyte to the standard output stream.
+   * @param value - the value to write
+   */
+  static immutable void print(?ubyte value)
+  {
+    write((value?.toString() ?: "null").bytes);
+  }
+  /**
+   * Prints the specified byte to the standard output stream.
+   * @param value - the value to write
+   */
+  static immutable void print(?byte value)
+  {
+    write((value?.toString() ?: "null").bytes);
+  }
+  /**
+   * Prints the specified ushort to the standard output stream.
+   * @param value - the value to write
+   */
+  static immutable void print(?ushort value)
+  {
+    write((value?.toString() ?: "null").bytes);
+  }
+  /**
+   * Prints the specified short to the standard output stream.
+   * @param value - the value to write
+   */
+  static immutable void print(?short value)
+  {
+    write((value?.toString() ?: "null").bytes);
+  }
+  /**
+   * Prints the specified uint to the standard output stream.
+   * @param value - the value to write
+   */
+  static immutable void print(?uint value)
+  {
+    write((value?.toString() ?: "null").bytes);
+  }
+  /**
+   * Prints the specified int to the standard output stream.
+   * @param value - the value to write
+   */
+  static immutable void print(?int value)
+  {
+    write((value?.toString() ?: "null").bytes);
+  }
+  /**
+   * Prints the specified ulong to the standard output stream.
+   * @param value - the value to write
+   */
+  static immutable void print(?ulong value)
+  {
+    write((value?.toString() ?: "null").bytes);
+  }
+  /**
+   * Prints the specified long to the standard output stream.
+   * @param value - the value to write
+   */
+  static immutable void print(?long value)
+  {
+    write((value?.toString() ?: "null").bytes);
+  }
+  /**
+   * Prints the specified float to the standard output stream.
+   * @param value - the value to write
+   */
+  static immutable void print(?float value)
+  {
+    write((value?.toString() ?: "null").bytes);
+  }
+  /**
+   * Prints the specified double to the standard output stream.
+   * @param value - the value to write
+   */
+  static immutable void print(?double value)
+  {
+    write((value?.toString() ?: "null").bytes);
+  }
+
+
+  /**
+   * Prints the specified boolean to the standard output stream, followed by a new-line.
+   * @param value - the value to write
+   */
+  static immutable void println(?boolean value)
+  {
+    write((value == null ? "null\n" : (cast<boolean> value).toString() + "\n").bytes);
+  }
+  /**
+   * Prints the specified ubyte to the standard output stream, followed by a new-line.
+   * @param value - the value to write
+   */
+  static immutable void println(?ubyte value)
+  {
+    write((value == null ? "null\n" : (cast<ubyte> value).toString() + "\n").bytes);
+  }
+  /**
+   * Prints the specified byte to the standard output stream, followed by a new-line.
+   * @param value - the value to write
+   */
+  static immutable void println(?byte value)
+  {
+    write((value == null ? "null\n" : (cast<byte> value).toString() + "\n").bytes);
+  }
+  /**
+   * Prints the specified ushort to the standard output stream, followed by a new-line.
+   * @param value - the value to write
+   */
+  static immutable void println(?ushort value)
+  {
+    write((value == null ? "null\n" : (cast<ushort> value).toString() + "\n").bytes);
+  }
+  /**
+   * Prints the specified short to the standard output stream, followed by a new-line.
+   * @param value - the value to write
+   */
+  static immutable void println(?short value)
+  {
+    write((value == null ? "null\n" : (cast<short> value).toString() + "\n").bytes);
+  }
+  /**
+   * Prints the specified uint to the standard output stream, followed by a new-line.
+   * @param value - the value to write
+   */
+  static immutable void println(?uint value)
+  {
+    write((value == null ? "null\n" : (cast<uint> value).toString() + "\n").bytes);
+  }
+  /**
+   * Prints the specified int to the standard output stream, followed by a new-line.
+   * @param value - the value to write
+   */
+  static immutable void println(?int value)
+  {
+    write((value == null ? "null\n" : (cast<int> value).toString() + "\n").bytes);
+  }
+  /**
+   * Prints the specified ulong to the standard output stream, followed by a new-line.
+   * @param value - the value to write
+   */
+  static immutable void println(?ulong value)
+  {
+    write((value == null ? "null\n" : (cast<ulong> value).toString() + "\n").bytes);
+  }
+  /**
+   * Prints the specified long to the standard output stream, followed by a new-line.
+   * @param value - the value to write
+   */
+  static immutable void println(?long value)
+  {
+    write((value == null ? "null\n" : (cast<long> value).toString() + "\n").bytes);
+  }
+  /**
+   * Prints the specified float to the standard output stream, followed by a new-line.
+   * @param value - the value to write
+   */
+  static immutable void println(?float value)
+  {
+    write((value == null ? "null\n" : (cast<float> value).toString() + "\n").bytes);
+  }
+  /**
+   * Prints the specified double to the standard output stream, followed by a new-line.
+   * @param value - the value to write
+   */
+  static immutable void println(?double value)
+  {
+    write((value == null ? "null\n" : (cast<double> value).toString() + "\n").bytes);
   }
 }

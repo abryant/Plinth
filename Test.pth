@@ -42,10 +42,8 @@ class Test extends Foo implements DefaultRunnable
 
   static uint main([]string args)
   {
-    ?uint a = null;
-    string s = "";
-    s += a;
-    stdout::println("s=" + s);
+    stdout::println(987);
+    stdout::println();
     // find all of the command line arguments
     string fullargs = concatMap(addSpace, args);
     stdout::println("Your " + args.length + " arguments were:" + fullargs);
