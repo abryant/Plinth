@@ -19,6 +19,7 @@ import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
+import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
@@ -221,6 +222,14 @@ public class MetadataGenerator
       String qualifiedName = namedType.getResolvedTypeDefinition().getQualifiedName().toString();
       LLVMValueRef qualifiedNameNode = createMDString(qualifiedName);
       LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, immutableNode, qualifiedNameNode};
+      return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
+    }
+    if (type instanceof ObjectType)
+    {
+      ObjectType objectType = (ObjectType) type;
+      LLVMValueRef sortNode = createMDString("object");
+      LLVMValueRef immutableNode = createMDString(objectType.isExplicitlyImmutable() ? "immutable" : "not-immutable");
+      LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, immutableNode};
       return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
     }
     if (type instanceof PrimitiveType)

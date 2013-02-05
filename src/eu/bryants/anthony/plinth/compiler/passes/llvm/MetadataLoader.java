@@ -26,6 +26,7 @@ import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
+import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
@@ -529,6 +530,16 @@ public class MetadataLoader
       {
         throw new MalformedMetadataException(e.getMessage(), e);
       }
+    }
+    if (sortOfType.equals("object"))
+    {
+      if (values.length != 3)
+      {
+        throw new MalformedMetadataException("An object type's metadata node must have the correct number of sub-nodes");
+      }
+      boolean nullable = readBooleanValue(values[1], "object type", "nullable");
+      boolean immutable = readBooleanValue(values[2], "object type", "immutable");
+      return new ObjectType(nullable, immutable, null);
     }
     if (sortOfType.equals("primitive"))
     {
