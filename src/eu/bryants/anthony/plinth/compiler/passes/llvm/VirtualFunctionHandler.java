@@ -360,7 +360,10 @@ public class VirtualFunctionHandler
     LLVMValueRef array = LLVM.LLVMConstArray(elementType, C.toNativePointerArray(elements, false, true), elements.length);
     LLVMValueRef lengthValue = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), elements.length, false);
 
-    LLVMTypeRef structType = getVFTSearchListType();
+    LLVMTypeRef arrayType = LLVM.LLVMArrayType(elementType, elements.length);
+    LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), arrayType};
+    LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
+
     LLVMValueRef[] structSubValues = new LLVMValueRef[] {lengthValue, array};
     LLVMValueRef struct = LLVM.LLVMConstNamedStruct(structType, C.toNativePointerArray(structSubValues, false, true), structSubValues.length);
 
