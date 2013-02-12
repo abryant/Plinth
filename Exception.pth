@@ -1,0 +1,17 @@
+class Exception
+{
+  string message;
+  this(string message)
+  {
+    this.message = message;
+  }
+  void print()
+  {
+    stderr::println(message);
+  }
+  void unused()
+  {
+    stdout::println("Yay, Exceptions!");
+  }
+}
+
