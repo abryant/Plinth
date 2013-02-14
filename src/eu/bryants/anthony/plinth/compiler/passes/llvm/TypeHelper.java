@@ -1537,7 +1537,7 @@ public class TypeHelper
       {
         notNullValue = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
       }
-      LLVMValueRef resultNotNull = LLVM.LLVMGetUndef(findStandardType(TypeChecker.findTypeWithNullability(type, false)));
+      LLVMValueRef resultNotNull = LLVM.LLVMGetUndef(findTemporaryType(TypeChecker.findTypeWithNullability(type, false)));
       Type[] subTypes = ((TupleType) type).getSubTypes();
       for (int i = 0; i < subTypes.length; ++i)
       {
@@ -1548,7 +1548,7 @@ public class TypeHelper
       if (type.isNullable())
       {
         LLVMValueRef isNotNullValue = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
-        LLVMValueRef result = LLVM.LLVMGetUndef(findStandardType(type));
+        LLVMValueRef result = LLVM.LLVMGetUndef(findTemporaryType(type));
         result = LLVM.LLVMBuildInsertValue(builder, result, isNotNullValue, 0, "");
         result = LLVM.LLVMBuildInsertValue(builder, result, resultNotNull, 1, "");
         return result;
