@@ -90,6 +90,15 @@ public class TypeHelper
   }
 
   /**
+   * @return the result type of a landingpad instruction
+   */
+  public LLVMTypeRef getLandingPadType()
+  {
+    LLVMTypeRef[] subTypes = new LLVMTypeRef[] {LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), LLVM.LLVMInt32Type()};
+    return LLVM.LLVMStructType(C.toNativePointerArray(subTypes, false, true), subTypes.length, false);
+  }
+
+  /**
    * Finds the standard representation for the specified type, to be used when passing parameters, or storing fields, etc.
    * @param type - the type to find the native type of
    * @return the standard native representation of the specified Type
@@ -608,7 +617,10 @@ public class TypeHelper
     {
       arguments[i + 1] = LLVM.LLVMGetParam(objectFunction, i + 1);
     }
-    LLVMValueRef result = LLVM.LLVMBuildCall(builder, methodFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+    LLVMBasicBlockRef landingPadBlock = LLVM.LLVMAppendBasicBlock(LLVM.LLVMGetBasicBlockParent(LLVM.LLVMGetInsertBlock(builder)), "landingPad");
+    LLVMBasicBlockRef methodInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "methodInvokeContinue");
+    LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, methodFunction, C.toNativePointerArray(arguments, false, true), arguments.length, methodInvokeContinueBlock, landingPadBlock, "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, methodInvokeContinueBlock);
     if (method.getReturnType() instanceof VoidType)
     {
       LLVM.LLVMBuildRetVoid(builder);
@@ -617,6 +629,12 @@ public class TypeHelper
     {
       LLVM.LLVMBuildRet(builder, result);
     }
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+    LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+    LLVM.LLVMSetCleanup(landingPad, true);
+    LLVM.LLVMBuildResume(builder, landingPad);
+
     LLVM.LLVMDisposeBuilder(builder);
 
     return objectFunction;
@@ -993,6 +1011,7 @@ public class TypeHelper
       LLVMValueRef[] callocArguments = new LLVMValueRef[] {llvmSize, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
       LLVMValueRef memory = LLVM.LLVMBuildCall(builder, codeGenerator.getCallocFunction(), C.toNativePointerArray(callocArguments, false, true), callocArguments.length, "");
       LLVMValueRef pointer = LLVM.LLVMBuildBitCast(builder, memory, nativeType, "");
+      {} // TODO: throw an OutOfMemoryError here if calloc returns null
 
       // store the object's run-time type information
       LLVMValueRef rtti;
@@ -1187,11 +1206,12 @@ public class TypeHelper
   /**
    * Builds a conversion of the specified value from the specified type into the string type, by calling toString() or using the constant "null" string as necessary.
    * @param builder - the builder to build the conversion with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
    * @param value - the value to convert to a string, in a temporary type representation
    * @param type - the type of the value to convert, which can be any type except VoidType (including NullType and any nullable types)
    * @return an LLVMValueRef containing the string representation of value, in a standard type representation
    */
-  public LLVMValueRef convertToString(LLVMBuilderRef builder, LLVMValueRef value, Type type)
+  public LLVMValueRef convertToString(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type type)
   {
     if (type.isEquivalent(SpecialTypeHandler.STRING_TYPE))
     {
@@ -1199,7 +1219,7 @@ public class TypeHelper
     }
     if (type instanceof NullType)
     {
-      LLVMValueRef stringValue = codeGenerator.buildStringCreation(builder, "null");
+      LLVMValueRef stringValue = codeGenerator.buildStringCreation(builder, landingPadContainer, "null");
       return convertTemporaryToStandard(builder, stringValue, SpecialTypeHandler.STRING_TYPE);
     }
     LLVMValueRef notNullValue = value;
@@ -1227,7 +1247,9 @@ public class TypeHelper
     LLVMValueRef function = codeGenerator.lookupMethodFunction(builder, notNullValue, notNullType, method);
     LLVMValueRef callee = convertMethodCallee(builder, notNullValue, notNullType, method);
     LLVMValueRef[] arguments = new LLVMValueRef[] {callee};
-    LLVMValueRef stringValue = LLVM.LLVMBuildCall(builder, function, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+    LLVMBasicBlockRef toStringInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "toStringInvokeContinue");
+    LLVMValueRef stringValue = LLVM.LLVMBuildInvoke(builder, function, C.toNativePointerArray(arguments, false, true), arguments.length, toStringInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, toStringInvokeContinueBlock);
 
     if (type.isNullable())
     {
@@ -1235,7 +1257,7 @@ public class TypeHelper
       LLVM.LLVMBuildBr(builder, continuationBlock);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, alternativeBlock);
-      LLVMValueRef alternativeStringValue = codeGenerator.buildStringCreation(builder, "null");
+      LLVMValueRef alternativeStringValue = codeGenerator.buildStringCreation(builder, landingPadContainer, "null");
       alternativeStringValue = convertTemporaryToStandard(builder, alternativeStringValue, SpecialTypeHandler.STRING_TYPE);
       LLVMBasicBlockRef endAlternativeBlock = LLVM.LLVMGetInsertBlock(builder);
       LLVM.LLVMBuildBr(builder, continuationBlock);

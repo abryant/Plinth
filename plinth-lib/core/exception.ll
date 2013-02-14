@@ -5,9 +5,13 @@
 %RawString = type { %opaque*, %opaque*, i32, [0 x i8]}
 %VFTSearchList = type {i32, [0 x {%RawString*, %VFT*}]}
 %object = type { { %VFTSearchList*, { i8, i32 } }*, %VFT* }
-%NamedRTTI = type { %VFTSearchList*, {i8, i32, i1, i1, %RawString*} }
+%NamedRTTI = type { i8, i32, i1, i1, %RawString*}
+
+@BadRTTIErrorMessage = private hidden unnamed_addr constant { %opaque*, %opaque*, i32, [32 x i8] } {%opaque* null, %opaque* null, i32 32, [32 x i8] c"Bad Exception RTTI! Aborting...\0A"}
 
 declare protected %VFT* @plinth_core_find_vft(%VFTSearchList* %vftSearchList, %RawString* %searchName)
+
+declare void @plinth_stderr_write({ %opaque*, %opaque*, i32, [0 x i8] }* %array)
 
 declare void @abort()
 
@@ -20,20 +24,24 @@ entry:
   %searchListPointer = getelementptr { %VFTSearchList*, {i8, i32} }* %objectRTTI, i32 0, i32 0
   %searchList = load %VFTSearchList** %searchListPointer
   %rttiPointer = bitcast i8* %typeInfo to %NamedRTTI*
-  %sortIdPointer = getelementptr %NamedRTTI* %rttiPointer, i32 0, i32 1, i32 0
+  %sortIdPointer = getelementptr %NamedRTTI* %rttiPointer, i32 0, i32 0
   %sortId = load i8* %sortIdPointer
   %isClass = icmp eq i8 %sortId, 6
-  br i1 %isClass, label %classRTTI, label %otherRTTI
+  %isInterface = icmp eq i8 %sortId, 8
+  %canCheckType = or i1 %isClass, %isInterface
+  br i1 %canCheckType, label %checkRTTI, label %badRTTI
 
-classRTTI:
-  %typeNamePointer = getelementptr %NamedRTTI* %rttiPointer, i32 0, i32 1, i32 4
+checkRTTI:
+  %typeNamePointer = getelementptr %NamedRTTI* %rttiPointer, i32 0, i32 4
   %typeName = load %RawString** %typeNamePointer
   %result = call %VFT* @plinth_core_find_vft(%VFTSearchList* %searchList, %RawString* %typeName)
   %isInstance = icmp ne %VFT* %result, null
   ret i1 %isInstance
 
-otherRTTI:
-; Exception checks must be againt class types, so we need to crash here to signal the error
+badRTTI:
+; Exception checks must be against class or interface types, so we need to crash here to signal the error
+  %errorMessage = bitcast { %opaque*, %opaque*, i32, [32 x i8] }* @BadRTTIErrorMessage to { %opaque*, %opaque*, i32, [0 x i8] }*
+  call void @plinth_stderr_write({ %opaque*, %opaque*, i32, [0 x i8] }* %errorMessage)
   call void @abort()
   unreachable
 }

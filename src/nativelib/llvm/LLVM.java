@@ -183,7 +183,9 @@ public class LLVM
   public static native LLVMValueRef LLVMBuildGEP(LLVMBuilderRef builder, LLVMValueRef pointer, Pointer indices, int numIndices, String name);
   public static native LLVMValueRef LLVMBuildICmp(LLVMBuilderRef builder, int intPredicate, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildInsertValue(LLVMBuilderRef builder, LLVMValueRef aggregateVal, LLVMValueRef elementVal, int index, String name);
+  public static native LLVMValueRef LLVMBuildInvoke(LLVMBuilderRef builder, LLVMValueRef function, Pointer arguments, int numArgs, LLVMBasicBlockRef thenBlock, LLVMBasicBlockRef catchBlock, String name);
   public static native LLVMValueRef LLVMBuildIsNotNull(LLVMBuilderRef builder, LLVMValueRef pointer, String name);
+  public static native LLVMValueRef LLVMBuildLandingPad(LLVMBuilderRef builder, LLVMTypeRef resultType, LLVMValueRef personalityFunction, int numClauses, String name);
   public static native LLVMValueRef LLVMBuildLoad(LLVMBuilderRef builder, LLVMValueRef pointer, String name);
   public static native LLVMValueRef LLVMBuildLShr(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildMul(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
@@ -192,6 +194,7 @@ public class LLVM
   public static native LLVMValueRef LLVMBuildOr(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildPhi(LLVMBuilderRef builder, LLVMTypeRef type, String name);
   public static native LLVMValueRef LLVMBuildPtrToInt(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
+  public static native LLVMValueRef LLVMBuildResume(LLVMBuilderRef builder, LLVMValueRef exception);
   public static native LLVMValueRef LLVMBuildRet(LLVMBuilderRef builder, LLVMValueRef value);
   public static native LLVMValueRef LLVMBuildRetVoid(LLVMBuilderRef builder);
   public static native LLVMValueRef LLVMBuildSDiv(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
@@ -211,6 +214,8 @@ public class LLVM
   public static native LLVMValueRef LLVMBuildZExt(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
 
   public static native void LLVMAddIncoming(LLVMValueRef phiNode, Pointer incomingValues, Pointer incomingBlocks, int count);
+  public static native void LLVMAddClause(LLVMValueRef landingPad, LLVMValueRef clauseVal);
+  public static native void LLVMSetCleanup(LLVMValueRef landingPad, boolean isCleanup);
 
   public static native LLVMValueRef LLVMConstInt(LLVMTypeRef type, long n, boolean signExtend);
   public static native LLVMValueRef LLVMConstIntOfArbitraryPrecision(LLVMTypeRef type, int numWords, long[] words);

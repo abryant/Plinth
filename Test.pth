@@ -1,7 +1,5 @@
 package foo.bar;
 
-import metadata.*;
-
 interface Runnable
 {
   void run()
@@ -65,12 +63,6 @@ class Test extends Foo implements DefaultRunnable
     {#-> void} immutableAlter = cast<{#-> void}> cast<object> test.alterField;
     immutableAlter();
     stdout::println("Field: " + test.field);
-
-    MetadataTest metadataTest = new MetadataTest();
-    metadataTest.someMethod();
-    stdout::println("metadataTest: " + metadataTest);
-    TestInterface testInterface = metadataTest;
-    stdout::println("interface: " + testInterface);
 
     stdout::println("Foo: " + foo);
 

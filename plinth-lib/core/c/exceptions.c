@@ -43,11 +43,11 @@ typedef struct _Unwind_Context _Unwind_Context;
 bool plinth_exception_instanceof(const uint8_t *plinthObject, const uint8_t *typeInfo);
 
 void* plinth_create_exception(const uint8_t *plinthExceptionObject);
-void plinth_destroy_exception(_Unwind_Reason_Code reason, _Unwind_Exception *exception);
 void plinth_throw(_Unwind_Exception *exception);
 _Unwind_Reason_Code plinth_personality(int version, _Unwind_Action actions, uint64_t exceptionClass,
                                        _Unwind_Exception *exception, _Unwind_Context *context);
 const uint8_t* plinth_catch(_Unwind_Exception *exception);
+static void plinth_destroy_exception(_Unwind_Reason_Code reason, _Unwind_Exception *exception);
 static const uint8_t* extractExceptionObject(_Unwind_Exception *exception);
 static void setRegisters(_Unwind_Exception *exception, _Unwind_Context *context, exception_handler *handler);
 static bool findHandler(exception_handler *resultHandler, bool findCleanup, bool isForeign, _Unwind_Exception *exception, _Unwind_Context *context);
@@ -57,7 +57,7 @@ static uintptr_t readULEB128(const uint8_t **data);
 static uintptr_t readSLEB128(const uint8_t **data);
 static uintptr_t readEncoded(const uint8_t **data, uint8_t encoding);
 
-void debug_abort(const char *str)
+static void debug_abort(const char *str)
 {
   fprintf(stderr, "Exception handling error: %s\n", str);
   fflush(stderr);
@@ -83,12 +83,6 @@ void* plinth_create_exception(const uint8_t *plinthExceptionObject)
   return exception;
 }
 
-void plinth_destroy_exception(_Unwind_Reason_Code reason, _Unwind_Exception *exception)
-{
-  (void) reason;
-  free(exception);
-}
-
 void plinth_throw(_Unwind_Exception *exception)
 {
   _Unwind_Reason_Code reason = _Unwind_RaiseException(exception);
@@ -103,6 +97,12 @@ const uint8_t* plinth_catch(_Unwind_Exception *exception)
   const uint8_t *plinthExceptionObject = extractExceptionObject(exception);
   plinth_destroy_exception(0, exception);
   return plinthExceptionObject;
+}
+
+static void plinth_destroy_exception(_Unwind_Reason_Code reason, _Unwind_Exception *exception)
+{
+  (void) reason;
+  free(exception);
 }
 
 static const uint8_t* extractExceptionObject(_Unwind_Exception *exception)

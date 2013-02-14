@@ -10,9 +10,15 @@
 %Descriptor = type { i32, [0 x %RawString*] }
 %FunctionSearchList = type {i32, [0 x {%Descriptor*, %VFT*, %ExcludeList*}]}
 
+
+@OutOfMemoryErrorMessage = private hidden unnamed_addr constant { %opaque*, %opaque*, i32, [73 x i8] } {%opaque* null, %opaque* null, i32 73, [73 x i8] c"Failed to allocate memory to set up virtual function tables! Aborting...\0A"}
+
 declare i8* @calloc(i32, i32)
 declare void @free(i8*)
 declare i32 @strncmp(i8* %str1, i8* %str2, i32 %len)
+declare void @abort() noreturn
+
+declare void @plinth_stderr_write({ %opaque*, %opaque*, i32, [0 x i8] }* %array)
 
 define protected %VFT* @plinth_core_find_vft(%VFTSearchList* %interfaceVFTList, %RawString* %searchName) {
 entry:
@@ -58,12 +64,22 @@ entry:
   %vftLengthPtr = getelementptr %Descriptor* %thisDescriptor, i32 0, i32 0
   %vftLength = load i32* %vftLengthPtr
   %vftAlloc = call i8* @calloc(i32 ptrtoint (%opaque** getelementptr (%opaque** null, i32 1) to i32), i32 %vftLength)
+  %outOfMemory = icmp eq i8* %vftAlloc, null
+  br i1 %outOfMemory, label %error, label %startLoop
+
+error:
+  %errorMessage = bitcast { %opaque*, %opaque*, i32, [73 x i8] }* @OutOfMemoryErrorMessage to { %opaque*, %opaque*, i32, [0 x i8] }*
+  call void @plinth_stderr_write({ %opaque*, %opaque*, i32, [0 x i8] }* %errorMessage)
+  call void @abort() noreturn
+  unreachable
+
+startLoop:
   %vft = bitcast i8* %vftAlloc to %VFT*
   %check = icmp ult i32 0, %vftLength
   br i1 %check, label %loop, label %exit
 
 loop:
-  %i = phi i32 [0, %entry], [%nexti, %loop]
+  %i = phi i32 [0, %startLoop], [%nexti, %loop]
   %disambiguatorPtr = getelementptr %Descriptor* %thisDescriptor, i32 0, i32 1, i32 %i
   %disambiguator = load %RawString** %disambiguatorPtr
   %defaultPtr = getelementptr %VFT* %thisVFT, i32 0, i32 %i
@@ -88,12 +104,22 @@ entry:
   %endOfNullExcludeList = getelementptr %ExcludeList* null, i32 1, i32 %numSearch
   %excludeListSize = ptrtoint i1* %endOfNullExcludeList to i32
   %excludeListAlloc = call i8* @calloc(i32 %excludeListSize, i32 1)
+  %outOfMemory = icmp eq i8* %excludeListAlloc, null
+  br i1 %outOfMemory, label %error, label %beforeLoop
+
+error:
+  %errorMessage = bitcast { %opaque*, %opaque*, i32, [73 x i8] }* @OutOfMemoryErrorMessage to { %opaque*, %opaque*, i32, [0 x i8] }*
+  call void @plinth_stderr_write({ %opaque*, %opaque*, i32, [0 x i8] }* %errorMessage)
+  call void @abort() noreturn
+  unreachable
+
+beforeLoop:
   %excludeList = bitcast i8* %excludeListAlloc to %ExcludeList*
   %continueOuterLoop = icmp ult i32 0, %numSearch
   br i1 %continueOuterLoop, label %searchLoop, label %exit
 
 searchLoop:
-  %i = phi i32 [0, %entry], [%nexti, %endSearchLoop]
+  %i = phi i32 [0, %beforeLoop], [%nexti, %endSearchLoop]
   %descriptorPtr = getelementptr %FunctionSearchList* %searchDescriptors, i32 0, i32 1, i32 %i, i32 0
   %descriptor = load %Descriptor** %descriptorPtr
   %vftPtr = getelementptr %FunctionSearchList* %searchDescriptors, i32 0, i32 1, i32 %i, i32 1
