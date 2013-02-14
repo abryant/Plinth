@@ -106,8 +106,6 @@ import eu.bryants.anthony.plinth.compiler.passes.TypeChecker;
  */
 public class CodeGenerator
 {
-  private static final String PERSONALITY_FUNCTION_NAME = "plinth_personality";
-
   private TypeDefinition typeDefinition;
 
   private LLVMContextRef context;
@@ -286,7 +284,8 @@ public class CodeGenerator
    */
   public LLVMValueRef getPersonalityFunction()
   {
-    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, PERSONALITY_FUNCTION_NAME);
+    final String personalityFunctionName = "plinth_personality";
+    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, personalityFunctionName);
     if (existingFunction != null)
     {
       return existingFunction;
@@ -295,7 +294,7 @@ public class CodeGenerator
     // don't assume the arguments have any particular types, the real types will be target dependent
     LLVMTypeRef[] argumentTypes = new LLVMTypeRef[] {};
     LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, C.toNativePointerArray(argumentTypes, false, true), argumentTypes.length, true);
-    return LLVM.LLVMAddFunction(module, PERSONALITY_FUNCTION_NAME, functionType);
+    return LLVM.LLVMAddFunction(module, personalityFunctionName, functionType);
   }
 
   /**
@@ -670,8 +669,16 @@ public class CodeGenerator
     LLVMValueRef llvmSize = LLVM.LLVMBuildPtrToInt(builder, llvmStructSize, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
     LLVMValueRef[] callocArguments = new LLVMValueRef[] {llvmSize, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
     LLVMValueRef memory = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(callocArguments, false, true), callocArguments.length, "");
+
+    LLVMValueRef isNotNull = LLVM.LLVMBuildIsNotNull(builder, memory, "");
+    LLVMBasicBlockRef callocContinueBlock = LLVM.LLVMAddBasicBlock(builder, "callocContinue");
+    LLVMBasicBlockRef callocFailedBlock = LLVM.LLVMAddBasicBlock(builder, "callocFailed");
+    LLVM.LLVMBuildCondBr(builder, isNotNull, callocContinueBlock, callocFailedBlock);
+    LLVM.LLVMPositionBuilderAtEnd(builder, callocFailedBlock);
+    buildOutOfMemoryHandler(builder);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, callocContinueBlock);
     LLVMValueRef pointer = LLVM.LLVMBuildBitCast(builder, memory, nativeType, "");
-    {} // TODO: throw an OutOfMemoryError here if calloc returns null
 
     // store the run-time type information
     LLVMValueRef rtti = rttiHelper.getInstanceRTTI(new NamedType(false, false, typeDefinition));
@@ -995,6 +1002,28 @@ public class CodeGenerator
   }
 
   /**
+   * Builds the code to handle an out-of-memory error.
+   * Note: this ends the current LLVM basic block
+   * @param builder - the LLVMBuilderRef to build the code with
+   */
+  public void buildOutOfMemoryHandler(LLVMBuilderRef builder)
+  {
+    final String outOfMemoryFunctionName = "plinth_outofmemory_abort";
+    LLVMValueRef function = LLVM.LLVMGetNamedFunction(module, outOfMemoryFunctionName);
+    if (function == null)
+    {
+      LLVMTypeRef returnType = LLVM.LLVMVoidType();
+      LLVMTypeRef[] parameterTypes = new LLVMTypeRef[0];
+      LLVMTypeRef functionType = LLVM.LLVMFunctionType(returnType, C.toNativePointerArray(parameterTypes, false, true), parameterTypes.length, false);
+      function = LLVM.LLVMAddFunction(module, outOfMemoryFunctionName, functionType);
+    }
+
+    LLVMValueRef[] arguments = new LLVMValueRef[0];
+    LLVM.LLVMBuildCall(builder, function, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+    LLVM.LLVMBuildUnreachable(builder);
+  }
+
+  /**
    * Adds a string constant with the specified value, with the LLVM type: {i32, [n x i8]}
    * @param value - the value to store in the constant
    * @return the global variable created (a pointer to the constant value)
@@ -1199,8 +1228,16 @@ public class CodeGenerator
     LLVMValueRef llvmSize = LLVM.LLVMBuildPtrToInt(builder, llvmArraySize, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
     LLVMValueRef[] callocArgs = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false), llvmSize};
     LLVMValueRef stringArray = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(callocArgs, false, true), callocArgs.length, "");
+
+    LLVMValueRef stringArrayIsNotNull = LLVM.LLVMBuildIsNotNull(builder, stringArray, "");
+    LLVMBasicBlockRef stringArrayCallocContinueBlock = LLVM.LLVMAddBasicBlock(builder, "stringArrayCallocContinue");
+    LLVMBasicBlockRef stringArrayCallocFailedBlock = LLVM.LLVMAddBasicBlock(builder, "stringArrayCallocFailed");
+    LLVM.LLVMBuildCondBr(builder, stringArrayIsNotNull, stringArrayCallocContinueBlock, stringArrayCallocFailedBlock);
+    LLVM.LLVMPositionBuilderAtEnd(builder, stringArrayCallocFailedBlock);
+    buildOutOfMemoryHandler(builder);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, stringArrayCallocContinueBlock);
     stringArray = LLVM.LLVMBuildBitCast(builder, stringArray, llvmArrayType, "");
-    {} // TODO: throw an OutOfMemoryError here if calloc returns null
 
     LLVMValueRef stringsRTTI = rttiHelper.getInstanceRTTI(stringArrayType);
     LLVMValueRef stringsRTTIPointer = rttiHelper.getRTTIPointer(builder, stringArray);
@@ -1234,8 +1271,16 @@ public class CodeGenerator
     LLVMValueRef llvmUbyteSize = LLVM.LLVMBuildPtrToInt(builder, llvmUbyteArraySize, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
     LLVMValueRef[] ubyteCallocArgs = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false), llvmUbyteSize};
     LLVMValueRef bytes = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(ubyteCallocArgs, false, true), ubyteCallocArgs.length, "");
+
+    LLVMValueRef bytesIsNotNull = LLVM.LLVMBuildIsNotNull(builder, bytes, "");
+    LLVMBasicBlockRef bytesCallocContinueBlock = LLVM.LLVMAddBasicBlock(builder, "bytesCallocContinue");
+    LLVMBasicBlockRef bytesCallocFailedBlock = LLVM.LLVMAddBasicBlock(builder, "bytesCallocFailed");
+    LLVM.LLVMBuildCondBr(builder, bytesIsNotNull, bytesCallocContinueBlock, bytesCallocFailedBlock);
+    LLVM.LLVMPositionBuilderAtEnd(builder, bytesCallocFailedBlock);
+    buildOutOfMemoryHandler(builder);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, bytesCallocContinueBlock);
     bytes = LLVM.LLVMBuildBitCast(builder, bytes, llvmUbyteArrayType, "");
-    {} // TODO: throw an OutOfMemoryError here if calloc returns null
 
     LLVMValueRef bytesRTTI = rttiHelper.getInstanceRTTI(ubyteArrayType);
     LLVMValueRef bytesRTTIPointer = rttiHelper.getRTTIPointer(builder, bytes);
@@ -2006,8 +2051,16 @@ public class CodeGenerator
     // call calloc to allocate the memory and initialise it to a string of zeros
     LLVMValueRef[] arguments = new LLVMValueRef[] {llvmSize, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
     LLVMValueRef memoryPointer = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+
+    LLVMValueRef isNotNull = LLVM.LLVMBuildIsNotNull(builder, memoryPointer, "");
+    LLVMBasicBlockRef callocContinueBlock = LLVM.LLVMAddBasicBlock(builder, "arrayCallocContinue");
+    LLVMBasicBlockRef callocFailedBlock = LLVM.LLVMAddBasicBlock(builder, "arrayCallocFailed");
+    LLVM.LLVMBuildCondBr(builder, isNotNull, callocContinueBlock, callocFailedBlock);
+    LLVM.LLVMPositionBuilderAtEnd(builder, callocFailedBlock);
+    buildOutOfMemoryHandler(builder);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, callocContinueBlock);
     LLVMValueRef allocatedPointer = LLVM.LLVMBuildBitCast(builder, memoryPointer, llvmArrayType, "");
-    {} // TODO: throw an OutOfMemoryError here if calloc returns null
 
     LLVMValueRef rtti = rttiHelper.getInstanceRTTI(TypeChecker.findTypeWithNullability(type, false));
     LLVMValueRef rttiPointer = rttiHelper.getRTTIPointer(builder, allocatedPointer);
@@ -3123,8 +3176,16 @@ public class CodeGenerator
       LLVMValueRef llvmSize = LLVM.LLVMBuildPtrToInt(builder, llvmStructSize, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
       LLVMValueRef[] callocArguments = new LLVMValueRef[] {llvmSize, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
       LLVMValueRef memory = LLVM.LLVMBuildCall(builder, callocFunction, C.toNativePointerArray(callocArguments, false, true), callocArguments.length, "");
+
+      LLVMValueRef isNotNull = LLVM.LLVMBuildIsNotNull(builder, memory, "");
+      LLVMBasicBlockRef callocContinueBlock = LLVM.LLVMAddBasicBlock(builder, "objectCallocContinue");
+      LLVMBasicBlockRef callocFailedBlock = LLVM.LLVMAddBasicBlock(builder, "objectCallocFailed");
+      LLVM.LLVMBuildCondBr(builder, isNotNull, callocContinueBlock, callocFailedBlock);
+      LLVM.LLVMPositionBuilderAtEnd(builder, callocFailedBlock);
+      buildOutOfMemoryHandler(builder);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, callocContinueBlock);
       LLVMValueRef pointer = LLVM.LLVMBuildBitCast(builder, memory, nativeType, "");
-      {} // TODO: throw an OutOfMemoryError here if calloc returns null
 
       // store the VFT
       LLVMValueRef rtti = rttiHelper.getInstanceRTTI(objectType);

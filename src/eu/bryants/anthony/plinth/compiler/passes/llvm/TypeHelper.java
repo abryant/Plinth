@@ -1010,8 +1010,16 @@ public class TypeHelper
       LLVMValueRef llvmSize = LLVM.LLVMBuildPtrToInt(builder, llvmStructSize, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
       LLVMValueRef[] callocArguments = new LLVMValueRef[] {llvmSize, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
       LLVMValueRef memory = LLVM.LLVMBuildCall(builder, codeGenerator.getCallocFunction(), C.toNativePointerArray(callocArguments, false, true), callocArguments.length, "");
+
+      LLVMValueRef isNotNull = LLVM.LLVMBuildIsNotNull(builder, memory, "");
+      LLVMBasicBlockRef callocContinueBlock = LLVM.LLVMAddBasicBlock(builder, "objectCastCallocContinue");
+      LLVMBasicBlockRef callocFailedBlock = LLVM.LLVMAddBasicBlock(builder, "objectCastCallocFailed");
+      LLVM.LLVMBuildCondBr(builder, isNotNull, callocContinueBlock, callocFailedBlock);
+      LLVM.LLVMPositionBuilderAtEnd(builder, callocFailedBlock);
+      codeGenerator.buildOutOfMemoryHandler(builder);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, callocContinueBlock);
       LLVMValueRef pointer = LLVM.LLVMBuildBitCast(builder, memory, nativeType, "");
-      {} // TODO: throw an OutOfMemoryError here if calloc returns null
 
       // store the object's run-time type information
       LLVMValueRef rtti;

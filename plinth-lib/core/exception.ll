@@ -7,6 +7,7 @@
 %object = type { { %VFTSearchList*, { i8, i32 } }*, %VFT* }
 %NamedRTTI = type { i8, i32, i1, i1, %RawString*}
 
+@OutOfMemoryErrorMessage = private hidden unnamed_addr constant { %opaque*, %opaque*, i32, [27 x i8] } {%opaque* null, %opaque* null, i32 27, [27 x i8] c"Out of memory! Aborting...\0A"}
 @BadRTTIErrorMessage = private hidden unnamed_addr constant { %opaque*, %opaque*, i32, [32 x i8] } {%opaque* null, %opaque* null, i32 32, [32 x i8] c"Bad Exception RTTI! Aborting...\0A"}
 
 declare protected %VFT* @plinth_core_find_vft(%VFTSearchList* %vftSearchList, %RawString* %searchName)
@@ -46,3 +47,10 @@ badRTTI:
   unreachable
 }
 
+define void @plinth_outofmemory_abort() {
+entry:
+  %errorMessage = bitcast { %opaque*, %opaque*, i32, [27 x i8] }* @OutOfMemoryErrorMessage to { %opaque*, %opaque*, i32, [0 x i8] }*
+  call void @plinth_stderr_write({ %opaque*, %opaque*, i32, [0 x i8] }* %errorMessage)
+  call void @abort()
+  unreachable
+}
