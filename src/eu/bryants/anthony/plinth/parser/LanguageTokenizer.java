@@ -69,6 +69,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("static",     ParseType.STATIC_KEYWORD);
     KEYWORDS.put("super",      ParseType.SUPER_KEYWORD);
     KEYWORDS.put("this",       ParseType.THIS_KEYWORD);
+    KEYWORDS.put("throw",      ParseType.THROW_KEYWORD);
     KEYWORDS.put("true",       ParseType.TRUE_KEYWORD);
     KEYWORDS.put("ubyte",      ParseType.UBYTE_KEYWORD);
     KEYWORDS.put("uint",       ParseType.UINT_KEYWORD);

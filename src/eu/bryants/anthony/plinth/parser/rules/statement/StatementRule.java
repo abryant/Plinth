@@ -9,6 +9,7 @@ import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
+import eu.bryants.anthony.plinth.ast.statement.ThrowStatement;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
@@ -43,12 +44,15 @@ public class StatementRule extends Rule<ParseType>
   private static final Production<ParseType> DELEGATE_THIS_CONSTRUCTOR_PRODUCTION = new Production<ParseType>(ParseType.THIS_KEYWORD, ParseType.ARGUMENTS, ParseType.SEMICOLON);
   private static final Production<ParseType> DELEGATE_SUPER_CONSTRUCTOR_PRODUCTION = new Production<ParseType>(ParseType.SUPER_KEYWORD, ParseType.ARGUMENTS, ParseType.SEMICOLON);
 
+  private static final Production<ParseType> THROW_PRODUCTION = new Production<ParseType>(ParseType.THROW_KEYWORD, ParseType.EXPRESSION, ParseType.SEMICOLON);
+
   public StatementRule()
   {
     super(ParseType.STATEMENT, ASSIGN_PRODUCTION, BLOCK_PRODUCTION, BREAK_PRODUCTION, CONTINUE_PRODUCTION, IF_PRODUCTION, FOR_PRODUCTION, INC_DEC_PRODUCTION,
                                RETURN_PRODUCTION, WHILE_PRODUCTION, SHORTHAND_ASSIGN_PRODUCTION,
                                FUNCTION_CALL_PRODUCTION, CAST_FUNCTION_CALL_PRODUCTION, CLASS_CREATION_PRODUCTION,
-                               DELEGATE_THIS_CONSTRUCTOR_PRODUCTION, DELEGATE_SUPER_CONSTRUCTOR_PRODUCTION);
+                               DELEGATE_THIS_CONSTRUCTOR_PRODUCTION, DELEGATE_SUPER_CONSTRUCTOR_PRODUCTION,
+                               THROW_PRODUCTION);
   }
 
   /**
@@ -94,6 +98,11 @@ public class StatementRule extends Rule<ParseType>
       @SuppressWarnings("unchecked")
       ParseList<Expression> arguments = (ParseList<Expression>) args[1];
       return new DelegateConstructorStatement(isSuperConstructor, arguments.toArray(new Expression[arguments.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], arguments.getLexicalPhrase(), (LexicalPhrase) args[2]));
+    }
+    if (production == THROW_PRODUCTION)
+    {
+      Expression expression = (Expression) args[1];
+      return new ThrowStatement(expression, LexicalPhrase.combine((LexicalPhrase) args[0], expression.getLexicalPhrase(), (LexicalPhrase) args[2]));
     }
     throw badTypeList();
   }

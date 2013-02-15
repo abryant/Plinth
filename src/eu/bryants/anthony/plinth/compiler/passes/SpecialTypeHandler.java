@@ -2,6 +2,7 @@ package eu.bryants.anthony.plinth.compiler.passes;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Method;
@@ -36,6 +37,8 @@ public class SpecialTypeHandler
   public static Method stringValueOfFloat;
   public static Method stringValueOfDouble;
 
+  public static final NamedType THROWABLE_TYPE = new NamedType(false, false, new QName("Throwable", null), null);
+
   public static final NamedType CAST_ERROR_TYPE = new NamedType(false, false, new QName("CastError", null), null);
   public static Constructor castErrorTypesReasonConstructor;
 
@@ -51,6 +54,7 @@ public class SpecialTypeHandler
   public static void verifySpecialTypes() throws ConceptualException
   {
     verifyStringType();
+    verifyThrowableType();
     verifyCastErrorType();
   }
 
@@ -143,6 +147,15 @@ public class SpecialTypeHandler
     }
   }
 
+  private static void verifyThrowableType() throws ConceptualException
+  {
+    TypeDefinition typeDefinition = THROWABLE_TYPE.getResolvedTypeDefinition();
+    if (typeDefinition == null || !(typeDefinition instanceof InterfaceDefinition))
+    {
+      throw new ConceptualException("The Throwable type must be defined as an interface!", null);
+    }
+  }
+
   private static void verifyCastErrorType() throws ConceptualException
   {
     TypeDefinition typeDefinition = CAST_ERROR_TYPE.getResolvedTypeDefinition();
@@ -150,6 +163,21 @@ public class SpecialTypeHandler
     {
       throw new ConceptualException("The CastError type must be defined as a class!", null);
     }
+
+    boolean isThrowable = false;
+    for (TypeDefinition t : typeDefinition.getInheritanceLinearisation())
+    {
+      if (t == THROWABLE_TYPE.getResolvedTypeDefinition())
+      {
+        isThrowable = true;
+        break;
+      }
+    }
+    if (!isThrowable)
+    {
+      throw new ConceptualException("The CastError type must inherit from Throwable", null);
+    }
+
     Type nullableStringType = TypeChecker.findTypeWithNullability(STRING_TYPE, true);
     for (Constructor constructor : typeDefinition.getUniqueConstructors())
     {

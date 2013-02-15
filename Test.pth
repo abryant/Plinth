@@ -13,6 +13,7 @@ interface DefaultRunnable
   void run()
   {
     stdout::println("DefaultRunnable::run(): " + this);
+    throw new Exception("Hello, World!");
   }
 }
 

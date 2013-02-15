@@ -70,6 +70,7 @@ import eu.bryants.anthony.plinth.ast.statement.ReturnStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement.ShorthandAssignmentOperator;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
+import eu.bryants.anthony.plinth.ast.statement.ThrowStatement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
@@ -800,6 +801,15 @@ public class TypeChecker
         {
           throw new ConceptualException("The operator '" + operator + "' is not defined for types " + left + " and " + right, shorthandAssignStatement.getLexicalPhrase());
         }
+      }
+    }
+    else if (statement instanceof ThrowStatement)
+    {
+      ThrowStatement throwStatement = (ThrowStatement) statement;
+      Type thrownType = checkTypes(throwStatement.getThrownExpression());
+      if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+      {
+        throw new ConceptualException("Cannot throw a value of type " + thrownType + " (it does not implement " + SpecialTypeHandler.THROWABLE_TYPE + ")", throwStatement.getLexicalPhrase());
       }
     }
     else if (statement instanceof WhileStatement)

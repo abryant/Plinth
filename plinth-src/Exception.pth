@@ -1,0 +1,36 @@
+/**
+ * An Exception is an object which represents an unusual situation which disrupts the normal execution of a program.
+ * Exceptions are usually thrown when the problem should be expected by the programmer. This is in contrast to Errors, which are usually thrown when the problem is unexpected.
+ *
+ * For example, if a file cannot be opened an Exception should be used, whereas if a list index is out of bounds an Error should be used.
+ * This is because the list is directly under the programmer's control and they are expected to do index checks themselves, whereas the file system is not.
+ */
+class Exception implements Throwable
+{
+  string message;
+
+  /**
+   * Creates a new Exception with the specified message.
+   * @param message - the new Exception's message
+   */
+  this(string message)
+  {
+    this.message = message;
+  }
+
+  /**
+   * @return the message associated with the Exception
+   */
+  string getMessage()
+  {
+    return message;
+  }
+
+  /**
+   * Prints the contents of this Exception to the stderr stream.
+   */
+  void print()
+  {
+    stderr::println(message);
+  }
+}

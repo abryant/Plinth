@@ -55,6 +55,7 @@ import eu.bryants.anthony.plinth.ast.statement.ReturnStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement.ShorthandAssignmentOperator;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
+import eu.bryants.anthony.plinth.ast.statement.ThrowStatement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
@@ -75,7 +76,7 @@ import eu.bryants.anthony.plinth.ast.type.VoidType;
  * expressions.
  * For example, the type of 'null' is a NullType, which does not have any direct translation to LLVM code (it could be
  * a simple pointer, or for '?uint' it could be a tuple of a boolean and an integer).
- * The type propagator eliminates all NullTypes by propagating the type information back down to the leaf nodes.
+ * The type propagator eliminates as many NullTypes as possible by propagating the type information back down to the leaf nodes.
  *
  * @author Anthony Bryant
  */
@@ -315,6 +316,13 @@ public class TypePropagator
         // there are multiple assignees, none of which has an ultimate type which should be propagated, so just propagate the expression type (since we have no better type to use)
         propagateTypes(shorthandAssignStatement.getExpression(), expressionType);
       }
+    }
+    else if (statement instanceof ThrowStatement)
+    {
+      ThrowStatement throwStatement = (ThrowStatement) statement;
+      // propagate the actual expression's type upwards rather than the Throwable interface type,
+      // since we already know that the expression's type is not nullable
+      propagateTypes(throwStatement.getThrownExpression(), throwStatement.getThrownExpression().getType());
     }
     else if (statement instanceof WhileStatement)
     {

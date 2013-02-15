@@ -27,6 +27,7 @@ import eu.bryants.anthony.plinth.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.plinth.ast.statement.ReturnStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
+import eu.bryants.anthony.plinth.ast.statement.ThrowStatement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.Type;
@@ -249,7 +250,8 @@ public class CycleChecker
         statement instanceof ExpressionStatement ||
         statement instanceof PrefixIncDecStatement ||
         statement instanceof ReturnStatement ||
-        statement instanceof ShorthandAssignStatement)
+        statement instanceof ShorthandAssignStatement ||
+        statement instanceof ThrowStatement)
     {
       // do nothing
     }

@@ -55,7 +55,8 @@ Statement = Assignment | Block | BreakStatement | ContinueStatement | ForStateme
             FunctionCallExpression Semicolon |
             CastKeyword LAngle Type RAngle FunctionCallExpression Semicolon |
             ClassCreationExpression Semicolon |
-            ThisKeyword Arguments Semicolon | SuperKeyword Arguments Semicolon
+            ThisKeyword Arguments Semicolon | SuperKeyword Arguments Semicolon |
+            ThrowKeyword Expression Semicolon
 
 Assignee = AssigneeNoQName | QName
 AssigneeNoQName = Primary         LSquare Expression RSquare |

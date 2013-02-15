@@ -82,6 +82,7 @@ import eu.bryants.anthony.plinth.ast.statement.ReturnStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement.ShorthandAssignmentOperator;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
+import eu.bryants.anthony.plinth.ast.statement.ThrowStatement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
@@ -1994,6 +1995,14 @@ public class CodeGenerator
         }
         LLVM.LLVMBuildStore(builder, assigneeResult, llvmAssigneePointers[i]);
       }
+    }
+    else if (statement instanceof ThrowStatement)
+    {
+      ThrowStatement throwStatement = (ThrowStatement) statement;
+      LLVMValueRef thrownValue = buildExpression(throwStatement.getThrownExpression(), builder, thisValue, variables, landingPadContainer);
+      // in case we're throwing an interface, convert to a not-null object in a standard type representation
+      thrownValue = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, thrownValue, throwStatement.getThrownExpression().getType(), new ObjectType(false, false, null));
+      buildThrow(builder, landingPadContainer, thrownValue);
     }
     else if (statement instanceof WhileStatement)
     {

@@ -76,6 +76,7 @@ import eu.bryants.anthony.plinth.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.plinth.ast.statement.ReturnStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
+import eu.bryants.anthony.plinth.ast.statement.ThrowStatement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
@@ -137,6 +138,7 @@ public class Resolver
   public void resolveSpecialTypes() throws NameNotResolvedException, ConceptualException
   {
     resolve(SpecialTypeHandler.STRING_TYPE, null);
+    resolve(SpecialTypeHandler.THROWABLE_TYPE, null);
     resolve(SpecialTypeHandler.CAST_ERROR_TYPE, null);
   }
 
@@ -1261,6 +1263,10 @@ public class Resolver
       {
         throw coalescedException;
       }
+    }
+    else if (statement instanceof ThrowStatement)
+    {
+      resolve(((ThrowStatement) statement).getThrownExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
     }
     else if (statement instanceof WhileStatement)
     {

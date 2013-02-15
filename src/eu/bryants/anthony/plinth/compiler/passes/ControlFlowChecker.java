@@ -69,6 +69,7 @@ import eu.bryants.anthony.plinth.ast.statement.PrefixIncDecStatement;
 import eu.bryants.anthony.plinth.ast.statement.ReturnStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
+import eu.bryants.anthony.plinth.ast.statement.ThrowStatement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
@@ -1219,6 +1220,12 @@ public class ControlFlowChecker
         throw coalescedException;
       }
       return false;
+    }
+    else if (statement instanceof ThrowStatement)
+    {
+      ThrowStatement throwStatement = (ThrowStatement) statement;
+      checkControlFlow(throwStatement.getThrownExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      return true;
     }
     else if (statement instanceof WhileStatement)
     {
