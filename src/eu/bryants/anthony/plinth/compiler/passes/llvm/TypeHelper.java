@@ -522,12 +522,13 @@ public class TypeHelper
    * Converts the specified Method's callee to the correct type to be passed into the Method.
    * This method assumes that the callee is already a subtype of the correct type to pass into the Method.
    * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
    * @param callee - the callee to convert, in a temporary type representation
    * @param calleeType - the current type of the callee
    * @param method - the Method that the callee will be passed into
    * @return the converted callee
    */
-  public LLVMValueRef convertMethodCallee(LLVMBuilderRef builder, LLVMValueRef callee, Type calleeType, Method method)
+  public LLVMValueRef convertMethodCallee(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef callee, Type calleeType, Method method)
   {
     if (method.isStatic())
     {
@@ -537,7 +538,7 @@ public class TypeHelper
     if (method instanceof BuiltinMethod)
     {
       BuiltinMethod builtinMethod = (BuiltinMethod) method;
-      return convertTemporary(builder, callee, calleeType, builtinMethod.getBaseType());
+      return convertTemporary(builder, landingPadContainer, callee, calleeType, builtinMethod.getBaseType());
     }
     TypeDefinition containingDefinition = method.getContainingTypeDefinition();
     if (containingDefinition != null)
@@ -546,12 +547,12 @@ public class TypeHelper
       // this is determined by the type definition which it is declared in, so that it matches the VFT we look up the Method in
       if (containingDefinition instanceof ClassDefinition)
       {
-        return convertTemporary(builder, callee, calleeType, new NamedType(false, false, containingDefinition));
+        return convertTemporary(builder, landingPadContainer, callee, calleeType, new NamedType(false, false, containingDefinition));
       }
       // for interfaces, the callee will be of type object
       if (containingDefinition instanceof InterfaceDefinition)
       {
-        return convertTemporary(builder, callee, calleeType, new ObjectType(false, false, null));
+        return convertTemporary(builder, landingPadContainer, callee, calleeType, new ObjectType(false, false, null));
       }
     }
     // the callee should already have its required value
@@ -593,6 +594,7 @@ public class TypeHelper
     LLVM.LLVMSetVisibility(objectFunction, LLVM.LLVMVisibility.LLVMHiddenVisibility);
 
     LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(objectFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
 
     Type baseType;
     if (method.getContainingTypeDefinition() != null)
@@ -608,18 +610,17 @@ public class TypeHelper
       throw new IllegalArgumentException("Method has no base type: " + method);
     }
     LLVMValueRef callee = LLVM.LLVMGetParam(objectFunction, 0);
-    LLVMValueRef convertedBaseValue = convertTemporary(builder, callee, objectType, baseType);
+    LLVMValueRef convertedBaseValue = convertTemporary(builder, landingPadContainer, callee, objectType, baseType);
 
-    LLVMValueRef methodFunction = codeGenerator.lookupMethodFunction(builder, convertedBaseValue, baseType, method);
+    LLVMValueRef methodFunction = codeGenerator.lookupMethodFunction(builder, landingPadContainer, convertedBaseValue, baseType, method);
     LLVMValueRef[] arguments = new LLVMValueRef[1 + parameters.length];
     arguments[0] = convertedBaseValue;
     for (int i = 0; i < parameters.length; ++i)
     {
       arguments[i + 1] = LLVM.LLVMGetParam(objectFunction, i + 1);
     }
-    LLVMBasicBlockRef landingPadBlock = LLVM.LLVMAppendBasicBlock(LLVM.LLVMGetBasicBlockParent(LLVM.LLVMGetInsertBlock(builder)), "landingPad");
     LLVMBasicBlockRef methodInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "methodInvokeContinue");
-    LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, methodFunction, C.toNativePointerArray(arguments, false, true), arguments.length, methodInvokeContinueBlock, landingPadBlock, "");
+    LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, methodFunction, C.toNativePointerArray(arguments, false, true), arguments.length, methodInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
     LLVM.LLVMPositionBuilderAtEnd(builder, methodInvokeContinueBlock);
     if (method.getReturnType() instanceof VoidType)
     {
@@ -630,10 +631,14 @@ public class TypeHelper
       LLVM.LLVMBuildRet(builder, result);
     }
 
-    LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
-    LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
-    LLVM.LLVMSetCleanup(landingPad, true);
-    LLVM.LLVMBuildResume(builder, landingPad);
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
 
     LLVM.LLVMDisposeBuilder(builder);
 
@@ -660,20 +665,114 @@ public class TypeHelper
   }
 
   /**
+   * Builds code to throw a cast error, with the specified from type, to type, and reason.
+   * Note: this method finishes the current LLVM basic block.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
+   * @param fromType - the fromType string to call the CastError constructor with
+   * @param toType - the toType string to call the CastError constructor with
+   * @param reason - the reason string to call the CastError constructor with (can be null)
+   */
+  public void buildThrowCastError(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, String fromType, String toType, String reason)
+  {
+    buildThrowCastError(builder, landingPadContainer, codeGenerator.buildStringCreation(builder, landingPadContainer, fromType), toType, reason);
+  }
+
+  /**
+   * Builds code to throw a cast error, with the specified from type, to type, and reason.
+   * Note: this method finishes the current LLVM basic block.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
+   * @param llvmFromType - the fromType string to call the CastError constructor with, in a temporary type representation
+   * @param toType - the toType string to call the CastError constructor with
+   * @param reason - the reason string to call the CastError constructor with (can be null)
+   */
+  public void buildThrowCastError(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef llvmFromType, String toType, String reason)
+  {
+    ClassDefinition castErrorTypeDefinition = (ClassDefinition) SpecialTypeHandler.CAST_ERROR_TYPE.getResolvedTypeDefinition();
+    LLVMValueRef[] allocatorArgs = new LLVMValueRef[0];
+    LLVMValueRef allocator = codeGenerator.getAllocatorFunction(castErrorTypeDefinition);
+    LLVMBasicBlockRef allocatorInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "castErrorAllocatorContinue");
+    LLVMValueRef allocatedCastError = LLVM.LLVMBuildInvoke(builder, allocator, C.toNativePointerArray(allocatorArgs, false, true), allocatorArgs.length, allocatorInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, allocatorInvokeContinueBlock);
+
+    llvmFromType = convertTemporaryToStandard(builder, llvmFromType, SpecialTypeHandler.STRING_TYPE);
+    LLVMValueRef llvmToType = codeGenerator.buildStringCreation(builder, landingPadContainer, toType);
+    llvmToType = convertTemporaryToStandard(builder, llvmToType, SpecialTypeHandler.STRING_TYPE);
+    LLVMValueRef llvmReason;
+    Type nullableStringType = TypeChecker.findTypeWithNullability(SpecialTypeHandler.STRING_TYPE, true);
+    if (reason == null)
+    {
+      llvmReason = LLVM.LLVMConstNull(findStandardType(nullableStringType));
+    }
+    else
+    {
+      llvmReason = codeGenerator.buildStringCreation(builder, landingPadContainer, reason);
+      llvmReason = convertTemporaryToStandard(builder, landingPadContainer, llvmReason, SpecialTypeHandler.STRING_TYPE, nullableStringType);
+    }
+
+    LLVMValueRef constructorFunction = codeGenerator.getConstructorFunction(SpecialTypeHandler.castErrorTypesReasonConstructor);
+    LLVMValueRef[] constructorArguments = new LLVMValueRef[] {allocatedCastError, llvmFromType, llvmToType, llvmReason};
+    LLVMBasicBlockRef constructorInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "castErrorConstructorContinue");
+    LLVM.LLVMBuildInvoke(builder, constructorFunction, C.toNativePointerArray(constructorArguments, false, true), constructorArguments.length, constructorInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, constructorInvokeContinueBlock);
+    LLVMValueRef castError = convertTemporaryToStandard(builder, allocatedCastError, SpecialTypeHandler.CAST_ERROR_TYPE);
+
+    codeGenerator.buildThrow(builder, landingPadContainer, castError);
+  }
+
+  /**
+   * Builds a null check which will throw a CastError on failure.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
+   * @param value - the value to perform the null check on, in a temporary type representation
+   * @param from - the Type of value
+   * @param to - the Type to pass to the CastError if the value is null
+   */
+  private void buildCastNullCheck(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type from, Type to)
+  {
+    LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
+    LLVMBasicBlockRef continueBlock = LLVM.LLVMAddBasicBlock(builder, "castNullCheckContinue");
+    LLVMBasicBlockRef nullBlock = LLVM.LLVMAddBasicBlock(builder, "castNullFailure");
+    LLVM.LLVMBuildCondBr(builder, isNotNull, continueBlock, nullBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, nullBlock);
+    buildThrowCastError(builder, landingPadContainer, "null", to.toString(), null);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, continueBlock);
+  }
+
+  /**
    * Converts the specified value from the specified 'from' type to the specified 'to' type, as a temporary.
    * This method assumes that the incoming value has a temporary native type, and produces a result with a temporary native type.
    * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
    * @param value - the value to convert
    * @param from - the Type to convert from
    * @param to - the Type to convert to
    * @return the converted value
    */
-  public LLVMValueRef convertTemporary(LLVMBuilderRef builder, LLVMValueRef value, Type from, Type to)
+  public LLVMValueRef convertTemporary(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type from, Type to)
   {
     if (from.isEquivalent(to))
     {
       return value;
     }
+
+    // perform a null check if necessary, and throw a CastError if it fails
+    if (from.isNullable() && !to.isNullable())
+    {
+      LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
+      LLVMBasicBlockRef continueBlock = LLVM.LLVMAddBasicBlock(builder, "castNullCheckContinue");
+      LLVMBasicBlockRef nullBlock = LLVM.LLVMAddBasicBlock(builder, "castNullFailure");
+      LLVM.LLVMBuildCondBr(builder, isNotNull, continueBlock, nullBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, nullBlock);
+      buildThrowCastError(builder, landingPadContainer, "null", to.toString(), null);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, continueBlock);
+    }
+
     if (from instanceof PrimitiveType && to instanceof PrimitiveType)
     {
       return convertPrimitiveType(builder, value, (PrimitiveType) from, (PrimitiveType) to);
@@ -681,39 +780,82 @@ public class TypeHelper
     if (from instanceof ArrayType && to instanceof ArrayType)
     {
       // array casts are illegal unless the base types are the same, so they must have the same basic type
-      // nullability and immutability will be checked by the type checker, but have no effect on the native type, so we do not need to do anything special here
-
-      // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined
-      // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
+      if (from.isNullable() && !to.isNullable())
+      {
+        buildCastNullCheck(builder, landingPadContainer, value, from, to);
+      }
+      // immutability will be checked by the type checker, but it doesn't have any effect on the native type, so we do not need to do anything special here
       return value;
     }
     if (from instanceof FunctionType && to instanceof FunctionType)
     {
       // function casts are illegal unless the parameter and return types are the same, so they must have the same basic type
-      // nullability and immutability will be checked by the type checker, but have no effect on the native type, so we do not need to do anything special here
+      if (from.isNullable() && !to.isNullable())
+      {
+        buildCastNullCheck(builder, landingPadContainer, value, from, to);
+      }
 
-      // if from is not immutable and to is immutable, then the result here is undefined
-      // TODO: throw an exception if we break immutability constraints for function casting
+      // a cast from a non-immutable function to an immutable function type is impossible
+      // so perform a run-time check that this constraint is not violated
+      if (!((FunctionType) from).isImmutable() && ((FunctionType) to).isImmutable())
+      {
+        // this is only allowed if the run-time type of value shows that it is immutable
+        LLVMBasicBlockRef functionImmutabilityCheckContinueBlock = LLVM.LLVMAddBasicBlock(builder, "functionImmutabilityCheckContinue");
+        // if the value is nullable, allow null values to pass through (we've already checked the nullability)
+        if (from.isNullable())
+        {
+          LLVMBasicBlockRef functionImmutabilityCheckBlock = LLVM.LLVMAddBasicBlock(builder, "functionImmutabilityCheck");
+          LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
+          LLVM.LLVMBuildCondBr(builder, isNotNull, functionImmutabilityCheckBlock, functionImmutabilityCheckContinueBlock);
+          LLVM.LLVMPositionBuilderAtEnd(builder, functionImmutabilityCheckBlock);
+        }
+        LLVMValueRef runtimeTypeMatches = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, value, TypeChecker.findTypeWithNullability(from, false), to);
+        LLVMBasicBlockRef immutabilityCastFailure = LLVM.LLVMAddBasicBlock(builder, "functionImmutabilityCheckFailure");
+        LLVM.LLVMBuildCondBr(builder, runtimeTypeMatches, functionImmutabilityCheckContinueBlock, immutabilityCastFailure);
 
-      // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined
-      // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
+        LLVM.LLVMPositionBuilderAtEnd(builder, immutabilityCastFailure);
+        buildThrowCastError(builder, landingPadContainer, from.toString(), to.toString(), "non-immutable functions cannot be cast to immutable");
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, functionImmutabilityCheckContinueBlock);
+      }
+
       return value;
     }
     if (from instanceof NamedType && to instanceof NamedType &&
         ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition &&
         ((NamedType) to).getResolvedTypeDefinition() instanceof ClassDefinition)
     {
+      if (from.isNullable() && !to.isNullable())
+      {
+        buildCastNullCheck(builder, landingPadContainer, value, from, to);
+      }
+
       if (!((NamedType) from).getResolvedTypeDefinition().equals(((NamedType) to).getResolvedTypeDefinition()))
       {
-        // both from and to are class types, and the type checker has made sure that we can convert between them
+        LLVMBasicBlockRef instanceOfContinueBlock = LLVM.LLVMAddBasicBlock(builder, "castInstanceOfCheckContinue");
+        if (from.isNullable())
+        {
+          // if the value is null, then skip the check
+          LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
+          LLVMBasicBlockRef instanceOfCheckBlock = LLVM.LLVMAddBasicBlock(builder, "castInstanceOfCheck");
+          LLVM.LLVMBuildCondBr(builder, isNotNull, instanceOfCheckBlock, instanceOfContinueBlock);
+          LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfCheckBlock);
+        }
+        LLVMValueRef runtimeTypeMatches = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, value, TypeChecker.findTypeWithNullability(from, false), to);
+        LLVMBasicBlockRef castFailureBlock = LLVM.LLVMAddBasicBlock(builder, "castFailure");
+        LLVM.LLVMBuildCondBr(builder, runtimeTypeMatches, instanceOfContinueBlock, castFailureBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, castFailureBlock);
+        LLVMValueRef rttiPointer = rttiHelper.lookupPureRTTI(builder, value);
+        LLVMValueRef classNameUbyteArray = rttiHelper.lookupClassName(builder, rttiPointer);
+        LLVMValueRef classNameString = codeGenerator.buildStringCreation(builder, landingPadContainer, classNameUbyteArray);
+        buildThrowCastError(builder, landingPadContainer, classNameString, to.toString(), null);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfContinueBlock);
+        // both from and to are class types, and we have made sure that we can convert between them
         // so bitcast value to the new type
         value = LLVM.LLVMBuildBitCast(builder, value, findTemporaryType(to), "");
-        // TODO: if value is not actually an instance of the class that 'to' represents, throw an exception here instead of having undefined behaviour
       }
-      // nullability and immutability will be checked by the type checker, but have no effect on the temporary type, so we do not need to do anything special here
-
-      // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined
-      // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
       return value;
     }
     if (from instanceof NamedType && to instanceof NamedType &&
@@ -721,10 +863,10 @@ public class TypeHelper
         ((NamedType) to).getResolvedTypeDefinition() instanceof CompoundDefinition)
     {
       // compound type casts are illegal unless the type definitions are the same, so they must have the same type
-      // nullability and immutability will be checked by the type checker, but have no effect on the temporary type, so we do not need to do anything special here
-
-      // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined
-      // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
+      if (from.isNullable() && !to.isNullable())
+      {
+        buildCastNullCheck(builder, landingPadContainer, value, from, to);
+      }
       return value;
     }
     if (from instanceof NamedType && to instanceof NamedType &&
@@ -732,8 +874,8 @@ public class TypeHelper
         ((NamedType) to).getResolvedTypeDefinition() instanceof ClassDefinition)
     {
       ObjectType objectType = new ObjectType(from.isNullable(), false, null);
-      LLVMValueRef objectValue = convertTemporary(builder, value, from, objectType);
-      return convertTemporary(builder, objectValue, objectType, to);
+      LLVMValueRef objectValue = convertTemporary(builder, landingPadContainer, value, from, objectType);
+      return convertTemporary(builder, landingPadContainer, objectValue, objectType, to);
     }
     if (from instanceof NamedType && to instanceof NamedType &&
         ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition &&
@@ -752,9 +894,15 @@ public class TypeHelper
       }
       if (found)
       {
+        if (from.isNullable() && !to.isNullable())
+        {
+          buildCastNullCheck(builder, landingPadContainer, value, from, to);
+        }
+
         LLVMBasicBlockRef startBlock = null;
         LLVMBasicBlockRef continueBlock = null;
-        if (from.isNullable())
+        // make sure we don't do a second null check if this is a cast from nullable to not-nullable
+        if (from.isNullable() && to.isNullable())
         {
           startBlock = LLVM.LLVMGetInsertBlock(builder);
           continueBlock = LLVM.LLVMAddBasicBlock(builder, "toInterfaceContinuation");
@@ -764,23 +912,22 @@ public class TypeHelper
           LLVM.LLVMBuildCondBr(builder, isNotNull, convertBlock, continueBlock);
           LLVM.LLVMPositionBuilderAtEnd(builder, convertBlock);
         }
-        LLVMTypeRef resultNativeType = findNativeType(to, false);
+        LLVMTypeRef resultNativeType = findStandardType(to);
 
         // we know exactly where the VFT is at compile time, so we don't need to search for it at run time, just look it up
         LLVMValueRef vftPointer = virtualFunctionHandler.getVirtualFunctionTablePointer(builder, value, classDefinition, toInterface);
         LLVMValueRef vft = LLVM.LLVMBuildLoad(builder, vftPointer, "");
-        LLVMValueRef objectPointer = convertTemporary(builder, value, from, new ObjectType(false, false, null));
+        LLVMValueRef objectPointer = convertTemporary(builder, landingPadContainer, value, from, new ObjectType(from.isNullable(), false, null));
         LLVMValueRef interfaceValue = LLVM.LLVMGetUndef(resultNativeType);
         interfaceValue = LLVM.LLVMBuildInsertValue(builder, interfaceValue, vft, 0, "");
         interfaceValue = LLVM.LLVMBuildInsertValue(builder, interfaceValue, objectPointer, 1, "");
 
-        if (from.isNullable())
+        if (from.isNullable() && to.isNullable())
         {
           LLVMBasicBlockRef endConvertBlock = LLVM.LLVMGetInsertBlock(builder);
           LLVM.LLVMBuildBr(builder, continueBlock);
           LLVM.LLVMPositionBuilderAtEnd(builder, continueBlock);
 
-          // TODO: if to is not nullable, and we came from startBlock (i.e. the value was null), throw an exception here instead of returning a null instance of its native type (undefined behaviour)
           LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, resultNativeType, "");
           LLVMValueRef[] incomingValues = new LLVMValueRef[] {LLVM.LLVMConstNull(resultNativeType), interfaceValue};
           LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, endConvertBlock};
@@ -798,12 +945,12 @@ public class TypeHelper
       if (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition)
       {
         objectType = new ObjectType(from.isNullable(), ((NamedType) from).isContextuallyImmutable(), null);
-        objectValue = convertTemporary(builder, value, from, objectType);
+        objectValue = convertTemporary(builder, landingPadContainer, value, from, objectType);
       }
       else if (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof InterfaceDefinition)
       {
         objectType = new ObjectType(from.isNullable(), ((NamedType) from).isContextuallyImmutable(), null);
-        objectValue = convertTemporary(builder, value, from, objectType);
+        objectValue = convertTemporary(builder, landingPadContainer, value, from, objectType);
       }
       else if (from instanceof ObjectType)
       {
@@ -812,9 +959,15 @@ public class TypeHelper
       }
       if (objectValue != null)
       {
+        if (from.isNullable() && !to.isNullable())
+        {
+          buildCastNullCheck(builder, landingPadContainer, value, from, to);
+        }
+
         LLVMBasicBlockRef startBlock = null;
         LLVMBasicBlockRef continueBlock = null;
-        if (objectType.isNullable())
+        // make sure we don't do a second null check if this is a cast from nullable to not-nullable
+        if (objectType.isNullable() && to.isNullable())
         {
           startBlock = LLVM.LLVMGetInsertBlock(builder);
           continueBlock = LLVM.LLVMAddBasicBlock(builder, "toInterfaceContinuation");
@@ -824,24 +977,45 @@ public class TypeHelper
           LLVM.LLVMBuildCondBr(builder, isNotNull, convertBlock, continueBlock);
           LLVM.LLVMPositionBuilderAtEnd(builder, convertBlock);
         }
-        LLVMTypeRef resultNativeType = findNativeType(to, false);
+        LLVMTypeRef resultNativeType = findStandardType(to);
 
         InterfaceDefinition toInterfaceDefinition = (InterfaceDefinition) ((NamedType) to).getResolvedTypeDefinition();
         LLVMValueRef vftPointer = virtualFunctionHandler.lookupInstanceVFT(builder, objectValue, toInterfaceDefinition);
         LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getVFTType(toInterfaceDefinition), 0);
         vftPointer = LLVM.LLVMBuildBitCast(builder, vftPointer, vftPointerType, "");
+        LLVMValueRef vftPointerIsNotNull = LLVM.LLVMBuildIsNotNull(builder, vftPointer, "");
+        LLVMBasicBlockRef castSuccessBlock = LLVM.LLVMAddBasicBlock(builder, "toInterfaceCastSuccess");
+        LLVMBasicBlockRef castFailureBlock = LLVM.LLVMAddBasicBlock(builder, "toInterfaceCastFailure");
+        LLVM.LLVMBuildCondBr(builder, vftPointerIsNotNull, castSuccessBlock, castFailureBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, castFailureBlock);
+        if ((from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition) ||
+            (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof InterfaceDefinition))
+        {
+          // if we're coming from a class or an interface, then we know that we can look up the real class name
+          LLVMValueRef rttiPointer = rttiHelper.lookupPureRTTI(builder, objectValue);
+          LLVMValueRef classNameUbyteArray = rttiHelper.lookupClassName(builder, rttiPointer);
+          LLVMValueRef classNameString = codeGenerator.buildStringCreation(builder, landingPadContainer, classNameUbyteArray);
+          buildThrowCastError(builder, landingPadContainer, classNameString, to.toString(), null);
+        }
+        else
+        {
+          buildThrowCastError(builder, landingPadContainer, from.toString(), to.toString(), "this object does not implement " + toInterfaceDefinition.getQualifiedName().toString());
+        }
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, castSuccessBlock);
+
         // TODO: if the VFT pointer is null (i.e. the object doesn't implement this interface), throw an exception here instead of just storing null in the interface's VFT field (and causing undefined behaviour)
         LLVMValueRef interfaceValue = LLVM.LLVMGetUndef(resultNativeType);
         interfaceValue = LLVM.LLVMBuildInsertValue(builder, interfaceValue, vftPointer, 0, "");
         interfaceValue = LLVM.LLVMBuildInsertValue(builder, interfaceValue, objectValue, 1, "");
 
-        if (from.isNullable())
+        if (objectType.isNullable() && to.isNullable())
         {
           LLVMBasicBlockRef endConvertBlock = LLVM.LLVMGetInsertBlock(builder);
           LLVM.LLVMBuildBr(builder, continueBlock);
           LLVM.LLVMPositionBuilderAtEnd(builder, continueBlock);
 
-          // TODO: if to is not nullable, and we came from startBlock (i.e. the value was null), throw an exception here instead of returning a null instance of its native type (undefined behaviour)
           LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, resultNativeType, "");
           LLVMValueRef[] incomingValues = new LLVMValueRef[] {LLVM.LLVMConstNull(resultNativeType), interfaceValue};
           LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, endConvertBlock};
@@ -855,13 +1029,14 @@ public class TypeHelper
     if (from instanceof TupleType && !(to instanceof TupleType))
     {
       TupleType fromTuple = (TupleType) from;
-      if (fromTuple.getSubTypes().length == 1)
+      if (fromTuple.getSubTypes().length == 1 && fromTuple.getSubTypes()[0].isEquivalent(to))
       {
         if (from.isNullable())
         {
+          // if from is nullable and value is null, then we need to throw a CastError here
+          buildCastNullCheck(builder, landingPadContainer, value, from, to);
+
           // extract the value of the tuple from the nullable structure
-          // if from is nullable and value is null, then the value we are using here is undefined
-          // TODO: if from is nullable and value is null, throw an exception here instead of having undefined behaviour
           value = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
         }
         return LLVM.LLVMBuildExtractValue(builder, value, 0, "");
@@ -870,7 +1045,7 @@ public class TypeHelper
     if (!(from instanceof TupleType) && to instanceof TupleType)
     {
       TupleType toTuple = (TupleType) to;
-      if (toTuple.getSubTypes().length == 1)
+      if (toTuple.getSubTypes().length == 1 && toTuple.getSubTypes()[0].isEquivalent(from))
       {
         LLVMValueRef tupledValue = LLVM.LLVMGetUndef(findTemporaryType(new TupleType(false, toTuple.getSubTypes(), null)));
         tupledValue = LLVM.LLVMBuildInsertValue(builder, tupledValue, value, 0, "");
@@ -885,6 +1060,11 @@ public class TypeHelper
     }
     if (from instanceof TupleType && to instanceof TupleType)
     {
+      if (from.isNullable() && !to.isNullable())
+      {
+        buildCastNullCheck(builder, landingPadContainer, value, from, to);
+      }
+
       TupleType fromTuple = (TupleType) from;
       TupleType toTuple = (TupleType) to;
       Type[] fromSubTypes = fromTuple.getSubTypes();
@@ -908,8 +1088,7 @@ public class TypeHelper
         if (from.isNullable() && !to.isNullable())
         {
           // extract the value of the tuple from the nullable structure
-          // if from is nullable and value is null, then the value we are using here is undefined
-          // TODO: if from is nullable and value is null, throw an exception here instead of having undefined behaviour
+          // (we have already done the associated null check above)
           return LLVM.LLVMBuildExtractValue(builder, value, 1, "");
         }
         if (!from.isNullable() && to.isNullable())
@@ -934,7 +1113,7 @@ public class TypeHelper
       for (int i = 0; i < fromSubTypes.length; i++)
       {
         LLVMValueRef current = LLVM.LLVMBuildExtractValue(builder, tupleValue, i, "");
-        LLVMValueRef converted = convertTemporary(builder, current, fromSubTypes[i], toSubTypes[i]);
+        LLVMValueRef converted = convertTemporary(builder, landingPadContainer, current, fromSubTypes[i], toSubTypes[i]);
         currentValue = LLVM.LLVMBuildInsertValue(builder, currentValue, converted, i, "");
       }
 
@@ -953,17 +1132,16 @@ public class TypeHelper
         return LLVM.LLVMBuildInsertValue(builder, result, currentValue, 1, "");
       }
       // return the value directly, since the to type is not nullable
-      // if from is nullable and value is null, then the value we are using here is undefined
-      // TODO: if from is nullable and value is null, throw an exception here instead of having undefined behaviour
       return currentValue;
     }
     if (from instanceof ObjectType && to instanceof ObjectType)
     {
       // object casts are always legal
-      // nullability and immutability will be checked by the type checker, but have no effect on the native type, so we do not need to do anything special here
-
-      // if from is nullable, to is not nullable, and value is null, then the value we are returning here is undefined
-      // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
+      if (from.isNullable() && !to.isNullable())
+      {
+        buildCastNullCheck(builder, landingPadContainer, value, from, to);
+      }
+      // immutability will be checked by the type checker, and doesn't have any effect on the native type, so we do not need to do anything special here
       return value;
     }
     if (to instanceof ObjectType)
@@ -971,19 +1149,29 @@ public class TypeHelper
       // anything can convert to object
       if (from instanceof NullType)
       {
+        if (!to.isNullable())
+        {
+          throw new IllegalArgumentException("Cannot convert from NullType to a not-null ObjectType");
+        }
         return LLVM.LLVMConstNull(findTemporaryType(to));
       }
       if ((from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition) ||
           from instanceof ArrayType)
       {
+        if (from.isNullable() && !to.isNullable())
+        {
+          buildCastNullCheck(builder, landingPadContainer, value, from, to);
+        }
         // class and array types can be safely bitcast to object types
-        // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
         return LLVM.LLVMBuildBitCast(builder, value, findTemporaryType(to), "");
       }
       if (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof InterfaceDefinition)
       {
+        if (from.isNullable() && !to.isNullable())
+        {
+          buildCastNullCheck(builder, landingPadContainer, value, from, to);
+        }
         // extract the object part of the interface's type
-        // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
         return LLVM.LLVMBuildExtractValue(builder, value, 1, "");
       }
       Type notNullFromType = TypeChecker.findTypeWithNullability(from, false);
@@ -993,15 +1181,23 @@ public class TypeHelper
       LLVMBasicBlockRef continuationBlock = null;
       if (from.isNullable())
       {
-        continuationBlock = LLVM.LLVMAddBasicBlock(builder, "toObjectConversionContinuation");
-        notNullBlock = LLVM.LLVMAddBasicBlock(builder, "toObjectConversionNotNull");
+        if (to.isNullable())
+        {
+          continuationBlock = LLVM.LLVMAddBasicBlock(builder, "toObjectConversionContinuation");
+          notNullBlock = LLVM.LLVMAddBasicBlock(builder, "toObjectConversionNotNull");
 
-        LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
-        startBlock = LLVM.LLVMGetInsertBlock(builder);
-        LLVM.LLVMBuildCondBr(builder, isNotNull, notNullBlock, continuationBlock);
+          LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
+          startBlock = LLVM.LLVMGetInsertBlock(builder);
+          LLVM.LLVMBuildCondBr(builder, isNotNull, notNullBlock, continuationBlock);
 
-        LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
-        notNullValue = convertTemporary(builder, value, from, notNullFromType);
+          LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
+        }
+        else
+        {
+          buildCastNullCheck(builder, landingPadContainer, value, from, to);
+        }
+        // TODO: converting from nullable to not-null here will cause an unnecessary null check, try to eliminate it
+        notNullValue = convertTemporary(builder, landingPadContainer, value, from, notNullFromType);
       }
       LLVMTypeRef nativeType = LLVM.LLVMPointerType(findSpecialisedObjectType(notNullFromType), 0);
       // allocate memory for the object
@@ -1050,13 +1246,12 @@ public class TypeHelper
       // cast away the part of the type that contains the value
       LLVMValueRef notNullResult = LLVM.LLVMBuildBitCast(builder, pointer, findTemporaryType(to), "");
 
-      if (from.isNullable())
+      if (from.isNullable() && to.isNullable())
       {
         LLVMBasicBlockRef endNotNullBlock = LLVM.LLVMGetInsertBlock(builder);
         LLVM.LLVMBuildBr(builder, continuationBlock);
         LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
 
-        // TODO: if to is not nullable, and we came from startBlock (i.e. the value was null), throw an exception here instead of returning a null instance of its native type (undefined behaviour)
         LLVMValueRef resultPhi = LLVM.LLVMBuildPhi(builder, findTemporaryType(to), "");
         LLVMValueRef[] incomingValues = new LLVMValueRef[] {LLVM.LLVMConstNull(findTemporaryType(to)), notNullResult};
         LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, endNotNullBlock};
@@ -1070,11 +1265,22 @@ public class TypeHelper
       if ((to instanceof NamedType && ((NamedType) to).getResolvedTypeDefinition() instanceof ClassDefinition) ||
           to instanceof ArrayType)
       {
-        // TODO: if from is nullable, to is not nullable, and value is null, throw an exception here instead of having undefined behaviour
+        if (from.isNullable() && !to.isNullable())
+        {
+          buildCastNullCheck(builder, landingPadContainer, value, from, to);
+        }
+
+        LLVMValueRef isInstanceOfToType = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, value, from, to);
+        LLVMBasicBlockRef instanceOfSuccessBlock = LLVM.LLVMAddBasicBlock(builder, "castObjectInstanceOfSuccess");
+        LLVMBasicBlockRef instanceOfFailureBlock = LLVM.LLVMAddBasicBlock(builder, "castObjectInstanceOfFailure");
+        LLVM.LLVMBuildCondBr(builder, isInstanceOfToType, instanceOfSuccessBlock, instanceOfFailureBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfFailureBlock);
+        buildThrowCastError(builder, landingPadContainer, from.toString(), to.toString(), null);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfSuccessBlock);
         return LLVM.LLVMBuildBitCast(builder, value, findTemporaryType(to), "");
       }
-
-      // TODO: if the object's RTTI conflicts with the thing we are converting to, throw a cast exception (i.e. do an instanceof check first)
 
       LLVMValueRef notNullValue = value;
       LLVMBasicBlockRef startBlock = null;
@@ -1082,16 +1288,34 @@ public class TypeHelper
       LLVMBasicBlockRef continuationBlock = null;
       if (from.isNullable())
       {
-        continuationBlock = LLVM.LLVMAddBasicBlock(builder, "fromObjectConversionContinuation");
-        notNullBlock = LLVM.LLVMAddBasicBlock(builder, "fromObjectConversionNotNull");
+        if (to.isNullable())
+        {
+          continuationBlock = LLVM.LLVMAddBasicBlock(builder, "fromObjectConversionContinuation");
+          notNullBlock = LLVM.LLVMAddBasicBlock(builder, "fromObjectConversionNotNull");
 
-        LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
-        startBlock = LLVM.LLVMGetInsertBlock(builder);
-        LLVM.LLVMBuildCondBr(builder, isNotNull, notNullBlock, continuationBlock);
+          LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
+          startBlock = LLVM.LLVMGetInsertBlock(builder);
+          LLVM.LLVMBuildCondBr(builder, isNotNull, notNullBlock, continuationBlock);
 
-        LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
-        notNullValue = convertTemporary(builder, value, from, TypeChecker.findTypeWithNullability(from, false));
+          LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
+        }
+        else
+        {
+          buildCastNullCheck(builder, landingPadContainer, value, from, to);
+        }
+        // TODO: converting from nullable to not-null here will cause an unnecessary null check, try to eliminate it
+        notNullValue = convertTemporary(builder, landingPadContainer, value, from, TypeChecker.findTypeWithNullability(from, false));
       }
+
+      LLVMValueRef isInstanceOfToType = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, notNullValue, TypeChecker.findTypeWithNullability(from, false), to);
+      LLVMBasicBlockRef instanceOfSuccessBlock = LLVM.LLVMAddBasicBlock(builder, "castObjectInstanceOfSuccess");
+      LLVMBasicBlockRef instanceOfFailureBlock = LLVM.LLVMAddBasicBlock(builder, "castObjectInstanceOfFailure");
+      LLVM.LLVMBuildCondBr(builder, isInstanceOfToType, instanceOfSuccessBlock, instanceOfFailureBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfFailureBlock);
+      buildThrowCastError(builder, landingPadContainer, from.toString(), to.toString(), null);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfSuccessBlock);
 
       Type notNullToType = TypeChecker.findTypeWithNullability(to, false);
       LLVMTypeRef nativeType = LLVM.LLVMPointerType(findSpecialisedObjectType(notNullToType), 0);
@@ -1100,14 +1324,13 @@ public class TypeHelper
       LLVMValueRef[] elementIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                           LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 2, false)};
       LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, castedValue, C.toNativePointerArray(elementIndices, false, true), elementIndices.length, "");
-      LLVMValueRef notNullResult = convertStandardPointerToTemporary(builder, elementPointer, TypeChecker.findTypeWithNullability(to, false), to);
+      LLVMValueRef notNullResult = convertStandardPointerToTemporary(builder, landingPadContainer, elementPointer, TypeChecker.findTypeWithNullability(to, false), to);
 
-      if (from.isNullable())
+      if (from.isNullable() && to.isNullable())
       {
         LLVMBasicBlockRef endNotNullBlock = LLVM.LLVMGetInsertBlock(builder);
         LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
 
-        // TODO: if to is not nullable, and we came from startBlock (i.e. the value was null), throw an exception here instead of returning a null instance of its native type (undefined behaviour)
         LLVMValueRef resultPhi = LLVM.LLVMBuildPhi(builder, findTemporaryType(to), "");
         LLVMValueRef[] incomingValues = new LLVMValueRef[] {LLVM.LLVMConstNull(findTemporaryType(to)), notNullResult};
         LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, endNotNullBlock};
@@ -1206,8 +1429,6 @@ public class TypeHelper
       return LLVM.LLVMBuildInsertValue(builder, result, primitiveValue, 1, "");
     }
     // return the primitive value directly, since the to type is not nullable
-    // if from was null, then the value we are returning here is undefined
-    // TODO: if from was null, throw an exception here instead of having undefined behaviour
     return primitiveValue;
   }
 
@@ -1245,15 +1466,15 @@ public class TypeHelper
 
       LLVM.LLVMPositionBuilderAtEnd(builder, conversionBlock);
       notNullType = TypeChecker.findTypeWithNullability(type, false);
-      notNullValue = convertTemporary(builder, value, type, notNullType);
+      notNullValue = convertTemporary(builder, landingPadContainer, value, type, notNullType);
     }
     Method method = notNullType.getMethod(new BuiltinMethod(notNullType, BuiltinMethodType.TO_STRING).getDisambiguator());
     if (method == null)
     {
       throw new IllegalStateException("Type " + type + " does not have a 'toString()' method!");
     }
-    LLVMValueRef function = codeGenerator.lookupMethodFunction(builder, notNullValue, notNullType, method);
-    LLVMValueRef callee = convertMethodCallee(builder, notNullValue, notNullType, method);
+    LLVMValueRef function = codeGenerator.lookupMethodFunction(builder, landingPadContainer, notNullValue, notNullType, method);
+    LLVMValueRef callee = convertMethodCallee(builder, landingPadContainer, notNullValue, notNullType, method);
     LLVMValueRef[] arguments = new LLVMValueRef[] {callee};
     LLVMBasicBlockRef toStringInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "toStringInvokeContinue");
     LLVMValueRef stringValue = LLVM.LLVMBuildInvoke(builder, function, C.toNativePointerArray(arguments, false, true), arguments.length, toStringInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
@@ -1283,14 +1504,15 @@ public class TypeHelper
   /**
    * Converts the specified value of the specified type from a temporary type representation to a standard type representation, after converting it from 'fromType' to 'toType'.
    * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
    * @param value - the value to convert
    * @param fromType - the type to convert from
    * @param toType - the type to convert to
    * @return the converted value
    */
-  public LLVMValueRef convertTemporaryToStandard(LLVMBuilderRef builder, LLVMValueRef value, Type fromType, Type toType)
+  public LLVMValueRef convertTemporaryToStandard(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type fromType, Type toType)
   {
-    LLVMValueRef temporary = convertTemporary(builder, value, fromType, toType);
+    LLVMValueRef temporary = convertTemporary(builder, landingPadContainer, value, fromType, toType);
     return convertTemporaryToStandard(builder, temporary, toType);
   }
 
@@ -1433,15 +1655,16 @@ public class TypeHelper
   /**
    * Converts the specified value of the specified type from a standard type representation to a temporary type representation, before converting it from 'fromType' to 'toType'.
    * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
    * @param value - the value to convert
    * @param fromType - the type to convert from
    * @param toType - the type to convert to
    * @return the converted value
    */
-  public LLVMValueRef convertStandardToTemporary(LLVMBuilderRef builder, LLVMValueRef value, Type fromType, Type toType)
+  public LLVMValueRef convertStandardToTemporary(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type fromType, Type toType)
   {
     LLVMValueRef temporary = convertStandardToTemporary(builder, value, fromType);
-    return convertTemporary(builder, temporary, fromType, toType);
+    return convertTemporary(builder, landingPadContainer, temporary, fromType, toType);
   }
 
   /**
@@ -1573,15 +1796,16 @@ public class TypeHelper
   /**
    * Converts the specified pointer to a value of the specified type from a pointer to a standard type representation to a temporary type representation, before converting it from 'fromType' to 'toType'.
    * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
    * @param pointer - the pointer to the value to convert
    * @param fromType - the type to convert from
    * @param toType - the type to convert to
    * @return the converted value
    */
-  public LLVMValueRef convertStandardPointerToTemporary(LLVMBuilderRef builder, LLVMValueRef pointer, Type fromType, Type toType)
+  public LLVMValueRef convertStandardPointerToTemporary(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef pointer, Type fromType, Type toType)
   {
     LLVMValueRef temporary = convertStandardPointerToTemporary(builder, pointer, fromType);
-    return convertTemporary(builder, temporary, fromType, toType);
+    return convertTemporary(builder, landingPadContainer, temporary, fromType, toType);
   }
 
   /**

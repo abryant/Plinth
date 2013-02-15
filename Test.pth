@@ -59,9 +59,8 @@ class Test extends Foo implements DefaultRunnable
     Runnable runTest = foo;
     runTest.run();
 
-    // needs to throw a cast exception:
-    {#-> void} immutableAlter = cast<{#-> void}> cast<object> test.alterField;
-    immutableAlter();
+    {-> void} alter = test.alterField;
+    alter();
     stdout::println("Field: " + test.field);
 
     stdout::println("Foo: " + foo);

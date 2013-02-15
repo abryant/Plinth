@@ -1,5 +1,6 @@
 package eu.bryants.anthony.plinth.compiler.passes;
 
+import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
@@ -35,6 +36,9 @@ public class SpecialTypeHandler
   public static Method stringValueOfFloat;
   public static Method stringValueOfDouble;
 
+  public static final NamedType CAST_ERROR_TYPE = new NamedType(false, false, new QName("CastError", null), null);
+  public static Constructor castErrorTypesReasonConstructor;
+
   public static final String MAIN_METHOD_NAME = "main";
 
   /**
@@ -47,6 +51,7 @@ public class SpecialTypeHandler
   public static void verifySpecialTypes() throws ConceptualException
   {
     verifyStringType();
+    verifyCastErrorType();
   }
 
   private static void verifyStringType() throws ConceptualException
@@ -135,6 +140,31 @@ public class SpecialTypeHandler
         stringValueOfFloat   == null || stringValueOfDouble     == null)
     {
       throw new ConceptualException("The string type must have the correct static " + STRING_VALUEOF_NAME + " methods", typeDefinition.getLexicalPhrase());
+    }
+  }
+
+  private static void verifyCastErrorType() throws ConceptualException
+  {
+    TypeDefinition typeDefinition = CAST_ERROR_TYPE.getResolvedTypeDefinition();
+    if (typeDefinition == null || !(typeDefinition instanceof ClassDefinition))
+    {
+      throw new ConceptualException("The CastError type must be defined as a class!", null);
+    }
+    Type nullableStringType = TypeChecker.findTypeWithNullability(STRING_TYPE, true);
+    for (Constructor constructor : typeDefinition.getUniqueConstructors())
+    {
+      Parameter[] parameters = constructor.getParameters();
+      if (parameters.length == 3 && parameters[0].getType().isEquivalent(STRING_TYPE) &&
+                                    parameters[1].getType().isEquivalent(STRING_TYPE) &&
+                                    parameters[2].getType().isEquivalent(nullableStringType))
+      {
+        castErrorTypesReasonConstructor = constructor;
+        break;
+      }
+    }
+    if (castErrorTypesReasonConstructor == null)
+    {
+      throw new ConceptualException("The CastError type must have a constructor which takes two type strings and a nullable reason string as arguments", typeDefinition.getLexicalPhrase());
     }
   }
 

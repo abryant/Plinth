@@ -194,10 +194,11 @@ public class BuiltinCodeGenerator
     LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(valueOfMethod);
 
     LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
 
     // get the parameter and convert it to a long
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
-    parameter = typeHelper.convertTemporary(builder, parameter, baseType, valueOfMethod.getParameters()[0].getType());
+    parameter = typeHelper.convertTemporary(builder, landingPadContainer, parameter, baseType, valueOfMethod.getParameters()[0].getType());
 
     LLVMValueRef[] arguments;
     if (radix)
@@ -209,16 +210,19 @@ public class BuiltinCodeGenerator
     {
       arguments = new LLVMValueRef[] {LLVM.LLVMConstNull(typeHelper.getOpaquePointer()), parameter};
     }
-    LLVMBasicBlockRef landingPadBlock = LLVM.LLVMAppendBasicBlock(LLVM.LLVMGetBasicBlockParent(LLVM.LLVMGetInsertBlock(builder)), "landingPad");
     LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "invokeContinue");
-    LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, valueOfFunction, C.toNativePointerArray(arguments, false, true), arguments.length, invokeContinueBlock, landingPadBlock, "");
+    LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, valueOfFunction, C.toNativePointerArray(arguments, false, true), arguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
     LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
     LLVM.LLVMBuildRet(builder, result);
 
-    LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
-    LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
-    LLVM.LLVMSetCleanup(landingPad, true);
-    LLVM.LLVMBuildResume(builder, landingPad);
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
 
     LLVM.LLVMDisposeBuilder(builder);
 
@@ -240,10 +244,11 @@ public class BuiltinCodeGenerator
     LLVMValueRef valueOfFunction = codeGenerator.getMethodFunction(valueOfMethod);
 
     LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
 
     // get the parameter and convert it to a long
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
-    parameter = typeHelper.convertTemporary(builder, parameter, baseType, valueOfMethod.getParameters()[0].getType());
+    parameter = typeHelper.convertTemporary(builder, landingPadContainer, parameter, baseType, valueOfMethod.getParameters()[0].getType());
 
     LLVMValueRef[] arguments;
     if (radix)
@@ -255,16 +260,19 @@ public class BuiltinCodeGenerator
     {
       arguments = new LLVMValueRef[] {LLVM.LLVMConstNull(typeHelper.getOpaquePointer()), parameter};
     }
-    LLVMBasicBlockRef landingPadBlock = LLVM.LLVMAppendBasicBlock(LLVM.LLVMGetBasicBlockParent(LLVM.LLVMGetInsertBlock(builder)), "landingPad");
     LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "invokeContinue");
-    LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, valueOfFunction, C.toNativePointerArray(arguments, false, true), arguments.length, invokeContinueBlock, landingPadBlock, "");
+    LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, valueOfFunction, C.toNativePointerArray(arguments, false, true), arguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
     LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
     LLVM.LLVMBuildRet(builder, result);
 
-    LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
-    LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
-    LLVM.LLVMSetCleanup(landingPad, true);
-    LLVM.LLVMBuildResume(builder, landingPad);
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
 
     LLVM.LLVMDisposeBuilder(builder);
 
@@ -458,12 +466,12 @@ public class BuiltinCodeGenerator
       LLVMBasicBlockRef notNullBlock = LLVM.LLVMAddBasicBlock(builder, "toStringCall");
       LLVM.LLVMBuildCondBr(builder, nullCheckResult, notNullBlock, nullBlock);
       LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
-      notNullElement = typeHelper.convertTemporary(builder, element, baseType, notNullBaseType);
+      notNullElement = typeHelper.convertTemporary(builder, landingPadContainer, element, baseType, notNullBaseType);
     }
     // we shouldn't usually create BuiltinMethods like this, as they might need to have a method index set depending on the base type
     // but it's fine in this case, because we're just using it to get a Disambiguator
     Method toStringMethod = notNullBaseType.getMethod(new BuiltinMethod(notNullBaseType, BuiltinMethodType.TO_STRING).getDisambiguator());
-    LLVMValueRef toStringFunction = codeGenerator.lookupMethodFunction(builder, notNullElement, notNullBaseType, toStringMethod);
+    LLVMValueRef toStringFunction = codeGenerator.lookupMethodFunction(builder, landingPadContainer, notNullElement, notNullBaseType, toStringMethod);
     LLVMValueRef[] arguments = new LLVMValueRef[] {notNullElement};
     LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "invokeContinue");
     LLVMValueRef notNullElementString = LLVM.LLVMBuildInvoke(builder, toStringFunction, C.toNativePointerArray(arguments, false, true), arguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
@@ -650,12 +658,12 @@ public class BuiltinCodeGenerator
           LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
         }
         Type notNullSubType = TypeChecker.findTypeWithNullability(subTypes[i], false);
-        LLVMValueRef notNullSubValue = typeHelper.convertTemporary(builder, subValue, subTypes[i], notNullSubType);
+        LLVMValueRef notNullSubValue = typeHelper.convertTemporary(builder, landingPadContainer, subValue, subTypes[i], notNullSubType);
         // we shouldn't usually create BuiltinMethods like this, as they might need to have a method index set depending on the base type
         // but it's fine in this case, because we're just using it to get a Disambiguator
         Method toStringMethod = notNullSubType.getMethod(new BuiltinMethod(notNullSubType, BuiltinMethodType.TO_STRING).getDisambiguator());
-        LLVMValueRef toStringFunction = codeGenerator.lookupMethodFunction(builder, notNullSubValue, notNullSubType, toStringMethod);
-        LLVMValueRef[] arguments = new LLVMValueRef[] {typeHelper.convertMethodCallee(builder, notNullSubValue, notNullSubType, toStringMethod)};
+        LLVMValueRef toStringFunction = codeGenerator.lookupMethodFunction(builder, landingPadContainer, notNullSubValue, notNullSubType, toStringMethod);
+        LLVMValueRef[] arguments = new LLVMValueRef[] {typeHelper.convertMethodCallee(builder, landingPadContainer, notNullSubValue, notNullSubType, toStringMethod)};
         LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "invokeContinue");
         LLVMValueRef llvmTypeString = LLVM.LLVMBuildInvoke(builder, toStringFunction, C.toNativePointerArray(arguments, false, true), arguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
         LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);

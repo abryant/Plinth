@@ -54,3 +54,4 @@ entry:
   call void @abort()
   unreachable
 }
+

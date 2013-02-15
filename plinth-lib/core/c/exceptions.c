@@ -40,7 +40,10 @@ enum
 typedef struct _Unwind_Exception _Unwind_Exception;
 typedef struct _Unwind_Context _Unwind_Context;
 
+// defined in core/exception.ll
 bool plinth_exception_instanceof(const uint8_t *plinthObject, const uint8_t *typeInfo);
+// defined in plinth-src/Throwable.pth
+void plinth_print_uncaught_exception(const uint8_t *plinthException);
 
 void* plinth_create_exception(const uint8_t *plinthExceptionObject);
 void plinth_throw(_Unwind_Exception *exception);
@@ -86,6 +89,15 @@ void* plinth_create_exception(const uint8_t *plinthExceptionObject)
 void plinth_throw(_Unwind_Exception *exception)
 {
   _Unwind_Reason_Code reason = _Unwind_RaiseException(exception);
+  if (reason == _URC_END_OF_STACK)
+  {
+    const uint8_t *plinthException = extractExceptionObject(exception);
+    plinth_destroy_exception(0, exception);
+    plinth_print_uncaught_exception(plinthException);
+    fflush(stdout);
+    fflush(stderr);
+    abort();
+  }
 
   // the exception has been raised, so if we reach here something has gone wrong
   fprintf(stderr, "failed to throw exception! reason=%d\n", reason);

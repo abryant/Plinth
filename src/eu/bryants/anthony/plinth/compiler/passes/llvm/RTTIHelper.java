@@ -106,6 +106,25 @@ public class RTTIHelper
   }
 
   /**
+   * Looks up the name of the class in the specified RTTI.
+   * Assumes that baseValue is a class's RTTI value.
+   * @param builder - the builder to build the lookup code with
+   * @param rttiPointer - the pointer to the RTTI to look up the class name inside
+   * @return a []ubyte holding the class's fully qualified name
+   */
+  public LLVMValueRef lookupClassName(LLVMBuilderRef builder, LLVMValueRef rttiPointer)
+  {
+    // cast the generic RTTI struct to a NamedType RTTI struct
+    // (we do not need to give the NamedType a TypeDefinition here, all pure RTTI structs for NamedTypes have the same LLVM types)
+    LLVMValueRef castedObjectRTTI = LLVM.LLVMBuildBitCast(builder, rttiPointer, LLVM.LLVMPointerType(getPureRTTIStructType(new NamedType(false, false, null, null)), 0), "");
+    LLVMValueRef[] stringIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 4, false)};
+    LLVMValueRef classQualifiedNameUbyteArrayPointer = LLVM.LLVMBuildGEP(builder, castedObjectRTTI, C.toNativePointerArray(stringIndices, false, true), stringIndices.length, "");
+    LLVMValueRef classQualifiedNameUbyteArray = LLVM.LLVMBuildLoad(builder, classQualifiedNameUbyteArrayPointer, "");
+    return classQualifiedNameUbyteArray;
+  }
+
+  /**
    * Finds the pure RTTI for the specified type, without a VFT search list
    * @param type - the type to find the RTTI for
    * @return the pure RTTI for the specified type
@@ -447,12 +466,13 @@ public class RTTIHelper
    * Builds an instanceof check, to check whether the specified value is an instance of the specified checkType.
    * This method assumes that the value and the expression type are not nullable. However, null instanceof &lt;anything&gt; should always return false.
    * @param builder - the LLVMBuilderRef to build the check with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
    * @param value - the not-null value to check, in a temporary type representation
    * @param expressionType - the type of the value, which must not be nullable
    * @param checkType - the type to check the RTTI against (note: nullability and data-immutability on the top level of this type are ignored)
    * @return an LLVMValueRef representing an i1 (boolean), which will be true iff value is an instance of checkType
    */
-  public LLVMValueRef buildInstanceOfCheck(LLVMBuilderRef builder, LLVMValueRef value, Type expressionType, Type checkType)
+  public LLVMValueRef buildInstanceOfCheck(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type expressionType, Type checkType)
   {
     checkType = TypeChecker.findTypeWithoutModifiers(checkType);
     if (checkType instanceof ObjectType)
@@ -542,7 +562,7 @@ public class RTTIHelper
         LLVMValueRef objectValue = value;
         if (((NamedType) expressionType).getResolvedTypeDefinition() instanceof InterfaceDefinition)
         {
-          objectValue = typeHelper.convertTemporary(builder, value, expressionType, new ObjectType(false, false, null));
+          objectValue = typeHelper.convertTemporary(builder, landingPadContainer, value, expressionType, new ObjectType(false, false, null));
         }
         // instead of building our own search through the super-type VFT list for checkType's TypeDefinition,
         // we can just search for the super-type's VFT pointer, which will come out as null iff the value does not implement checkType

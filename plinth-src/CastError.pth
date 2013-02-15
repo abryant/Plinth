@@ -1,0 +1,16 @@
+/**
+ * An Error which represents that a cast failed 
+ */
+class CastError extends Error
+{
+  /**
+   * Creates a new CastError, representing a failed cast from fromType to toType, with an optional reason
+   * @param fromType - the name of the type being cast from
+   * @param toType - the name of the type being cast to
+   * @param reason - an optional reason that the cast failed
+   */
+  this(string fromType, string toType, ?string reason)
+  {
+    super("Could not cast from " + fromType + " to " + toType + (reason == null ? "" : " (" + cast<string> reason + ")"));
+  }
+}

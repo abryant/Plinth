@@ -137,6 +137,7 @@ public class Resolver
   public void resolveSpecialTypes() throws NameNotResolvedException, ConceptualException
   {
     resolve(SpecialTypeHandler.STRING_TYPE, null);
+    resolve(SpecialTypeHandler.CAST_ERROR_TYPE, null);
   }
 
   /**

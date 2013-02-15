@@ -458,12 +458,13 @@ public class VirtualFunctionHandler
   /**
    * Finds the pointer to the specified Method inside the specified base value
    * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
    * @param baseValue - the base value to look up the method in one of the virtual function tables of
    * @param baseType - the Type of the base value
    * @param method - the Method to look up in a virtual function table
    * @return a pointer to the native function representing the specified method
    */
-  public LLVMValueRef getMethodPointer(LLVMBuilderRef builder, LLVMValueRef baseValue, Type baseType, Method method)
+  public LLVMValueRef getMethodPointer(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef baseValue, Type baseType, Method method)
   {
     if (method.isStatic())
     {
@@ -498,7 +499,7 @@ public class VirtualFunctionHandler
         {
           throw new IllegalArgumentException("Cannot get a method pointer for '" + method.getName() + "', it is not part of the base value's type: " + baseType);
         }
-        LLVMValueRef convertedBaseValue = typeHelper.convertTemporary(builder, baseValue, baseType, new NamedType(false, false, methodTypeDefinition));
+        LLVMValueRef convertedBaseValue = typeHelper.convertTemporary(builder, landingPadContainer, baseValue, baseType, new NamedType(false, false, methodTypeDefinition));
         // extract the VFT from the interface's type representation
         vft = LLVM.LLVMBuildExtractValue(builder, convertedBaseValue, 0, "");
       }
@@ -508,7 +509,7 @@ public class VirtualFunctionHandler
       if (baseType instanceof NamedType && ((NamedType) baseType).getResolvedTypeDefinition() instanceof InterfaceDefinition)
       {
         ObjectType objectType = new ObjectType(false, false, null);
-        baseValue = typeHelper.convertTemporary(builder, baseValue, baseType, objectType);
+        baseValue = typeHelper.convertTemporary(builder, landingPadContainer, baseValue, baseType, objectType);
         baseType = objectType;
       }
       if (baseType instanceof ObjectType ||

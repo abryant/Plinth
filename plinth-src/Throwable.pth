@@ -1,0 +1,26 @@
+/**
+ * The base type of everything which can be thrown, including Exception and Error.
+ */
+interface Throwable
+{
+  /**
+   * @return the message associated with this Throwable
+   */
+  string getMessage();
+
+  /**
+   * Prints the contents of this Throwable to the stderr stream.
+   */
+  void print();
+
+  /**
+   * Prints the specified uncaught exception.
+   * This is designed to be called from the runtime's exception handler if a Throwable is thrown but never caught.
+   * @param uncaught - the Throwable which was not caught by the exception handling system, and should be printed
+   */
+  static native "plinth_print_uncaught_exception" void printUncaughtException(object uncaught)
+  {
+    stderr::println("Aborting due to an uncaught exception:");
+    (cast<Throwable> uncaught).print();
+  }
+}

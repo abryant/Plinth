@@ -1,0 +1,36 @@
+/**
+ * An Error is an object which represents an unusual situation which disrupts the normal execution of a program.
+ * Errors are usually thrown when the problem is not expected by the programmer. This is in contrast to Exceptions, which are usually thrown when the problem should be expected.
+ *
+ * For example, if a file cannot be opened an Exception should be used, whereas if a list index is out of bounds an Error should be used.
+ * This is because the list is directly under the programmer's control and they are expected to do index checks themselves, whereas the file system is not.
+ */
+class Error implements Throwable
+{
+  string message;
+
+  /**
+   * Creates a new Error with the specified message.
+   * @param message - the new Error's message
+   */
+  this(string message)
+  {
+    this.message = message;
+  }
+
+  /**
+   * @return the message associated with the Error
+   */
+  string getMessage()
+  {
+    return message;
+  }
+
+  /**
+   * Prints the contents of this Error to the stderr stream.
+   */
+  void print()
+  {
+    stderr::println(message);
+  }
+}
