@@ -301,7 +301,7 @@ public class MetadataLoader
     Method[] methods = new Method[methodNodes.length];
     for (int i = 0; i < methodNodes.length; ++i)
     {
-      methods[i] = loadMethod(methodNodes[i], isStatic);
+      methods[i] = loadMethod(methodNodes[i], isStatic, i);
     }
     return methods;
   }
@@ -357,7 +357,7 @@ public class MetadataLoader
     return new Constructor(isImmutable, isSelfish, sinceSpecifier, parameters, null, null);
   }
 
-  private static Method loadMethod(LLVMValueRef metadataNode, boolean isStatic) throws MalformedMetadataException
+  private static Method loadMethod(LLVMValueRef metadataNode, boolean isStatic, int index) throws MalformedMetadataException
   {
     if (LLVM.LLVMIsAMDNode(metadataNode) == null)
     {
@@ -394,7 +394,12 @@ public class MetadataLoader
     {
       throw new MalformedMetadataException("A static method cannot be abstract");
     }
-    return new Method(returnType, name, isAbstract, isStatic, isImmutable, nativeName, sinceSpecifier, parameters, null, null);
+    Method method = new Method(returnType, name, isAbstract, isStatic, isImmutable, nativeName, sinceSpecifier, parameters, null, null);
+    if (!isStatic)
+    {
+      method.setMethodIndex(index);
+    }
+    return method;
   }
 
   private static Parameter[] loadParameters(LLVMValueRef metadataNode) throws MalformedMetadataException
