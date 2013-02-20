@@ -718,7 +718,8 @@ public class TypeHelper
     LLVM.LLVMPositionBuilderAtEnd(builder, constructorInvokeContinueBlock);
     LLVMValueRef castError = convertTemporaryToStandard(builder, allocatedCastError, SpecialTypeHandler.CAST_ERROR_TYPE);
 
-    codeGenerator.buildThrow(builder, landingPadContainer, castError);
+    LLVMValueRef unwindException = codeGenerator.buildCreateException(builder, castError);
+    codeGenerator.buildThrow(builder, landingPadContainer, unwindException);
   }
 
   /**

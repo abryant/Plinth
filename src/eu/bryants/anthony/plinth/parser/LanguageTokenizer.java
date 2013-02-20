@@ -38,6 +38,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("break",      ParseType.BREAK_KEYWORD);
     KEYWORDS.put("byte",       ParseType.BYTE_KEYWORD);
     KEYWORDS.put("cast",       ParseType.CAST_KEYWORD);
+    KEYWORDS.put("catch",      ParseType.CATCH_KEYWORD);
     KEYWORDS.put("class",      ParseType.CLASS_KEYWORD);
     KEYWORDS.put("compound",   ParseType.COMPOUND_KEYWORD);
     KEYWORDS.put("continue",   ParseType.CONTINUE_KEYWORD);
@@ -46,6 +47,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("extends",    ParseType.EXTENDS_KEYWORD);
     KEYWORDS.put("false",      ParseType.FALSE_KEYWORD);
     KEYWORDS.put("final",      ParseType.FINAL_KEYWORD);
+    KEYWORDS.put("finally",    ParseType.FINALLY_KEYWORD);
     KEYWORDS.put("float",      ParseType.FLOAT_KEYWORD);
     KEYWORDS.put("for",        ParseType.FOR_KEYWORD);
     KEYWORDS.put("if",         ParseType.IF_KEYWORD);
@@ -71,6 +73,7 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("this",       ParseType.THIS_KEYWORD);
     KEYWORDS.put("throw",      ParseType.THROW_KEYWORD);
     KEYWORDS.put("true",       ParseType.TRUE_KEYWORD);
+    KEYWORDS.put("try",        ParseType.TRY_KEYWORD);
     KEYWORDS.put("ubyte",      ParseType.UBYTE_KEYWORD);
     KEYWORDS.put("uint",       ParseType.UINT_KEYWORD);
     KEYWORDS.put("ulong",      ParseType.ULONG_KEYWORD);

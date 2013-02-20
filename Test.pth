@@ -1,31 +1,6 @@
 package foo.bar;
 
-interface Runnable
-{
-  void run()
-  {
-    stdout::println("Runnable::run()");
-  }
-}
-
-interface DefaultRunnable
-{
-  void run()
-  {
-    stdout::println("DefaultRunnable::run(): " + this);
-    throw new Exception("Hello, World!");
-  }
-}
-
-abstract class Foo implements Runnable
-{
-  this()
-  {
-  }
-  abstract void run();
-}
-
-class Test extends Foo implements DefaultRunnable
+class Test
 {
   string field;
   this(uint a)
@@ -33,58 +8,51 @@ class Test extends Foo implements DefaultRunnable
     stderr::println("Test(uint): " + a);
     field = a.toString();
   }
-
-  void alterField()
+  
+  static void throwSomething()
   {
-    field += " (altered)";
+    throw new Error("Hello, Exceptions!");
   }
 
   static uint main([]string args)
   {
-    stdout::println(987);
-    stdout::println();
-    // find all of the command line arguments
-    string fullargs = concatMap(addSpace, args);
-    stdout::println("Your " + args.length + " arguments were:" + fullargs);
-
-    {string -> string} instance = addSpace;
-    stdout::println("test: " + (instance instanceof {string #-> string}));
-
-    ?object o = new Test(9);
-    stdout::println("o instanceof Foo: " + (o instanceof Foo) + ", o instanceof Test: " + (o instanceof Test));
-    Runnable r = cast<Runnable> o;
-    stdout::println("Interface call: " + r);
-
-    Foo foo = cast<Foo> o;
-    Test test = cast<Test> foo;
-    Runnable runTest = foo;
-    runTest.run();
-
-    {-> void} alter = test.alterField;
-    alter();
-    stdout::println("Field: " + test.field);
-
-    stdout::println("Foo: " + foo);
-
-    stdout::println("object: " + new object());
-    stdout::println("bigint: " + bigint());
-    stdout::println("null: " + null);
-
-    return 0;
-  }
-
-  static string concatMap({string #-> string} f, []string input)
-  {
-    string result = string();
-    for (uint i = 0; i < input.length; ++i)
+    Exception e = new Exception("AAAAA");
+    final object o;
+    uint i = args.length;
+    while true
     {
-      result += f(input[i]);
+      try
+      {
+        if i == 2
+        {
+          throw e;
+        }
+        try
+        {
+          throwSomething();
+        }
+        finally
+        {
+          stderr::println("First finally");
+        }
+      }
+      catch Exception | Error ex
+      {
+        stderr::println("Caught Exception|Error: " + ex.getMessage());
+      }
+      catch Throwable t
+      {
+        stderr::println("Caught Throwable: " + t.getMessage());
+      }
+      finally
+      {
+        stderr::println("Second Finally!");
+        o = new object();
+      }
+      stderr::println("after finally");
+      break;
     }
-    return result;
-  }
-
-  static immutable string addSpace(string x)
-  {
-    return " " + x;
+    stderr::println("after loop");
+    return 0;
   }
 }

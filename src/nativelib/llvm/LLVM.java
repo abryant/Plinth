@@ -203,6 +203,7 @@ public class LLVM
   public static native LLVMValueRef LLVMBuildShl(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildSIToFP(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
   public static native LLVMValueRef LLVMBuildStructGEP(LLVMBuilderRef builder, LLVMValueRef pointer, int index, String name);
+  public static native LLVMValueRef LLVMBuildSwitch(LLVMBuilderRef builder, LLVMValueRef value, LLVMBasicBlockRef defaultCase, int numCases);
   public static native LLVMValueRef LLVMBuildUIToFP(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
   public static native LLVMValueRef LLVMBuildSRem(LLVMBuilderRef builder, LLVMValueRef lhs, LLVMValueRef rhs, String name);
   public static native LLVMValueRef LLVMBuildStore(LLVMBuilderRef builder, LLVMValueRef value, LLVMValueRef pointer);
@@ -215,6 +216,7 @@ public class LLVM
   public static native LLVMValueRef LLVMBuildZExt(LLVMBuilderRef builder, LLVMValueRef value, LLVMTypeRef destType, String name);
 
   public static native void LLVMAddIncoming(LLVMValueRef phiNode, Pointer incomingValues, Pointer incomingBlocks, int count);
+  public static native void LLVMAddCase(LLVMValueRef switchNode, LLVMValueRef testValue, LLVMBasicBlockRef destinationBlock);
   public static native void LLVMAddClause(LLVMValueRef landingPad, LLVMValueRef clauseVal);
   public static native void LLVMSetCleanup(LLVMValueRef landingPad, boolean isCleanup);
 

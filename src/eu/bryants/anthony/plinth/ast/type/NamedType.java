@@ -7,6 +7,7 @@ import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
@@ -285,6 +286,10 @@ public class NamedType extends Type
     else if (resolvedTypeDefinition != null && resolvedTypeDefinition instanceof CompoundDefinition)
     {
       return (isNullable() ? "x" : "") + (isContextuallyImmutable() ? "c" : "") + "V" + resolvedTypeDefinition.getQualifiedName().getMangledName() + "E";
+    }
+    else if (resolvedTypeDefinition != null && resolvedTypeDefinition instanceof InterfaceDefinition)
+    {
+      return (isNullable() ? "x" : "") + (isContextuallyImmutable() ? "c" : "") + "N" + resolvedTypeDefinition.getQualifiedName().getMangledName() + "E";
     }
     throw new IllegalStateException("Cannot get a mangled name before the NamedType is resolved");
   }

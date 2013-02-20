@@ -39,6 +39,7 @@ import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
+import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
@@ -56,6 +57,7 @@ import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement.ShorthandAssignmentOperator;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
 import eu.bryants.anthony.plinth.ast.statement.ThrowStatement;
+import eu.bryants.anthony.plinth.ast.statement.TryStatement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
@@ -323,6 +325,19 @@ public class TypePropagator
       // propagate the actual expression's type upwards rather than the Throwable interface type,
       // since we already know that the expression's type is not nullable
       propagateTypes(throwStatement.getThrownExpression(), throwStatement.getThrownExpression().getType());
+    }
+    else if (statement instanceof TryStatement)
+    {
+      TryStatement tryStatement = (TryStatement) statement;
+      propagateTypes(tryStatement.getTryBlock(), returnType);
+      for (CatchClause catchClause : tryStatement.getCatchClauses())
+      {
+        propagateTypes(catchClause.getBlock(), returnType);
+      }
+      if (tryStatement.getFinallyBlock() != null)
+      {
+        propagateTypes(tryStatement.getFinallyBlock(), returnType);
+      }
     }
     else if (statement instanceof WhileStatement)
     {

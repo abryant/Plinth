@@ -1,5 +1,7 @@
 package eu.bryants.anthony.plinth.ast.statement;
 
+import java.util.List;
+
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.terminal.IntegerLiteral;
 
@@ -12,9 +14,12 @@ import eu.bryants.anthony.plinth.ast.terminal.IntegerLiteral;
  */
 public class BreakStatement extends Statement
 {
-
   private IntegerLiteral breakSteps;
 
+  /**
+   * The list of finally blocks that are broken through before reaching the BreakableStatement.
+   */
+  private List<TryStatement> resolvedFinallyBlocks;
   private BreakableStatement resolvedBreakable;
 
   public BreakStatement(IntegerLiteral breakSteps, LexicalPhrase lexicalPhrase)
@@ -29,6 +34,22 @@ public class BreakStatement extends Statement
   public IntegerLiteral getBreakSteps()
   {
     return breakSteps;
+  }
+
+  /**
+   * @return the resolvedFinallyBlocks
+   */
+  public List<TryStatement> getResolvedFinallyBlocks()
+  {
+    return resolvedFinallyBlocks;
+  }
+
+  /**
+   * @param resolvedFinallyBlocks - the resolvedFinallyBlocks to set
+   */
+  public void setResolvedFinallyBlocks(List<TryStatement> resolvedFinallyBlocks)
+  {
+    this.resolvedFinallyBlocks = resolvedFinallyBlocks;
   }
 
   /**

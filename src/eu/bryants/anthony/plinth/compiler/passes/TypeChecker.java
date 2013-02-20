@@ -54,6 +54,7 @@ import eu.bryants.anthony.plinth.ast.metadata.Variable;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
+import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
@@ -71,6 +72,7 @@ import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement.ShorthandAssignmentOperator;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
 import eu.bryants.anthony.plinth.ast.statement.ThrowStatement;
+import eu.bryants.anthony.plinth.ast.statement.TryStatement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
@@ -809,7 +811,21 @@ public class TypeChecker
       Type thrownType = checkTypes(throwStatement.getThrownExpression());
       if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
       {
-        throw new ConceptualException("Cannot throw a value of type " + thrownType + " (it does not implement " + SpecialTypeHandler.THROWABLE_TYPE + ")", throwStatement.getLexicalPhrase());
+        throw new ConceptualException("Cannot throw a value of type " + thrownType + " (it cannot be converted to " + SpecialTypeHandler.THROWABLE_TYPE + ")", throwStatement.getLexicalPhrase());
+      }
+    }
+    else if (statement instanceof TryStatement)
+    {
+      TryStatement tryStatement = (TryStatement) statement;
+      checkTypes(tryStatement.getTryBlock(), returnType);
+      for (CatchClause catchClause : tryStatement.getCatchClauses())
+      {
+        // the resolver has already called checkCatchClauseTypes(), so the caught variable has already been type-checked
+        checkTypes(catchClause.getBlock(), returnType);
+      }
+      if (tryStatement.getFinallyBlock() != null)
+      {
+        checkTypes(tryStatement.getFinallyBlock(), returnType);
       }
     }
     else if (statement instanceof WhileStatement)
@@ -2130,6 +2146,62 @@ public class TypeChecker
       }
     }
     return false;
+  }
+
+  /**
+   * Checks that the specified types are valid for a catch clause, and finds the common super-type that the caught variable should be.
+   * This method depends on all of the types having been resolved already.
+   * @param caughtTypes - the list of caught types
+   * @return the common super-type of the caught types
+   * @throws ConceptualException - if there is a problem with any of the caught types
+   */
+  public static Type checkCatchClauseTypes(Type[] caughtTypes) throws ConceptualException
+  {
+    CoalescedConceptualException coalescedException = null;
+    for (int i = 0; i < caughtTypes.length; ++i)
+    {
+      boolean isThrowable = false;
+      if (!(caughtTypes[i] instanceof NamedType))
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot catch a type which is not throwable", caughtTypes[i].getLexicalPhrase()));
+        continue;
+      }
+      NamedType namedType = (NamedType) caughtTypes[i];
+      for (TypeDefinition t : namedType.getResolvedTypeDefinition().getInheritanceLinearisation())
+      {
+        if (t == SpecialTypeHandler.THROWABLE_TYPE.getResolvedTypeDefinition())
+        {
+          isThrowable = true;
+          break;
+        }
+      }
+      if (!isThrowable)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot catch a type which is not throwable", caughtTypes[i].getLexicalPhrase()));
+        continue;
+      }
+    }
+    if (coalescedException != null)
+    {
+      throw coalescedException;
+    }
+    // find the common super-type of all of the caught types
+    Type currentType = caughtTypes[0];
+    for (int i = 1; i < caughtTypes.length; ++i)
+    {
+      currentType = findCommonSuperType(currentType, caughtTypes[i]);
+      if (currentType instanceof ObjectType)
+      {
+        // if the common super-type found two equidistant super-types, it could have defaulted to the object type
+        // in that case, we already know that all of our types inherit from Throwable, so we can change it back to Throwable
+        currentType = new NamedType(currentType.isNullable(), ((ObjectType) currentType).isExplicitlyImmutable(), ((ObjectType) currentType).isContextuallyImmutable(), SpecialTypeHandler.THROWABLE_TYPE.getResolvedTypeDefinition());
+      }
+    }
+    if (!(currentType instanceof NamedType))
+    {
+      throw new IllegalStateException("Found an caught exception super-type which is not a NamedType");
+    }
+    return currentType;
   }
 
   /**

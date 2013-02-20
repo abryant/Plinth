@@ -15,6 +15,7 @@ import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
+import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.statement.AssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Block;
 import eu.bryants.anthony.plinth.ast.statement.BreakStatement;
@@ -28,6 +29,7 @@ import eu.bryants.anthony.plinth.ast.statement.ReturnStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
 import eu.bryants.anthony.plinth.ast.statement.ThrowStatement;
+import eu.bryants.anthony.plinth.ast.statement.TryStatement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.Type;
@@ -286,6 +288,19 @@ public class CycleChecker
       if (ifStatement.getElseClause() != null)
       {
         findDelegateConstructors(ifStatement.getElseClause(), delegateConstructors);
+      }
+    }
+    else if (statement instanceof TryStatement)
+    {
+      TryStatement tryStatement = (TryStatement) statement;
+      findDelegateConstructors(tryStatement.getTryBlock(), delegateConstructors);
+      for (CatchClause catchClause : tryStatement.getCatchClauses())
+      {
+        findDelegateConstructors(catchClause.getBlock(), delegateConstructors);
+      }
+      if (tryStatement.getFinallyBlock() != null)
+      {
+        findDelegateConstructors(tryStatement.getFinallyBlock(), delegateConstructors);
       }
     }
     else if (statement instanceof WhileStatement)

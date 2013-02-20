@@ -38,4 +38,13 @@ public class ThrowStatement extends Statement
     return true;
   }
 
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String toString()
+  {
+    return "throw " + thrownExpression + ";";
+  }
+
 }

@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -53,6 +54,7 @@ import eu.bryants.anthony.plinth.ast.metadata.Variable;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
+import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
@@ -70,6 +72,7 @@ import eu.bryants.anthony.plinth.ast.statement.ReturnStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
 import eu.bryants.anthony.plinth.ast.statement.ThrowStatement;
+import eu.bryants.anthony.plinth.ast.statement.TryStatement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.terminal.IntegerLiteral;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
@@ -117,22 +120,22 @@ public class ControlFlowChecker
     // this is because this assumption allows the user to use 'this' in the initialiser once all other variables are initialised,
     // which is perfectly legal, since the initialiser must be run after any super-constructors
     // also, since initialisers cannot call delegate constructors, this cannot do any harm
-    ControlFlowVariables instanceVariables = new ControlFlowVariables(true);
-    ControlFlowVariables staticVariables   = new ControlFlowVariables(true);
+    ControlFlowState instanceState = new ControlFlowState(true);
+    ControlFlowState staticState   = new ControlFlowState(true);
 
     // the super-class's constructor has always been run by the time we get to the initialiser, so add the superClassVariables to the initialiser's variable set now
     for (Variable var : superClassVariables)
     {
-      instanceVariables.initialised.add(var);
-      instanceVariables.possiblyInitialised.add(var);
+      instanceState.variables.initialised.add(var);
+      instanceState.variables.possiblyInitialised.add(var);
     }
 
     for (Field field : typeDefinition.getNonStaticFields())
     {
       if (field.getType().hasDefaultValue() && !field.isFinal())
       {
-        instanceVariables.initialised.add(field.getMemberVariable());
-        instanceVariables.possiblyInitialised.add(field.getMemberVariable());
+        instanceState.variables.initialised.add(field.getMemberVariable());
+        instanceState.variables.possiblyInitialised.add(field.getMemberVariable());
       }
     }
 
@@ -162,26 +165,26 @@ public class ControlFlowChecker
           Field field = ((FieldInitialiser) initialiser).getField();
           if (field.isStatic())
           {
-            checkControlFlow(field.getInitialiserExpression(), staticVariables.initialised, staticVariables.initialiserState, false, false, true, false);
-            staticVariables.initialised.add(field.getGlobalVariable());
-            staticVariables.possiblyInitialised.add(field.getGlobalVariable());
+            checkControlFlow(field.getInitialiserExpression(), staticState.variables.initialised, staticState.variables.initialiserState, false, false, true, false);
+            staticState.variables.initialised.add(field.getGlobalVariable());
+            staticState.variables.possiblyInitialised.add(field.getGlobalVariable());
           }
           else
           {
-            checkControlFlow(field.getInitialiserExpression(), instanceVariables.initialised, instanceVariables.initialiserState, true, onlyHasSelfishConstructors, false, hasImmutableConstructors);
-            instanceVariables.initialised.add(field.getMemberVariable());
-            instanceVariables.possiblyInitialised.add(field.getMemberVariable());
+            checkControlFlow(field.getInitialiserExpression(), instanceState.variables.initialised, instanceState.variables.initialiserState, true, onlyHasSelfishConstructors, false, hasImmutableConstructors);
+            instanceState.variables.initialised.add(field.getMemberVariable());
+            instanceState.variables.possiblyInitialised.add(field.getMemberVariable());
           }
         }
         else
         {
           if (initialiser.isStatic())
           {
-            checkControlFlow(initialiser.getBlock(), typeDefinition, staticVariables, null, new LinkedList<BreakableStatement>(), false, false, true, false, true);
+            checkControlFlow(initialiser.getBlock(), typeDefinition, staticState, null, new LinkedList<Statement>(), false, false, true, false, true);
           }
           else
           {
-            checkControlFlow(initialiser.getBlock(), typeDefinition, instanceVariables, null, new LinkedList<BreakableStatement>(), true, onlyHasSelfishConstructors, false, hasImmutableConstructors, true);
+            checkControlFlow(initialiser.getBlock(), typeDefinition, instanceState, null, new LinkedList<Statement>(), true, onlyHasSelfishConstructors, false, hasImmutableConstructors, true);
           }
         }
       }
@@ -193,15 +196,15 @@ public class ControlFlowChecker
 
     for (Field field : typeDefinition.getFields())
     {
-      if (field.isStatic() && field.isFinal() && !staticVariables.initialised.contains(field.getGlobalVariable()))
+      if (field.isStatic() && field.isFinal() && !staticState.variables.initialised.contains(field.getGlobalVariable()))
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The static final field '" + field.getName() + "' is not always initialised", field.getLexicalPhrase()));
       }
     }
 
     DelegateConstructorVariables delegateConstructorVariables = new DelegateConstructorVariables();
-    delegateConstructorVariables.initialiserDefinitelyInitialised = instanceVariables.initialised;
-    delegateConstructorVariables.initialiserPossiblyInitialised = instanceVariables.possiblyInitialised;
+    delegateConstructorVariables.initialiserDefinitelyInitialised = instanceState.variables.initialised;
+    delegateConstructorVariables.initialiserPossiblyInitialised = instanceState.variables.possiblyInitialised;
     delegateConstructorVariables.superClassVariables = superClassVariables;
     for (Constructor constructor : typeDefinition.getAllConstructors())
     {
@@ -241,35 +244,35 @@ public class ControlFlowChecker
   private static void checkControlFlow(Constructor constructor, DelegateConstructorVariables delegateConstructorVariables) throws ConceptualException
   {
     boolean initialiserAlreadyRun = !constructor.getCallsDelegateConstructor();
-    ControlFlowVariables variables = new ControlFlowVariables(initialiserAlreadyRun);
+    ControlFlowState state = new ControlFlowState(initialiserAlreadyRun);
     if (initialiserAlreadyRun)
     {
       // this should behave exactly as if we are running the no-args super() constructor
-      // since initialiserVariables already contains all superclass member variables, just copy it to this Constructor's ControlFlowVariables
-      variables.initialised = new HashSet<Variable>(delegateConstructorVariables.initialiserDefinitelyInitialised);
-      variables.possiblyInitialised = new HashSet<Variable>(delegateConstructorVariables.initialiserPossiblyInitialised);
+      // since the initialiser variable sets already contain all superclass member variables, just copy them to this Constructor's ControlFlowState
+      state.variables.initialised = new HashSet<Variable>(delegateConstructorVariables.initialiserDefinitelyInitialised);
+      state.variables.possiblyInitialised = new HashSet<Variable>(delegateConstructorVariables.initialiserPossiblyInitialised);
     }
     for (Parameter p : constructor.getParameters())
     {
-      variables.initialised.add(p.getVariable());
-      variables.possiblyInitialised.add(p.getVariable());
+      state.variables.initialised.add(p.getVariable());
+      state.variables.possiblyInitialised.add(p.getVariable());
     }
     CoalescedConceptualException coalescedException = null;
     try
     {
-      checkControlFlow(constructor.getBlock(), constructor.getContainingTypeDefinition(), variables, delegateConstructorVariables, new LinkedList<BreakableStatement>(), true, constructor.isSelfish(), false, constructor.isImmutable(), false);
+      checkControlFlow(constructor.getBlock(), constructor.getContainingTypeDefinition(), state, delegateConstructorVariables, new LinkedList<Statement>(), true, constructor.isSelfish(), false, constructor.isImmutable(), false);
     }
     catch (ConceptualException e)
     {
       coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
     }
-    if (variables.initialiserState != InitialiserState.DEFINITELY_RUN)
+    if (state.variables.initialiserState != InitialiserState.DEFINITELY_RUN)
     {
       coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Constructor does not always call a delegate constructor, i.e. this(...) or super(...), or otherwise implicitly run the initialiser", constructor.getLexicalPhrase()));
     }
     for (Field field : constructor.getContainingTypeDefinition().getNonStaticFields())
     {
-      if (!variables.initialised.contains(field.getMemberVariable()))
+      if (!state.variables.initialised.contains(field.getMemberVariable()))
       {
         if (!field.getType().hasDefaultValue())
         {
@@ -304,13 +307,13 @@ public class ControlFlowChecker
       // this method has no body, so there is nothing to check
       return;
     }
-    ControlFlowVariables variables = new ControlFlowVariables(true);
+    ControlFlowState state = new ControlFlowState(true);
     for (Parameter p : method.getParameters())
     {
-      variables.initialised.add(p.getVariable());
-      variables.possiblyInitialised.add(p.getVariable());
+      state.variables.initialised.add(p.getVariable());
+      state.variables.possiblyInitialised.add(p.getVariable());
     }
-    boolean returned = checkControlFlow(method.getBlock(), method.getContainingTypeDefinition(), variables, null, new LinkedList<BreakableStatement>(), false, false, method.isStatic(), method.isImmutable(), false);
+    boolean returned = checkControlFlow(method.getBlock(), method.getContainingTypeDefinition(), state, null, new LinkedList<Statement>(), false, false, method.isStatic(), method.isImmutable(), false);
     if (!returned && !(method.getReturnType() instanceof VoidType))
     {
       throw new ConceptualException("Method does not always return a value", method.getLexicalPhrase());
@@ -321,9 +324,9 @@ public class ControlFlowChecker
    * Checks that the control flow of the specified statement is well defined.
    * @param statement - the statement to check
    * @param enclosingTypeDefinition - the TypeDefinition that the specified Statement is enclosed inside
-   * @param variables - the state of the variables before this statement, to be updated to the after-statement state
+   * @param state - the state of the variables before this statement, to be updated to the after-statement state
    * @param delegateConstructorVariables - the sets of variables which indicate which variables the initialiser initialises
-   * @param enclosingBreakableStack - the stack of statements that can be broken out of that enclose this statement
+   * @param enclosingBreakableStack - the stack of statements that can be broken out of that enclose this statement (includes the TryStatements with finally blocks along the way)
    * @param inConstructor - true if the statement is part of a constructor call
    * @param inSelfishContext - true if the statement is part of a selfish constructor
    * @param inStaticContext - true if the statement is in a static context
@@ -332,7 +335,7 @@ public class ControlFlowChecker
    * @return true if the statement returns from its enclosing function or control cannot reach statements after it, false if control flow continues after it
    * @throws ConceptualException - if any unreachable code is detected
    */
-  private static boolean checkControlFlow(Statement statement, TypeDefinition enclosingTypeDefinition, ControlFlowVariables variables, DelegateConstructorVariables delegateConstructorVariables, LinkedList<BreakableStatement> enclosingBreakableStack,
+  private static boolean checkControlFlow(Statement statement, TypeDefinition enclosingTypeDefinition, ControlFlowState state, DelegateConstructorVariables delegateConstructorVariables, LinkedList<Statement> enclosingBreakableStack,
                                           boolean inConstructor, boolean inSelfishContext, boolean inStaticContext, boolean inImmutableContext, boolean inInitialiser) throws ConceptualException
   {
     if (statement instanceof AssignStatement)
@@ -355,7 +358,7 @@ public class ControlFlowChecker
               {
                 if (inConstructor)
                 {
-                  if (variables.possiblyInitialised.contains(var))
+                  if (state.variables.possiblyInitialised.contains(var))
                   {
                     coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Final field '" + var.getName() + "' may already have been initialised", assignStatement.getLexicalPhrase()));
                   }
@@ -377,7 +380,7 @@ public class ControlFlowChecker
               {
                 if (inStaticContext && inInitialiser && ((GlobalVariable) var).getEnclosingTypeDefinition().equals(enclosingTypeDefinition))
                 {
-                  if (variables.possiblyInitialised.contains(var))
+                  if (state.variables.possiblyInitialised.contains(var))
                   {
                     coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The static final field '" + var.getName() + "' may already have been initialised", assignStatement.getLexicalPhrase()));
                   }
@@ -395,7 +398,7 @@ public class ControlFlowChecker
             }
             else // parameters and local variables
             {
-              if (var.isFinal() && variables.possiblyInitialised.contains(var))
+              if (var.isFinal() && state.variables.possiblyInitialised.contains(var))
               {
                 coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Variable '" + var.getName() + "' may already have been initialised.", assignStatement.getLexicalPhrase()));
               }
@@ -408,7 +411,7 @@ public class ControlFlowChecker
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
           try
           {
-            checkControlFlow(arrayElementAssignee.getArrayExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+            checkControlFlow(arrayElementAssignee.getArrayExpression(), state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
           }
           catch (ConceptualException e)
           {
@@ -416,7 +419,7 @@ public class ControlFlowChecker
           }
           try
           {
-            checkControlFlow(arrayElementAssignee.getDimensionExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+            checkControlFlow(arrayElementAssignee.getDimensionExpression(), state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
           }
           catch (ConceptualException e)
           {
@@ -451,7 +454,7 @@ public class ControlFlowChecker
                 throw new IllegalStateException("Field Assignee on 'this' resolves to a static member: " + fieldAssignee);
               }
               MemberVariable var = ((Field) resolvedMember).getMemberVariable();
-              if (var.isFinal() && variables.possiblyInitialised.contains(var))
+              if (var.isFinal() && state.variables.possiblyInitialised.contains(var))
               {
                 throw new ConceptualException("Final field '" + var.getName() + "' may already have been initialised.", assignStatement.getLexicalPhrase());
               }
@@ -466,7 +469,7 @@ public class ControlFlowChecker
               // if we aren't in a constructor, or the base expression isn't 'this', but we do have a base expression, then check the uninitialised variables for the base expression normally
               try
               {
-                checkControlFlow(fieldAccessExpression.getBaseExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+                checkControlFlow(fieldAccessExpression.getBaseExpression(), state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
               }
               catch (ConceptualException e)
               {
@@ -499,7 +502,7 @@ public class ControlFlowChecker
                 {
                   if (inStaticContext && inInitialiser && globalVar.getEnclosingTypeDefinition().equals(enclosingTypeDefinition))
                   {
-                    if (variables.possiblyInitialised.contains(globalVar))
+                    if (state.variables.possiblyInitialised.contains(globalVar))
                     {
                       coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The static final field '" + globalVar.getName() + "' may already have been initialised", assignStatement.getLexicalPhrase()));
                     }
@@ -535,15 +538,15 @@ public class ControlFlowChecker
       {
         try
         {
-          checkControlFlow(assignStatement.getExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          checkControlFlow(assignStatement.getExpression(), state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
         }
         catch (ConceptualException e)
         {
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
-      variables.initialised.addAll(nowInitialisedVariables);
-      variables.possiblyInitialised.addAll(nowInitialisedVariables);
+      state.variables.initialised.addAll(nowInitialisedVariables);
+      state.variables.possiblyInitialised.addAll(nowInitialisedVariables);
       if (coalescedException != null)
       {
         throw coalescedException;
@@ -563,7 +566,7 @@ public class ControlFlowChecker
         }
         try
         {
-          returned = checkControlFlow(s, enclosingTypeDefinition, variables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+          returned = checkControlFlow(s, enclosingTypeDefinition, state, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
         }
         catch (ConceptualException e)
         {
@@ -584,7 +587,7 @@ public class ControlFlowChecker
       }
       BreakStatement breakStatement = (BreakStatement) statement;
       IntegerLiteral stepsLiteral = breakStatement.getBreakSteps();
-      int breakCount = 1;
+      int breakIndex = 1;
       if (stepsLiteral != null)
       {
         BigInteger value = stepsLiteral.getValue();
@@ -592,16 +595,86 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Cannot break out of less than one statement", breakStatement.getLexicalPhrase());
         }
-        if (value.bitLength() > Integer.SIZE || value.intValue() > enclosingBreakableStack.size())
+        if (value.compareTo(BigInteger.valueOf(Integer.MAX_VALUE)) > 0)
         {
-          throw new ConceptualException("Cannot break out of more than " + enclosingBreakableStack.size() + " statement" + (enclosingBreakableStack.size() == 1 ? "" : "s") + " at this point", breakStatement.getLexicalPhrase());
+          throw new ConceptualException("Cannot break out of more than " + Integer.MAX_VALUE + " statements", breakStatement.getLexicalPhrase());
         }
-        breakCount = value.intValue();
+        breakIndex = value.intValue();
       }
-      BreakableStatement breakable = enclosingBreakableStack.get(breakCount - 1);
-      breakStatement.setResolvedBreakable(breakable);
-      breakable.setBrokenOutOf(true);
-      variables.addToBreakVariables(breakable);
+      int brokenCount = 0;
+      List<TryStatement> finallyBlocks = new LinkedList<TryStatement>();
+      BreakableStatement breakable = null;
+      for (Statement brokenThrough : enclosingBreakableStack)
+      {
+        if (brokenThrough instanceof BreakableStatement)
+        {
+          ++brokenCount;
+          if (brokenCount == breakIndex)
+          {
+            breakable = (BreakableStatement) brokenThrough;
+            break;
+          }
+        }
+        else if (brokenThrough instanceof TryStatement)
+        {
+          finallyBlocks.add((TryStatement) brokenThrough);
+        }
+        else
+        {
+          throw new IllegalStateException("Found an invalid statement type on the breakable stack");
+        }
+      }
+      if (brokenCount != breakIndex)
+      {
+        throw new ConceptualException("Cannot break out of more than " + brokenCount + " statement" + (brokenCount == 1 ? "" : "s") + " at this point", breakStatement.getLexicalPhrase());
+      }
+
+      ControlFlowState finallyState = state.copy();
+
+      boolean finallyReturned = false;
+      Iterator<TryStatement> it = finallyBlocks.iterator();
+      while (it.hasNext())
+      {
+        TryStatement tryStatement = it.next();
+        if (finallyReturned)
+        {
+          // once a finally has returned, remove all of the other finally blocks from the list of broken-through finallyBlocks
+          it.remove();
+          continue;
+        }
+        LinkedList<Statement> finallyBreakableStack = new LinkedList<Statement>(enclosingBreakableStack);
+        while (!finallyBreakableStack.isEmpty())
+        {
+          if (finallyBreakableStack.getFirst() != tryStatement)
+          {
+            finallyBreakableStack.removeFirst();
+          }
+          else
+          {
+            finallyBreakableStack.removeFirst();
+            break;
+          }
+        }
+        finallyReturned = checkControlFlow(tryStatement.getFinallyBlock(), enclosingTypeDefinition, finallyState, delegateConstructorVariables, finallyBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      }
+      if (finallyReturned)
+      {
+        // it turns out we just break to a finally which returns somehow, we never actually reach the thing we're trying to break out of
+        breakStatement.setResolvedFinallyBlocks(finallyBlocks);
+        breakStatement.setResolvedBreakable(null);
+      }
+      else
+      {
+        breakStatement.setResolvedFinallyBlocks(finallyBlocks);
+        breakStatement.setResolvedBreakable(breakable);
+        breakable.setBrokenOutOf(true);
+        finallyState.addToBreakVariables(breakable);
+        // we must reset the state we have just generated processing the finally blocks, or it will be recombined into the start of the finally block's checking later on,
+        // which would give the finally block an initial state which assumes it might already have been run
+        finallyState.variables = state.variables.copy();
+        finallyState.resetTerminatedState();
+        state.combineReturned(finallyState);
+      }
       return true;
     }
     else if (statement instanceof ContinueStatement)
@@ -612,7 +685,7 @@ public class ControlFlowChecker
       }
       ContinueStatement continueStatement = (ContinueStatement) statement;
       IntegerLiteral stepsLiteral = continueStatement.getContinueSteps();
-      int continueCount = 1;
+      int continueIndex = 1;
       if (stepsLiteral != null)
       {
         BigInteger value = stepsLiteral.getValue();
@@ -620,17 +693,87 @@ public class ControlFlowChecker
         {
           throw new ConceptualException("Cannot continue through less than one statement", continueStatement.getLexicalPhrase());
         }
-        if (value.bitLength() > Integer.SIZE || value.intValue() > enclosingBreakableStack.size())
+        if (value.compareTo(BigInteger.valueOf(Integer.MAX_VALUE)) > 0)
         {
-          throw new ConceptualException("Cannot continue through more than " + enclosingBreakableStack.size() + " statement" + (enclosingBreakableStack.size() == 1 ? "" : "s") + " at this point", continueStatement.getLexicalPhrase());
+          throw new ConceptualException("Cannot continue through more than " + Integer.MAX_VALUE + " statements", continueStatement.getLexicalPhrase());
         }
-        continueCount = value.intValue();
+        continueIndex = value.intValue();
       }
-      BreakableStatement breakable = enclosingBreakableStack.get(continueCount - 1);
-      continueStatement.setResolvedBreakable(breakable);
-      breakable.setContinuedThrough(true);
-      variables.addToContinueVariables(breakable);
-      // TODO: when we get switch statements, make sure continue is forbidden for them
+      int continuedCount = 0;
+      List<TryStatement> finallyBlocks = new LinkedList<TryStatement>();
+      BreakableStatement breakable = null;
+      for (Statement brokenThrough : enclosingBreakableStack)
+      {
+        // TODO: when we get switch statements, make sure continue is forbidden for them
+        if (brokenThrough instanceof BreakableStatement)
+        {
+          ++continuedCount;
+          if (continuedCount == continueIndex)
+          {
+            breakable = (BreakableStatement) brokenThrough;
+            break;
+          }
+        }
+        else if (brokenThrough instanceof TryStatement)
+        {
+          finallyBlocks.add((TryStatement) brokenThrough);
+        }
+        else
+        {
+          throw new IllegalStateException("Found an invalid statement type on the breakable stack");
+        }
+      }
+      if (continuedCount != continueIndex)
+      {
+        throw new ConceptualException("Cannot continue through more than " + continuedCount + " statement" + (continuedCount == 1 ? "" : "s") + " at this point", continueStatement.getLexicalPhrase());
+      }
+
+      ControlFlowState finallyState = state.copy();
+
+      boolean finallyReturned = false;
+      Iterator<TryStatement> it = finallyBlocks.iterator();
+      while (it.hasNext())
+      {
+        TryStatement tryStatement = it.next();
+        if (finallyReturned)
+        {
+          // once a finally has returned, remove all of the other finally blocks from the list of continued-through finallyBlocks
+          it.remove();
+          continue;
+        }
+        LinkedList<Statement> finallyBreakableStack = new LinkedList<Statement>(enclosingBreakableStack);
+        while (!finallyBreakableStack.isEmpty())
+        {
+          if (finallyBreakableStack.getFirst() != tryStatement)
+          {
+            finallyBreakableStack.removeFirst();
+          }
+          else
+          {
+            finallyBreakableStack.removeFirst();
+            break;
+          }
+        }
+        finallyReturned = checkControlFlow(tryStatement.getFinallyBlock(), enclosingTypeDefinition, finallyState, delegateConstructorVariables, finallyBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      }
+      if (finallyReturned)
+      {
+        // it turns out we just break to a finally which returns somehow, we never actually reach the thing we're trying to break out of
+        continueStatement.setResolvedFinallyBlocks(finallyBlocks);
+        continueStatement.setResolvedBreakable(null);
+      }
+      else
+      {
+        continueStatement.setResolvedFinallyBlocks(finallyBlocks);
+        continueStatement.setResolvedBreakable(breakable);
+        breakable.setContinuedThrough(true);
+        finallyState.addToContinueVariables(breakable);
+        // we must reset the state we have just generated processing the finally blocks, or it will be recombined into the start of the finally block's checking later on,
+        // which would give the finally block an initial state which assumes it might already have been run
+        finallyState.variables = state.variables.copy();
+        finallyState.resetTerminatedState();
+        state.combineReturned(finallyState);
+      }
       return true;
     }
     else if (statement instanceof DelegateConstructorStatement)
@@ -641,7 +784,7 @@ public class ControlFlowChecker
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Delegate constructors may only be called from other constructors", delegateConstructorStatement.getLexicalPhrase()));
       }
-      if (variables.initialiserState != InitialiserState.NOT_RUN)
+      if (state.variables.initialiserState != InitialiserState.NOT_RUN)
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A delegate constructor may already have been run", delegateConstructorStatement.getLexicalPhrase()));
       }
@@ -663,7 +806,7 @@ public class ControlFlowChecker
       {
         try
         {
-          checkControlFlow(argument, variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          checkControlFlow(argument, state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
         }
         catch (ConceptualException e)
         {
@@ -671,17 +814,17 @@ public class ControlFlowChecker
         }
       }
 
-      variables.initialiserState = InitialiserState.DEFINITELY_RUN;
+      state.variables.initialiserState = InitialiserState.DEFINITELY_RUN;
 
       // after a delegate constructor call, all superclass member variables have now been initialised
       for (Variable var : delegateConstructorVariables.superClassVariables)
       {
-        if (var instanceof MemberVariable && var.isFinal() && variables.possiblyInitialised.contains(var))
+        if (var instanceof MemberVariable && var.isFinal() && state.variables.possiblyInitialised.contains(var))
         {
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a delegate constructor here, since it would overwrite the value of '" + var.getName() + "' (in: " + ((MemberVariable) var).getEnclosingTypeDefinition().getQualifiedName() + "), which may already have been initialised", delegateConstructorStatement.getLexicalPhrase()));
         }
-        variables.initialised.add(var);
-        variables.possiblyInitialised.add(var);
+        state.variables.initialised.add(var);
+        state.variables.possiblyInitialised.add(var);
       }
 
       if (delegateConstructorStatement.isSuperConstructor())
@@ -689,7 +832,7 @@ public class ControlFlowChecker
         // a super() constructor has been run, so all variables that are set by the initialiser have now been initialised
         for (Variable var : delegateConstructorVariables.initialiserDefinitelyInitialised)
         {
-          variables.initialised.add(var);
+          state.variables.initialised.add(var);
         }
       }
       else
@@ -698,12 +841,12 @@ public class ControlFlowChecker
         for (Field field : enclosingTypeDefinition.getNonStaticFields())
         {
           MemberVariable var = field.getMemberVariable();
-          if (field.isFinal() && variables.possiblyInitialised.contains(var))
+          if (field.isFinal() && state.variables.possiblyInitialised.contains(var))
           {
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a this() constructor here, since it would overwrite the value of '" + field.getName() + "', which may already have been initialised", delegateConstructorStatement.getLexicalPhrase()));
           }
-          variables.initialised.add(var);
-          variables.possiblyInitialised.add(var);
+          state.variables.initialised.add(var);
+          state.variables.possiblyInitialised.add(var);
         }
       }
       if (coalescedException != null)
@@ -714,7 +857,7 @@ public class ControlFlowChecker
     }
     else if (statement instanceof ExpressionStatement)
     {
-      checkControlFlow(((ExpressionStatement) statement).getExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      checkControlFlow(((ExpressionStatement) statement).getExpression(), state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
       return false;
     }
     else if (statement instanceof ForStatement)
@@ -733,7 +876,7 @@ public class ControlFlowChecker
         try
         {
           // check the loop initialisation variable in the block outside the loop, because it may add new variables which have now been initialised
-          boolean returned = checkControlFlow(init, enclosingTypeDefinition, variables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+          boolean returned = checkControlFlow(init, enclosingTypeDefinition, state, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
           if (returned)
           {
             throw new IllegalStateException("Reached a state where a for loop initialisation statement returned");
@@ -744,12 +887,12 @@ public class ControlFlowChecker
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
-      ControlFlowVariables loopVariables = variables.copy();
+      ControlFlowState loopState = state.copy();
       if (condition != null)
       {
         try
         {
-          checkControlFlow(condition, loopVariables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          checkControlFlow(condition, loopState.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
         }
         catch (ConceptualException e)
         {
@@ -759,7 +902,7 @@ public class ControlFlowChecker
       boolean returned = block.stopsExecution();
       try
       {
-        returned = checkControlFlow(block, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+        returned = checkControlFlow(block, enclosingTypeDefinition, loopState, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
       }
       catch (ConceptualException e)
       {
@@ -767,11 +910,11 @@ public class ControlFlowChecker
       }
       if (returned)
       {
-        loopVariables.overwriteWithContinueVariables(forStatement);
+        loopState.overwriteWithContinueVariables(forStatement);
       }
       else
       {
-        loopVariables.reintegrateContinueVariables(forStatement);
+        loopState.reintegrateContinueVariables(forStatement);
       }
 
       if (update != null)
@@ -782,7 +925,7 @@ public class ControlFlowChecker
         }
         try
         {
-          boolean updateReturned = checkControlFlow(update, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+          boolean updateReturned = checkControlFlow(update, enclosingTypeDefinition, loopState, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
           if (updateReturned)
           {
             throw new IllegalStateException("Reached a state where a for loop update statement returned");
@@ -796,69 +939,75 @@ public class ControlFlowChecker
 
       if (coalescedException != null)
       {
+        // make sure we clean up the breakable stack if something fails
+        enclosingBreakableStack.pop();
         throw coalescedException;
       }
 
       // run through the conditional, loop block, and update again, so that we catch any final variables that are initialised in the loop
-      loopVariables.combine(variables);
-      if (condition != null)
+      // (only if the loop can actually run more than once)
+      if (!returned || forStatement.isContinuedThrough())
       {
+        loopState.combine(state);
+        if (condition != null)
+        {
+          try
+          {
+            checkControlFlow(condition, loopState.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+        boolean secondReturned = returned;
         try
         {
-          checkControlFlow(condition, loopVariables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          secondReturned = checkControlFlow(block, enclosingTypeDefinition, loopState, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
         }
         catch (ConceptualException e)
         {
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
-      }
-      boolean secondReturned = returned;
-      try
-      {
-        secondReturned = checkControlFlow(block, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
-      }
-      catch (ConceptualException e)
-      {
-        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
-      }
-      if (secondReturned)
-      {
-        loopVariables.overwriteWithContinueVariables(forStatement);
-      }
-      else
-      {
-        loopVariables.reintegrateContinueVariables(forStatement);
-      }
-      if (update != null)
-      {
-        try
+        if (secondReturned)
         {
-          checkControlFlow(update, enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+          loopState.overwriteWithContinueVariables(forStatement);
         }
-        catch (ConceptualException e)
+        else
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          loopState.reintegrateContinueVariables(forStatement);
+        }
+        if (update != null)
+        {
+          try
+          {
+            checkControlFlow(update, enclosingTypeDefinition, loopState, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
         }
       }
 
       if (returned)
       {
-        variables.combineReturned(loopVariables);
+        state.combineReturned(loopState);
       }
       else
       {
-        variables.combine(loopVariables);
+        state.combine(loopState);
       }
 
       // if there is no condition, then the only way to get to the code after the loop is to break out of it
       // so in that case, we overwrite the variables with the break variables
       if (condition == null)
       {
-        variables.overwriteWithBreakVariables(forStatement);
+        state.overwriteWithBreakVariables(forStatement);
       }
       else
       {
-        variables.reintegrateBreakVariables(forStatement);
+        state.reintegrateBreakVariables(forStatement);
       }
 
       enclosingBreakableStack.pop();
@@ -876,7 +1025,7 @@ public class ControlFlowChecker
       CoalescedConceptualException coalescedException = null;
       try
       {
-        checkControlFlow(ifStatement.getExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        checkControlFlow(ifStatement.getExpression(), state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
       }
       catch (ConceptualException e)
       {
@@ -886,11 +1035,11 @@ public class ControlFlowChecker
       Statement elseClause = ifStatement.getElseClause();
       if (elseClause == null)
       {
-        ControlFlowVariables thenClauseVariables = variables.copy();
+        ControlFlowState thenClauseState = state.copy();
         boolean thenReturned = thenClause.stopsExecution();
         try
         {
-          thenReturned = checkControlFlow(thenClause, enclosingTypeDefinition, thenClauseVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+          thenReturned = checkControlFlow(thenClause, enclosingTypeDefinition, thenClauseState, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
         }
         catch (ConceptualException e)
         {
@@ -898,11 +1047,11 @@ public class ControlFlowChecker
         }
         if (thenReturned)
         {
-          variables.combineReturned(thenClauseVariables);
+          state.combineReturned(thenClauseState);
         }
         else
         {
-          variables.combine(thenClauseVariables);
+          state.combine(thenClauseState);
         }
         if (coalescedException != null)
         {
@@ -910,13 +1059,13 @@ public class ControlFlowChecker
         }
         return false;
       }
-      ControlFlowVariables thenClauseVariables = variables.copy();
-      ControlFlowVariables elseClauseVariables = variables.copy();
+      ControlFlowState thenClauseState = state.copy();
+      ControlFlowState elseClauseState = state.copy();
       boolean thenReturned = thenClause.stopsExecution();
       boolean elseReturned = elseClause.stopsExecution();
       try
       {
-        thenReturned = checkControlFlow(thenClause, enclosingTypeDefinition, thenClauseVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+        thenReturned = checkControlFlow(thenClause, enclosingTypeDefinition, thenClauseState, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
       }
       catch (ConceptualException e)
       {
@@ -924,7 +1073,7 @@ public class ControlFlowChecker
       }
       try
       {
-        elseReturned = checkControlFlow(elseClause, enclosingTypeDefinition, elseClauseVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+        elseReturned = checkControlFlow(elseClause, enclosingTypeDefinition, elseClauseState, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
       }
       catch (ConceptualException e)
       {
@@ -932,23 +1081,23 @@ public class ControlFlowChecker
       }
       if (!thenReturned & !elseReturned)
       {
-        variables.overwrite(thenClauseVariables);
-        variables.combine(elseClauseVariables);
+        state.overwrite(thenClauseState);
+        state.combine(elseClauseState);
       }
       else if (!thenReturned & elseReturned)
       {
-        variables.overwrite(thenClauseVariables);
-        variables.combineReturned(elseClauseVariables);
+        state.overwrite(thenClauseState);
+        state.combineReturned(elseClauseState);
       }
       else if (thenReturned & !elseReturned)
       {
-        variables.overwrite(elseClauseVariables);
-        variables.combineReturned(thenClauseVariables);
+        state.overwrite(elseClauseState);
+        state.combineReturned(thenClauseState);
       }
       else // thenReturned & elseReturned
       {
-        variables.combineReturned(thenClauseVariables);
-        variables.combineReturned(elseClauseVariables);
+        state.combineReturned(thenClauseState);
+        state.combineReturned(elseClauseState);
       }
       if (coalescedException != null)
       {
@@ -964,7 +1113,7 @@ public class ControlFlowChecker
       if (assignee instanceof VariableAssignee)
       {
         Variable var = ((VariableAssignee) assignee).getResolvedVariable();
-        if (!(var instanceof GlobalVariable) && !variables.initialised.contains(var) && (inConstructor || !(var instanceof MemberVariable)))
+        if (!(var instanceof GlobalVariable) && !state.variables.initialised.contains(var) && (inConstructor || !(var instanceof MemberVariable)))
         {
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Variable '" + ((VariableAssignee) assignee).getVariableName() + "' may not have been initialised", assignee.getLexicalPhrase()));
         }
@@ -993,7 +1142,7 @@ public class ControlFlowChecker
         ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
         try
         {
-          checkControlFlow(arrayElementAssignee.getArrayExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          checkControlFlow(arrayElementAssignee.getArrayExpression(), state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
         }
         catch (ConceptualException e)
         {
@@ -1001,7 +1150,7 @@ public class ControlFlowChecker
         }
         try
         {
-          checkControlFlow(arrayElementAssignee.getDimensionExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          checkControlFlow(arrayElementAssignee.getDimensionExpression(), state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
         }
         catch (ConceptualException e)
         {
@@ -1020,7 +1169,7 @@ public class ControlFlowChecker
         // treat this as a field access, and check for uninitialised variables as normal
         try
         {
-          checkControlFlow(fieldAccessExpression, variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          checkControlFlow(fieldAccessExpression, state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
         }
         catch (ConceptualException e)
         {
@@ -1077,15 +1226,40 @@ public class ControlFlowChecker
     }
     else if (statement instanceof ReturnStatement)
     {
+      ReturnStatement returnStatement = (ReturnStatement) statement;
       if (inInitialiser)
       {
-        throw new ConceptualException("Cannot return from an initialiser", statement.getLexicalPhrase());
+        throw new ConceptualException("Cannot return from an initialiser", returnStatement.getLexicalPhrase());
       }
-      Expression returnedExpression = ((ReturnStatement) statement).getExpression();
+      Expression returnedExpression = returnStatement.getExpression();
       if (returnedExpression != null)
       {
-        checkControlFlow(returnedExpression, variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        checkControlFlow(returnedExpression, state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
       }
+
+      List<TryStatement> finallyBlocks = new LinkedList<TryStatement>();
+      for (Statement s : enclosingBreakableStack)
+      {
+        if (s instanceof TryStatement)
+        {
+          finallyBlocks.add((TryStatement) s);
+          if (((TryStatement) s).getFinallyBlock().stopsExecution())
+          {
+            // this finally block never returns, so stop resolving them here
+            returnStatement.setStoppedByFinally(true);
+            break;
+          }
+        }
+        else if (s instanceof BreakableStatement)
+        {
+          continue;
+        }
+        else
+        {
+          throw new IllegalStateException("Found an invalid statement type on the breakable stack");
+        }
+      }
+      returnStatement.setResolvedFinallyBlocks(finallyBlocks);
       return true;
     }
     else if (statement instanceof ShorthandAssignStatement)
@@ -1098,7 +1272,7 @@ public class ControlFlowChecker
         {
           VariableAssignee variableAssignee = (VariableAssignee) assignee;
           Variable var = variableAssignee.getResolvedVariable();
-          if (!(var instanceof GlobalVariable) && !variables.initialised.contains(var) && (inConstructor || !(var instanceof MemberVariable)))
+          if (!(var instanceof GlobalVariable) && !state.variables.initialised.contains(var) && (inConstructor || !(var instanceof MemberVariable)))
           {
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Variable '" + variableAssignee.getVariableName() + "' may not have been initialised", variableAssignee.getLexicalPhrase()));
           }
@@ -1127,7 +1301,7 @@ public class ControlFlowChecker
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
           try
           {
-            checkControlFlow(arrayElementAssignee.getArrayExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+            checkControlFlow(arrayElementAssignee.getArrayExpression(), state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
           }
           catch (ConceptualException e)
           {
@@ -1135,7 +1309,7 @@ public class ControlFlowChecker
           }
           try
           {
-            checkControlFlow(arrayElementAssignee.getDimensionExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+            checkControlFlow(arrayElementAssignee.getDimensionExpression(), state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
           }
           catch (ConceptualException e)
           {
@@ -1154,7 +1328,7 @@ public class ControlFlowChecker
           // treat this as a field access, and check for uninitialised variables as normal
           try
           {
-            checkControlFlow(fieldAccessExpression, variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+            checkControlFlow(fieldAccessExpression, state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
           }
           catch (ConceptualException e)
           {
@@ -1209,7 +1383,7 @@ public class ControlFlowChecker
       }
       try
       {
-        checkControlFlow(shorthandAssignStatement.getExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        checkControlFlow(shorthandAssignStatement.getExpression(), state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
       }
       catch (ConceptualException e)
       {
@@ -1224,19 +1398,139 @@ public class ControlFlowChecker
     else if (statement instanceof ThrowStatement)
     {
       ThrowStatement throwStatement = (ThrowStatement) statement;
-      checkControlFlow(throwStatement.getThrownExpression(), variables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      checkControlFlow(throwStatement.getThrownExpression(), state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
       return true;
+    }
+    else if (statement instanceof TryStatement)
+    {
+      TryStatement tryStatement = (TryStatement) statement;
+
+      if (tryStatement.getFinallyBlock() != null)
+      {
+        // if we have a finally block, break and continue statements have to come through us
+        enclosingBreakableStack.push(tryStatement);
+      }
+
+      ControlFlowState tryState = state.copy();
+      // reset the try block's terminated state, so that we have a clean state for the catch/finally blocks
+      tryState.resetTerminatedState();
+      boolean tryReturned;
+      try
+      {
+        tryReturned = checkControlFlow(tryStatement.getTryBlock(), enclosingTypeDefinition, tryState, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      }
+      catch (ConceptualException e)
+      {
+        // make sure we clean up the breakable stack if something fails
+        enclosingBreakableStack.pop();
+        throw e;
+      }
+
+      ControlFlowState beforeCatchState = tryState.getTerminatedState();
+      CatchClause[] catchClauses = tryStatement.getCatchClauses();
+      ControlFlowState[] catchStates = new ControlFlowState[catchClauses.length];
+      boolean[] catchReturned = new boolean[catchClauses.length];
+      CoalescedConceptualException coalescedException = null;
+      for (int i = 0; i < catchClauses.length; ++i)
+      {
+        catchStates[i] = beforeCatchState.copy();
+        // reset the catch block's terminated state, so that we have a clean state for the finally block (if there is one)
+        catchStates[i].resetTerminatedState();
+        catchStates[i].variables.initialised.add(catchClauses[i].getResolvedExceptionVariable());
+        catchStates[i].variables.possiblyInitialised.add(catchClauses[i].getResolvedExceptionVariable());
+        try
+        {
+          catchReturned[i] = checkControlFlow(catchClauses[i].getBlock(), enclosingTypeDefinition, catchStates[i], delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      if (tryStatement.getFinallyBlock() != null)
+      {
+        enclosingBreakableStack.pop();
+      }
+
+      if (coalescedException != null)
+      {
+        throw coalescedException;
+      }
+
+      // check the case where a finally is run due to a propagating exception
+      // in this case, it could be run with or without the try block executing, and with or without any of the catch blocks executing
+      // (if a catch block throws an exception, the finally block gets executed next)
+      if (tryStatement.getFinallyBlock() != null)
+      {
+        ControlFlowState finallyState = beforeCatchState; // no need to copy it, it won't be used again
+        for (int i = 0; i < catchClauses.length; ++i)
+        {
+          finallyState.combine(catchStates[i].getTerminatedState());
+        }
+        checkControlFlow(tryStatement.getFinallyBlock(), enclosingTypeDefinition, finallyState, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+
+        // we need to combine the result of the finally block into the main state, so that any surrounding statements know what
+        // happens in general if something breaks out of this finally block, or throws an exception in the middle of it
+        state.combineReturned(finallyState);
+      }
+
+      // handle the case where a try or catch block terminated successfully
+      // to do this, we need to combine all of the finishing sets from each of the try and catch blocks which did not return (i.e. the ones that control reached the end of)
+      boolean variablesOverwritten = false;
+      if (tryReturned)
+      {
+        state.combineReturned(tryState);
+      }
+      else
+      {
+        if (!variablesOverwritten)
+        {
+          state.overwrite(tryState);
+          variablesOverwritten = true;
+        }
+        else
+        {
+          state.combine(tryState);
+        }
+      }
+      for (int i = 0; i < catchClauses.length; ++i)
+      {
+        if (catchReturned[i])
+        {
+          state.combineReturned(catchStates[i]);
+        }
+        else
+        {
+          if (!variablesOverwritten)
+          {
+            state.overwrite(catchStates[i]);
+            variablesOverwritten = true;
+          }
+          else
+          {
+            state.combine(catchStates[i]);
+          }
+        }
+      }
+
+      boolean finallyReturned = false;
+      if (variablesOverwritten && tryStatement.getFinallyBlock() != null)
+      {
+        finallyReturned = checkControlFlow(tryStatement.getFinallyBlock(), enclosingTypeDefinition, state, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      }
+      // this statement has returned iff either all of the try and catch blocks returned, or the finally block returned
+      return !variablesOverwritten | finallyReturned;
     }
     else if (statement instanceof WhileStatement)
     {
       WhileStatement whileStatement = (WhileStatement) statement;
       CoalescedConceptualException coalescedException = null;
 
-      ControlFlowVariables loopVariables = variables.copy();
+      ControlFlowState loopState = state.copy();
 
       try
       {
-        checkControlFlow(whileStatement.getExpression(), loopVariables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        checkControlFlow(whileStatement.getExpression(), loopState.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
       }
       catch (ConceptualException e)
       {
@@ -1248,7 +1542,7 @@ public class ControlFlowChecker
       boolean whileReturned = whileStatement.getStatement().stopsExecution();
       try
       {
-        whileReturned = checkControlFlow(whileStatement.getStatement(), enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+        whileReturned = checkControlFlow(whileStatement.getStatement(), enclosingTypeDefinition, loopState, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
       }
       catch (ConceptualException e)
       {
@@ -1256,54 +1550,60 @@ public class ControlFlowChecker
       }
       if (whileReturned)
       {
-        loopVariables.overwriteWithContinueVariables(whileStatement);
+        loopState.overwriteWithContinueVariables(whileStatement);
       }
       else
       {
-        loopVariables.reintegrateContinueVariables(whileStatement);
+        loopState.reintegrateContinueVariables(whileStatement);
       }
 
       if (coalescedException != null)
       {
+        // make sure we clean up the breakable stack if something fails
+        enclosingBreakableStack.pop();
         throw coalescedException;
       }
 
       // run through the conditional and loop block again, so that we catch any final variables that are initialised in the loop
-      try
+      // (only if it is possible to run the loop more than once)
+      if (!whileReturned || whileStatement.isContinuedThrough())
       {
-        checkControlFlow(whileStatement.getExpression(), loopVariables.initialised, variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
-      }
-      catch (ConceptualException e)
-      {
-        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
-      }
-      boolean secondReturned = whileStatement.getStatement().stopsExecution();
-      try
-      {
-        secondReturned = checkControlFlow(whileStatement.getStatement(), enclosingTypeDefinition, loopVariables, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
-      }
-      catch (ConceptualException e)
-      {
-        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
-      }
-      if (secondReturned)
-      {
-        loopVariables.overwriteWithContinueVariables(whileStatement);
-      }
-      else
-      {
-        loopVariables.reintegrateContinueVariables(whileStatement);
+        try
+        {
+          checkControlFlow(whileStatement.getExpression(), loopState.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+        boolean secondReturned = whileStatement.getStatement().stopsExecution();
+        try
+        {
+          secondReturned = checkControlFlow(whileStatement.getStatement(), enclosingTypeDefinition, loopState, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+        if (secondReturned)
+        {
+          loopState.overwriteWithContinueVariables(whileStatement);
+        }
+        else
+        {
+          loopState.reintegrateContinueVariables(whileStatement);
+        }
       }
 
       if (whileReturned)
       {
-        variables.combineReturned(loopVariables);
+        state.combineReturned(loopState);
       }
       else
       {
-        variables.combine(loopVariables);
+        state.combine(loopState);
       }
-      variables.reintegrateBreakVariables(whileStatement);
+      state.reintegrateBreakVariables(whileStatement);
 
       enclosingBreakableStack.pop();
 
@@ -1924,6 +2224,25 @@ public class ControlFlowChecker
     DEFINITELY_RUN,
     POSSIBLY_RUN,
     NOT_RUN;
+
+    /**
+     * Combines two InitialiserStates into a single InitialiserState
+     * @param firstState - the first state
+     * @param secondState - the second state
+     * @return the combined InitialiserState
+     */
+    private static InitialiserState combine(InitialiserState firstState, InitialiserState secondState)
+    {
+      if (firstState == NOT_RUN & secondState == NOT_RUN)
+      {
+        return NOT_RUN;
+      }
+      if (firstState == DEFINITELY_RUN & secondState == DEFINITELY_RUN)
+      {
+        return DEFINITELY_RUN;
+      }
+      return POSSIBLY_RUN;
+    }
   }
 
   /**
@@ -1940,304 +2259,56 @@ public class ControlFlowChecker
   }
 
   /**
-   * Keeps track of metadata required for control flow checking, and provides methods for combining two intersection control flow regions into one.
+   * Represents the state of a function's variables at a given point in the control flow graph.
    * @author Anthony Bryant
    */
   private static final class ControlFlowVariables
   {
-    // the initialised and possibly initialised variables at this point in the control flow checking process
     private Set<Variable> initialised;
     private Set<Variable> possiblyInitialised;
     private InitialiserState initialiserState;
-    // the initialised and possibly initialised variables at the points where a given BreakableStatement is broken out of
-    private Map<BreakableStatement, Set<Variable>> breakInitialised;
-    private Map<BreakableStatement, Set<Variable>> breakPossiblyInitialised;
-    private Map<BreakableStatement, InitialiserState> breakInitialiserState;
-    // the initialised and possibly initialised variables at the points where a given BreakableStatement is continued through
-    private Map<BreakableStatement, Set<Variable>> continueInitialised;
-    private Map<BreakableStatement, Set<Variable>> continuePossiblyInitialised;
-    private Map<BreakableStatement, InitialiserState> continueInitialiserState;
 
     /**
-     * Creates a new, empty, ControlFlowVariables.
+     * Creates a new ControlFlowVariables which has no initialised variables, and the specified initialiser state
+     * @param initialiserRun - true if the initialiser has already been run, false if it has not been run
      */
-    ControlFlowVariables(boolean initialiserRun)
+    public ControlFlowVariables(boolean initialiserRun)
     {
-      initialised         = new HashSet<Variable>();
+      initialised = new HashSet<Variable>();
       possiblyInitialised = new HashSet<Variable>();
-      initialiserState    = initialiserRun ? InitialiserState.DEFINITELY_RUN : InitialiserState.NOT_RUN;
-      breakInitialised            = new HashMap<BreakableStatement, Set<Variable>>();
-      breakPossiblyInitialised    = new HashMap<BreakableStatement, Set<Variable>>();
-      breakInitialiserState       = new HashMap<BreakableStatement, InitialiserState>();
-      continueInitialised         = new HashMap<BreakableStatement, Set<Variable>>();
-      continuePossiblyInitialised = new HashMap<BreakableStatement, Set<Variable>>();
-      continueInitialiserState    = new HashMap<BreakableStatement, InitialiserState>();
+      initialiserState = initialiserRun ? InitialiserState.DEFINITELY_RUN : InitialiserState.NOT_RUN;
     }
 
     /**
-     * Creates a new ControlFlowVariables with the specified state.
-     * @param initialised         - the set of variables which will  be initialised at this point
-     * @param possiblyInitialised - the set of variables which might be initialised at this point
-     * @param initialiserState    - true if the initialiser of the constructor has been run, false otherwise
-     * @param breakInitialised            - the sets of variables which will  be initialised when breaking out of    a given BreakableStatement
-     * @param breakPossiblyInitialised    - the sets of variables which might be initialised when breaking out of    a given BreakableStatement
-     * @param breakInitialiserState       - whether or not the initialiser has been run at the point of breaking out of a given BreakableStatement
-     * @param continueInitialised         - the sets of variables which will  be initialised when continuing through a given BreakableStatement
-     * @param continuePossiblyInitialised - the sets of variables which might be initialised when continuing through a given BreakableStatement
-     * @param continueInitialiserState    - whether or not the initialiser has been run at the point of continuing through a given BreakableStatement
+     * Creates a new ControlFlowVariables with the specified sets of initialised and possiblyInitialised variables and the specified InitialiserState.
+     * @param initialisedVariables - the set of initialised variables
+     * @param possiblyInitialisedVariables - the set of possibly initialised variables
+     * @param initialiserState - the initialiser state
      */
-    ControlFlowVariables(Set<Variable> initialised, Set<Variable> possiblyInitialised, InitialiserState initialiserState,
-                         Map<BreakableStatement, Set<Variable>> breakInitialised,
-                         Map<BreakableStatement, Set<Variable>> breakPossiblyInitialised,
-                         Map<BreakableStatement, InitialiserState> breakInitialiserState,
-                         Map<BreakableStatement, Set<Variable>> continueInitialised,
-                         Map<BreakableStatement, Set<Variable>> continuePossiblyInitialised,
-                         Map<BreakableStatement, InitialiserState> continueInitialiserState)
+    public ControlFlowVariables(Set<Variable> initialisedVariables, Set<Variable> possiblyInitialisedVariables, InitialiserState initialiserState)
     {
-      this.initialised         = initialised;
-      this.possiblyInitialised = possiblyInitialised;
-      this.initialiserState    = initialiserState;
-      this.breakInitialised            = breakInitialised;
-      this.breakPossiblyInitialised    = breakPossiblyInitialised;
-      this.breakInitialiserState       = breakInitialiserState;
-      this.continueInitialised         = continueInitialised;
-      this.continuePossiblyInitialised = continuePossiblyInitialised;
-      this.continueInitialiserState      = continueInitialiserState;
+      this.initialised = initialisedVariables;
+      this.possiblyInitialised = possiblyInitialisedVariables;
+      this.initialiserState = initialiserState;
     }
 
     /**
-     * @return a copy of this ControlFlowVariables state
+     * @return a copy of this ControlFlowVariables
      */
-    ControlFlowVariables copy()
+    public ControlFlowVariables copy()
     {
-      return new ControlFlowVariables(new HashSet<Variable>(initialised), new HashSet<Variable>(possiblyInitialised), initialiserState,
-                                      new HashMap<BreakableStatement, Set<Variable>>(breakInitialised),
-                                      new HashMap<BreakableStatement, Set<Variable>>(breakPossiblyInitialised),
-                                      new HashMap<BreakableStatement, InitialiserState>(breakInitialiserState),
-                                      new HashMap<BreakableStatement, Set<Variable>>(continueInitialised),
-                                      new HashMap<BreakableStatement, Set<Variable>>(continuePossiblyInitialised),
-                                      new HashMap<BreakableStatement, InitialiserState>(continueInitialiserState));
+      return new ControlFlowVariables(new HashSet<Variable>(initialised), new HashSet<Variable>(possiblyInitialised), initialiserState);
     }
 
     /**
-     * Combines the current variable state with the variable state at the point of breaking out of the specified BreakableStatement.
-     * @param breakableStatement - the BreakableStatement to combine this variable state with
+     * Combines the specified other ControlFlowVariables into this one
+     * @param other - the ControlFlowVariables to combine into this one
      */
-    void addToBreakVariables(BreakableStatement breakableStatement)
+    private void combine(ControlFlowVariables other)
     {
-      Map<BreakableStatement, Set<Variable>> newBreakInitialised = new HashMap<BreakableStatement, Set<Variable>>();
-      newBreakInitialised.put(breakableStatement, initialised);
-      combineBreakableSet(breakInitialised, newBreakInitialised, true);
-
-      Map<BreakableStatement, Set<Variable>> newBreakPossiblyInitialised = new HashMap<BreakableStatement, Set<Variable>>();
-      newBreakPossiblyInitialised.put(breakableStatement, possiblyInitialised);
-      combineBreakableSet(breakPossiblyInitialised, newBreakPossiblyInitialised, false);
-
-      Map<BreakableStatement, InitialiserState> newBreakInitialiserState = new HashMap<BreakableStatement, InitialiserState>();
-      newBreakInitialiserState.put(breakableStatement, initialiserState);
-      combineInitialiserStates(breakInitialiserState, newBreakInitialiserState);
-    }
-
-    /**
-     * Combines the current variable state with the variable state at the point of continuing through the specified BreakableStatement.
-     * @param breakableStatement - the BreakableStatement to combine this variable state with
-     */
-    void addToContinueVariables(BreakableStatement breakableStatement)
-    {
-      Map<BreakableStatement, Set<Variable>> newContinueInitialised = new HashMap<BreakableStatement, Set<Variable>>();
-      newContinueInitialised.put(breakableStatement, initialised);
-      combineBreakableSet(continueInitialised, newContinueInitialised, true);
-
-      Map<BreakableStatement, Set<Variable>> newContinuePossiblyInitialised = new HashMap<BreakableStatement, Set<Variable>>();
-      newContinuePossiblyInitialised.put(breakableStatement, possiblyInitialised);
-      combineBreakableSet(continuePossiblyInitialised, newContinuePossiblyInitialised, false);
-
-      Map<BreakableStatement, InitialiserState> newContinueInitialiserState = new HashMap<BreakableStatement, InitialiserState>();
-      newContinueInitialiserState.put(breakableStatement, initialiserState);
-      combineInitialiserStates(continueInitialiserState, newContinueInitialiserState);
-    }
-
-    /**
-     * Overwrites the sets of initialised and possiblyInitialised variables in this ControlFlowVariables with the combined ones from each of the break statements for the specified BreakableStatement.
-     * If there are no sets of break variables for this BreakableStatement, then the current set of variables is replaced with an empty set.
-     * @param breakableStatement - the BreakableStatement to overwrite the variables with the break variables of
-     */
-    void overwriteWithBreakVariables(BreakableStatement breakableStatement)
-    {
-      Set<Variable> breakVariables = breakInitialised.get(breakableStatement);
-      if (breakVariables == null)
-      {
-        breakVariables = new HashSet<Variable>();
-      }
-      initialised = breakVariables;
-
-      Set<Variable> breakPossibleVariables = breakPossiblyInitialised.get(breakableStatement);
-      if (breakPossibleVariables == null)
-      {
-        breakPossibleVariables = new HashSet<Variable>();
-      }
-      possiblyInitialised = breakPossibleVariables;
-
-      initialiserState = breakInitialiserState.get(breakableStatement);
-    }
-
-    /**
-     * Overwrites the sets of initialised and possiblyInitialised variables in this ControlFlowVariables with the combined ones from each of the continue statements for the specified BreakableStatement.
-     * If there are no sets of continue variables for this BreakableStatement, then the current set of variables is replaced with an empty set.
-     * @param breakableStatement - the BreakableStatement to overwrite the variables with the continue variables of
-     */
-    void overwriteWithContinueVariables(BreakableStatement breakableStatement)
-    {
-      Set<Variable> continueVariables = continueInitialised.get(breakableStatement);
-      if (continueVariables == null)
-      {
-        continueVariables = new HashSet<Variable>();
-      }
-      initialised = continueVariables;
-
-      Set<Variable> continuePossibleVariables = continuePossiblyInitialised.get(breakableStatement);
-      if (continuePossibleVariables == null)
-      {
-        continuePossibleVariables = new HashSet<Variable>();
-      }
-      possiblyInitialised = continuePossibleVariables;
-
-      initialiserState = continueInitialiserState.get(breakableStatement);
-    }
-
-    /**
-     * Reintegrates the variable sets from each of the break statements for the specified BreakableStatement into the current initialised and possiblyInitialised sets.
-     * @param breakableStatement - the BreakableStatement to reintegrate the break variables of
-     */
-    void reintegrateBreakVariables(BreakableStatement breakableStatement)
-    {
-      Set<Variable> breakVariables = breakInitialised.get(breakableStatement);
-      if (breakVariables != null)
-      {
-        intersect(initialised, breakVariables);
-      }
-      Set<Variable> breakPossibleVariables = breakPossiblyInitialised.get(breakableStatement);
-      if (breakPossibleVariables != null)
-      {
-        possiblyInitialised.addAll(breakPossibleVariables);
-      }
-      InitialiserState breakInitialiserRun = breakInitialiserState.get(breakableStatement);
-      if (breakInitialiserRun != null)
-      {
-        initialiserState = combineInitialiserState(initialiserState, breakInitialiserRun);
-      }
-    }
-
-    /**
-     * Reintegrates the variable sets from each of the continue statements for the specified BreakableStatement into the current initialised and possiblyInitialised sets.
-     * @param breakableStatement - the BreakableStatement to reintegrate the continue variables of
-     */
-    void reintegrateContinueVariables(BreakableStatement breakableStatement)
-    {
-      Set<Variable> continueVariables = continueInitialised.get(breakableStatement);
-      if (continueVariables != null)
-      {
-        intersect(initialised, continueVariables);
-      }
-      Set<Variable> continuePossibleVariables = continuePossiblyInitialised.get(breakableStatement);
-      if (continuePossibleVariables != null)
-      {
-        possiblyInitialised.addAll(continuePossibleVariables);
-      }
-      InitialiserState continueInitialiserRun = continueInitialiserState.get(breakableStatement);
-      if (continueInitialiserRun != null)
-      {
-        initialiserState = combineInitialiserState(initialiserState, continueInitialiserRun);
-      }
-    }
-
-    /**
-     * Overwrites this ControlFlowVariables object's initialised variable state with the specified object's state.
-     * This method still combines the rest of the state as if this had returned.
-     * @param variables - the ControlFlowVariables to overwrite this one with
-     */
-    void overwrite(ControlFlowVariables variables)
-    {
-      initialised = new HashSet<Variable>(variables.initialised);
-      possiblyInitialised = new HashSet<Variable>(variables.possiblyInitialised);
-      initialiserState = variables.initialiserState;
-      combineReturned(variables);
-    }
-
-    /**
-     * Combines all data from the specified ControlFlowVariables into this one.
-     * @param variables - the state to combine into this one
-     */
-    void combine(ControlFlowVariables variables)
-    {
-      intersect(initialised, variables.initialised);
-      possiblyInitialised.addAll(variables.possiblyInitialised);
-      initialiserState = combineInitialiserState(initialiserState, variables.initialiserState);
-      combineReturned(variables);
-    }
-
-    /**
-     * Combines the specified variable state with this one, assuming that the specified state has returned, and therefore discounting all of its current variable information.
-     * @param variables - the state to combine with
-     */
-    void combineReturned(ControlFlowVariables variables)
-    {
-      combineBreakableSet(breakInitialised,              variables.breakInitialised,            true);
-      combineBreakableSet(breakPossiblyInitialised,      variables.breakPossiblyInitialised,    false);
-      combineInitialiserStates(breakInitialiserState,    variables.breakInitialiserState);
-      combineBreakableSet(continueInitialised,           variables.continueInitialised,         true);
-      combineBreakableSet(continuePossiblyInitialised,   variables.continuePossiblyInitialised, false);
-      combineInitialiserStates(continueInitialiserState, variables.continueInitialiserState);
-    }
-
-    /**
-     * Combines the specified sets of variables.
-     * @param destination - the destination map to store the resulting sets of variables in
-     * @param source - the source map to get new data for the destination from
-     * @param intersection - true to intersect sets which exist in both the source and destination, false to take the union of any such sets
-     */
-    private static void combineBreakableSet(Map<BreakableStatement, Set<Variable>> destination, Map<BreakableStatement, Set<Variable>> source, boolean intersection)
-    {
-      for (Entry<BreakableStatement, Set<Variable>> entry : source.entrySet())
-      {
-        if (destination.containsKey(entry.getKey()))
-        {
-          Set<Variable> destinationSet = destination.get(entry.getKey());
-          if (intersection)
-          {
-            intersect(destinationSet, entry.getValue());
-          }
-          else // union
-          {
-            destinationSet.addAll(entry.getValue());
-          }
-        }
-        else
-        {
-          destination.put(entry.getKey(), new HashSet<Variable>(entry.getValue()));
-        }
-      }
-    }
-
-    /**
-     * Combines the specified maps from BreakableStatement to InitialiserState. If only one map contains an entry, that entry is kept. If both maps contain an entry, they are combined using combineInitialiserState().
-     * The results are stored in the destination map.
-     * @param destination - the destination map
-     * @param source - the source map, to combine into the destination map
-     */
-    private static void combineInitialiserStates(Map<BreakableStatement, InitialiserState> destination, Map<BreakableStatement, InitialiserState> source)
-    {
-      for (Entry<BreakableStatement, InitialiserState> entry : source.entrySet())
-      {
-        if (destination.containsKey(entry.getKey()))
-        {
-          destination.put(entry.getKey(), combineInitialiserState(entry.getValue(), destination.get(entry.getKey())));
-        }
-        else
-        {
-          destination.put(entry.getKey(), entry.getValue());
-        }
-      }
+      intersect(initialised, other.initialised);
+      possiblyInitialised.addAll(other.possiblyInitialised);
+      initialiserState = InitialiserState.combine(initialiserState, other.initialiserState);
     }
 
     /**
@@ -2257,24 +2328,220 @@ public class ControlFlowChecker
         }
       }
     }
+  }
+
+  /**
+   * Keeps track of metadata required for control flow checking, and provides methods for combining two intersecting control flow regions into one.
+   * @author Anthony Bryant
+   */
+  private static final class ControlFlowState
+  {
+    // the variables at this point in the control flow checking process
+    private ControlFlowVariables variables;
+    // the variables at the points where a given BreakableStatement is broken out of
+    private Map<BreakableStatement, ControlFlowVariables> breakVariables;
+    // the variables at the points where a given BreakableStatement is continued through
+    private Map<BreakableStatement, ControlFlowVariables> continueVariables;
+    // the combined variable state from all of the termination points in all of the executed code so far (up to the try or catch block we are currently in)
+    // since we combine the variables at each termination point, the result is a variable state which models all situations since the start of the current try or catch block
+    // this is used to handle catch and finally blocks, which can be entered from any point in the corresponding try or catch block
+    private ControlFlowVariables terminatedVariables;
 
     /**
-     * Combines two InitialiserStates into a single InitialiserState
-     * @param firstState - the first state
-     * @param secondState - the second state
-     * @return the combined InitialiserState
+     * Creates a new, empty, ControlFlowState, with the specified initialiser status.
      */
-    private static InitialiserState combineInitialiserState(InitialiserState firstState, InitialiserState secondState)
+    ControlFlowState(boolean initialiserRun)
     {
-      if (firstState == InitialiserState.NOT_RUN & secondState == InitialiserState.NOT_RUN)
+      variables = new ControlFlowVariables(initialiserRun);
+      breakVariables    = new HashMap<BreakableStatement, ControlFlowVariables>();
+      continueVariables = new HashMap<BreakableStatement, ControlFlowVariables>();
+      terminatedVariables = new ControlFlowVariables(initialiserRun);
+    }
+
+    /**
+     * Creates a new ControlFlowState with the specified state.
+     * @param variables - the state of the variables at this point
+     * @param breakVariables - the sets of variable states at the point of breaking out of a given BreakableStatement
+     * @param continueVariables - the sets of variable states at the point of continuing through a given BreakableStatement
+     * @param terminatedVariables - the combined variable state from all of the termination points in all of the code executed so far
+     */
+    ControlFlowState(ControlFlowVariables variables,
+                     Map<BreakableStatement, ControlFlowVariables> breakVariables,
+                     Map<BreakableStatement, ControlFlowVariables> continueVariables,
+                     ControlFlowVariables terminatedVariables)
+    {
+      this.variables = variables;
+      this.breakVariables = breakVariables;
+      this.continueVariables = continueVariables;
+      this.terminatedVariables = terminatedVariables;
+    }
+
+    /**
+     * @return a copy of this ControlFlowState
+     */
+    ControlFlowState copy()
+    {
+      Map<BreakableStatement, ControlFlowVariables> copiedBreakVariables = new HashMap<BreakableStatement, ControlFlowVariables>();
+      for (Entry<BreakableStatement, ControlFlowVariables> entry : breakVariables.entrySet())
       {
-        return InitialiserState.NOT_RUN;
+        copiedBreakVariables.put(entry.getKey(), entry.getValue().copy());
       }
-      if (firstState == InitialiserState.DEFINITELY_RUN & secondState == InitialiserState.DEFINITELY_RUN)
+      Map<BreakableStatement, ControlFlowVariables> copiedContinueVariables = new HashMap<BreakableStatement, ControlFlowVariables>();
+      for (Entry<BreakableStatement, ControlFlowVariables> entry : continueVariables.entrySet())
       {
-        return InitialiserState.DEFINITELY_RUN;
+        copiedContinueVariables.put(entry.getKey(), entry.getValue().copy());
       }
-      return InitialiserState.POSSIBLY_RUN;
+      return new ControlFlowState(variables.copy(),
+                                  copiedBreakVariables,
+                                  copiedContinueVariables,
+                                  terminatedVariables.copy());
+    }
+
+    /**
+     * Combines the current variable state with the variable state at the point of breaking out of the specified BreakableStatement.
+     * @param breakableStatement - the BreakableStatement to combine this variable state with
+     */
+    void addToBreakVariables(BreakableStatement breakableStatement)
+    {
+      Map<BreakableStatement, ControlFlowVariables> newBreakVariables = new HashMap<BreakableStatement, ControlFlowVariables>();
+      newBreakVariables.put(breakableStatement, variables);
+      combineBreakableVariables(breakVariables, newBreakVariables);
+    }
+
+    /**
+     * Combines the current variable state with the variable state at the point of continuing through the specified BreakableStatement.
+     * @param breakableStatement - the BreakableStatement to combine this variable state with
+     */
+    void addToContinueVariables(BreakableStatement breakableStatement)
+    {
+      Map<BreakableStatement, ControlFlowVariables> newContinueVariables = new HashMap<BreakableStatement, ControlFlowVariables>();
+      newContinueVariables.put(breakableStatement, variables);
+      combineBreakableVariables(continueVariables, newContinueVariables);
+    }
+
+    /**
+     * Overwrites the current variable state with the combined ones from each of the break statements for the specified BreakableStatement.
+     * If there are no sets of break variables for this BreakableStatement, then the current set of variables is replaced with null.
+     * @param breakableStatement - the BreakableStatement to overwrite the variables with the break variables of
+     */
+    void overwriteWithBreakVariables(BreakableStatement breakableStatement)
+    {
+      terminatedVariables.combine(variables);
+      variables = breakVariables.get(breakableStatement);
+    }
+
+    /**
+     * Overwrites the current variable state with the combined ones from each of the continue statements for the specified BreakableStatement.
+     * If there are no sets of continue variables for this BreakableStatement, then the current set of variables is replaced with null.
+     * @param breakableStatement - the BreakableStatement to overwrite the variables with the continue variables of
+     */
+    void overwriteWithContinueVariables(BreakableStatement breakableStatement)
+    {
+      terminatedVariables.combine(variables);
+      variables = continueVariables.get(breakableStatement);
+    }
+
+    /**
+     * Reintegrates the variable states from each of the break statements for the specified BreakableStatement into the current variable state.
+     * @param breakableStatement - the BreakableStatement to reintegrate the break variables of
+     */
+    void reintegrateBreakVariables(BreakableStatement breakableStatement)
+    {
+      ControlFlowVariables breakStatementVariables = breakVariables.get(breakableStatement);
+      if (breakStatementVariables != null)
+      {
+        variables.combine(breakStatementVariables);
+      }
+    }
+
+    /**
+     * Reintegrates the variable states from each of the continue statements for the specified BreakableStatement into the current variable state.
+     * @param breakableStatement - the BreakableStatement to reintegrate the continue variables of
+     */
+    void reintegrateContinueVariables(BreakableStatement breakableStatement)
+    {
+      ControlFlowVariables continueStatementVariables = continueVariables.get(breakableStatement);
+      if (continueStatementVariables != null)
+      {
+        variables.combine(continueStatementVariables);
+      }
+    }
+
+    /**
+     * Resets the terminated variables on this ControlFlowState to the current state of the variables.
+     */
+    void resetTerminatedState()
+    {
+      terminatedVariables = variables.copy();
+    }
+
+    /**
+     * @return the terminated state of this ControlFlowState, which contains the generic state which takes into account every state since it was last reset
+     */
+    ControlFlowState getTerminatedState()
+    {
+      ControlFlowState copied = copy();
+      copied.variables = terminatedVariables.copy();
+      return copied;
+    }
+
+    /**
+     * Overwrites this ControlFlowState object's initialised variable state with the specified object's state.
+     * This method still combines the rest of the state as if this had returned.
+     * @param state - the ControlFlowState to overwrite this one with
+     */
+    void overwrite(ControlFlowState state)
+    {
+      variables = state.variables;
+      combineReturned(state);
+    }
+
+    /**
+     * Combines all data from the specified ControlFlowState into this one.
+     * @param state - the state to combine into this one
+     */
+    void combine(ControlFlowState state)
+    {
+      variables.combine(state.variables);
+      combineReturned(state);
+    }
+
+    /**
+     * Combines the specified variable state with this one, assuming that the specified state has returned, and therefore discounting all of its current variable information.
+     * @param state - the state to combine with
+     */
+    void combineReturned(ControlFlowState state)
+    {
+      combineBreakableVariables(breakVariables, state.breakVariables);
+      combineBreakableVariables(continueVariables, state.continueVariables);
+
+      if (state.variables != null)
+      {
+        // this can happen if something has overwritten state's variables with break/continue variables which don't exist
+        terminatedVariables.combine(state.variables);
+      }
+      terminatedVariables.combine(state.terminatedVariables);
+    }
+
+    /**
+     * Combines the specified breakable variable states.
+     * @param destination - the destination map to store the resulting variable states in
+     * @param source - the source map to get new data for the destination from
+     */
+    private static void combineBreakableVariables(Map<BreakableStatement, ControlFlowVariables> destination, Map<BreakableStatement, ControlFlowVariables> source)
+    {
+      for (Entry<BreakableStatement, ControlFlowVariables> entry : source.entrySet())
+      {
+        if (destination.containsKey(entry.getKey()))
+        {
+          ControlFlowVariables destinationVariables = destination.get(entry.getKey());
+          destinationVariables.combine(entry.getValue());
+        }
+        else
+        {
+          destination.put(entry.getKey(), entry.getValue().copy());
+        }
+      }
     }
   }
 

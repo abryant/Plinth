@@ -35,6 +35,7 @@ import eu.bryants.anthony.plinth.parser.rules.misc.ArgumentsRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.AssigneeListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.AssigneeNoQNameRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.AssigneeRule;
+import eu.bryants.anthony.plinth.parser.rules.misc.CatchTypeListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.DeclarationAssigneeListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ForInitRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ForUpdateRule;
@@ -59,6 +60,8 @@ import eu.bryants.anthony.plinth.parser.rules.statement.ReturnStatementRule;
 import eu.bryants.anthony.plinth.parser.rules.statement.ShorthandAssignmentRule;
 import eu.bryants.anthony.plinth.parser.rules.statement.StatementRule;
 import eu.bryants.anthony.plinth.parser.rules.statement.StatementsRule;
+import eu.bryants.anthony.plinth.parser.rules.statement.TryCatchStatementRule;
+import eu.bryants.anthony.plinth.parser.rules.statement.TryFinallyStatementRule;
 import eu.bryants.anthony.plinth.parser.rules.statement.WhileStatementRule;
 import eu.bryants.anthony.plinth.parser.rules.type.ReturnTypeRule;
 import eu.bryants.anthony.plinth.parser.rules.type.TypeListNoQNameRule;
@@ -114,6 +117,7 @@ public class PlinthParseRules
     new AssigneeListRule(),
     new AssigneeNoQNameRule(),
     new AssigneeRule(),
+    new CatchTypeListRule(),
     new DeclarationAssigneeListRule(),
     new ForInitRule(),
     new ForUpdateRule(),
@@ -140,6 +144,8 @@ public class PlinthParseRules
     new ShorthandAssignmentRule(),
     new StatementRule(),
     new StatementsRule(),
+    new TryCatchStatementRule(),
+    new TryFinallyStatementRule(),
     new WhileStatementRule(),
 
     // type

@@ -59,6 +59,7 @@ import eu.bryants.anthony.plinth.ast.metadata.Variable;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
+import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Import;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
@@ -77,6 +78,7 @@ import eu.bryants.anthony.plinth.ast.statement.ReturnStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
 import eu.bryants.anthony.plinth.ast.statement.ThrowStatement;
+import eu.bryants.anthony.plinth.ast.statement.TryStatement;
 import eu.bryants.anthony.plinth.ast.statement.WhileStatement;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
@@ -1267,6 +1269,104 @@ public class Resolver
     else if (statement instanceof ThrowStatement)
     {
       resolve(((ThrowStatement) statement).getThrownExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
+    }
+    else if (statement instanceof TryStatement)
+    {
+      TryStatement tryStatement = (TryStatement) statement;
+      CoalescedConceptualException coalescedException = null;
+      try
+      {
+        resolve(tryStatement.getTryBlock(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+
+      for (CatchClause catchClause : tryStatement.getCatchClauses())
+      {
+        CoalescedConceptualException subCoalescedException = null;
+        // process the block ourselves instead of recursing, as we need to add the exception variable ourselves
+
+        // resolve the type of the caught variable
+        for (Type t : catchClause.getCaughtTypes())
+        {
+          try
+          {
+            resolve(t, compilationUnit);
+          }
+          catch (ConceptualException e)
+          {
+            subCoalescedException = CoalescedConceptualException.coalesce(subCoalescedException, e);
+          }
+        }
+        if (subCoalescedException != null)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, subCoalescedException);
+          continue;
+        }
+        Type variableType;
+        try
+        {
+          variableType = TypeChecker.checkCatchClauseTypes(catchClause.getCaughtTypes());
+        }
+        catch (ConceptualException e)
+        {
+          subCoalescedException = CoalescedConceptualException.coalesce(subCoalescedException, e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, subCoalescedException);
+          continue;
+        }
+
+        // create the new variable, and set up the variables of the catch block
+        Variable variable = new Variable(catchClause.isVariableFinal(), variableType, catchClause.getVariableName());
+        catchClause.setResolvedExceptionVariable(variable);
+        Block catchBlock = catchClause.getBlock();
+        for (Variable v : enclosingBlock.getVariables())
+        {
+          catchBlock.addVariable(v);
+        }
+        Variable oldVar = catchBlock.addVariable(variable);
+        if (oldVar != null)
+        {
+          subCoalescedException = CoalescedConceptualException.coalesce(subCoalescedException, new ConceptualException("'" + variable.getName() + "' has already been declared, and cannot be redeclared", catchClause.getLexicalPhrase()));
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, subCoalescedException);
+          continue;
+        }
+
+        // resolve the contents of the catch block
+        for (Statement s : catchBlock.getStatements())
+        {
+          try
+          {
+            resolve(s, catchBlock, enclosingDefinition, compilationUnit, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            subCoalescedException = CoalescedConceptualException.coalesce(subCoalescedException, e);
+          }
+        }
+        if (subCoalescedException != null)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, subCoalescedException);
+          continue;
+        }
+      }
+
+      if (tryStatement.getFinallyBlock() != null)
+      {
+        try
+        {
+          resolve(tryStatement.getFinallyBlock(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      if (coalescedException != null)
+      {
+        throw coalescedException;
+      }
     }
     else if (statement instanceof WhileStatement)
     {
@@ -2488,6 +2588,19 @@ public class Resolver
         if (ifStatement.getElseClause() != null)
         {
           stack.push(ifStatement.getElseClause());
+        }
+      }
+      else if (statement instanceof TryStatement)
+      {
+        TryStatement tryStatement = (TryStatement) statement;
+        stack.push(tryStatement.getTryBlock());
+        for (CatchClause catchClause : tryStatement.getCatchClauses())
+        {
+          stack.push(catchClause.getBlock());
+        }
+        if (tryStatement.getFinallyBlock() != null)
+        {
+          stack.push(tryStatement.getFinallyBlock());
         }
       }
       else if (statement instanceof WhileStatement)

@@ -34,6 +34,7 @@ public enum ParseType
   ASSIGNEE_NO_QNAME,             // Assignee
   ASSIGNEE_LIST,                 // ParseList<Assignee>
   DECLARATION_ASSIGNEE_LIST,     // ParseList<Assignee>
+  CATCH_TYPE_LIST,               // ParseList<Type>
   PARAMETERS,                    // ParseList<Parameter>
   PARAMETER_LIST,                // ParseList<Parameter>
   FOR_INIT,                      // ParseContainer<Statement> (possibly containing null)
@@ -58,6 +59,8 @@ public enum ParseType
   PREFIX_INC_DEC_STATEMENT,      // PrefixIncDecStatement
   RETURN_STATEMENT,              // ReturnStatement
   SHORTHAND_ASSIGNMENT,          // ShorthandAssignStatement
+  TRY_CATCH_STATEMENT,           // TryStatement
+  TRY_FINALLY_STATEMENT,         // TryStatement
   WHILE_STATEMENT,               // WhileStatement
 
   // Types
@@ -158,6 +161,7 @@ public enum ParseType
   BREAK_KEYWORD,
   BYTE_KEYWORD,
   CAST_KEYWORD,
+  CATCH_KEYWORD,
   CLASS_KEYWORD,
   COMPOUND_KEYWORD,
   CONTINUE_KEYWORD,
@@ -166,6 +170,7 @@ public enum ParseType
   EXTENDS_KEYWORD,
   FALSE_KEYWORD,
   FINAL_KEYWORD,
+  FINALLY_KEYWORD,
   FLOAT_KEYWORD,
   FOR_KEYWORD,
   IF_KEYWORD,
@@ -190,6 +195,7 @@ public enum ParseType
   THIS_KEYWORD,
   THROW_KEYWORD,
   TRUE_KEYWORD,
+  TRY_KEYWORD,
   UBYTE_KEYWORD,
   UINT_KEYWORD,
   ULONG_KEYWORD,

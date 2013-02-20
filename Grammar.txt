@@ -95,6 +95,13 @@ ShorthandAssignment = AssigneeList PlusEquals          Expression |
                       AssigneeList AmpersandEquals     Expression |
                       AssigneeList PipeEquals          Expression |
                       AssigneeList CaretEquals         Expression
+CatchTypeList = Type | CatchTypeList Pipe Type
+TryCatchStatement = TryKeyword Block CatchKeyword CatchTypeList Name Block |
+                    TryKeyword Block CatchKeyword Modifiers CatchTypeList Name Block |
+                    TryCatchStatement CatchKeyword CatchTypeList Name Block |
+                    TryCatchStatement CatchKeyword Modifiers CatchTypeList Name Block
+TryFinallyStatement = TryKeyword Block FinallyKeyword Block |
+                      TryCatchStatement FinallyKeyword Block
 WhileStatement = WhileKeyword Expression Block
 
 ForInit = Assignment | ShorthandAssignment Semicolon | Semicolon

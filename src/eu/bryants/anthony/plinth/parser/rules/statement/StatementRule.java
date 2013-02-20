@@ -33,6 +33,8 @@ public class StatementRule extends Rule<ParseType>
   private static final Production<ParseType> IF_PRODUCTION  = new Production<ParseType>(ParseType.IF_STATEMENT);
   private static final Production<ParseType> INC_DEC_PRODUCTION = new Production<ParseType>(ParseType.PREFIX_INC_DEC_STATEMENT);
   private static final Production<ParseType> RETURN_PRODUCTION = new Production<ParseType>(ParseType.RETURN_STATEMENT);
+  private static final Production<ParseType> TRY_CATCH_PRODUCTION = new Production<ParseType>(ParseType.TRY_CATCH_STATEMENT);
+  private static final Production<ParseType> TRY_FINALLY_PRODUCTION = new Production<ParseType>(ParseType.TRY_FINALLY_STATEMENT);
   private static final Production<ParseType> WHILE_PRODUCTION  = new Production<ParseType>(ParseType.WHILE_STATEMENT);
 
   private static final Production<ParseType> SHORTHAND_ASSIGN_PRODUCTION = new Production<ParseType>(ParseType.SHORTHAND_ASSIGNMENT, ParseType.SEMICOLON);
@@ -49,7 +51,8 @@ public class StatementRule extends Rule<ParseType>
   public StatementRule()
   {
     super(ParseType.STATEMENT, ASSIGN_PRODUCTION, BLOCK_PRODUCTION, BREAK_PRODUCTION, CONTINUE_PRODUCTION, IF_PRODUCTION, FOR_PRODUCTION, INC_DEC_PRODUCTION,
-                               RETURN_PRODUCTION, WHILE_PRODUCTION, SHORTHAND_ASSIGN_PRODUCTION,
+                               RETURN_PRODUCTION, TRY_CATCH_PRODUCTION, TRY_FINALLY_PRODUCTION, WHILE_PRODUCTION,
+                               SHORTHAND_ASSIGN_PRODUCTION,
                                FUNCTION_CALL_PRODUCTION, CAST_FUNCTION_CALL_PRODUCTION, CLASS_CREATION_PRODUCTION,
                                DELEGATE_THIS_CONSTRUCTOR_PRODUCTION, DELEGATE_SUPER_CONSTRUCTOR_PRODUCTION,
                                THROW_PRODUCTION);
@@ -61,9 +64,10 @@ public class StatementRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == ASSIGN_PRODUCTION   || production == BLOCK_PRODUCTION  || production == BREAK_PRODUCTION   ||
-        production == CONTINUE_PRODUCTION || production == IF_PRODUCTION     || production == FOR_PRODUCTION     ||
-        production == INC_DEC_PRODUCTION  || production == RETURN_PRODUCTION || production == WHILE_PRODUCTION)
+    if (production == ASSIGN_PRODUCTION      || production == BLOCK_PRODUCTION  || production == BREAK_PRODUCTION     ||
+        production == CONTINUE_PRODUCTION    || production == IF_PRODUCTION     || production == FOR_PRODUCTION       ||
+        production == INC_DEC_PRODUCTION     || production == RETURN_PRODUCTION || production == TRY_CATCH_PRODUCTION ||
+        production == TRY_FINALLY_PRODUCTION || production == WHILE_PRODUCTION)
     {
       return args[0];
     }

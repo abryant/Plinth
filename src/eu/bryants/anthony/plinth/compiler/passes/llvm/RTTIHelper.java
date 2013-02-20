@@ -131,37 +131,24 @@ public class RTTIHelper
    */
   public LLVMValueRef getPureRTTI(Type type)
   {
-    // every sort of type except interface stores its pure RTTI inside its instance RTTI,
-    // but interfaces do not have instanec RTTI, so they must store their pure RTTI on its own
-    if ((type instanceof NamedType && ((NamedType) type).getResolvedTypeDefinition() instanceof InterfaceDefinition) ||
-        type instanceof NullType ||
-        type instanceof VoidType)
+    String mangledName = PURE_RTTI_MANGLED_NAME_PREFIX + type.getMangledName();
+    LLVMValueRef existingGlobal = LLVM.LLVMGetNamedGlobal(module, mangledName);
+    if (existingGlobal != null)
     {
-      String mangledName = PURE_RTTI_MANGLED_NAME_PREFIX + type.getMangledName();
-      LLVMValueRef existingGlobal = LLVM.LLVMGetNamedGlobal(module, mangledName);
-      if (existingGlobal != null)
-      {
-        return LLVM.LLVMConstBitCast(existingGlobal, getGenericPureRTTIType());
-      }
-
-      LLVMTypeRef pureRTTIType = getPureRTTIStructType(type);
-
-      LLVMValueRef global = LLVM.LLVMAddGlobal(module, pureRTTIType, mangledName);
-      LLVM.LLVMSetLinkage(global, LLVM.LLVMLinkage.LLVMLinkOnceODRLinkage);
-      LLVM.LLVMSetVisibility(global, LLVM.LLVMVisibility.LLVMHiddenVisibility);
-      LLVM.LLVMSetGlobalConstant(global, true);
-
-      LLVMValueRef pureRTTI = getPureRTTIStruct(type);
-      LLVM.LLVMSetInitializer(global, pureRTTI);
-
-      return LLVM.LLVMConstBitCast(global, getGenericPureRTTIType());
+      return LLVM.LLVMConstBitCast(existingGlobal, getGenericPureRTTIType());
     }
 
-    // lookup the pure RTTI inside this type's instance RTTI
-    LLVMValueRef instanceRTTI = getInstanceRTTI(type);
-    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
-                                                 LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false)};
-    return LLVM.LLVMConstGEP(instanceRTTI, C.toNativePointerArray(indices, false, true), indices.length);
+    LLVMTypeRef pureRTTIType = getPureRTTIStructType(type);
+
+    LLVMValueRef global = LLVM.LLVMAddGlobal(module, pureRTTIType, mangledName);
+    LLVM.LLVMSetLinkage(global, LLVM.LLVMLinkage.LLVMLinkOnceODRLinkage);
+    LLVM.LLVMSetVisibility(global, LLVM.LLVMVisibility.LLVMHiddenVisibility);
+    LLVM.LLVMSetGlobalConstant(global, true);
+
+    LLVMValueRef pureRTTI = getPureRTTIStruct(type);
+    LLVM.LLVMSetInitializer(global, pureRTTI);
+
+    return LLVM.LLVMConstBitCast(global, getGenericPureRTTIType());
   }
 
   /**

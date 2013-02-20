@@ -1,5 +1,7 @@
 package eu.bryants.anthony.plinth.ast.statement;
 
+import java.util.List;
+
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 
@@ -13,6 +15,15 @@ import eu.bryants.anthony.plinth.ast.expression.Expression;
 public class ReturnStatement extends Statement
 {
   private Expression expression;
+
+  /**
+   * The list of finally blocks that are broken through before returning.
+   */
+  private List<TryStatement> resolvedFinallyBlocks;
+  /**
+   * True if this return gets stopped by a finally block which stops execution, false otherwise.
+   */
+  private boolean stoppedByFinally;
 
   private boolean canReturnAgainstContextualImmutability;
 
@@ -28,6 +39,38 @@ public class ReturnStatement extends Statement
   public Expression getExpression()
   {
     return expression;
+  }
+
+  /**
+   * @return the resolvedFinallyBlocks
+   */
+  public List<TryStatement> getResolvedFinallyBlocks()
+  {
+    return resolvedFinallyBlocks;
+  }
+
+  /**
+   * @param resolvedFinallyBlocks - the resolvedFinallyBlocks to set
+   */
+  public void setResolvedFinallyBlocks(List<TryStatement> resolvedFinallyBlocks)
+  {
+    this.resolvedFinallyBlocks = resolvedFinallyBlocks;
+  }
+
+  /**
+   * @return the stoppedByFinally
+   */
+  public boolean isStoppedByFinally()
+  {
+    return stoppedByFinally;
+  }
+
+  /**
+   * @param stoppedByFinally - the stoppedByFinally to set
+   */
+  public void setStoppedByFinally(boolean stoppedByFinally)
+  {
+    this.stoppedByFinally = stoppedByFinally;
   }
 
   /**
