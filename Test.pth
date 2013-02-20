@@ -30,10 +30,12 @@ class Test
         try
         {
           throwSomething();
+          stderr::println("After throwSomething()");
         }
-        finally
+        catch Exception ex
         {
-          stderr::println("First finally");
+          stderr::println("First catch");
+          throw ex;
         }
       }
       catch Exception | Error ex

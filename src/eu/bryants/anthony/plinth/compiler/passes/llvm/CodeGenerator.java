@@ -2280,6 +2280,7 @@ public class CodeGenerator
         }
         LLVM.LLVMPositionBuilderAtEnd(builder, tryLandingPadBlock);
         LLVMValueRef tryLandingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), getPersonalityFunction(), numClauses, "");
+        LLVMValueRef tryUnwindExceptionPointer = LLVM.LLVMBuildExtractValue(builder, tryLandingPad, 0, "");
         LLVMValueRef llvmTypeIdForIntrinsic = getExceptionTypeIdForIntrinsic();
         LLVMValueRef typeId = LLVM.LLVMBuildExtractValue(builder, tryLandingPad, 1, "");
         for (int i = 0; i < catchClauses.length; ++i)
@@ -2297,23 +2298,21 @@ public class CodeGenerator
           }
         }
 
+        // create an empty filter, so that we catch everything
+        LLVMValueRef[] tryFilterValues = new LLVMValueRef[0];
+        LLVM.LLVMAddClause(tryLandingPad, LLVM.LLVMConstArray(LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), C.toNativePointerArray(tryFilterValues, false, true), tryFilterValues.length));
+
         if (tryStatement.getFinallyBlock() == null)
         {
-          LLVM.LLVMSetCleanup(tryLandingPad, true);
-          LLVM.LLVMBuildResume(builder, tryLandingPad);
+          // we can't just resume here, as it would make us skip any catch/finally blocks above this one but in the same function
+          buildThrow(builder, landingPadContainer, tryUnwindExceptionPointer);
         }
         else
         {
-          // create an empty filter, so that we catch everything for a finally block
-          LLVMValueRef[] filterValues = new LLVMValueRef[0];
-          LLVM.LLVMAddClause(tryLandingPad, LLVM.LLVMConstArray(LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), C.toNativePointerArray(filterValues, false, true), filterValues.length));
-
-          LLVMValueRef unwindExceptionPointer = LLVM.LLVMBuildExtractValue(builder, tryLandingPad, 0, "");
-
           if (tryStatement.getFinallyBlock().stopsExecution())
           {
             // the finally block never terminates, so we don't need to store the exception, it always gets discarded
-            LLVMValueRef plinthException = buildCatch(builder, unwindExceptionPointer);
+            LLVMValueRef plinthException = buildCatch(builder, tryUnwindExceptionPointer);
             plinthException = LLVM.LLVMBuildBitCast(builder, plinthException, typeHelper.findStandardType(new ObjectType(false, false, null)), "");
             // TODO: garbage collection: handle the stopped plinthException resulting from the catch
             LLVM.LLVMBuildBr(builder, llvmFinallyBlock);
@@ -2330,7 +2329,7 @@ public class CodeGenerator
             LLVMValueRef finallyJumpVariable = finallyJumpVariables.get(tryStatement);
 
             LLVMValueRef exceptionStorageAlloca = LLVM.LLVMBuildAllocaInEntryBlock(builder, LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), "exceptionStorage");
-            LLVM.LLVMBuildStore(builder, unwindExceptionPointer, exceptionStorageAlloca);
+            LLVM.LLVMBuildStore(builder, tryUnwindExceptionPointer, exceptionStorageAlloca);
             LLVM.LLVMBuildStore(builder, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), jumpIndex, false), finallyJumpVariable);
             LLVM.LLVMBuildBr(builder, llvmFinallyBlock);
 
@@ -2341,13 +2340,21 @@ public class CodeGenerator
         }
 
         // build the catch blocks
-        LandingPadContainer catchLandingPadContainer = new LandingPadContainer(builder);
+        LandingPadContainer catchLandingPadContainer;
+        if (tryStatement.getFinallyBlock() == null)
+        {
+          catchLandingPadContainer = landingPadContainer;
+        }
+        else
+        {
+          catchLandingPadContainer = new LandingPadContainer(builder);
+        }
+
         ObjectType objectType = new ObjectType(false, false, null);
         for (int i = 0; i < catchClauses.length; ++i)
         {
           LLVM.LLVMPositionBuilderAtEnd(builder, catchClauseBlocks[i]);
-          LLVMValueRef unwindExceptionPointer = LLVM.LLVMBuildExtractValue(builder, tryLandingPad, 0, "");
-          LLVMValueRef caughtException = buildCatch(builder, unwindExceptionPointer);
+          LLVMValueRef caughtException = buildCatch(builder, tryUnwindExceptionPointer);
           Variable variable = catchClauses[i].getResolvedExceptionVariable();
           caughtException = LLVM.LLVMBuildBitCast(builder, caughtException, typeHelper.findStandardType(objectType), "");
           caughtException = typeHelper.convertStandardToTemporary(builder, catchLandingPadContainer, caughtException, objectType, variable.getType());
@@ -2382,53 +2389,45 @@ public class CodeGenerator
         }
 
         // build the landing pad for the catch statements
+        // (we only build one for ourselves if there is a finally block, otherwise we just use the outer one)
         LLVMBasicBlockRef catchLandingPadBlock = catchLandingPadContainer.getExistingLandingPadBlock();
-        if (catchLandingPadBlock != null)
+        if (tryStatement.getFinallyBlock() != null && catchLandingPadBlock != null)
         {
           LLVM.LLVMPositionBuilderAtEnd(builder, catchLandingPadBlock);
           LLVMValueRef catchLandingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), getPersonalityFunction(), numClauses, "");
+          LLVMValueRef catchUnwindExceptionPointer = LLVM.LLVMBuildExtractValue(builder, catchLandingPad, 0, "");
 
-          if (tryStatement.getFinallyBlock() == null)
+          // create an empty filter, so that we catch everything for a finally block
+          LLVMValueRef[] catchFilterValues = new LLVMValueRef[0];
+          LLVM.LLVMAddClause(catchLandingPad, LLVM.LLVMConstArray(LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), C.toNativePointerArray(catchFilterValues, false, true), catchFilterValues.length));
+
+          if (tryStatement.getFinallyBlock().stopsExecution())
           {
-            LLVM.LLVMSetCleanup(catchLandingPad, true);
-            LLVM.LLVMBuildResume(builder, catchLandingPad);
+            // the finally block never terminates, so we don't need to store the exception, it always gets discarded
+            LLVMValueRef plinthException = buildCatch(builder, catchUnwindExceptionPointer);
+            plinthException = LLVM.LLVMBuildBitCast(builder, plinthException, typeHelper.findStandardType(new ObjectType(false, false, null)), "");
+            // TODO: garbage collection: handle the stopped plinthException resulting from the catch
+            LLVM.LLVMBuildBr(builder, llvmFinallyBlock);
           }
           else
           {
-            // create an empty filter, so that we catch everything for a finally block
-            LLVMValueRef[] filterValues = new LLVMValueRef[0];
-            LLVM.LLVMAddClause(catchLandingPad, LLVM.LLVMConstArray(LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), C.toNativePointerArray(filterValues, false, true), filterValues.length));
+            // the finally block doesn't stop execution, so decide where to jump to after it finishes
+            LLVMBasicBlockRef resumeBlock = LLVM.LLVMAddBasicBlock(builder, "finallyResume");
 
-            LLVMValueRef unwindExceptionPointer = LLVM.LLVMBuildExtractValue(builder, catchLandingPad, 0, "");
+            List<LLVMBasicBlockRef> finallyJumpBlockList = finallyJumpBlocks.get(tryStatement);
+            int jumpIndex = finallyJumpBlockList.size();
+            finallyJumpBlockList.add(resumeBlock);
 
-            if (tryStatement.getFinallyBlock().stopsExecution())
-            {
-              // the finally block never terminates, so we don't need to store the exception, it always gets discarded
-              LLVMValueRef plinthException = buildCatch(builder, unwindExceptionPointer);
-              plinthException = LLVM.LLVMBuildBitCast(builder, plinthException, typeHelper.findStandardType(new ObjectType(false, false, null)), "");
-              // TODO: garbage collection: handle the stopped plinthException resulting from the catch
-              LLVM.LLVMBuildBr(builder, llvmFinallyBlock);
-            }
-            else
-            {
-              // the finally block doesn't stop execution, so decide where to jump to after it finishes
-              LLVMBasicBlockRef resumeBlock = LLVM.LLVMAddBasicBlock(builder, "finallyResume");
+            LLVMValueRef finallyJumpVariable = finallyJumpVariables.get(tryStatement);
 
-              List<LLVMBasicBlockRef> finallyJumpBlockList = finallyJumpBlocks.get(tryStatement);
-              int jumpIndex = finallyJumpBlockList.size();
-              finallyJumpBlockList.add(resumeBlock);
+            LLVMValueRef exceptionStorageAlloca = LLVM.LLVMBuildAllocaInEntryBlock(builder, LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), "exceptionStorage");
+            LLVM.LLVMBuildStore(builder, catchUnwindExceptionPointer, exceptionStorageAlloca);
+            LLVM.LLVMBuildStore(builder, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), jumpIndex, false), finallyJumpVariable);
+            LLVM.LLVMBuildBr(builder, llvmFinallyBlock);
 
-              LLVMValueRef finallyJumpVariable = finallyJumpVariables.get(tryStatement);
-
-              LLVMValueRef exceptionStorageAlloca = LLVM.LLVMBuildAllocaInEntryBlock(builder, LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), "exceptionStorage");
-              LLVM.LLVMBuildStore(builder, unwindExceptionPointer, exceptionStorageAlloca);
-              LLVM.LLVMBuildStore(builder, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), jumpIndex, false), finallyJumpVariable);
-              LLVM.LLVMBuildBr(builder, llvmFinallyBlock);
-
-              LLVM.LLVMPositionBuilderAtEnd(builder, resumeBlock);
-              LLVMValueRef storedException = LLVM.LLVMBuildLoad(builder, exceptionStorageAlloca, "");
-              buildThrow(builder, landingPadContainer, storedException);
-            }
+            LLVM.LLVMPositionBuilderAtEnd(builder, resumeBlock);
+            LLVMValueRef storedException = LLVM.LLVMBuildLoad(builder, exceptionStorageAlloca, "");
+            buildThrow(builder, landingPadContainer, storedException);
           }
         }
       }
