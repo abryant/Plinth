@@ -370,6 +370,28 @@ public class Resolver
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Duplicate constructor", constructor.getLexicalPhrase()));
         }
       }
+      for (NamedType thrownType : constructor.getCheckedThrownTypes())
+      {
+        try
+        {
+          resolve(thrownType, compilationUnit);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      for (NamedType uncheckedThrownType : constructor.getUncheckedThrownTypes())
+      {
+        try
+        {
+          resolve(uncheckedThrownType, compilationUnit);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
     }
 
     // resolve all method return and parameter types, and check for duplicate methods
@@ -409,6 +431,30 @@ public class Resolver
         {
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           typeResolveFailed = true;
+        }
+      }
+      for (NamedType thrownType : method.getCheckedThrownTypes())
+      {
+        try
+        {
+          resolve(thrownType, compilationUnit);
+        }
+        catch (ConceptualException e)
+        {
+          // this doesn't count as a failure to resolve the method's type, since it doesn't affect the disambiguator
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      for (NamedType uncheckedThrownType : method.getUncheckedThrownTypes())
+      {
+        try
+        {
+          resolve(uncheckedThrownType, compilationUnit);
+        }
+        catch (ConceptualException e)
+        {
+          // this doesn't count as a failure to resolve the method's type, since it doesn't affect the disambiguator
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
 
@@ -574,6 +620,11 @@ public class Resolver
       {
         resolve(parameterType, compilationUnit);
       }
+      for (Type thrownType : functionType.getThrownTypes())
+      {
+        resolve(thrownType, compilationUnit);
+      }
+      TypeChecker.checkFunctionType(functionType);
     }
     else if (type instanceof NamedType)
     {
@@ -2367,7 +2418,7 @@ public class Resolver
           {
             parameterTypes[i] = parameters[i].getType();
           }
-          FunctionType functionType = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, null);
+          FunctionType functionType = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, method.getCheckedThrownTypes(), null);
           if (!typeHint.canAssign(functionType))
           {
             it.remove();

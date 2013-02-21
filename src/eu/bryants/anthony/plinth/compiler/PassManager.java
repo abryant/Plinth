@@ -14,6 +14,7 @@ import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.compiler.passes.ControlFlowChecker;
 import eu.bryants.anthony.plinth.compiler.passes.CycleChecker;
+import eu.bryants.anthony.plinth.compiler.passes.ExceptionChecker;
 import eu.bryants.anthony.plinth.compiler.passes.InheritanceChecker;
 import eu.bryants.anthony.plinth.compiler.passes.NativeNameChecker;
 import eu.bryants.anthony.plinth.compiler.passes.Resolver;
@@ -40,6 +41,7 @@ public class PassManager
     CYCLE_CHECKING,
     TYPE_CHECKING,
     CONTROL_FLOW_CHECKING,
+    EXCEPTION_CHECKING,
     BITCODE_NATIVE_NAME_CHECKING,
     SOURCE_NATIVE_NAME_CHECKING,
     FINISHED,
@@ -285,6 +287,12 @@ public class PassManager
       if (typeCompilationUnits.containsKey(typeDefinition))
       {
         ControlFlowChecker.checkControlFlow(typeDefinition);
+      }
+      break;
+    case EXCEPTION_CHECKING:
+      if (typeCompilationUnits.containsKey(typeDefinition))
+      {
+        ExceptionChecker.checkExceptions(typeDefinition);
       }
       break;
     case BITCODE_NATIVE_NAME_CHECKING:

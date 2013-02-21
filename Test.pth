@@ -3,19 +3,27 @@ package foo.bar;
 class Test
 {
   string field;
-  this(uint a)
+  selfish this(uint a) throws CastError
   {
     stderr::println("Test(uint): " + a);
     field = a.toString();
+    foo();
   }
   
-  static void throwSomething()
+  static void throwSomething() throws Exception, unchecked Error
   {
     throw new Error("Hello, Exceptions!");
   }
 
-  static uint main([]string args)
+  void foo() throws CastError
   {
+    throw new CastError("an apple", "an orange", null);
+  }
+
+  static uint main([]string args) throws Error
+  {
+    new Test(3);
+    { -> void throws Exception} func = throwSomething;
     Exception e = new Exception("AAAAA");
     final object o;
     uint i = args.length;
@@ -41,10 +49,6 @@ class Test
       catch Exception | Error ex
       {
         stderr::println("Caught Exception|Error: " + ex.getMessage());
-      }
-      catch Throwable t
-      {
-        stderr::println("Caught Throwable: " + t.getMessage());
       }
       finally
       {

@@ -470,7 +470,7 @@ public class RTTIHelper
     if (expressionType instanceof ArrayType)
     {
       boolean baseTypesMatch = checkType instanceof ArrayType &&
-                               ((ArrayType) checkType).getBaseType().isEquivalent(((ArrayType) expressionType).getBaseType());
+                               ((ArrayType) checkType).getBaseType().isRuntimeEquivalent(((ArrayType) expressionType).getBaseType());
       return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), baseTypesMatch ? 1 : 0, false);
     }
     if (expressionType instanceof FunctionType)
@@ -482,11 +482,11 @@ public class RTTIHelper
         FunctionType checkFunctionType = (FunctionType) checkType;
         Type[] expressionParameterTypes = expressionFunctionType.getParameterTypes();
         Type[] checkParameterTypes = checkFunctionType.getParameterTypes();
-        signaturesMatch = expressionFunctionType.getReturnType().isEquivalent(checkFunctionType.getReturnType());
+        signaturesMatch = expressionFunctionType.getReturnType().isRuntimeEquivalent(checkFunctionType.getReturnType());
         signaturesMatch &= expressionParameterTypes.length == checkParameterTypes.length;
         for (int i = 0; signaturesMatch & i < expressionParameterTypes.length; ++i)
         {
-          signaturesMatch = expressionParameterTypes[i].isEquivalent(checkParameterTypes[i]);
+          signaturesMatch = expressionParameterTypes[i].isRuntimeEquivalent(checkParameterTypes[i]);
         }
       }
       if (signaturesMatch && !((FunctionType) expressionType).isImmutable() & ((FunctionType) checkType).isImmutable())
@@ -521,7 +521,7 @@ public class RTTIHelper
     if (expressionType instanceof TupleType)
     {
       // neither the expression nor the check type can be nullable, and instanceof doesn't check sub-types, so we can just do an equivalence check
-      boolean result = expressionType.isEquivalent(checkType);
+      boolean result = expressionType.isRuntimeEquivalent(checkType);
       return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), result ? 1 : 0, false);
     }
     if (expressionType instanceof NamedType && checkType instanceof NamedType)

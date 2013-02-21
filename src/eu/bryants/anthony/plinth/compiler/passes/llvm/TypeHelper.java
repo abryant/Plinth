@@ -755,7 +755,7 @@ public class TypeHelper
    */
   public LLVMValueRef convertTemporary(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type from, Type to)
   {
-    if (from.isEquivalent(to))
+    if (from.isRuntimeEquivalent(to))
     {
       return value;
     }
@@ -1030,7 +1030,7 @@ public class TypeHelper
     if (from instanceof TupleType && !(to instanceof TupleType))
     {
       TupleType fromTuple = (TupleType) from;
-      if (fromTuple.getSubTypes().length == 1 && fromTuple.getSubTypes()[0].isEquivalent(to))
+      if (fromTuple.getSubTypes().length == 1 && fromTuple.getSubTypes()[0].isRuntimeEquivalent(to))
       {
         if (from.isNullable())
         {
@@ -1046,7 +1046,7 @@ public class TypeHelper
     if (!(from instanceof TupleType) && to instanceof TupleType)
     {
       TupleType toTuple = (TupleType) to;
-      if (toTuple.getSubTypes().length == 1 && toTuple.getSubTypes()[0].isEquivalent(from))
+      if (toTuple.getSubTypes().length == 1 && toTuple.getSubTypes()[0].isRuntimeEquivalent(from))
       {
         LLVMValueRef tupledValue = LLVM.LLVMGetUndef(findTemporaryType(new TupleType(false, toTuple.getSubTypes(), null)));
         tupledValue = LLVM.LLVMBuildInsertValue(builder, tupledValue, value, 0, "");
@@ -1077,7 +1077,7 @@ public class TypeHelper
       boolean subTypesEquivalent = true;
       for (int i = 0; i < fromSubTypes.length; ++i)
       {
-        if (!fromSubTypes[i].isEquivalent(toSubTypes[i]))
+        if (!fromSubTypes[i].isRuntimeEquivalent(toSubTypes[i]))
         {
           subTypesEquivalent = false;
           break;
@@ -1443,7 +1443,7 @@ public class TypeHelper
    */
   public LLVMValueRef convertToString(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type type)
   {
-    if (type.isEquivalent(SpecialTypeHandler.STRING_TYPE))
+    if (type.isRuntimeEquivalent(SpecialTypeHandler.STRING_TYPE))
     {
       return convertTemporaryToStandard(builder, value, SpecialTypeHandler.STRING_TYPE);
     }

@@ -1292,10 +1292,10 @@ public class CodeGenerator
     Method mainMethod = null;
     for (Method method : typeDefinition.getAllMethods())
     {
-      if (method.isStatic() && method.getName().equals(SpecialTypeHandler.MAIN_METHOD_NAME) && method.getReturnType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.UINT, null)))
+      if (method.isStatic() && method.getName().equals(SpecialTypeHandler.MAIN_METHOD_NAME) && method.getReturnType().isRuntimeEquivalent(new PrimitiveType(false, PrimitiveTypeType.UINT, null)))
       {
         Parameter[] parameters = method.getParameters();
-        if (parameters.length == 1 && parameters[0].getType().isEquivalent(argsType))
+        if (parameters.length == 1 && parameters[0].getType().isRuntimeEquivalent(argsType))
         {
           mainMethod = method;
           break;
@@ -2121,7 +2121,7 @@ public class CodeGenerator
         Type type = assignees[i].getResolvedType();
         LLVMValueRef leftValue = LLVM.LLVMBuildLoad(builder, llvmAssigneePointers[i], "");
         LLVMValueRef assigneeResult;
-        if (shorthandAssignStatement.getOperator() == ShorthandAssignmentOperator.ADD && type.isEquivalent(SpecialTypeHandler.STRING_TYPE))
+        if (shorthandAssignStatement.getOperator() == ShorthandAssignmentOperator.ADD && type.isRuntimeEquivalent(SpecialTypeHandler.STRING_TYPE))
         {
           if (!standardTypeRepresentations[i])
           {
@@ -2953,7 +2953,7 @@ public class CodeGenerator
       Type leftType = arithmeticExpression.getLeftSubExpression().getType();
       Type rightType = arithmeticExpression.getRightSubExpression().getType();
       Type resultType = arithmeticExpression.getType();
-      if (arithmeticExpression.getOperator() == ArithmeticOperator.ADD && resultType.isEquivalent(SpecialTypeHandler.STRING_TYPE))
+      if (arithmeticExpression.getOperator() == ArithmeticOperator.ADD && resultType.isRuntimeEquivalent(SpecialTypeHandler.STRING_TYPE))
       {
         LLVMValueRef leftString = typeHelper.convertToString(builder, landingPadContainer, left, leftType);
         LLVMValueRef rightString = typeHelper.convertToString(builder, landingPadContainer, right, rightType);
@@ -3235,7 +3235,7 @@ public class CodeGenerator
           {
             parameterTypes[i] = parameters[i].getType();
           }
-          FunctionType functionType = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, null);
+          FunctionType functionType = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, method.getCheckedThrownTypes(), null);
           if (method.isStatic())
           {
             throw new IllegalStateException("A FieldAccessExpression for a static method should not have a base expression");
@@ -3307,7 +3307,7 @@ public class CodeGenerator
         {
           parameterTypes[i] = parameters[i].getType();
         }
-        FunctionType functionType = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, null);
+        FunctionType functionType = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, method.getCheckedThrownTypes(), null);
 
         LLVMValueRef function = getMethodFunction(method);
 
@@ -3860,7 +3860,7 @@ public class CodeGenerator
         {
           parameterTypes[i] = parameters[i].getType();
         }
-        FunctionType functionType = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, null);
+        FunctionType functionType = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, method.getCheckedThrownTypes(), null);
 
         LLVMValueRef callee = method.isStatic() ? LLVM.LLVMConstNull(typeHelper.getOpaquePointer()) : thisValue;
         Type calleeType = method.isStatic() ? null : new NamedType(false, false, typeDefinition);

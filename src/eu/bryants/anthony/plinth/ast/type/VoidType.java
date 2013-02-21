@@ -38,6 +38,15 @@ public class VoidType extends Type
   @Override
   public boolean isEquivalent(Type type)
   {
+    return isRuntimeEquivalent(type);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean isRuntimeEquivalent(Type type)
+  {
     return type instanceof VoidType;
   }
 

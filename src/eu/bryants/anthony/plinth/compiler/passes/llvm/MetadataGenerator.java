@@ -140,7 +140,8 @@ public class MetadataGenerator
     LLVMValueRef selfishnessNode = createMDString(constructor.isSelfish() ? "selfish" : "not-selfish");
     LLVMValueRef sinceSpecifierNode = generateSinceSpecifier(constructor.getSinceSpecifier());
     LLVMValueRef parametersNode = generateParameters(constructor.getParameters());
-    LLVMValueRef[] values = new LLVMValueRef[] {immutabilityNode, selfishnessNode, sinceSpecifierNode, parametersNode};
+    LLVMValueRef thrownTypesNode = generateThrownTypes(constructor.getCheckedThrownTypes());
+    LLVMValueRef[] values = new LLVMValueRef[] {immutabilityNode, selfishnessNode, sinceSpecifierNode, parametersNode, thrownTypesNode};
     return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
   }
 
@@ -153,7 +154,8 @@ public class MetadataGenerator
     LLVMValueRef sinceSpecifierNode = generateSinceSpecifier(method.getSinceSpecifier());
     LLVMValueRef returnTypeNode = generateType(method.getReturnType());
     LLVMValueRef parametersNode = generateParameters(method.getParameters());
-    LLVMValueRef[] values = new LLVMValueRef[] {nameNode, isAbstractNode, isImmutableNode, nativeNameNode, sinceSpecifierNode, returnTypeNode, parametersNode};
+    LLVMValueRef thrownTypesNode = generateThrownTypes(method.getCheckedThrownTypes());
+    LLVMValueRef[] values = new LLVMValueRef[] {nameNode, isAbstractNode, isImmutableNode, nativeNameNode, sinceSpecifierNode, returnTypeNode, parametersNode, thrownTypesNode};
     return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
   }
 
@@ -168,6 +170,16 @@ public class MetadataGenerator
       parameterNodes[i] = LLVM.LLVMMDNode(C.toNativePointerArray(parameterValues, false, true), parameterValues.length);
     }
     return LLVM.LLVMMDNode(C.toNativePointerArray(parameterNodes, false, true), parameterNodes.length);
+  }
+
+  private static LLVMValueRef generateThrownTypes(NamedType[] thrownTypes)
+  {
+    LLVMValueRef[] thrownTypeNodes = new LLVMValueRef[thrownTypes.length];
+    for (int i = 0; i < thrownTypes.length; ++i)
+    {
+      thrownTypeNodes[i] = generateType(thrownTypes[i]);
+    }
+    return LLVM.LLVMMDNode(C.toNativePointerArray(thrownTypeNodes, false, true), thrownTypeNodes.length);
   }
 
   private static LLVMValueRef generateSinceSpecifier(SinceSpecifier sinceSpecifier)
@@ -211,7 +223,8 @@ public class MetadataGenerator
         parameterTypeNodes[i] = generateType(parameterTypes[i]);
       }
       LLVMValueRef parameterTypesNode = LLVM.LLVMMDNode(C.toNativePointerArray(parameterTypeNodes, false, true), parameterTypeNodes.length);
-      LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, immutableNode, returnTypeNode, parameterTypesNode};
+      LLVMValueRef thrownTypesNode = generateThrownTypes(functionType.getThrownTypes());
+      LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, immutableNode, returnTypeNode, parameterTypesNode, thrownTypesNode};
       return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
     }
     if (type instanceof NamedType)

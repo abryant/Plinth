@@ -37,6 +37,15 @@ public class NullType extends Type
   @Override
   public boolean isEquivalent(Type type)
   {
+    return isRuntimeEquivalent(type);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean isRuntimeEquivalent(Type type)
+  {
     return type instanceof NullType;
   }
 

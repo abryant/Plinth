@@ -1,5 +1,8 @@
 package eu.bryants.anthony.plinth.parser.rules.member;
 
+import java.util.LinkedList;
+import java.util.List;
+
 import parser.ParseException;
 import parser.Production;
 import parser.Rule;
@@ -9,6 +12,7 @@ import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
@@ -17,6 +21,7 @@ import eu.bryants.anthony.plinth.parser.parseAST.Modifier;
 import eu.bryants.anthony.plinth.parser.parseAST.NativeSpecifier;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 import eu.bryants.anthony.plinth.parser.parseAST.SinceModifier;
+import eu.bryants.anthony.plinth.parser.parseAST.ThrownExceptionType;
 
 /*
  * Created on 20 May 2012
@@ -31,14 +36,14 @@ public class MethodRule extends Rule<ParseType>
 
   // do not use RETURN_TYPE here, as it causes shift-reduce conflicts with field declarations
   // basically, given "A b" we couldn't tell if A was a TYPE or a RETURN_TYPE without further information
-  private static final Production<ParseType> PRODUCTION                            = new Production<ParseType>(                     ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.BLOCK);
-  private static final Production<ParseType> VOID_PRODUCTION                       = new Production<ParseType>(                     ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.BLOCK);
-  private static final Production<ParseType> MODIFIERS_PRODUCTION                  = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.BLOCK);
-  private static final Production<ParseType> MODIFIERS_VOID_PRODUCTION             = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.BLOCK);
-  private static final Production<ParseType> DECLARATION_PRODUCTION                = new Production<ParseType>(                     ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.SEMICOLON);
-  private static final Production<ParseType> VOID_DECLARATION_PRODUCTION           = new Production<ParseType>(                     ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.SEMICOLON);
-  private static final Production<ParseType> MODIFIERS_DECLARATION_PRODUCTION      = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.SEMICOLON);
-  private static final Production<ParseType> MODIFIERS_VOID_DECLARATION_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.SEMICOLON);
+  private static final Production<ParseType> PRODUCTION                            = new Production<ParseType>(                     ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> VOID_PRODUCTION                       = new Production<ParseType>(                     ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_PRODUCTION                  = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_VOID_PRODUCTION             = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> DECLARATION_PRODUCTION                = new Production<ParseType>(                     ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
+  private static final Production<ParseType> VOID_DECLARATION_PRODUCTION           = new Production<ParseType>(                     ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
+  private static final Production<ParseType> MODIFIERS_DECLARATION_PRODUCTION      = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
+  private static final Production<ParseType> MODIFIERS_VOID_DECLARATION_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
 
   public MethodRule()
   {
@@ -58,8 +63,12 @@ public class MethodRule extends Rule<ParseType>
       Name name = (Name) args[1];
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[2];
-      Block block = (Block) args[3];
-      return processModifiers(null, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
+      @SuppressWarnings("unchecked")
+      ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[3];
+      NamedType[] checkedThrownTypes = extractCheckedThrownTypes(throwsList);
+      NamedType[] uncheckedThrownTypes = extractUncheckedThrownTypes(throwsList);
+      Block block = (Block) args[4];
+      return processModifiers(null, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), checkedThrownTypes, uncheckedThrownTypes, block,
                               LexicalPhrase.combine(returnType.getLexicalPhrase(), name.getLexicalPhrase(), parameters.getLexicalPhrase(), block.getLexicalPhrase()));
     }
     if (production == VOID_PRODUCTION)
@@ -67,8 +76,12 @@ public class MethodRule extends Rule<ParseType>
       Name name = (Name) args[1];
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[2];
-      Block block = (Block) args[3];
-      return processModifiers(null, new VoidType((LexicalPhrase) args[0]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
+      @SuppressWarnings("unchecked")
+      ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[3];
+      NamedType[] checkedThrownTypes = extractCheckedThrownTypes(throwsList);
+      NamedType[] uncheckedThrownTypes = extractUncheckedThrownTypes(throwsList);
+      Block block = (Block) args[4];
+      return processModifiers(null, new VoidType((LexicalPhrase) args[0]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), checkedThrownTypes, uncheckedThrownTypes, block,
                               LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase(), parameters.getLexicalPhrase(), block.getLexicalPhrase()));
     }
     if (production == MODIFIERS_PRODUCTION)
@@ -79,8 +92,12 @@ public class MethodRule extends Rule<ParseType>
       Name name = (Name) args[2];
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[3];
-      Block block = (Block) args[4];
-      return processModifiers(modifiers, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
+      @SuppressWarnings("unchecked")
+      ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[4];
+      NamedType[] checkedThrownTypes = extractCheckedThrownTypes(throwsList);
+      NamedType[] uncheckedThrownTypes = extractUncheckedThrownTypes(throwsList);
+      Block block = (Block) args[5];
+      return processModifiers(modifiers, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), checkedThrownTypes, uncheckedThrownTypes, block,
                               LexicalPhrase.combine(modifiers.getLexicalPhrase(), returnType.getLexicalPhrase(), name.getLexicalPhrase(), parameters.getLexicalPhrase(), block.getLexicalPhrase()));
     }
     if (production == MODIFIERS_VOID_PRODUCTION)
@@ -90,8 +107,12 @@ public class MethodRule extends Rule<ParseType>
       Name name = (Name) args[2];
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[3];
-      Block block = (Block) args[4];
-      return processModifiers(modifiers, new VoidType((LexicalPhrase) args[1]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), block,
+      @SuppressWarnings("unchecked")
+      ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[4];
+      NamedType[] checkedThrownTypes = extractCheckedThrownTypes(throwsList);
+      NamedType[] uncheckedThrownTypes = extractUncheckedThrownTypes(throwsList);
+      Block block = (Block) args[5];
+      return processModifiers(modifiers, new VoidType((LexicalPhrase) args[1]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), checkedThrownTypes, uncheckedThrownTypes, block,
                               LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), parameters.getLexicalPhrase(), block.getLexicalPhrase()));
     }
     if (production == DECLARATION_PRODUCTION)
@@ -100,16 +121,24 @@ public class MethodRule extends Rule<ParseType>
       Name name = (Name) args[1];
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[2];
-      return processModifiers(null, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), null,
-                              LexicalPhrase.combine(returnType.getLexicalPhrase(), name.getLexicalPhrase(), parameters.getLexicalPhrase(), (LexicalPhrase) args[3]));
+      @SuppressWarnings("unchecked")
+      ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[3];
+      NamedType[] checkedThrownTypes = extractCheckedThrownTypes(throwsList);
+      NamedType[] uncheckedThrownTypes = extractUncheckedThrownTypes(throwsList);
+      return processModifiers(null, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), checkedThrownTypes, uncheckedThrownTypes, null,
+                              LexicalPhrase.combine(returnType.getLexicalPhrase(), name.getLexicalPhrase(), parameters.getLexicalPhrase(), (LexicalPhrase) args[4]));
     }
     if (production == VOID_DECLARATION_PRODUCTION)
     {
       Name name = (Name) args[1];
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[2];
-      return processModifiers(null, new VoidType((LexicalPhrase) args[0]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), null,
-                              LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase(), parameters.getLexicalPhrase(), (LexicalPhrase) args[3]));
+      @SuppressWarnings("unchecked")
+      ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[3];
+      NamedType[] checkedThrownTypes = extractCheckedThrownTypes(throwsList);
+      NamedType[] uncheckedThrownTypes = extractUncheckedThrownTypes(throwsList);
+      return processModifiers(null, new VoidType((LexicalPhrase) args[0]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), checkedThrownTypes, uncheckedThrownTypes, null,
+                              LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase(), parameters.getLexicalPhrase(), (LexicalPhrase) args[4]));
     }
     if (production == MODIFIERS_DECLARATION_PRODUCTION)
     {
@@ -119,8 +148,12 @@ public class MethodRule extends Rule<ParseType>
       Name name = (Name) args[2];
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[3];
-      return processModifiers(modifiers, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), null,
-                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), returnType.getLexicalPhrase(), name.getLexicalPhrase(), parameters.getLexicalPhrase(), (LexicalPhrase) args[4]));
+      @SuppressWarnings("unchecked")
+      ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[4];
+      NamedType[] checkedThrownTypes = extractCheckedThrownTypes(throwsList);
+      NamedType[] uncheckedThrownTypes = extractUncheckedThrownTypes(throwsList);
+      return processModifiers(modifiers, returnType, name.getName(), parameters.toArray(new Parameter[parameters.size()]), checkedThrownTypes, uncheckedThrownTypes, null,
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), returnType.getLexicalPhrase(), name.getLexicalPhrase(), parameters.getLexicalPhrase(), (LexicalPhrase) args[5]));
     }
     if (production == MODIFIERS_VOID_DECLARATION_PRODUCTION)
     {
@@ -129,13 +162,17 @@ public class MethodRule extends Rule<ParseType>
       Name name = (Name) args[2];
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[3];
-      return processModifiers(modifiers, new VoidType((LexicalPhrase) args[1]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), null,
-                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), parameters.getLexicalPhrase(), (LexicalPhrase) args[4]));
+      @SuppressWarnings("unchecked")
+      ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[4];
+      NamedType[] checkedThrownTypes = extractCheckedThrownTypes(throwsList);
+      NamedType[] uncheckedThrownTypes = extractUncheckedThrownTypes(throwsList);
+      return processModifiers(modifiers, new VoidType((LexicalPhrase) args[1]), name.getName(), parameters.toArray(new Parameter[parameters.size()]), checkedThrownTypes, uncheckedThrownTypes, null,
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), parameters.getLexicalPhrase(), (LexicalPhrase) args[5]));
     }
     throw badTypeList();
   }
 
-  private Method processModifiers(ParseList<Modifier> modifiers, Type returnType, String name, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  private Method processModifiers(ParseList<Modifier> modifiers, Type returnType, String name, Parameter[] parameters, NamedType[] checkedThrownTypes, NamedType[] uncheckedThrownTypes, Block block, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     boolean isAbstract = false;
     boolean isStatic = false;
@@ -199,7 +236,32 @@ public class MethodRule extends Rule<ParseType>
         }
       }
     }
-    return new Method(returnType, name, isAbstract, isStatic, isImmutable, nativeName, sinceSpecifier, parameters, block, lexicalPhrase);
+    return new Method(returnType, name, isAbstract, isStatic, isImmutable, nativeName, sinceSpecifier, parameters, checkedThrownTypes, uncheckedThrownTypes, block, lexicalPhrase);
   }
 
+  private static NamedType[] extractCheckedThrownTypes(ParseList<ThrownExceptionType> list)
+  {
+    List<NamedType> thrownTypes = new LinkedList<NamedType>();
+    for (ThrownExceptionType thrownExceptionType : list)
+    {
+      if (!thrownExceptionType.isUnchecked())
+      {
+        thrownTypes.add(thrownExceptionType.getType());
+      }
+    }
+    return thrownTypes.toArray(new NamedType[thrownTypes.size()]);
+  }
+
+  private static NamedType[] extractUncheckedThrownTypes(ParseList<ThrownExceptionType> list)
+  {
+    List<NamedType> thrownTypes = new LinkedList<NamedType>();
+    for (ThrownExceptionType thrownExceptionType : list)
+    {
+      if (thrownExceptionType.isUnchecked())
+      {
+        thrownTypes.add(thrownExceptionType.getType());
+      }
+    }
+    return thrownTypes.toArray(new NamedType[thrownTypes.size()]);
+  }
 }

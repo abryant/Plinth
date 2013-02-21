@@ -49,6 +49,8 @@ import eu.bryants.anthony.plinth.parser.rules.misc.ParameterListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ParametersRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.QNameListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.QNameRule;
+import eu.bryants.anthony.plinth.parser.rules.misc.ThrowsClauseRule;
+import eu.bryants.anthony.plinth.parser.rules.misc.ThrowsListRule;
 import eu.bryants.anthony.plinth.parser.rules.statement.AssignStatementRule;
 import eu.bryants.anthony.plinth.parser.rules.statement.BlockRule;
 import eu.bryants.anthony.plinth.parser.rules.statement.BreakStatementRule;
@@ -131,6 +133,8 @@ public class PlinthParseRules
     new ParametersRule(),
     new QNameListRule(),
     new QNameRule(),
+    new ThrowsClauseRule(),
+    new ThrowsListRule(),
 
     // statement
     new AssignStatementRule(),

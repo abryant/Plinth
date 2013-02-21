@@ -134,6 +134,20 @@ public class TypeChecker
           }
         }
       }
+      for (NamedType thrownType : constructor.getCheckedThrownTypes())
+      {
+        if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
+        }
+      }
+      for (NamedType thrownType : constructor.getUncheckedThrownTypes())
+      {
+        if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
+        }
+      }
       try
       {
         checkTypes(constructor.getBlock(), VoidType.VOID_TYPE);
@@ -156,6 +170,20 @@ public class TypeChecker
     }
     for (Method method : typeDefinition.getAllMethods())
     {
+      for (NamedType thrownType : method.getCheckedThrownTypes())
+      {
+        if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
+        }
+      }
+      for (NamedType thrownType : method.getUncheckedThrownTypes())
+      {
+        if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
+        }
+      }
       if (method.getBlock() != null)
       {
         try
@@ -203,6 +231,27 @@ public class TypeChecker
     if (!type.hasDefaultValue())
     {
       throw new ConceptualException("Static fields must always have a type which has a language-defined default value (e.g. 0 for uint). Consider making this field nullable.", type.getLexicalPhrase());
+    }
+  }
+
+  /**
+   * Checks that the thrown types of the specified FunctionType inherit from Throwable.
+   * @param functionType - the FunctionType to check
+   * @throws CoalescedConceptualException - if there is a problem with the FunctionType
+   */
+  public static void checkFunctionType(FunctionType functionType) throws CoalescedConceptualException
+  {
+    CoalescedConceptualException coalescedException = null;
+    for (NamedType thrownType : functionType.getThrownTypes())
+    {
+      if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
+      }
+    }
+    if (coalescedException != null)
+    {
+      throw coalescedException;
     }
   }
 
@@ -1092,13 +1141,16 @@ public class TypeChecker
       if (exprType instanceof FunctionType && castedType instanceof FunctionType)
       {
         FunctionType functionExprType = (FunctionType) checkExprType;
-        if (functionExprType.isImmutable() != ((FunctionType) castedType).isImmutable())
+        // for function types, ignore the immutability constraint, allowing it to be checked at runtime (since function immutability is a property of the value, not the pointer)
+        // also remove any constraints on the thrown types. while they are not checked at run-time, casting away the checked exceptions is equivalent to rethrowing them as unchecked
+        if (functionExprType.isImmutable() != ((FunctionType) castedType).isImmutable() ||
+            functionExprType.getThrownTypes().length > 0)
         {
-          checkExprType = new FunctionType(functionExprType.isNullable(), ((FunctionType) castedType).isImmutable(), functionExprType.getReturnType(), functionExprType.getParameterTypes(), null);
+          checkExprType = new FunctionType(functionExprType.isNullable(), ((FunctionType) castedType).isImmutable(), functionExprType.getReturnType(), functionExprType.getParameterTypes(), new NamedType[0], null);
         }
       }
 
-      if (findTypeWithNullability(checkExprType, true).canAssign(castedType) || findTypeWithNullability(castedType, true).canAssign(exprType))
+      if (findTypeWithNullability(checkExprType, true).canAssign(castedType) || findTypeWithNullability(castedType, true).canAssign(checkExprType))
       {
         // if the assignment works in reverse (i.e. the casted type can be assigned to the expression) then it can be casted back
         // (also allow it if the assignment works forwards, although usually that should be a warning about an unnecessary cast, unless the cast allows access to a hidden field)
@@ -1339,7 +1391,7 @@ public class TypeChecker
         {
           parameterTypes[i] = parameters[i].getType();
         }
-        type = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, null);
+        type = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, method.getCheckedThrownTypes(), null);
       }
       else
       {
@@ -2005,7 +2057,7 @@ public class TypeChecker
         {
           parameterTypes[i] = parameters[i].getType();
         }
-        FunctionType type = new FunctionType(false, resolvedMethod.isImmutable(), resolvedMethod.getReturnType(), parameterTypes, null);
+        FunctionType type = new FunctionType(false, resolvedMethod.isImmutable(), resolvedMethod.getReturnType(), parameterTypes, resolvedMethod.getCheckedThrownTypes(), null);
         expression.setType(type);
         return type;
       }
@@ -2036,7 +2088,7 @@ public class TypeChecker
     {
       if (expressionType instanceof ArrayType)
       {
-        return ((ArrayType) checkType).getBaseType().isEquivalent(((ArrayType) expressionType).getBaseType());
+        return ((ArrayType) checkType).getBaseType().isRuntimeEquivalent(((ArrayType) expressionType).getBaseType());
       }
     }
     if (checkType instanceof FunctionType)
@@ -2045,7 +2097,7 @@ public class TypeChecker
       {
         // don't check the immutability, since the value could have any immutability, and we wouldn't know about it from the static type
         // check that the parameter and return types match
-        if (!((FunctionType) checkType).getReturnType().isEquivalent(((FunctionType) expressionType).getReturnType()))
+        if (!((FunctionType) checkType).getReturnType().isRuntimeEquivalent(((FunctionType) expressionType).getReturnType()))
         {
           return false;
         }
@@ -2057,7 +2109,7 @@ public class TypeChecker
         }
         for (int i = 0; i < checkParams.length; ++i)
         {
-          if (!checkParams[i].isEquivalent(expressionParams[i]))
+          if (!checkParams[i].isRuntimeEquivalent(expressionParams[i]))
           {
             return false;
           }
@@ -2137,7 +2189,7 @@ public class TypeChecker
         }
         for (int i = 0; i < checkSubTypes.length; ++i)
         {
-          if (!expressionSubTypes[i].isEquivalent(checkSubTypes[i]))
+          if (!expressionSubTypes[i].isRuntimeEquivalent(checkSubTypes[i]))
           {
             return false;
           }
@@ -2333,16 +2385,48 @@ public class TypeChecker
     {
       FunctionType functionA = (FunctionType) a;
       FunctionType functionB = (FunctionType) b;
+      // find the combination's nullability and immutability
       boolean nullability = a.isNullable() | b.isNullable();
       boolean immutability = functionA.isImmutable() & functionB.isImmutable();
-      // alter one of the types to have the minimum nullability and immutability that we need
+      // find the union of the two functions' thrown types
+      List<NamedType> combinedThrown = new LinkedList<NamedType>();
+      for (NamedType aThrown : functionA.getThrownTypes())
+      {
+        boolean found = false;
+        for (NamedType check : combinedThrown)
+        {
+          if (check.canAssign(aThrown))
+          {
+            found = true;
+            break;
+          }
+        }
+        if (!found)
+        {
+          combinedThrown.add(aThrown);
+        }
+      }
+      for (NamedType bThrown : functionB.getThrownTypes())
+      {
+        boolean found = false;
+        for (NamedType check : combinedThrown)
+        {
+          if (check.canAssign(bThrown))
+          {
+            found = true;
+            break;
+          }
+        }
+        if (!found)
+        {
+          combinedThrown.add(bThrown);
+        }
+      }
+      // alter one of the types to have the minimum nullability and immutability that we need, and give it the union of their thrown types
       // if the altered type cannot assign the other one, then altering the other type would not help,
       // since the only other variables in function.canAssign() are the parameter and return types, and the checking for those is symmetric
-      FunctionType alteredA = (FunctionType) findTypeWithNullability(functionA, nullability);
-      if (alteredA.isImmutable() != immutability)
-      {
-        alteredA = new FunctionType(alteredA.isNullable(), immutability, alteredA.getReturnType(), alteredA.getParameterTypes(), null);
-      }
+      FunctionType alteredA = new FunctionType(nullability, immutability, functionA.getReturnType(), functionA.getParameterTypes(), combinedThrown.toArray(new NamedType[combinedThrown.size()]), null);
+
       if (alteredA.canAssign(b))
       {
         return alteredA;
@@ -2464,7 +2548,7 @@ public class TypeChecker
     if (type instanceof FunctionType)
     {
       FunctionType functionType = (FunctionType) type;
-      return new FunctionType(nullable, functionType.isImmutable(), functionType.getReturnType(), functionType.getParameterTypes(), null);
+      return new FunctionType(nullable, functionType.isImmutable(), functionType.getReturnType(), functionType.getParameterTypes(), functionType.getThrownTypes(), null);
     }
     if (type instanceof NamedType)
     {

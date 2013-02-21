@@ -166,6 +166,15 @@ public class NamedType extends Type
   @Override
   public boolean isEquivalent(Type type)
   {
+    return isRuntimeEquivalent(type);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean isRuntimeEquivalent(Type type)
+  {
     if (resolvedTypeDefinition != null)
     {
       return type instanceof NamedType &&

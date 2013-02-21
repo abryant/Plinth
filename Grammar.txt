@@ -33,19 +33,23 @@ Field = Modifiers Type Name Semicolon |
         Modifiers Type Name Equals Expression Semicolon |
         Type Name Semicolon |
         Type Name Equals Expression Semicolon
-Constructor = Modifiers ThisKeyword ParameterList Block |
-              ThisKeyword ParameterList Block
-Method = Modifiers Type        Name ParameterList Block |
-         Modifiers VoidKeyword Name ParameterList Block |
-                   Type        Name ParameterList Block |
-                   VoidKeyword Name ParameterList Block |
-         Modifiers Type        Name ParameterList Semicolon |
-         Modifiers VoidKeyword Name ParameterList Semicolon |
-                   Type        Name ParameterList Semicolon |
-                   VoidKeyword Name ParameterList Semicolon
+Constructor = Modifiers ThisKeyword ParameterList ThrowsClause Block |
+              ThisKeyword ParameterList ThrowsClause Block
+Method = Modifiers Type        Name ParameterList ThrowsClause Block |
+         Modifiers VoidKeyword Name ParameterList ThrowsClause Block |
+                   Type        Name ParameterList ThrowsClause Block |
+                   VoidKeyword Name ParameterList ThrowsClause Block |
+         Modifiers Type        Name ParameterList ThrowsClause Semicolon |
+         Modifiers VoidKeyword Name ParameterList ThrowsClause Semicolon |
+                   Type        Name ParameterList ThrowsClause Semicolon |
+                   VoidKeyword Name ParameterList ThrowsClause Semicolon
 
 ParameterList = LParen Parameters RParen | LParen RParen
 Parameters = OptionalModifiers Type Name | Parameters Comma OptionalModifiers Type Name
+
+ThrowsClause = epsilon | ThrowsKeyword ThrowsList
+ThrowsList = QName | UncheckedKeyword QName |
+             ThrowsList Comma QName | ThrowsList Comma UncheckedKeyword QName
 
 Block = LBrace Statements RBrace | LBrace RBrace
 
@@ -118,10 +122,10 @@ TypeNoQName = BooleanKeyword |                 QuestionMark BooleanKeyword |
               QuestionMark QName | QuestionMark Hash QName | Hash QName |
               LSquare RSquare Type   | QuestionMark LSquare RSquare Type | Hash LSquare RSquare Type   | QuestionMark Hash LSquare RSquare Type |
               LParen TypeListNoQName RParen | QuestionMark LParen TypeListNoQName RParen | QuestionMark NestedQNameList |
-              LBrace TypeList      Arrow ReturnType RBrace | QuestionMark LBrace TypeList      Arrow ReturnType RBrace |
-              LBrace TypeList Hash Arrow ReturnType RBrace | QuestionMark LBrace TypeList Hash Arrow ReturnType RBrace |
-              LBrace               Arrow ReturnType RBrace | QuestionMark LBrace               Arrow ReturnType RBrace |
-              LBrace          Hash Arrow ReturnType RBrace | QuestionMark LBrace          Hash Arrow ReturnType RBrace |
+              LBrace TypeList      Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace TypeList      Arrow ReturnType ThrowsClause RBrace |
+              LBrace TypeList Hash Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace TypeList Hash Arrow ReturnType ThrowsClause RBrace |
+              LBrace               Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace               Arrow ReturnType ThrowsClause RBrace |
+              LBrace          Hash Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace          Hash Arrow ReturnType ThrowsClause RBrace |
               ObjectKeyword | QuestionMark ObjectKeyword | Hash ObjectKeyword | QuestionMark Hash ObjectKeyword
 TypeList = TypeListNoQName | QNameList
 Type = TypeNoQName | QName | NestedQNameList

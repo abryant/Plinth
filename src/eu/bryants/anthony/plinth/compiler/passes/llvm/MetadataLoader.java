@@ -344,7 +344,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A constructor must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 4)
+    if (values.length != 5)
     {
       throw new MalformedMetadataException("A constructor's metadata node must have the correct number of sub-nodes");
     }
@@ -353,8 +353,9 @@ public class MetadataLoader
     boolean isSelfish = readBooleanValue(values[1], "constructor", "selfish");
     SinceSpecifier sinceSpecifier = loadSinceSpecifier(values[2]);
     Parameter[] parameters = loadParameters(values[3]);
+    NamedType[] thrownTypes = loadThrownTypes(values[4]);
 
-    return new Constructor(isImmutable, isSelfish, sinceSpecifier, parameters, null, null);
+    return new Constructor(isImmutable, isSelfish, sinceSpecifier, parameters, thrownTypes, new NamedType[0], null, null);
   }
 
   private static Method loadMethod(LLVMValueRef metadataNode, boolean isStatic, int index) throws MalformedMetadataException
@@ -364,7 +365,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A method must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 7)
+    if (values.length != 8)
     {
       throw new MalformedMetadataException("A method's metadata node must have the correct number of sub-nodes");
     }
@@ -389,12 +390,13 @@ public class MetadataLoader
     SinceSpecifier sinceSpecifier = loadSinceSpecifier(values[4]);
     Type returnType = loadType(values[5]);
     Parameter[] parameters = loadParameters(values[6]);
+    NamedType[] thrownTypes = loadThrownTypes(values[7]);
 
     if (isAbstract && isStatic)
     {
       throw new MalformedMetadataException("A static method cannot be abstract");
     }
-    Method method = new Method(returnType, name, isAbstract, isStatic, isImmutable, nativeName, sinceSpecifier, parameters, null, null);
+    Method method = new Method(returnType, name, isAbstract, isStatic, isImmutable, nativeName, sinceSpecifier, parameters, thrownTypes, new NamedType[0], null, null);
     if (!isStatic)
     {
       method.setMethodIndex(index);
@@ -430,6 +432,26 @@ public class MetadataLoader
       parameters[i] = new Parameter(false, type, name, null);
     }
     return parameters;
+  }
+
+  private static NamedType[] loadThrownTypes(LLVMValueRef metadataNode) throws MalformedMetadataException
+  {
+    if (LLVM.LLVMIsAMDNode(metadataNode) == null)
+    {
+      throw new MalformedMetadataException("A throws list must be represented by a metadata node");
+    }
+    LLVMValueRef[] thrownTypeNodes = readOperands(metadataNode);
+    NamedType[] thrownTypes = new NamedType[thrownTypeNodes.length];
+    for (int i = 0; i < thrownTypeNodes.length; ++i)
+    {
+      Type type = loadType(thrownTypeNodes[i]);
+      if (!(type instanceof NamedType))
+      {
+        throw new MalformedMetadataException("A throws list must only consist of Named types");
+      }
+      thrownTypes[i] = (NamedType) type;
+    }
+    return thrownTypes;
   }
 
   private static SinceSpecifier loadSinceSpecifier(LLVMValueRef metadataNode) throws MalformedMetadataException
@@ -494,7 +516,7 @@ public class MetadataLoader
     }
     if (sortOfType.equals("function"))
     {
-      if (values.length != 5)
+      if (values.length != 6)
       {
         throw new MalformedMetadataException("A function type's metadata node must have the correct number of sub-nodes");
       }
@@ -511,7 +533,8 @@ public class MetadataLoader
       {
         parameterTypes[i] = loadType(parameterTypeNodes[i]);
       }
-      return new FunctionType(nullable, immutable, returnType, parameterTypes, null);
+      NamedType[] thrownTypes = loadThrownTypes(values[5]);
+      return new FunctionType(nullable, immutable, returnType, parameterTypes, thrownTypes, null);
     }
     if (sortOfType.equals("named"))
     {

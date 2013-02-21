@@ -72,11 +72,13 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     KEYWORDS.put("super",      ParseType.SUPER_KEYWORD);
     KEYWORDS.put("this",       ParseType.THIS_KEYWORD);
     KEYWORDS.put("throw",      ParseType.THROW_KEYWORD);
+    KEYWORDS.put("throws",     ParseType.THROWS_KEYWORD);
     KEYWORDS.put("true",       ParseType.TRUE_KEYWORD);
     KEYWORDS.put("try",        ParseType.TRY_KEYWORD);
     KEYWORDS.put("ubyte",      ParseType.UBYTE_KEYWORD);
     KEYWORDS.put("uint",       ParseType.UINT_KEYWORD);
     KEYWORDS.put("ulong",      ParseType.ULONG_KEYWORD);
+    KEYWORDS.put("unchecked",  ParseType.UNCHECKED_KEYWORD);
     KEYWORDS.put("ushort",     ParseType.USHORT_KEYWORD);
     KEYWORDS.put("void",       ParseType.VOID_KEYWORD);
     KEYWORDS.put("while",      ParseType.WHILE_KEYWORD);

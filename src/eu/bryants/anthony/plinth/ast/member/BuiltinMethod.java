@@ -1,6 +1,7 @@
 package eu.bryants.anthony.plinth.ast.member;
 
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.Type;
@@ -50,7 +51,7 @@ public class BuiltinMethod extends Method
    */
   public BuiltinMethod(Type baseType, BuiltinMethodType builtinType)
   {
-    super(builtinType.returnType, builtinType.methodName, false, builtinType.isStatic, builtinType.isImmutable, builtinType.nativeName, null, builtinType.parameters, null, null);
+    super(builtinType.returnType, builtinType.methodName, false, builtinType.isStatic, builtinType.isImmutable, builtinType.nativeName, null, builtinType.parameters, new NamedType[0], new NamedType[0], null, null);
     this.baseType = baseType;
     this.builtinType = builtinType;
     if (baseType.isNullable())

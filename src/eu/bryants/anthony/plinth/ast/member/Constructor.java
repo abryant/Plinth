@@ -5,6 +5,7 @@ import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
 
 /*
  * Created on 10 May 2012
@@ -19,12 +20,14 @@ public class Constructor extends Member
   private boolean isSelfish;
   private SinceSpecifier sinceSpecifier;
   private Parameter[] parameters;
+  private NamedType[] checkedThrownTypes;
+  private NamedType[] uncheckedThrownTypes;
   private Block block;
 
   private TypeDefinition containingTypeDefinition;
   private boolean callsDelegateConstructor;
 
-  public Constructor(boolean isImmutable, boolean isSelfish, SinceSpecifier sinceSpecifier, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
+  public Constructor(boolean isImmutable, boolean isSelfish, SinceSpecifier sinceSpecifier, Parameter[] parameters, NamedType[] checkedThrownTypes, NamedType[] uncheckedThrownTypes, Block block, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.isImmutable = isImmutable;
@@ -35,6 +38,8 @@ public class Constructor extends Member
     {
       parameters[i].setIndex(i);
     }
+    this.checkedThrownTypes = checkedThrownTypes;
+    this.uncheckedThrownTypes = uncheckedThrownTypes;
     this.block = block;
   }
 
@@ -77,6 +82,22 @@ public class Constructor extends Member
   public Parameter[] getParameters()
   {
     return parameters;
+  }
+
+  /**
+   * @return the checkedThrownTypes
+   */
+  public NamedType[] getCheckedThrownTypes()
+  {
+    return checkedThrownTypes;
+  }
+
+  /**
+   * @return the uncheckedThrownTypes
+   */
+  public NamedType[] getUncheckedThrownTypes()
+  {
+    return uncheckedThrownTypes;
   }
 
   /**
@@ -173,7 +194,29 @@ public class Constructor extends Member
         buffer.append(", ");
       }
     }
-    buffer.append(")\n");
+    buffer.append(')');
+    if (checkedThrownTypes.length > 0 || uncheckedThrownTypes.length > 0)
+    {
+      buffer.append(" throws ");
+      for (int i = 0; i < checkedThrownTypes.length; ++i)
+      {
+        buffer.append(checkedThrownTypes[i]);
+        if (i != checkedThrownTypes.length - 1 || uncheckedThrownTypes.length > 0)
+        {
+          buffer.append(", ");
+        }
+      }
+      for (int i = 0; i < uncheckedThrownTypes.length; ++i)
+      {
+        buffer.append("unchecked ");
+        buffer.append(uncheckedThrownTypes[i]);
+        if (i != uncheckedThrownTypes.length - 1)
+        {
+          buffer.append(", ");
+        }
+      }
+    }
+    buffer.append('\n');
     if (block == null)
     {
       buffer.append("{...}");

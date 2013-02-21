@@ -46,6 +46,8 @@ public enum ParseType
   QNAME,                         // QName
   QNAME_LIST,                    // ParseList<QNameElement>
   NESTED_QNAME_LIST,             // QNameElement
+  THROWS_CLAUSE,                 // ParseList<ThrownExceptionType>
+  THROWS_LIST,                   // ParseList<ThrownExceptionType>
 
   // Statements
   BLOCK,                         // Block
@@ -194,11 +196,13 @@ public enum ParseType
   SUPER_KEYWORD,
   THIS_KEYWORD,
   THROW_KEYWORD,
+  THROWS_KEYWORD,
   TRUE_KEYWORD,
   TRY_KEYWORD,
   UBYTE_KEYWORD,
   UINT_KEYWORD,
   ULONG_KEYWORD,
+  UNCHECKED_KEYWORD,
   USHORT_KEYWORD,
   VOID_KEYWORD,
   WHILE_KEYWORD,

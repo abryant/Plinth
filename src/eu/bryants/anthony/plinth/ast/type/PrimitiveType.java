@@ -231,6 +231,15 @@ public class PrimitiveType extends Type
   @Override
   public boolean isEquivalent(Type type)
   {
+    return isRuntimeEquivalent(type);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean isRuntimeEquivalent(Type type)
+  {
     return type instanceof PrimitiveType && isNullable() == type.isNullable() && ((PrimitiveType) type).getPrimitiveTypeType() == primitiveTypeType;
   }
 

@@ -107,6 +107,35 @@ public class TupleType extends Type
    * {@inheritDoc}
    */
   @Override
+  public boolean isRuntimeEquivalent(Type type)
+  {
+    if (!(type instanceof TupleType))
+    {
+      return false;
+    }
+    TupleType otherType = (TupleType) type;
+    if (isNullable() != otherType.isNullable())
+    {
+      return false;
+    }
+    if (subTypes.length != otherType.subTypes.length)
+    {
+      return false;
+    }
+    for (int i = 0; i < subTypes.length; i++)
+    {
+      if (!subTypes[i].isRuntimeEquivalent(otherType.getSubTypes()[i]))
+      {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public Set<Member> getMembers(String name)
   {
     Set<Member> memberSet = new HashSet<Member>();

@@ -21,13 +21,15 @@ public class FunctionType extends Type
   private boolean isImmutable;
   private Type returnType;
   private Type[] parameterTypes;
+  private NamedType[] thrownTypes;
 
-  public FunctionType(boolean nullable, boolean isImmutable, Type returnType, Type[] parameterTypes, LexicalPhrase lexicalPhrase)
+  public FunctionType(boolean nullable, boolean isImmutable, Type returnType, Type[] parameterTypes, NamedType[] thrownTypes, LexicalPhrase lexicalPhrase)
   {
     super(nullable, lexicalPhrase);
     this.isImmutable = isImmutable;
     this.returnType = returnType;
     this.parameterTypes = parameterTypes;
+    this.thrownTypes = thrownTypes;
   }
 
   /**
@@ -52,6 +54,14 @@ public class FunctionType extends Type
   public Type[] getParameterTypes()
   {
     return parameterTypes;
+  }
+
+  /**
+   * @return the thrownTypes
+   */
+  public NamedType[] getThrownTypes()
+  {
+    return thrownTypes;
   }
 
   /**
@@ -98,6 +108,24 @@ public class FunctionType extends Type
         return false;
       }
     }
+    // the other type can only be assigned to us if we have at least all of the thrown types that it has
+    NamedType[] otherThrownTypes = otherFunction.getThrownTypes();
+    for (NamedType thrown : otherThrownTypes)
+    {
+      boolean found = false;
+      for (NamedType check : thrownTypes)
+      {
+        if (check.canAssign(thrown))
+        {
+          found = true;
+          break;
+        }
+      }
+      if (!found)
+      {
+        return false;
+      }
+    }
     return true;
   }
 
@@ -136,6 +164,82 @@ public class FunctionType extends Type
         return false;
       }
     }
+    NamedType[] otherThrownTypes = ((FunctionType) type).getThrownTypes();
+    // make sure all of our thrown types are also thrown by the other type
+    for (Type thrown : thrownTypes)
+    {
+      boolean found = false;
+      for (Type check : otherThrownTypes)
+      {
+        if (thrown.isEquivalent(check))
+        {
+          found = true;
+          break;
+        }
+      }
+      if (!found)
+      {
+        return false;
+      }
+    }
+    // also check it the other way around, in case we have something like:
+    // this  throws A, A, B
+    // other throws A, B, C
+    for (Type thrown : otherThrownTypes)
+    {
+      boolean found = false;
+      for (Type check : thrownTypes)
+      {
+        if (thrown.isEquivalent(check))
+        {
+          found = true;
+          break;
+        }
+      }
+      if (!found)
+      {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean isRuntimeEquivalent(Type type)
+  {
+    if (!(type instanceof FunctionType))
+    {
+      return false;
+    }
+    FunctionType otherFunction = (FunctionType) type;
+    if (isNullable() != otherFunction.isNullable())
+    {
+      return false;
+    }
+    if (isImmutable() != otherFunction.isImmutable())
+    {
+      return false;
+    }
+    if (!returnType.isRuntimeEquivalent(otherFunction.getReturnType()))
+    {
+      return false;
+    }
+    Type[] otherParameters = otherFunction.getParameterTypes();
+    if (parameterTypes.length != otherParameters.length)
+    {
+      return false;
+    }
+    for (int i = 0; i < parameterTypes.length; i++)
+    {
+      if (!parameterTypes[i].isRuntimeEquivalent(otherParameters[i]))
+      {
+        return false;
+      }
+    }
+    // NOTE: we don't check the thrown types in a runtime equivalence check
     return true;
   }
 
@@ -148,7 +252,7 @@ public class FunctionType extends Type
     Set<Member> memberSet = new HashSet<Member>();
     if (name.equals(BuiltinMethodType.TO_STRING.methodName))
     {
-      Type notNullThis = new FunctionType(false, isImmutable, returnType, parameterTypes, null);
+      Type notNullThis = new FunctionType(false, isImmutable, returnType, parameterTypes, thrownTypes, null);
       memberSet.add(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING));
     }
     return memberSet;
@@ -216,6 +320,18 @@ public class FunctionType extends Type
     }
     buffer.append("-> ");
     buffer.append(returnType);
+    if (thrownTypes.length > 0)
+    {
+      buffer.append(" throws ");
+      for (int i = 0; i < thrownTypes.length; ++i)
+      {
+        buffer.append(thrownTypes[i]);
+        if (i != thrownTypes.length - 1)
+        {
+          buffer.append(", ");
+        }
+      }
+    }
     buffer.append('}');
     return buffer.toString();
   }

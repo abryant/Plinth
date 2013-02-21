@@ -5,6 +5,7 @@ import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 
 /*
@@ -25,6 +26,8 @@ public class Method extends Member
   private String nativeName;
   private SinceSpecifier sinceSpecifier;
   private Parameter[] parameters;
+  private NamedType[] checkedThrownTypes;
+  private NamedType[] uncheckedThrownTypes;
   private Block block;
 
   private TypeDefinition containingTypeDefinition;
@@ -42,10 +45,12 @@ public class Method extends Member
    * @param nativeName - the native name of the method, or null if no native name is specified
    * @param sinceSpecifier - the since specifier of the method, or null if none is given
    * @param parameters - the parameters for the method
+   * @param checkedThrownTypes - the exception types that this method can throw as checked
+   * @param uncheckedThrownTypes - the exception types that this method can throw as unchecked
    * @param block - the block that the method should run, or null if no block is specified
    * @param lexicalPhrase - the LexicalPhrase of this method
    */
-  public Method(Type returnType, String name, boolean isAbstract, boolean isStatic, boolean isImmutable, String nativeName, SinceSpecifier sinceSpecifier, Parameter[] parameters, Block block, LexicalPhrase lexicalPhrase)
+  public Method(Type returnType, String name, boolean isAbstract, boolean isStatic, boolean isImmutable, String nativeName, SinceSpecifier sinceSpecifier, Parameter[] parameters, NamedType[] checkedThrownTypes, NamedType[] uncheckedThrownTypes, Block block, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.returnType = returnType;
@@ -60,6 +65,8 @@ public class Method extends Member
     {
       parameters[i].setIndex(i);
     }
+    this.checkedThrownTypes = checkedThrownTypes;
+    this.uncheckedThrownTypes = uncheckedThrownTypes;
     this.block = block;
   }
 
@@ -150,6 +157,22 @@ public class Method extends Member
   public Parameter[] getParameters()
   {
     return parameters;
+  }
+
+  /**
+   * @return the checkedThrownTypes
+   */
+  public NamedType[] getCheckedThrownTypes()
+  {
+    return checkedThrownTypes;
+  }
+
+  /**
+   * @return the uncheckedThrownTypes
+   */
+  public NamedType[] getUncheckedThrownTypes()
+  {
+    return uncheckedThrownTypes;
   }
 
   /**
@@ -270,6 +293,27 @@ public class Method extends Member
       }
     }
     buffer.append(')');
+    if (checkedThrownTypes.length > 0 || uncheckedThrownTypes.length > 0)
+    {
+      buffer.append(" throws ");
+      for (int i = 0; i < checkedThrownTypes.length; ++i)
+      {
+        buffer.append(checkedThrownTypes[i]);
+        if (i != checkedThrownTypes.length - 1 || uncheckedThrownTypes.length > 0)
+        {
+          buffer.append(", ");
+        }
+      }
+      for (int i = 0; i < uncheckedThrownTypes.length; ++i)
+      {
+        buffer.append("unchecked ");
+        buffer.append(uncheckedThrownTypes[i]);
+        if (i != uncheckedThrownTypes.length - 1)
+        {
+          buffer.append(", ");
+        }
+      }
+    }
     if (block == null)
     {
       buffer.append(';');
@@ -380,19 +424,20 @@ public class Method extends Member
     /**
      * Checks whether this disambiguator matches the signature of the specified other disambiguator.
      * This checks the signature of the method, but not the since specifier.
+     * It also only tests runtime equivalence for types, not absolute equivalence.
      * @param other - the Disambiguator to check
      * @return true if this Disambiguator matches the specified Disambiguator, false otherwise
      */
     public boolean matches(Disambiguator other)
     {
       Method otherMethod = other.getMethod();
-      if (isStatic != otherMethod.isStatic || !returnType.isEquivalent(otherMethod.returnType) || !name.equals(otherMethod.name) || parameters.length != otherMethod.parameters.length)
+      if (isStatic != otherMethod.isStatic || !returnType.isRuntimeEquivalent(otherMethod.returnType) || !name.equals(otherMethod.name) || parameters.length != otherMethod.parameters.length)
       {
         return false;
       }
       for (int i = 0; i < parameters.length; ++i)
       {
-        if (!parameters[i].getType().isEquivalent(otherMethod.parameters[i].getType()))
+        if (!parameters[i].getType().isRuntimeEquivalent(otherMethod.parameters[i].getType()))
         {
           return false;
         }

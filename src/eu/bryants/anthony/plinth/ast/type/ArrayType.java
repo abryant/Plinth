@@ -106,6 +106,19 @@ public class ArrayType extends Type
   }
 
   /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean isRuntimeEquivalent(Type type)
+  {
+    return type instanceof ArrayType &&
+           isNullable() == type.isNullable() &&
+           isExplicitlyImmutable() == ((ArrayType) type).isExplicitlyImmutable() &&
+           isContextuallyImmutable() == ((ArrayType) type).isContextuallyImmutable() &&
+           baseType.isRuntimeEquivalent(((ArrayType) type).getBaseType());
+  }
+
+  /**
    * @return true iff this ArrayType is explicitly immutable
    */
   public boolean isExplicitlyImmutable()

@@ -143,6 +143,15 @@ public class ObjectType extends Type
   @Override
   public boolean isEquivalent(Type type)
   {
+    return isRuntimeEquivalent(type);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean isRuntimeEquivalent(Type type)
+  {
     return type instanceof ObjectType &&
            isNullable() == type.isNullable() &&
            explicitlyImmutable == ((ObjectType) type).isExplicitlyImmutable() &&
