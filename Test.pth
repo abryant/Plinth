@@ -64,7 +64,14 @@ class Test extends Super implements Foo
     return x;
   };
 
-  selfish constructor(string a)
+  {
+    if (false)
+    {
+      throw new Error("from initialiser");
+    }
+  }
+
+  selfish constructor(string a) throws Error
   {
     super("foo");
     str = "init";

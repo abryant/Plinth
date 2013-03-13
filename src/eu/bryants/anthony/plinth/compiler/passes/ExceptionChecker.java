@@ -35,8 +35,11 @@ import eu.bryants.anthony.plinth.ast.expression.TupleExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.plinth.ast.expression.VariableExpression;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
+import eu.bryants.anthony.plinth.ast.member.Initialiser;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.member.Property;
+import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
+import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
@@ -82,7 +85,34 @@ public class ExceptionChecker
   public static void checkExceptions(TypeDefinition typeDefinition) throws ConceptualException
   {
     CoalescedConceptualException coalescedException = null;
-    {} // TODO: check initialisers for uncaught exceptions
+
+    List<ThrownTypeEntry> instanceInitialiserUncaught = new LinkedList<ThrownTypeEntry>();
+    List<ThrownTypeEntry> staticInitialiserUncaught = new LinkedList<ThrownTypeEntry>();
+
+    for (Initialiser initialiser : typeDefinition.getInitialisers())
+    {
+      List<ThrownTypeEntry> uncaught = initialiser.isStatic() ? staticInitialiserUncaught : instanceInitialiserUncaught;
+      if (initialiser instanceof FieldInitialiser)
+      {
+        findUncaughtExceptions(((FieldInitialiser) initialiser).getField().getInitialiserExpression(), uncaught);
+      }
+      else if (initialiser instanceof PropertyInitialiser)
+      {
+        findUncaughtExceptions(((PropertyInitialiser) initialiser).getProperty().getInitialiserExpression(), uncaught);
+      }
+      else
+      {
+        findUncaughtExceptions(initialiser.getBlock(), uncaught);
+      }
+    }
+
+    for (ThrownTypeEntry thrownTypeEntry : staticInitialiserUncaught)
+    {
+      ConceptualException noteException = new ConceptualException("Note: thrown from here", thrownTypeEntry.throwLocation);
+      ConceptualException exception = new ConceptualException(thrownTypeEntry.thrownType + " must be caught by this type's static initialiser", typeDefinition.getLexicalPhrase(), noteException);
+      coalescedException = CoalescedConceptualException.coalesce(coalescedException, exception);
+    }
+
     for (Property property : typeDefinition.getProperties())
     {
       if (property.getGetterBlock() != null)
@@ -130,7 +160,7 @@ public class ExceptionChecker
     }
     for (Constructor constructor : typeDefinition.getAllConstructors())
     {
-      List<ThrownTypeEntry> uncaught = new LinkedList<ThrownTypeEntry>();
+      List<ThrownTypeEntry> uncaught = new LinkedList<ThrownTypeEntry>(instanceInitialiserUncaught);
       findUncaughtExceptions(constructor.getBlock(), uncaught);
       for (ThrownTypeEntry thrownTypeEntry : uncaught)
       {

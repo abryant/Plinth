@@ -325,13 +325,19 @@ public class ControlFlowChecker
         }
         else
         {
+          boolean stopsExecution;
           if (initialiser.isStatic())
           {
-            checkControlFlow(initialiser.getBlock(), typeDefinition, staticState, null, new LinkedList<Statement>(), false, false, true, false, true);
+            stopsExecution = checkControlFlow(initialiser.getBlock(), typeDefinition, staticState, null, new LinkedList<Statement>(), false, false, true, false, true);
           }
           else
           {
-            checkControlFlow(initialiser.getBlock(), typeDefinition, instanceState, null, new LinkedList<Statement>(), true, onlyHasSelfishConstructors, false, hasImmutableConstructors, true);
+            stopsExecution = checkControlFlow(initialiser.getBlock(), typeDefinition, instanceState, null, new LinkedList<Statement>(), true, onlyHasSelfishConstructors, false, hasImmutableConstructors, true);
+          }
+          if (stopsExecution)
+          {
+            Statement[] statements = initialiser.getBlock().getStatements();
+            throw new ConceptualException("An initialiser can not terminate execution", statements.length == 0 ? initialiser.getLexicalPhrase() : statements[statements.length - 1].getLexicalPhrase());
           }
         }
       }
