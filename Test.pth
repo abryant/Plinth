@@ -24,21 +24,26 @@ interface Foo
 
 class Super
 {
-  /*final property string str
+  property string str
   constructor(value)
   {
     stdout::println("constructor: " + value);
+    str = value;
+  }
+  setter(value)
+  {
+    stdout::println("setter: " + value + " old: " + str);
     str = value;
   }
   getter
   {
     stdout::println("getter: " + str);
     return str;
-  };*/
+  };
 
   constructor(string s)
   {
-    //str = s;
+    str = s;
   }
 }
 
