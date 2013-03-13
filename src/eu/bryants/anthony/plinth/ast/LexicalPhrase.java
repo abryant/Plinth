@@ -59,13 +59,12 @@ public class LexicalPhrase
       {
         continue;
       }
-      {} // TODO: fix multi-line phrases
       if (combined == null)
       {
         combined = new LexicalPhrase(phrase.getPath(), phrase.getLine(), phrase.getLineText(),
                                      phrase.getStartColumn(), phrase.getEndColumn());
       }
-      else
+      else if (combined.getLine() == phrase.getLine())
       {
         combined.startColumn = Math.min(combined.getStartColumn(), phrase.getStartColumn());
         combined.endColumn = Math.max(combined.getEndColumn(), phrase.getEndColumn());
