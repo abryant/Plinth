@@ -11,6 +11,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression;
@@ -116,23 +117,27 @@ public class ControlFlowChecker
 
     // build the set of variables from superclasses
     Set<Variable> superClassVariables = new HashSet<Variable>();
-    if (typeDefinition instanceof ClassDefinition)
+    for (TypeDefinition t : typeDefinition.getInheritanceLinearisation())
     {
-      ClassDefinition currentClassDefinition = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
-      while (currentClassDefinition != null)
+      if (t == typeDefinition)
       {
-        for (Field field : currentClassDefinition.getFields())
+        continue;
+      }
+      if (t instanceof ClassDefinition)
+      {
+        for (Field field : t.getFields())
         {
           if (!field.isStatic())
           {
             superClassVariables.add(field.getMemberVariable());
           }
         }
-        for (Property property : currentClassDefinition.getProperties())
+        for (Property property : t.getProperties())
         {
+          // all class properties must be initialised by the super-class
           if (!property.isStatic())
           {
-            // always use the variable from lowest-down the class hierarchy
+            // always use the variable from lowest-down the type hierarchy
             PropertyPseudoVariable pseudoVariable = nonStaticPropertyPseudoVariables.get(property.getName());
             if (pseudoVariable == null)
             {
@@ -142,7 +147,31 @@ public class ControlFlowChecker
             superClassVariables.add(pseudoVariable);
           }
         }
-        currentClassDefinition = currentClassDefinition.getSuperClassDefinition();
+      }
+      else if (t instanceof InterfaceDefinition)
+      {
+        for (Property property : t.getProperties())
+        {
+          // interface properties are only already-initialised if they do not have a constructor (and therefore do not need to be initialised)
+          if (!property.isStatic())
+          {
+            // always use the variable from lowest-down the type hierarchy
+            PropertyPseudoVariable pseudoVariable = nonStaticPropertyPseudoVariables.get(property.getName());
+            if (pseudoVariable == null)
+            {
+              pseudoVariable = property.getPseudoVariable();
+              nonStaticPropertyPseudoVariables.put(property.getName(), pseudoVariable);
+            }
+            if (!property.hasConstructor())
+            {
+              superClassVariables.add(pseudoVariable);
+            }
+          }
+        }
+      }
+      else
+      {
+        throw new IllegalArgumentException("Unknown super-type: " + t);
       }
     }
 
@@ -337,7 +366,7 @@ public class ControlFlowChecker
     {
       try
       {
-        checkControlFlow(constructor, delegateConstructorVariables);
+        checkControlFlow(constructor, delegateConstructorVariables, nonStaticPropertyPseudoVariables);
       }
       catch (ConceptualException e)
       {
@@ -379,7 +408,7 @@ public class ControlFlowChecker
    * @param delegateConstructorVariables - the sets of variables which are needed to calculate which variables have been initialised after a delegate constructor call
    * @throws ConceptualException - if any control flow related errors are detected
    */
-  private static void checkControlFlow(Constructor constructor, DelegateConstructorVariables delegateConstructorVariables) throws ConceptualException
+  private static void checkControlFlow(Constructor constructor, DelegateConstructorVariables delegateConstructorVariables, Map<String, PropertyPseudoVariable> nonStaticPropertyPseudoVariables) throws ConceptualException
   {
     boolean initialiserAlreadyRun = !constructor.getCallsDelegateConstructor();
     ControlFlowState state = new ControlFlowState(initialiserAlreadyRun ? InitialiserState.DEFINITELY_RUN : InitialiserState.NOT_RUN);
@@ -424,10 +453,24 @@ public class ControlFlowChecker
     }
     for (Property property : constructor.getContainingTypeDefinition().getProperties())
     {
-      if (!property.isStatic() && property.hasConstructor() && !state.variables.initialised.contains(property.getPseudoVariable()))
+      if (!property.isStatic() && property.hasConstructor() && !state.variables.initialised.contains(nonStaticPropertyPseudoVariables.get(property.getName())))
       {
         // non-static properties must always be initialised by a constructor
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Constructor does not always initialise the non-static property '" + property.getName() + "'", constructor.getLexicalPhrase()));
+      }
+    }
+    for (TypeDefinition t : constructor.getContainingTypeDefinition().getInheritanceLinearisation())
+    {
+      if (t instanceof InterfaceDefinition)
+      {
+        for (Property property : t.getProperties())
+        {
+          if (!property.isStatic() && property.hasConstructor() && !state.variables.initialised.contains(nonStaticPropertyPseudoVariables.get(property.getName())))
+          {
+            // inherited interface properties which have constructors must always be initialised by a constructor
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Constructor does not always initialise the non-static property '" + property.getName() + "' (inherited from the interface: " + t.getQualifiedName() + ")", constructor.getLexicalPhrase()));
+          }
+        }
       }
     }
     if (coalescedException != null)

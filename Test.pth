@@ -2,7 +2,20 @@ package foo.bar;
 
 interface Foo
 {
-  property string str;
+  unbacked property string str
+  getter
+  {
+    stdout::println("interface getter");
+    return "hi";
+  }
+  setter(value)
+  {
+    stdout::println("interface setter: " + value);
+  }
+  constructor(value)
+  {
+    stdout::println("interface constructor: " + value);
+  };
   void doStuff()
   {
     stdout::println(str);
@@ -11,31 +24,21 @@ interface Foo
 
 class Super
 {
-  property string str
+  /*final property string str
   constructor(value)
   {
     stdout::println("constructor: " + value);
     str = value;
   }
-  setter(final string value)
-  {
-    stdout::println("setter: " + value + " old: " + str);
-    string old = str.toString();
-    str = value;
-    if (!value.equals(old))
-    {
-      this.str = value;
-    }
-  }
   getter
   {
     stdout::println("getter: " + str);
     return str;
-  };
+  };*/
 
   constructor(string s)
   {
-    str = s;
+    //str = s;
   }
 }
 
@@ -59,8 +62,7 @@ class Test extends Super implements Foo
   selfish constructor(string a)
   {
     super("foo");
-    str = "twice";
-    str = "again";
+    str = "init";
     stdout::println("Test(uint): " + a);
   }
 

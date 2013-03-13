@@ -955,30 +955,17 @@ public class Resolver
           if (variable == null && enclosingDefinition != null)
           {
             // we haven't got a declared variable, so try to resolve it outside the block
-            Field field;
-            Property property;
-            if (enclosingDefinition instanceof ClassDefinition)
+            Field field = null;
+            Property property = null;
+            for (TypeDefinition t : enclosingDefinition.getInheritanceLinearisation())
             {
-              ClassDefinition current = (ClassDefinition) enclosingDefinition;
-              field = null;
-              property = null;
-              // check the base class and then each of the super-classes in turn
               // note: this allows static fields from the superclass to be resolved, which is possible inside the class itself, but not by specifying an explicit type
-              while (field == null & property == null & current != null)
+              field = t.getField(variableAssignee.getVariableName());
+              property = t.getProperty(variableAssignee.getVariableName());
+              if (field != null || property != null)
               {
-                field = current.getField(variableAssignee.getVariableName());
-                property = current.getProperty(variableAssignee.getVariableName());
-                current = current.getSuperClassDefinition();
+                break;
               }
-            }
-            else if (enclosingDefinition instanceof CompoundDefinition)
-            {
-              field = enclosingDefinition.getField(variableAssignee.getVariableName());
-              property = enclosingDefinition.getProperty(variableAssignee.getVariableName());
-            }
-            else
-            {
-              throw new IllegalArgumentException("Unknown enclosing definition type: " + enclosingDefinition);
             }
             if (field != null)
             {
@@ -1301,30 +1288,17 @@ public class Resolver
         Variable variable = enclosingBlock.getVariable(variableAssignee.getVariableName());
         if (variable == null && enclosingDefinition != null)
         {
-          Field field;
-          Property property;
-          if (enclosingDefinition instanceof ClassDefinition)
+          Field field = null;
+          Property property = null;
+          for (TypeDefinition t : enclosingDefinition.getInheritanceLinearisation())
           {
-            ClassDefinition current = (ClassDefinition) enclosingDefinition;
-            field = null;
-            property = null;
-            // check the base class and then each of the super-classes in turn
             // note: this allows static fields from the superclass to be resolved, which is possible inside the class itself, but not by specifying an explicit type
-            while (field == null & property == null & current != null)
+            field = t.getField(variableAssignee.getVariableName());
+            property = t.getProperty(variableAssignee.getVariableName());
+            if (field != null || property != null)
             {
-              field = current.getField(variableAssignee.getVariableName());
-              property = current.getProperty(variableAssignee.getVariableName());
-              current = current.getSuperClassDefinition();
+              break;
             }
-          }
-          else if (enclosingDefinition instanceof CompoundDefinition)
-          {
-            field = enclosingDefinition.getField(variableAssignee.getVariableName());
-            property = enclosingDefinition.getProperty(variableAssignee.getVariableName());
-          }
-          else
-          {
-            throw new IllegalArgumentException("Unknown enclosing definition type: " + enclosingDefinition);
           }
           if (field != null)
           {
@@ -1424,30 +1398,17 @@ public class Resolver
           Variable variable = enclosingBlock.getVariable(variableAssignee.getVariableName());
           if (variable == null && enclosingDefinition != null)
           {
-            Field field;
-            Property property;
-            if (enclosingDefinition instanceof ClassDefinition)
+            Field field = null;
+            Property property = null;
+            for (TypeDefinition t : enclosingDefinition.getInheritanceLinearisation())
             {
-              ClassDefinition current = (ClassDefinition) enclosingDefinition;
-              field = null;
-              property = null;
-              // check the base class and then each of the super-classes in turn
               // note: this allows static fields from the superclass to be resolved, which is possible inside the class itself, but not by specifying an explicit type
-              while (field == null & property == null & current != null)
+              field = t.getField(variableAssignee.getVariableName());
+              property = t.getProperty(variableAssignee.getVariableName());
+              if (field != null || property != null)
               {
-                field = current.getField(variableAssignee.getVariableName());
-                property = current.getProperty(variableAssignee.getVariableName());
-                current = current.getSuperClassDefinition();
+                break;
               }
-            }
-            else if (enclosingDefinition instanceof CompoundDefinition)
-            {
-              field = enclosingDefinition.getField(variableAssignee.getVariableName());
-              property = enclosingDefinition.getProperty(variableAssignee.getVariableName());
-            }
-            else
-            {
-              throw new IllegalArgumentException("Unknown enclosing definition type: " + enclosingDefinition);
             }
             if (field != null)
             {
