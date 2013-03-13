@@ -1,0 +1,81 @@
+<project name="Plinth" default="default">
+  <description>Builds the Plinth programming language</description>
+  <property name="platform" value="x86_64-linux"/>
+  
+  <property name="compiler-src" location="src"/>
+  <property name="compiler-bin" location="bin"/>
+
+  <property name="runtime-src" location="runtime"/>
+  <property name="runtime-compiled-c" location="runtime/compiled-c"/>
+  <property name="runtime-binary" location="runtime/runtime.bc"/>
+
+  <property name="standard-library-src" location="plinth-src"/>
+  <property name="standard-library-bin" location="plinth-bin"/>
+
+  <target name="init">
+    <tstamp/>
+    <mkdir dir="${compiler-bin}"/>
+    <mkdir dir="${runtime-compiled-c}"/>
+    <mkdir dir="${standard-library-bin}"/>
+  </target>
+
+  <target name="build-compiler" depends="init">
+    <javac srcdir="${compiler-src}" destdir="${compiler-bin}" includeantruntime="false">
+      <classpath>
+        <fileset dir="lib" includes="*.jar"/>
+      </classpath>
+    </javac>
+  </target>
+
+  <target name="build-runtime" depends="init">
+    <apply executable="clang" dest="${runtime-compiled-c}">
+      <arg value="-emit-llvm"/>
+      <arg value="-c"/>
+      <srcfile/>
+      <arg value="-o"/>
+      <targetfile/>
+
+      <fileset dir="${runtime-src}" includes="**/*.c"/>
+      <chainedmapper>
+        <flattenmapper/>
+        <mapper type="glob" from="*.c" to="*.bc"/>
+      </chainedmapper>
+    </apply>
+    <apply executable="llvm-link" parallel="true" force="true">
+      <srcfile/>
+      <arg value="-o"/>
+      <targetfile/>
+
+      <fileset dir="${runtime-compiled-c}" includes="*.bc"/>
+      <fileset dir="${runtime-src}" includes="**/*.ll"/>
+      <mergemapper to="${runtime-binary}"/>
+    </apply>
+  </target>
+
+  <target name="build-standard-library" depends="build-compiler">
+    <apply executable="java" dir="${compiler-bin}" dest="${standard-library-bin}" parallel="true" force="true">
+      <arg value="-cp"/>
+      <arg value="../lib/jna.jar:."/>
+      <arg value="eu.bryants.anthony.plinth.compiler.Compiler"/>
+      <arg value="-o"/>
+      <targetfile/>
+      <arg value="-d"/>
+      <arg file="${standard-library-bin}"/>
+      <srcfile/>
+      
+      <fileset dir="${standard-library-src}" includes="**/*.pth"/>
+      <mergemapper to="plinth.pbc"/>
+    </apply>
+  </target>
+
+  <target name="clean" depends="init">
+    <delete>
+      <fileset dir="${compiler-bin}"/>
+      <fileset dir="${runtime-compiled-c}"/>
+      <fileset file="${runtime-binary}"/>
+      <fileset dir="${standard-library-bin}"/>
+    </delete>
+  </target>
+
+  <target name="default" depends="init, build-compiler, build-runtime, build-standard-library"/>
+</project>
