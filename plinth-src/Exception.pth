@@ -13,7 +13,7 @@ class Exception implements Throwable
    * Creates a new Exception with the specified message.
    * @param message - the new Exception's message
    */
-  this(string message)
+  constructor(string message)
   {
     this.message = message;
   }

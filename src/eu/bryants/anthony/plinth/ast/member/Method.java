@@ -2,6 +2,7 @@ package eu.bryants.anthony.plinth.ast.member;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
@@ -31,7 +32,8 @@ public class Method extends Member
   private Block block;
 
   private TypeDefinition containingTypeDefinition;
-  private int methodIndex;
+
+  private MemberFunction memberFunction;
 
   private Disambiguator disambiguator = new Disambiguator();
 
@@ -200,19 +202,19 @@ public class Method extends Member
   }
 
   /**
-   * @return the methodIndex
+   * @return the memberFunction
    */
-  public int getMethodIndex()
+  public MemberFunction getMemberFunction()
   {
-    return methodIndex;
+    return memberFunction;
   }
 
   /**
-   * @param methodIndex - the methodIndex to set
+   * @param memberFunction - the memberFunction to set
    */
-  public void setMethodIndex(int methodIndex)
+  public void setMemberFunction(MemberFunction memberFunction)
   {
-    this.methodIndex = methodIndex;
+    this.memberFunction = memberFunction;
   }
 
   /**
@@ -331,7 +333,7 @@ public class Method extends Member
    * It also allows methods to be sorted into a predictable order, by implementing comparable.
    * @author Anthony Bryant
    */
-  public class Disambiguator implements Comparable<Disambiguator>
+  public class Disambiguator
   {
 
     /**
@@ -340,58 +342,6 @@ public class Method extends Member
     public String getName()
     {
       return name;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int compareTo(Disambiguator other)
-    {
-      Method otherMethod = other.getMethod();
-      // compare since specifier, then staticness, then name, then mangled return type, then each mangled parameter in turn, using lexicographic ordering
-      // if they are equal except that one parameter list is a prefix of the other, then the comparison makes the longer parameter list larger
-
-      // two null since specifiers are equal, and a null since specifiers always comes before a not-null one
-      if ((sinceSpecifier == null) != (otherMethod.sinceSpecifier == null))
-      {
-        return sinceSpecifier == null ? -1 : 1;
-      }
-      if (sinceSpecifier != null && otherMethod.sinceSpecifier != null)
-      {
-        int sinceComparison = sinceSpecifier.compareTo(otherMethod.sinceSpecifier);
-        if (sinceComparison != 0)
-        {
-          return sinceComparison;
-        }
-      }
-
-      // static methods come before non-static methods
-      if (isStatic != otherMethod.isStatic)
-      {
-        return isStatic ? -1 : 1;
-      }
-
-      int nameComparison = name.compareTo(otherMethod.name);
-      if (nameComparison != 0)
-      {
-        return nameComparison;
-      }
-      int returnTypeComparison = returnType.getMangledName().compareTo(otherMethod.returnType.getMangledName());
-      if (returnTypeComparison != 0)
-      {
-        return returnTypeComparison;
-      }
-
-      for (int i = 0; i < parameters.length & i < otherMethod.parameters.length; ++i)
-      {
-        int paramComparison = parameters[i].getType().getMangledName().compareTo(otherMethod.parameters[i].getType().getMangledName());
-        if (paramComparison != 0)
-        {
-          return paramComparison;
-        }
-      }
-      return parameters.length - otherMethod.parameters.length;
     }
 
     /**

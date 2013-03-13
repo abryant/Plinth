@@ -14,6 +14,7 @@ import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 
@@ -224,6 +225,13 @@ public class NamedType extends Type
       if (currentField != null && (!currentField.isStatic() || inheritStaticMembers || currentDefinition == resolvedTypeDefinition) && !matches.containsKey("F" + currentField.getName()))
       {
         matches.put("F" + currentField.getName(), currentField);
+      }
+      // exclude static properties from being inherited
+      // also, treat properties like fields, so that properties can hide fields and vice versa
+      Property currentProperty = currentDefinition.getProperty(name);
+      if (currentProperty != null && (!currentProperty.isStatic() || inheritStaticMembers || currentDefinition == resolvedTypeDefinition) && !matches.containsKey("F" + currentProperty.getName()))
+      {
+        matches.put("F" + currentProperty.getName(), currentProperty);
       }
       Set<Method> currentMethodSet = currentDefinition.getMethodsByName(name);
       if (currentMethodSet != null)

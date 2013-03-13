@@ -8,6 +8,7 @@ import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
 import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
 
 /*
  * Created on 7 Dec 2012
@@ -30,7 +31,9 @@ public class ObjectType extends Type
   {
     for (int i = 0; i < OBJECT_METHODS.length; ++i)
     {
-      OBJECT_METHODS[i].setMethodIndex(i);
+      MemberFunction memberFunction = new MemberFunction(OBJECT_METHODS[i]);
+      memberFunction.setMemberIndex(i);
+      OBJECT_METHODS[i].setMemberFunction(memberFunction);
     }
   }
 

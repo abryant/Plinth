@@ -98,6 +98,8 @@ public class InterfaceDefinitionRule extends Rule<ParseType>
         break;
       case STATIC:
         throw new LanguageParseException("Unexpected modifier: Interface definitions cannot be static", modifier.getLexicalPhrase());
+      case UNBACKED:
+        throw new LanguageParseException("Unexpected modifier: Interface definitions cannot be unbacked", modifier.getLexicalPhrase());
       default:
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }

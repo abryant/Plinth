@@ -12,9 +12,10 @@ import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
+import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
-import eu.bryants.anthony.plinth.ast.member.Field;
+import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.statement.AssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Block;
@@ -139,20 +140,20 @@ public class CycleChecker
   {
     Set<CompoundDefinition> visited = new HashSet<CompoundDefinition>();
     visited.add(compoundDefinition);
-    checkCompoundTypeFieldCycles(compoundDefinition, new LinkedList<Field>(), visited);
+    checkCompoundTypeFieldCycles(compoundDefinition, new LinkedList<MemberVariable>(), visited);
   }
 
-  private static void checkCompoundTypeFieldCycles(CompoundDefinition startDefinition, List<Field> fieldStack, Set<CompoundDefinition> visited) throws ConceptualException
+  private static void checkCompoundTypeFieldCycles(CompoundDefinition startDefinition, List<MemberVariable> variableStack, Set<CompoundDefinition> visited) throws ConceptualException
   {
     CompoundDefinition current = startDefinition;
-    if (!fieldStack.isEmpty())
+    if (!variableStack.isEmpty())
     {
-      NamedType type = (NamedType) fieldStack.get(fieldStack.size() - 1).getType();
+      NamedType type = (NamedType) variableStack.get(variableStack.size() - 1).getType();
       current = (CompoundDefinition) type.getResolvedTypeDefinition();
     }
-    for (Field field : current.getNonStaticFields())
+    for (MemberVariable memberVariable : current.getMemberVariables())
     {
-      Type type = field.getType();
+      Type type = memberVariable.getType();
       if (type instanceof NamedType)
       {
         TypeDefinition resolvedDefinition = ((NamedType) type).getResolvedTypeDefinition();
@@ -165,19 +166,28 @@ public class CycleChecker
         if (visited.contains(compoundDefinition))
         {
           StringBuffer buffer = new StringBuffer();
-          for (Field f : fieldStack)
+          for (MemberVariable variable : variableStack)
           {
-            buffer.append(f.getName());
+            buffer.append(variable.getName());
             buffer.append(".");
           }
-          buffer.append(field.getName());
-          throw new ConceptualException("Cycle detected in compound type '" + startDefinition.getQualifiedName() + "' at: " + buffer, field.getLexicalPhrase());
+          buffer.append(memberVariable.getName());
+          LexicalPhrase lexicalPhrase;
+          if (memberVariable.getField() != null)
+          {
+            lexicalPhrase = memberVariable.getField().getLexicalPhrase();
+          }
+          else // memberVariable.getProperty() != null
+          {
+            lexicalPhrase = memberVariable.getProperty().getLexicalPhrase();
+          }
+          throw new ConceptualException("Cycle detected in compound type '" + startDefinition.getQualifiedName() + "' at: " + buffer, lexicalPhrase);
         }
-        fieldStack.add(field);
+        variableStack.add(memberVariable);
         visited.add(compoundDefinition);
-        checkCompoundTypeFieldCycles(startDefinition, fieldStack, visited);
+        checkCompoundTypeFieldCycles(startDefinition, variableStack, visited);
         visited.remove(compoundDefinition);
-        fieldStack.remove(fieldStack.size() - 1);
+        variableStack.remove(variableStack.size() - 1);
       }
     }
   }

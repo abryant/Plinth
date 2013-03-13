@@ -224,7 +224,7 @@ public class PassManager
       resolver.resolveTypes(typeDefinition, typeCompilationUnits.get(typeDefinition));
       if (typeCompilationUnits.containsKey(typeDefinition))
       {
-        typeDefinition.buildNonStaticMethods();
+        typeDefinition.buildMemberFunctions();
       }
       break;
     case INHERITANCE_CYCLE_CHECKING:

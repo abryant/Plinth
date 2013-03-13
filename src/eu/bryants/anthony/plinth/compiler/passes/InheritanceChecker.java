@@ -10,7 +10,9 @@ import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
+import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
@@ -169,12 +171,12 @@ public class InheritanceChecker
     // it will be used during this pass and some others after it, all the way to code generation
     TypeDefinition[] linearisation = findInheritanceLinearisation(typeDefinition);
 
-    Set<Method> inheritedNonStaticMethods = new HashSet<Method>();
+    Set<Member> inheritedMembers = new HashSet<Member>();
     for (Method method : ObjectType.OBJECT_METHODS)
     {
       if (!method.isStatic())
       {
-        inheritedNonStaticMethods.add(method);
+        inheritedMembers.add(method);
       }
     }
     if (typeDefinition instanceof ClassDefinition)
@@ -187,16 +189,37 @@ public class InheritanceChecker
         throw new ConceptualException("Cannot define a non-immutable class to be a subclass of an immutable class", classDefinition.getLexicalPhrase());
       }
 
-      for (TypeDefinition currentType : linearisation)
+      // TODO: should super-interfaces be checked for the same immutability constraint as super-classes?
+    }
+    else if (typeDefinition instanceof InterfaceDefinition)
+    {
+      // TODO: should super-interfaces of interfaces be checked for the same immutability constraint as super-classes?
+    }
+
+    for (TypeDefinition currentType : linearisation)
+    {
+      if (currentType != typeDefinition)
       {
-        if (currentType != typeDefinition)
+        for (Method m : currentType.getAllMethods())
         {
-          for (Method m : currentType.getNonStaticMethods())
+          if (!m.isStatic())
           {
-            inheritedNonStaticMethods.add(m);
+            inheritedMembers.add(m);
+          }
+        }
+        for (Property p : currentType.getProperties())
+        {
+          if (!p.isStatic())
+          {
+            inheritedMembers.add(p);
           }
         }
       }
+    }
+
+    for (Property property : typeDefinition.getProperties())
+    {
+      checkProperty(property);
     }
 
     for (Method method : typeDefinition.getAllMethods())
@@ -204,67 +227,172 @@ public class InheritanceChecker
       checkMethod(method);
     }
 
-    for (Method inheritedMethod : inheritedNonStaticMethods)
+    for (Member inheritedMember : inheritedMembers)
     {
+      boolean inheritedIsAbstract;
+      TypeDefinition inheritedTypeDefinition;
       boolean overridden = false;
-      for (Method method : typeDefinition.getMethodsByName(inheritedMethod.getName()))
+      if (inheritedMember instanceof Method)
       {
-        if (inheritedMethod.getDisambiguator().matches(method.getDisambiguator()))
+        Method inheritedMethod = (Method) inheritedMember;
+        inheritedIsAbstract = inheritedMethod.isAbstract();
+        inheritedTypeDefinition = inheritedMethod.getContainingTypeDefinition();
+        for (Method method : typeDefinition.getMethodsByName(inheritedMethod.getName()))
         {
-          checkMethodOverride(inheritedMethod, method);
+          if (inheritedMethod.getDisambiguator().matches(method.getDisambiguator()))
+          {
+            checkMethodOverride(inheritedMethod, method);
+            overridden = true;
+          }
+        }
+      }
+      else // inheritedMember instanceof Property
+      {
+        Property inheritedProperty = (Property) inheritedMember;
+        inheritedIsAbstract = inheritedProperty.isAbstract();
+        inheritedTypeDefinition = inheritedProperty.getContainingTypeDefinition();
+        Property property = typeDefinition.getProperty(inheritedProperty.getName());
+        if (property != null && !property.isStatic())
+        {
+          checkPropertyOverride(inheritedProperty, property);
           overridden = true;
         }
       }
-      if (!typeDefinition.isAbstract() && inheritedMethod.isAbstract() && !overridden)
+      if (!typeDefinition.isAbstract() && inheritedIsAbstract && !overridden)
       {
-        // we have not implemented this abstract method, but it could have been implemented higher up the inheritance hierarchy, so check for that
-        Method implementation = null;
+        // we have not implemented this abstract member, but it could have been implemented higher up the inheritance hierarchy, so check for that
+        Member implementation = null;
+        TypeDefinition implementationTypeDefinition = null;
+        Set<TypeDefinition> ignoredSuperTypeDefinitions = new HashSet<TypeDefinition>();
+        ignoredSuperTypeDefinitions.add(inheritedTypeDefinition);
+
+        superTypeSearchLoop:
         for (TypeDefinition currentSuperType : linearisation)
         {
           // ignore the current definition, as it has already been checked
-          // also ignore any definitions which are parents of the declaring type of the method
-          if (currentSuperType == typeDefinition ||
-              (inheritedMethod.getContainingTypeDefinition() != null && isSuperType(currentSuperType, inheritedMethod.getContainingTypeDefinition())))
+          if (currentSuperType == typeDefinition)
           {
             continue;
           }
-          Set<Method> possibleMatches = currentSuperType.getMethodsByName(inheritedMethod.getName());
-          for (Method m : possibleMatches)
+          for (TypeDefinition ignored : ignoredSuperTypeDefinitions)
           {
-            if (m.getDisambiguator().matches(inheritedMethod.getDisambiguator()))
+            // if the current type is a super-type of one we have already processed and ignored, then ignore it too
+            // (here, we depend on all super-types being processed after their sub-types, which is true due to the nature of the C3 linearisation)
+            // we ignore any types which declare this member as abstract
+            if (isSuperType(currentSuperType, ignored))
             {
-              // this method matches the disambiguator, so check that it is an implementation of a method (i.e. it is not abstract)
-              if (!m.isAbstract())
+              continue superTypeSearchLoop;
+            }
+          }
+
+          if (inheritedMember instanceof Method)
+          {
+            Method inheritedMethod = (Method) inheritedMember;
+            Set<Method> possibleMatches = currentSuperType.getMethodsByName(inheritedMethod.getName());
+            for (Method m : possibleMatches)
+            {
+              if (m.getDisambiguator().matches(inheritedMethod.getDisambiguator()))
               {
+                // this method matches the disambiguator, so check that it is an implementation of a method (i.e. it is not abstract)
+                if (m.isAbstract())
+                {
+                  // if this method is abstract, ignore this type and all of its super-types
+                  ignoredSuperTypeDefinitions.add(currentSuperType);
+                  continue superTypeSearchLoop;
+                }
                 // this must be the most-derived implementation of this method
                 implementation = m;
-                break;
+                implementationTypeDefinition = currentSuperType;
+                break superTypeSearchLoop;
               }
             }
           }
-          if (implementation != null)
+          else // inheritedMember instanceof Property
           {
-            break;
+            Property inheritedProperty = (Property) inheritedMember;
+            Property property = currentSuperType.getProperty(inheritedProperty.getName());
+            if (property != null && !property.isStatic())
+            {
+              if (property.isAbstract())
+              {
+                // if this property is abstract, ignore this type and all of its super-types
+                ignoredSuperTypeDefinitions.add(currentSuperType);
+                continue;
+              }
+              implementation = property;
+              implementationTypeDefinition = currentSuperType;
+              break;
+            }
           }
         }
 
         if (implementation == null)
         {
-          String declarationType = inheritedMethod.getContainingTypeDefinition() == null ? "object" : inheritedMethod.getContainingTypeDefinition().getQualifiedName().toString();
-          throw new ConceptualException(typeDefinition.getName() + " does not implement the abstract method: " + buildMethodDisambiguatorString(inheritedMethod) + " (from type: " + declarationType + ")", typeDefinition.getLexicalPhrase());
+          String memberType = (inheritedMember instanceof Method) ? "method" : "property";
+          String declarationType = inheritedTypeDefinition == null ? "object" : inheritedTypeDefinition.getQualifiedName().toString();
+          String disambiguator;
+          if (inheritedMember instanceof Method)
+          {
+            disambiguator = buildMethodDisambiguatorString((Method) inheritedMember);
+          }
+          else
+          {
+            disambiguator = ((Property) inheritedMember).getName();
+          }
+          throw new ConceptualException(typeDefinition.getName() + " does not implement the abstract " + memberType + ": " + disambiguator + " (from type: " + declarationType + ")", typeDefinition.getLexicalPhrase());
         }
         try
         {
-          checkMethodOverride(inheritedMethod, implementation);
+          if (inheritedMember instanceof Method)
+          {
+            checkMethodOverride((Method) inheritedMember, (Method) implementation);
+          }
+          else
+          {
+            checkPropertyOverride((Property) inheritedMember, (Property) implementation);
+          }
         }
         catch (ConceptualException e)
         {
-          String declarationType = inheritedMethod.getContainingTypeDefinition() == null ? "object" : inheritedMethod.getContainingTypeDefinition().getQualifiedName().toString();
-          String implementationType = implementation.getContainingTypeDefinition() == null ? "object" : implementation.getContainingTypeDefinition().getQualifiedName().toString();
-          throw new ConceptualException(typeDefinition.getName() + " does not implement the abstract method: " + buildMethodDisambiguatorString(inheritedMethod) + " (from type: " + declarationType + ")",
+          String memberType = (inheritedMember instanceof Method) ? "method" : "property";
+          String declarationType = inheritedTypeDefinition == null ? "object" : inheritedTypeDefinition.getQualifiedName().toString();
+          String implementationType = implementationTypeDefinition == null ? "object" : implementationTypeDefinition.getQualifiedName().toString();
+          String disambiguator;
+          if (inheritedMember instanceof Method)
+          {
+            disambiguator = buildMethodDisambiguatorString((Method) inheritedMember);
+          }
+          else
+          {
+            disambiguator = ((Property) inheritedMember).getName();
+          }
+          throw new ConceptualException(typeDefinition.getName() + " does not implement the abstract " + memberType + ": " + disambiguator + " (from type: " + declarationType + ")",
                                         typeDefinition.getLexicalPhrase(),
-                                        new ConceptualException("Note: It is implemented in " + implementationType + " but that method is incompatible because: " + e.getMessage(), e.getLexicalPhrase()));
+                                        new ConceptualException("Note: It is implemented in " + implementationType + " but that " + memberType + " is incompatible because: " + e.getMessage(), e.getLexicalPhrase(), e.getAttachedNote()));
         }
+      }
+    }
+  }
+
+  private static void checkProperty(Property property) throws ConceptualException
+  {
+    if (property.isAbstract())
+    {
+      if (property.isStatic())
+      {
+        throw new ConceptualException("A static property cannot be abstract", property.getLexicalPhrase());
+      }
+      if (property.getGetterBlock() != null || property.getSetterBlock() != null || property.getConstructorBlock() != null)
+      {
+        throw new ConceptualException("An abstract property cannot define a getter, a setter, or a constructor", property.getLexicalPhrase());
+      }
+      if (property.getContainingTypeDefinition() instanceof CompoundDefinition)
+      {
+        throw new ConceptualException("A compound type cannot contain abstract properties", property.getLexicalPhrase());
+      }
+      if (!property.getContainingTypeDefinition().isAbstract())
+      {
+        throw new ConceptualException("Abstract properties can only be declared in abstract classes or interfaces", property.getLexicalPhrase());
       }
     }
   }
@@ -291,8 +419,47 @@ public class InheritanceChecker
       }
       if (!method.getContainingTypeDefinition().isAbstract())
       {
-        throw new ConceptualException("Abstract methods can only be declared in abstract classes", method.getLexicalPhrase());
+        throw new ConceptualException("Abstract methods can only be declared in abstract classes or interfaces", method.getLexicalPhrase());
       }
+    }
+  }
+
+  private static void checkPropertyOverride(Property overriddenProperty, Property property) throws ConceptualException
+  {
+    if (!overriddenProperty.getType().isEquivalent(property.getType()))
+    {
+      throw new ConceptualException("A property must always have the same type as a property it overrides, in this case: " + overriddenProperty.getType(), property.getLexicalPhrase(),
+                                    overriddenProperty.getLexicalPhrase() != null ? new ConceptualException("Note: overridden from here", overriddenProperty.getLexicalPhrase()) : null);
+    }
+    if (overriddenProperty.isFinal() != property.isFinal())
+    {
+      throw new ConceptualException("A property must always have the same finality as a property it overrides", property.getLexicalPhrase(),
+                                    overriddenProperty.getLexicalPhrase() != null ? new ConceptualException("Note: overridden from here", overriddenProperty.getLexicalPhrase()) : null);
+    }
+    if (overriddenProperty.hasConstructor() && !property.hasConstructor())
+    {
+      throw new ConceptualException("An overriding property must have a constructor if the property it overrides has a constructor", property.getLexicalPhrase(),
+                                    overriddenProperty.getLexicalPhrase() != null ? new ConceptualException("Note: overridden from here", overriddenProperty.getLexicalPhrase()) : null);
+    }
+    if (!overriddenProperty.hasConstructor() && property.hasConstructor())
+    {
+      throw new ConceptualException("An overriding property must not have a constructor if the property it overrides does not have a constructor", property.getLexicalPhrase(),
+                                    overriddenProperty.getLexicalPhrase() != null ? new ConceptualException("Note: overridden from here", overriddenProperty.getLexicalPhrase()) : null);
+    }
+    if (overriddenProperty.isGetterImmutable() && !property.isGetterImmutable())
+    {
+      throw new ConceptualException("A non-immutable property getter cannot override an immutable property getter", property.getLexicalPhrase(),
+                                    overriddenProperty.getLexicalPhrase() != null ? new ConceptualException("Note: overridden from here", overriddenProperty.getLexicalPhrase()) : null);
+    }
+    if (overriddenProperty.isSetterImmutable() && !property.isSetterImmutable())
+    {
+      throw new ConceptualException("A non-immutable property setter cannot override an immutable property setter", property.getLexicalPhrase(),
+                                    overriddenProperty.getLexicalPhrase() != null ? new ConceptualException("Note: overridden from here", overriddenProperty.getLexicalPhrase()) : null);
+    }
+    if (overriddenProperty.isConstructorImmutable() && !property.isConstructorImmutable())
+    {
+      throw new ConceptualException("A non-immutable property constructor cannot override an immutable property constructor", property.getLexicalPhrase(),
+                                    overriddenProperty.getLexicalPhrase() != null ? new ConceptualException("Note: overridden from here", overriddenProperty.getLexicalPhrase()) : null);
     }
   }
 
@@ -300,7 +467,8 @@ public class InheritanceChecker
   {
     if (overriddenMethod.isImmutable() && !method.isImmutable())
     {
-      throw new ConceptualException("A non-immutable method cannot override an immutable method", method.getLexicalPhrase());
+      throw new ConceptualException("A non-immutable method cannot override an immutable method", method.getLexicalPhrase(),
+                                    overriddenMethod.getLexicalPhrase() != null ? new ConceptualException("Note: overridden from here", overriddenMethod.getLexicalPhrase()) : null);
     }
   }
 

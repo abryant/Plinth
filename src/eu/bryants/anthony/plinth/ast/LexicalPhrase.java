@@ -59,6 +59,7 @@ public class LexicalPhrase
       {
         continue;
       }
+      {} // TODO: fix multi-line phrases
       if (combined == null)
       {
         combined = new LexicalPhrase(phrase.getPath(), phrase.getLine(), phrase.getLineText(),

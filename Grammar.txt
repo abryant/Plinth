@@ -17,7 +17,8 @@ MemberList = epsilon |
              MemberList Initialiser |
              MemberList Field |
              MemberList Constructor |
-             MemberList Method
+             MemberList Method |
+             MemberList Property
 Modifiers = AbstractKeyword             | Modifiers AbstractKeyword  |
             FinalKeyword                | Modifiers FinalKeyword     |
             ImmutableKeyword            | Modifiers ImmutableKeyword |
@@ -26,15 +27,16 @@ Modifiers = AbstractKeyword             | Modifiers AbstractKeyword  |
             SelfishKeyword              | Modifiers SelfishKeyword   |
             SinceSpecifier              | Modifiers SinceSpecifier   |
             StaticKeyword               | Modifiers StaticKeyword    |
-            NativeKeyword StringLiteral | Modifiers NativeKeyword StringLiteral
+            NativeKeyword StringLiteral | Modifiers NativeKeyword StringLiteral |
+            UnbackedKeyword             | Modifiers UnbackedKeyword
 OptionalModifiers = epsilon | Modifiers
 Initialiser = Block | Modifiers Block
 Field = Modifiers Type Name Semicolon |
         Modifiers Type Name Equals Expression Semicolon |
         Type Name Semicolon |
         Type Name Equals Expression Semicolon
-Constructor = Modifiers ThisKeyword ParameterList ThrowsClause Block |
-              ThisKeyword ParameterList ThrowsClause Block
+Constructor = Modifiers ConstructorKeyword ParameterList ThrowsClause Block |
+              ConstructorKeyword ParameterList ThrowsClause Block
 Method = Modifiers Type        Name ParameterList ThrowsClause Block |
          Modifiers VoidKeyword Name ParameterList ThrowsClause Block |
                    Type        Name ParameterList ThrowsClause Block |
@@ -43,6 +45,17 @@ Method = Modifiers Type        Name ParameterList ThrowsClause Block |
          Modifiers VoidKeyword Name ParameterList ThrowsClause Semicolon |
                    Type        Name ParameterList ThrowsClause Semicolon |
                    VoidKeyword Name ParameterList ThrowsClause Semicolon
+Property = OptionalModifiers PropertyKeyword Type Name PropertyMethodList Semicolon |
+           OptionalModifiers PropertyKeyword Type Name Equals Expression PropertyMethodList Semicolon
+PropertyMethodList = PropertyMethod | PropertyMethodList PropertyMethod
+PropertyMethod = OptionalModifiers GetterKeyword |
+                 OptionalModifiers GetterKeyword ThrowsClause Block |
+                 OptionalModifiers SetterKeyword |
+                 OptionalModifiers SetterKeyword LParen OptionalModifiers Name RParen ThrowsClause Block |
+                 OptionalModifiers SetterKeyword ParameterList ThrowsClause Block |
+                 OptionalModifiers ConstructorKeyword |
+                 OptionalModifiers ConstructorKeyword LParen OptionalModifiers Name RParen ThrowsClause Block |
+                 OptionalModifiers ConstructorKeyword ParameterList ThrowsClause Block
 
 ParameterList = LParen Parameters RParen | LParen RParen
 Parameters = OptionalModifiers Type Name | Parameters Comma OptionalModifiers Type Name

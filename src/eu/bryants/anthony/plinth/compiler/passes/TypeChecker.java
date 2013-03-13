@@ -47,9 +47,12 @@ import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
 import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
+import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
+import eu.bryants.anthony.plinth.ast.metadata.PropertyPseudoVariable;
 import eu.bryants.anthony.plinth.ast.metadata.Variable;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
@@ -168,6 +171,17 @@ public class TypeChecker
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
     }
+    for (Property property : typeDefinition.getProperties())
+    {
+      try
+      {
+        checkTypes(property);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+    }
     for (Method method : typeDefinition.getAllMethods())
     {
       for (NamedType thrownType : method.getCheckedThrownTypes())
@@ -214,6 +228,15 @@ public class TypeChecker
         throw new ConceptualException("Cannot assign an expression of type " + expressionType + " to a field of type " + field.getType(), field.getLexicalPhrase());
       }
     }
+    else if (initialiser instanceof PropertyInitialiser)
+    {
+      Property property = ((PropertyInitialiser) initialiser).getProperty();
+      Type expressionType = checkTypes(property.getInitialiserExpression());
+      if (!property.getType().canAssign(expressionType))
+      {
+        throw new ConceptualException("Cannot assign an expression of type " + expressionType + " to a property of type " + property.getType(), property.getLexicalPhrase());
+      }
+    }
     else
     {
       checkTypes(initialiser.getBlock(), VoidType.VOID_TYPE);
@@ -231,6 +254,95 @@ public class TypeChecker
     if (!type.hasDefaultValue())
     {
       throw new ConceptualException("Static fields must always have a type which has a language-defined default value (e.g. 0 for uint). Consider making this field nullable.", type.getLexicalPhrase());
+    }
+  }
+
+  private static void checkTypes(Property property) throws ConceptualException
+  {
+    CoalescedConceptualException coalescedException = null;
+    Type type = property.getType();
+    if (property.isStatic() && !property.isUnbacked())
+    {
+      // static properties must have backing variables which have default values
+      if (!type.hasDefaultValue())
+      {
+        throw new ConceptualException("A static property must (unless it is unbacked) have a type which has a language-defined default value (e.g. 0 for uint). Consider making this property nullable or unbacked.", property.getType().getLexicalPhrase());
+      }
+    }
+    if (property.getGetterBlock() != null)
+    {
+      try
+      {
+        checkTypes(property.getGetterBlock(), type);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+      if (property.getGetterUncheckedThrownTypes() != null)
+      {
+        for (NamedType thrownType : property.getGetterUncheckedThrownTypes())
+        {
+          if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
+          }
+        }
+      }
+    }
+    if (property.getSetterBlock() != null)
+    {
+      if (!type.isEquivalent(property.getSetterParameter().getType()))
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A property's setter may only accept arguments of the same type as the property itself", property.getSetterParameter().getType().getLexicalPhrase()));
+      }
+      try
+      {
+        checkTypes(property.getSetterBlock(), VoidType.VOID_TYPE);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+      if (property.getSetterUncheckedThrownTypes() != null)
+      {
+        for (NamedType thrownType : property.getSetterUncheckedThrownTypes())
+        {
+          if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
+          }
+        }
+      }
+    }
+    if (property.getConstructorBlock() != null)
+    {
+      if (!type.isEquivalent(property.getConstructorParameter().getType()))
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A property's constructor may only accept arguments of the same type as the property itself", property.getConstructorParameter().getType().getLexicalPhrase()));
+      }
+      try
+      {
+        checkTypes(property.getConstructorBlock(), VoidType.VOID_TYPE);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+      if (property.getConstructorUncheckedThrownTypes() != null)
+      {
+        for (NamedType thrownType : property.getConstructorUncheckedThrownTypes())
+        {
+          if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
+          }
+        }
+      }
+    }
+    if (coalescedException != null)
+    {
+      throw coalescedException;
     }
   }
 
@@ -350,6 +462,10 @@ public class TypeChecker
           else if (member instanceof Field)
           {
             type = ((Field) member).getType();
+          }
+          else if (member instanceof Property)
+          {
+            type = ((Property) member).getType();
           }
           else if (member instanceof Method)
           {
@@ -667,6 +783,10 @@ public class TypeChecker
         {
           assigneeType = ((Field) member).getType();
         }
+        else if (member instanceof Property)
+        {
+          assigneeType = ((Property) member).getType();
+        }
         else if (member instanceof Method)
         {
           throw new ConceptualException("Cannot increment or decrement a method", fieldAssignee.getLexicalPhrase());
@@ -709,7 +829,7 @@ public class TypeChecker
         if (returnStatement.getCanReturnAgainstContextualImmutability() && !(resultType instanceof VoidType))
         {
           // turn off contextual immutability (unless the type is explicitly immutable), so that only-contextually-immutable things can still be returned from immutable functions
-          resultType = findTypeWithDeepContextualImmutability(resultType, false);
+          resultType = findTypeWithDeepImmutability(resultType, false, false);
         }
         if (!returnType.canAssign(resultType))
         {
@@ -760,6 +880,10 @@ public class TypeChecker
           else if (member instanceof Field)
           {
             types[i] = ((Field) member).getType();
+          }
+          else if (member instanceof Property)
+          {
+            types[i] = ((Property) member).getType();
           }
           else if (member instanceof Method)
           {
@@ -1349,7 +1473,8 @@ public class TypeChecker
     else if (expression instanceof FieldAccessExpression)
     {
       FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
-      boolean receiverIsImmutable = fieldAccessExpression.getResolvedContextImmutability();
+      boolean receiverIsExplicitlyImmutable = false;
+      boolean receiverIsContextuallyImmutable = fieldAccessExpression.getResolvedContextImmutability();
       if (fieldAccessExpression.getBaseExpression() != null)
       {
         // no need to do the following type check here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
@@ -1363,7 +1488,8 @@ public class TypeChecker
         {
           throw new ConceptualException("Cannot use the null traversing field access operator '?.' on a non nullable expression", fieldAccessExpression.getLexicalPhrase());
         }
-        receiverIsImmutable = isDataImmutable(baseExpressionType);
+        receiverIsExplicitlyImmutable = isExplicitlyDataImmutable(baseExpressionType);
+        receiverIsContextuallyImmutable = isContextuallyDataImmutable(baseExpressionType);
       }
       Member member = fieldAccessExpression.getResolvedMember();
       Type type;
@@ -1371,9 +1497,20 @@ public class TypeChecker
       {
         Field field = (Field) member;
         type = field.getType();
-        if (receiverIsImmutable && !field.isMutable())
+        if (receiverIsContextuallyImmutable && !field.isMutable())
         {
-          type = findTypeWithDeepContextualImmutability(type, true);
+          // note: if the receiver is explicitly immutable, we add explicit immutability as well
+          type = findTypeWithDeepImmutability(type, receiverIsExplicitlyImmutable, true);
+        }
+      }
+      else if (member instanceof Property)
+      {
+        Property property = (Property) member;
+        type = property.getType();
+        if (receiverIsContextuallyImmutable && !property.isMutable())
+        {
+          // note: if the receiver is explicitly immutable, we add explicit immutability as well
+          type = findTypeWithDeepImmutability(type, receiverIsExplicitlyImmutable, true);
         }
       }
       else if (member instanceof ArrayLengthMember)
@@ -2034,10 +2171,25 @@ public class TypeChecker
 
         if (variableExpression.getResolvedContextImmutability())
         {
-          if ((resolvedVariable instanceof GlobalVariable && !((GlobalVariable) resolvedVariable).getField().isMutable()) ||
-              (resolvedVariable instanceof MemberVariable && !((MemberVariable) resolvedVariable).getField().isMutable()))
+          // if we are in an immutable context, and we have been resolved to a field/property which is not mutable, then the resulting type should be contextually immutable
+          boolean shouldBeContextuallyImmutable = false;
+          if (resolvedVariable instanceof GlobalVariable)
           {
-            type = findTypeWithDeepContextualImmutability(type, true);
+            GlobalVariable globalVariable = (GlobalVariable) resolvedVariable;
+            shouldBeContextuallyImmutable = !(globalVariable.getField() != null ? globalVariable.getField().isMutable() : globalVariable.getProperty().isMutable());
+          }
+          else if (resolvedVariable instanceof MemberVariable)
+          {
+            MemberVariable memberVariable = (MemberVariable) resolvedVariable;
+            shouldBeContextuallyImmutable = !(memberVariable.getField() != null ? memberVariable.getField().isMutable() : memberVariable.getProperty().isMutable());
+          }
+          else if (resolvedVariable instanceof PropertyPseudoVariable)
+          {
+            shouldBeContextuallyImmutable = !((PropertyPseudoVariable) resolvedVariable).getProperty().isMutable();
+          }
+          if (shouldBeContextuallyImmutable)
+          {
+            type = findTypeWithDeepImmutability(type, false, true);
           }
         }
         expression.setType(type);
@@ -2572,29 +2724,55 @@ public class TypeChecker
   }
 
   /**
-   * Finds whether the specified type is immutable in terms of data. i.e. the data inside it cannot be modified.
+   * Finds whether the specified type is explicitly immutable in terms of data. i.e. the data inside it cannot be modified.
    * @param type - the type to check
-   * @return true if the specified type is immutable in terms of data, false if the type is not or cannot be immutable
+   * @return true if the specified type is explicitly immutable in terms of data, false if the type is not or cannot be immutable
    */
-  private static boolean isDataImmutable(Type type)
+  private static boolean isExplicitlyDataImmutable(Type type)
   {
     if (type instanceof ArrayType)
     {
-      return ((ArrayType) type).isExplicitlyImmutable() || ((ArrayType) type).isContextuallyImmutable();
+      return ((ArrayType) type).isExplicitlyImmutable();
     }
     if (type instanceof NamedType)
     {
-      return ((NamedType) type).isExplicitlyImmutable() || ((NamedType) type).isContextuallyImmutable();
+      return ((NamedType) type).isExplicitlyImmutable();
     }
     if (type instanceof ObjectType)
     {
-      return ((ObjectType) type).isExplicitlyImmutable() || ((ObjectType) type).isContextuallyImmutable();
+      return ((ObjectType) type).isExplicitlyImmutable();
     }
     if (type instanceof FunctionType || type instanceof NullType || type instanceof PrimitiveType || type instanceof TupleType)
     {
       return false;
     }
-    throw new IllegalArgumentException("Cannot find the data immutability of an unknown type: " + type);
+    throw new IllegalArgumentException("Cannot find the data explicit-immutability of an unknown type: " + type);
+  }
+
+  /**
+   * Finds whether the specified type is contextually immutable in terms of data. i.e. the data inside it cannot be modified.
+   * @param type - the type to check
+   * @return true if the specified type is contextually immutable in terms of data, false if the type is not or cannot be immutable
+   */
+  public static boolean isContextuallyDataImmutable(Type type)
+  {
+    if (type instanceof ArrayType)
+    {
+      return ((ArrayType) type).isContextuallyImmutable();
+    }
+    if (type instanceof NamedType)
+    {
+      return ((NamedType) type).isContextuallyImmutable();
+    }
+    if (type instanceof ObjectType)
+    {
+      return ((ObjectType) type).isContextuallyImmutable();
+    }
+    if (type instanceof FunctionType || type instanceof NullType || type instanceof PrimitiveType || type instanceof TupleType)
+    {
+      return false;
+    }
+    throw new IllegalArgumentException("Cannot find the data contextual-immutability of an unknown type: " + type);
   }
 
   /**
@@ -2642,43 +2820,44 @@ public class TypeChecker
   }
 
   /**
-   * Finds the equivalent of the specified type with the specified contextual immutability throughout.
-   * If the provided type is explicitly immutable, then the resulting type may be equivalent to the original type,
-   * even if the purpose of the call was to find a type without contextual immutability; this is because an explicitly
-   * immutable type must always be contextually immutable, and this function does not change explicit immutability.
-   * @param type - the type to find the version of which has the specified contextual immutability
+   * Finds the equivalent of the specified type with the specified immutability throughout.
+   * If the provided type already has the desired immutability, then the resulting type may be equivalent to the original type,
+   * even if the purpose of the call was to find a type without contextual immutability and the original type was contextually immutable; this is because an explicitly
+   * immutable type must always be contextually immutable, and this function does not remove explicit immutability.
+   * @param type - the type to find the altered version of
+   * @param addExplicitImmutability - true if the result should be explicitly immutable even if the original type was not
    * @param contextuallyImmutable - true if the returned type should be contextually immutable, false otherwise
    * @return the version of the specified type with the specified contextual immutability, or the original type if it already has the requested contextual immutability
    */
-  public static Type findTypeWithDeepContextualImmutability(Type type, boolean contextuallyImmutable)
+  private static Type findTypeWithDeepImmutability(Type type, boolean addExplicitImmutability, boolean contextuallyImmutable)
   {
     if (type instanceof ArrayType)
     {
       ArrayType arrayType = (ArrayType) type;
-      if (arrayType.isContextuallyImmutable() == contextuallyImmutable)
+      if (arrayType.isContextuallyImmutable() == contextuallyImmutable && (!addExplicitImmutability || arrayType.isExplicitlyImmutable()))
       {
         return arrayType;
       }
-      Type baseType = findTypeWithDeepContextualImmutability(arrayType.getBaseType(), contextuallyImmutable);
+      Type baseType = findTypeWithDeepImmutability(arrayType.getBaseType(), addExplicitImmutability, contextuallyImmutable);
       return new ArrayType(arrayType.isNullable(), arrayType.isExplicitlyImmutable(), contextuallyImmutable, baseType, null);
     }
     if (type instanceof NamedType)
     {
       NamedType namedType = (NamedType) type;
-      if (namedType.isContextuallyImmutable() == contextuallyImmutable)
+      if (namedType.isContextuallyImmutable() == contextuallyImmutable && (!addExplicitImmutability || namedType.isExplicitlyImmutable()))
       {
         return namedType;
       }
-      return new NamedType(namedType.isNullable(), namedType.isExplicitlyImmutable(), contextuallyImmutable, namedType.getResolvedTypeDefinition());
+      return new NamedType(namedType.isNullable(), namedType.isExplicitlyImmutable() || addExplicitImmutability, contextuallyImmutable, namedType.getResolvedTypeDefinition());
     }
     if (type instanceof ObjectType)
     {
       ObjectType objectType = (ObjectType) type;
-      if (objectType.isContextuallyImmutable() == contextuallyImmutable)
+      if (objectType.isContextuallyImmutable() == contextuallyImmutable && (!addExplicitImmutability || objectType.isExplicitlyImmutable()))
       {
         return objectType;
       }
-      return new ObjectType(objectType.isNullable(), objectType.isExplicitlyImmutable(), contextuallyImmutable, null);
+      return new ObjectType(objectType.isNullable(), objectType.isExplicitlyImmutable() || addExplicitImmutability, contextuallyImmutable, null);
     }
     if (type instanceof TupleType)
     {
@@ -2687,7 +2866,7 @@ public class TypeChecker
       Type[] alteredSubTypes = new Type[subTypes.length];
       for (int i = 0; i < subTypes.length; ++i)
       {
-        alteredSubTypes[i] = findTypeWithDeepContextualImmutability(subTypes[i], contextuallyImmutable);
+        alteredSubTypes[i] = findTypeWithDeepImmutability(subTypes[i], addExplicitImmutability, contextuallyImmutable);
       }
       return new TupleType(tupleType.isNullable(), alteredSubTypes, null);
     }
@@ -2696,7 +2875,7 @@ public class TypeChecker
       // return the original type, since none of these sorts of type have a concept of contextual immutability
       return type;
     }
-    throw new IllegalArgumentException("Cannot find the " + (contextuallyImmutable ? "" : "non-") + "contextually-immutable version of: " + type);
+    throw new IllegalArgumentException("Cannot change the immutability of: " + type);
   }
 
   /**

@@ -2,6 +2,7 @@ package eu.bryants.anthony.plinth.ast.metadata;
 
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.Field;
+import eu.bryants.anthony.plinth.ast.member.Property;
 
 /*
  * Created on 28 May 2012
@@ -15,12 +16,18 @@ public class GlobalVariable extends Variable
 
   private TypeDefinition enclosingTypeDefinition;
   private Field field;
+  private Property property;
 
-  public GlobalVariable(Field field, TypeDefinition enclosingTypeDefinition)
+  public GlobalVariable(Field field)
   {
     super(field.isFinal(), field.getType(), field.getName());
-    this.enclosingTypeDefinition = enclosingTypeDefinition;
     this.field = field;
+  }
+
+  public GlobalVariable(Property property)
+  {
+    super(false, property.getType(), property.getName());
+    this.property = property;
   }
 
   /**
@@ -32,6 +39,14 @@ public class GlobalVariable extends Variable
   }
 
   /**
+   * @param enclosingTypeDefinition - the enclosingTypeDefinition to set
+   */
+  public void setEnclosingTypeDefinition(TypeDefinition enclosingTypeDefinition)
+  {
+    this.enclosingTypeDefinition = enclosingTypeDefinition;
+  }
+
+  /**
    * @return the field
    */
   public Field getField()
@@ -40,11 +55,19 @@ public class GlobalVariable extends Variable
   }
 
   /**
+   * @return the property
+   */
+  public Property getProperty()
+  {
+    return property;
+  }
+
+  /**
    * @return the mangled name of this global variable
    */
   public String getMangledName()
   {
-    return "_G" + enclosingTypeDefinition.getQualifiedName().getMangledName() + '_' + field.getName() + '_' + getType().getMangledName();
+    return "_G" + enclosingTypeDefinition.getQualifiedName().getMangledName() + '_' + getName() + '_' + getType().getMangledName();
   }
 
 }

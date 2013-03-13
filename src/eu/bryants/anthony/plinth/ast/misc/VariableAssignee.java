@@ -15,6 +15,7 @@ public class VariableAssignee extends Assignee
   private String variableName;
 
   private Variable resolvedVariable;
+  private boolean isPropertyConstructorCall;
 
   public VariableAssignee(String variableName, LexicalPhrase lexicalPhrase)
   {
@@ -44,6 +45,22 @@ public class VariableAssignee extends Assignee
   public void setResolvedVariable(Variable resolvedVariable)
   {
     this.resolvedVariable = resolvedVariable;
+  }
+
+  /**
+   * @return the isPropertyConstructorCall
+   */
+  public boolean isPropertyConstructorCall()
+  {
+    return isPropertyConstructorCall;
+  }
+
+  /**
+   * @param isPropertyConstructorCall - the isPropertyConstructorCall to set
+   */
+  public void setPropertyConstructorCall(boolean isPropertyConstructorCall)
+  {
+    this.isPropertyConstructorCall = isPropertyConstructorCall;
   }
 
   /**

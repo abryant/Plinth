@@ -231,6 +231,8 @@ public class MethodRule extends Rule<ParseType>
           }
           isStatic = true;
           break;
+        case UNBACKED:
+          throw new LanguageParseException("Unexpected modifier: Methods cannot be unbacked", modifier.getLexicalPhrase());
         default:
           throw new IllegalStateException("Unknown modifier: " + modifier);
         }

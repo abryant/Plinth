@@ -61,9 +61,13 @@ import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
 import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
+import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
+import eu.bryants.anthony.plinth.ast.metadata.PropertyPseudoVariable;
 import eu.bryants.anthony.plinth.ast.metadata.Variable;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
@@ -169,6 +173,7 @@ public class CodeGenerator
       addInitialiserBody(false); // add the non-static initialisers (but not for interfaces)
     }
     addConstructorBodies();
+    addPropertyFunctionBodies();
     addMethodBodies();
 
     // set the llvm.global_ctors variable, to contain things which need to run before main()
@@ -215,6 +220,13 @@ public class CodeGenerator
       if (field.isStatic())
       {
         getGlobal(field.getGlobalVariable());
+      }
+    }
+    for (Property property : typeDefinition.getProperties())
+    {
+      if (property.isStatic() && !property.isUnbacked())
+      {
+        getGlobal(property.getBackingGlobalVariable());
       }
     }
 
@@ -266,6 +278,22 @@ public class CodeGenerator
     for (Constructor constructor : typeDefinition.getAllConstructors())
     {
       getConstructorFunction(constructor);
+    }
+    for (Property property : typeDefinition.getProperties())
+    {
+      if (property.isAbstract())
+      {
+        continue;
+      }
+      getPropertyGetterFunction(property);
+      if (!property.isFinal())
+      {
+        getPropertySetterFunction(property);
+      }
+      if (property.hasConstructor())
+      {
+        getPropertyConstructorFunction(property);
+      }
     }
     for (Method method : typeDefinition.getAllMethods())
     {
@@ -407,6 +435,81 @@ public class CodeGenerator
       LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, 1 + i);
       LLVM.LLVMSetValueName(parameter, parameters[i].getName());
     }
+    return llvmFunc;
+  }
+
+  /**
+   * Gets the function declaration for the specified Property getter.
+   * @param property - the Property to find the declaration of the getter for
+   * @return the function declaration for the getter of the specified Property
+   */
+  LLVMValueRef getPropertyGetterFunction(Property property)
+  {
+    if (property.isAbstract())
+    {
+      throw new IllegalArgumentException("Abstract properties do not have LLVM functions: " + property);
+    }
+    String mangledName = property.getGetterMangledName();
+    LLVMValueRef existingFunc = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunc != null)
+    {
+      return existingFunc;
+    }
+    LLVMTypeRef functionType = typeHelper.findPropertyGetterType(property);
+
+    LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, mangledName, functionType);
+    LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
+    LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), property.isStatic() ? "unused" : "this");
+    return llvmFunc;
+  }
+
+  /**
+   * Gets the function declaration for the specified Property setter.
+   * @param property - the Property to find the declaration of the setter for
+   * @return the function declaration for the setter of the specified Property
+   */
+  LLVMValueRef getPropertySetterFunction(Property property)
+  {
+    if (property.isAbstract())
+    {
+      throw new IllegalArgumentException("Abstract properties do not have LLVM functions: " + property);
+    }
+    String mangledName = property.getSetterMangledName();
+    LLVMValueRef existingFunc = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunc != null)
+    {
+      return existingFunc;
+    }
+    LLVMTypeRef functionType = typeHelper.findPropertySetterConstructorType(property);
+
+    LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, mangledName, functionType);
+    LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
+    LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), property.isStatic() ? "unused" : "this");
+    return llvmFunc;
+  }
+
+  /**
+   * Gets the function declaration for the specified Property constructor.
+   * @param property - the Property to find the declaration of the constructor for
+   * @return the function declaration for the constructor of the specified Property
+   */
+  LLVMValueRef getPropertyConstructorFunction(Property property)
+  {
+    if (property.isAbstract())
+    {
+      throw new IllegalArgumentException("Abstract properties do not have LLVM functions: " + property);
+    }
+    String mangledName = property.getConstructorMangledName();
+    LLVMValueRef existingFunc = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunc != null)
+    {
+      return existingFunc;
+    }
+    LLVMTypeRef functionType = typeHelper.findPropertySetterConstructorType(property);
+
+    LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, mangledName, functionType);
+    LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
+    LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), property.isStatic() ? "unused" : "this");
     return llvmFunc;
   }
 
@@ -752,10 +855,33 @@ public class CodeGenerator
         }
         else
         {
-          assigneePointer = typeHelper.getFieldPointer(builder, thisValue, field);
+          assigneePointer = typeHelper.getMemberPointer(builder, thisValue, field.getMemberVariable());
         }
         LLVMValueRef convertedValue = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, result, field.getInitialiserExpression().getType(), field.getType());
         LLVM.LLVMBuildStore(builder, convertedValue, assigneePointer);
+      }
+      else if (initialiser instanceof PropertyInitialiser)
+      {
+        Property property = ((PropertyInitialiser) initialiser).getProperty();
+        LLVMValueRef result = buildExpression(property.getInitialiserExpression(), builder, thisValue, new HashMap<Variable, LLVMValueRef>(), landingPadContainer);
+        result = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, result, property.getInitialiserExpression().getType(), property.getType());
+
+        boolean isConstructorCall = ((PropertyInitialiser) initialiser).isPropertyConstructorCall();
+        LLVMValueRef convertedThisValue;
+        LLVMValueRef function;
+        if (property.isStatic())
+        {
+          function = isConstructorCall ? getPropertyConstructorFunction(property) : getPropertySetterFunction(property);
+          convertedThisValue = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
+        }
+        else
+        {
+          MemberFunction propertyFunction = isConstructorCall ? property.getConstructorMemberFunction() : property.getSetterMemberFunction();
+          function = virtualFunctionHandler.getPropertyFuntionPointer(builder, landingPadContainer, thisValue, new NamedType(false, false, typeDefinition), propertyFunction);
+          convertedThisValue = typeHelper.convertPropertyCallee(builder, landingPadContainer, thisValue, new NamedType(false, false, typeDefinition), property);
+        }
+        LLVMValueRef[] arguments = new LLVMValueRef[] {convertedThisValue, result};
+        LLVM.LLVMBuildCall(builder, function, C.toNativePointerArray(arguments, false, true), arguments.length, "");
       }
       else
       {
@@ -929,6 +1055,279 @@ public class CodeGenerator
 
       LLVM.LLVMDisposeBuilder(builder);
     }
+  }
+
+  private void addPropertyFunctionBodies()
+  {
+    for (Property property : typeDefinition.getProperties())
+    {
+      if (property.isAbstract())
+      {
+        continue;
+      }
+      addPropertyGetterFunction(property);
+      if (!property.isFinal())
+      {
+        addPropertySetterFunction(property);
+      }
+      if (property.hasConstructor())
+      {
+        addPropertyConstructorFunction(property);
+      }
+    }
+  }
+
+  private void addPropertyGetterFunction(Property property)
+  {
+    LLVMValueRef function = getPropertyGetterFunction(property);
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(function);
+
+    if (property.getGetterBlock() == null)
+    {
+      if (property.isUnbacked())
+      {
+        throw new IllegalArgumentException("Cannot generate a default getter for an unbacked property");
+      }
+      LLVMValueRef variable;
+      if (property.isStatic())
+      {
+        variable = getGlobal(property.getBackingGlobalVariable());
+      }
+      else
+      {
+        LLVMValueRef thisValue = LLVM.LLVMGetParam(function, 0);
+        // no need to convert thisValue to anything here, as its type is already the containing type of the property,
+        // and it cannot be an interface type, since interfaces cannot have backed properties
+        variable = typeHelper.getMemberPointer(builder, thisValue, property.getBackingMemberVariable());
+      }
+      LLVMValueRef loaded = LLVM.LLVMBuildLoad(builder, variable, "");
+      LLVM.LLVMBuildRet(builder, loaded);
+      LLVM.LLVMDisposeBuilder(builder);
+      return;
+    }
+
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+
+    // create LLVMValueRefs for all of the variables, including parameters
+    Map<Variable, LLVMValueRef> variables = new HashMap<Variable, LLVM.LLVMValueRef>();
+    for (Variable v : Resolver.getAllNestedVariables(property.getGetterBlock()))
+    {
+      LLVMValueRef allocaInst = LLVM.LLVMBuildAlloca(builder, typeHelper.findTemporaryType(v.getType()), v.getName());
+      variables.put(v, allocaInst);
+    }
+
+    LLVMValueRef thisValue = property.isStatic() ? null : LLVM.LLVMGetParam(function, 0);
+
+    // convert interface callees from object to their temporary representation
+    if (!property.isStatic() && property.getContainingTypeDefinition() instanceof InterfaceDefinition)
+    {
+      thisValue = typeHelper.convertTemporary(builder, landingPadContainer, thisValue,
+                                              new ObjectType(false, property.isGetterImmutable(), null), new NamedType(false, property.isGetterImmutable(), property.getContainingTypeDefinition()));
+    }
+
+    buildStatement(property.getGetterBlock(), property.getType(), builder, thisValue, variables, landingPadContainer,
+                   new HashMap<TryStatement, LLVMBasicBlockRef>(), new HashMap<TryStatement, LLVMValueRef>(), new HashMap<TryStatement, List<LLVMBasicBlockRef>>(),
+                   new HashMap<BreakableStatement, LLVMBasicBlockRef>(), new HashMap<BreakableStatement, LLVMBasicBlockRef>(),
+                   new Runnable()
+    {
+      @Override
+      public void run()
+      {
+        throw new IllegalStateException("A property getter cannot return void");
+      }
+    });
+    if (!property.getGetterBlock().stopsExecution())
+    {
+      throw new IllegalStateException("A property getter must always return a value");
+    }
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+  }
+
+  private void addPropertySetterFunction(Property property)
+  {
+    LLVMValueRef function = getPropertySetterFunction(property);
+    final LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(function);
+
+    if (property.getSetterBlock() == null)
+    {
+      if (property.isUnbacked())
+      {
+        throw new IllegalArgumentException("Cannot generate a default setter for an unbacked property");
+      }
+      LLVMValueRef newValue = LLVM.LLVMGetParam(function, 1);
+      LLVMValueRef variable;
+      if (property.isStatic())
+      {
+        variable = getGlobal(property.getBackingGlobalVariable());
+      }
+      else
+      {
+        LLVMValueRef thisValue = LLVM.LLVMGetParam(function, 0);
+        // no need to convert thisValue to anything here, as its type is already the containing type of the property,
+        // and it cannot be an interface type, since interfaces cannot have backed properties
+        variable = typeHelper.getMemberPointer(builder, thisValue, property.getBackingMemberVariable());
+      }
+      LLVM.LLVMBuildStore(builder, newValue, variable);
+      LLVM.LLVMBuildRetVoid(builder);
+      LLVM.LLVMDisposeBuilder(builder);
+      return;
+    }
+
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+
+    // create LLVMValueRefs for all of the variables, including parameters
+    Map<Variable, LLVMValueRef> variables = new HashMap<Variable, LLVM.LLVMValueRef>();
+    for (Variable v : Resolver.getAllNestedVariables(property.getSetterBlock()))
+    {
+      LLVMValueRef allocaInst = LLVM.LLVMBuildAlloca(builder, typeHelper.findTemporaryType(v.getType()), v.getName());
+      variables.put(v, allocaInst);
+    }
+
+    // store the parameter's value in its variable
+    LLVMValueRef llvmParameter = LLVM.LLVMGetParam(function, 1);
+    LLVMValueRef convertedParameter = typeHelper.convertStandardToTemporary(builder, llvmParameter, property.getType());
+    LLVM.LLVMBuildStore(builder, convertedParameter, variables.get(property.getSetterParameter().getVariable()));
+
+    LLVMValueRef thisValue = property.isStatic() ? null : LLVM.LLVMGetParam(function, 0);
+
+    // convert interface callees from object to their temporary representation
+    if (!property.isStatic() && property.getContainingTypeDefinition() instanceof InterfaceDefinition)
+    {
+      thisValue = typeHelper.convertTemporary(builder, landingPadContainer, thisValue,
+                                              new ObjectType(false, property.isSetterImmutable(), null), new NamedType(false, property.isSetterImmutable(), property.getContainingTypeDefinition()));
+    }
+
+    buildStatement(property.getSetterBlock(), property.getType(), builder, thisValue, variables, landingPadContainer,
+                   new HashMap<TryStatement, LLVMBasicBlockRef>(), new HashMap<TryStatement, LLVMValueRef>(), new HashMap<TryStatement, List<LLVMBasicBlockRef>>(),
+                   new HashMap<BreakableStatement, LLVMBasicBlockRef>(), new HashMap<BreakableStatement, LLVMBasicBlockRef>(),
+                   new Runnable()
+    {
+      @Override
+      public void run()
+      {
+        // this will be run whenever a return void is found
+        // so return void
+        LLVM.LLVMBuildRetVoid(builder);
+      }
+    });
+    // add a "ret void" if control reaches the end of the function
+    if (!property.getSetterBlock().stopsExecution())
+    {
+      LLVM.LLVMBuildRetVoid(builder);
+    }
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+  }
+
+  private void addPropertyConstructorFunction(Property property)
+  {
+    LLVMValueRef function = getPropertyConstructorFunction(property);
+    final LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(function);
+
+    Parameter implementationParameter = property.getConstructorParameter();
+    Block implementationBlock = property.getConstructorBlock();
+    if (implementationBlock == null)
+    {
+      implementationParameter = property.getSetterParameter();
+      implementationBlock = property.getSetterBlock();
+    }
+    if (implementationBlock == null)
+    {
+      if (property.isUnbacked())
+      {
+        throw new IllegalArgumentException("Cannot generate a default constructor for an unbacked property");
+      }
+      LLVMValueRef newValue = LLVM.LLVMGetParam(function, 1);
+      LLVMValueRef variable;
+      if (property.isStatic())
+      {
+        variable = getGlobal(property.getBackingGlobalVariable());
+      }
+      else
+      {
+        LLVMValueRef thisValue = LLVM.LLVMGetParam(function, 0);
+        // no need to convert thisValue to anything here, as its type is already the containing type of the property,
+        // and it cannot be an interface type, since interfaces cannot have backed properties
+        variable = typeHelper.getMemberPointer(builder, thisValue, property.getBackingMemberVariable());
+      }
+      LLVM.LLVMBuildStore(builder, newValue, variable);
+      LLVM.LLVMBuildRetVoid(builder);
+      LLVM.LLVMDisposeBuilder(builder);
+      return;
+    }
+
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+
+    // create LLVMValueRefs for all of the variables, including parameters
+    Map<Variable, LLVMValueRef> variables = new HashMap<Variable, LLVM.LLVMValueRef>();
+    for (Variable v : Resolver.getAllNestedVariables(implementationBlock))
+    {
+      LLVMValueRef allocaInst = LLVM.LLVMBuildAlloca(builder, typeHelper.findTemporaryType(v.getType()), v.getName());
+      variables.put(v, allocaInst);
+    }
+
+    // store the parameter's value in its variable
+    LLVMValueRef llvmParameter = LLVM.LLVMGetParam(function, 1);
+    LLVMValueRef convertedParameter = typeHelper.convertStandardToTemporary(builder, llvmParameter, property.getType());
+    LLVM.LLVMBuildStore(builder, convertedParameter, variables.get(implementationParameter.getVariable()));
+
+    LLVMValueRef thisValue = property.isStatic() ? null : LLVM.LLVMGetParam(function, 0);
+
+    // convert interface callees from object to their temporary representation
+    if (!property.isStatic() && property.getContainingTypeDefinition() instanceof InterfaceDefinition)
+    {
+      thisValue = typeHelper.convertTemporary(builder, landingPadContainer, thisValue,
+                                              new ObjectType(false, property.isConstructorImmutable(), null), new NamedType(false, property.isConstructorImmutable(), property.getContainingTypeDefinition()));
+    }
+
+    buildStatement(implementationBlock, property.getType(), builder, thisValue, variables, landingPadContainer,
+                   new HashMap<TryStatement, LLVMBasicBlockRef>(), new HashMap<TryStatement, LLVMValueRef>(), new HashMap<TryStatement, List<LLVMBasicBlockRef>>(),
+                   new HashMap<BreakableStatement, LLVMBasicBlockRef>(), new HashMap<BreakableStatement, LLVMBasicBlockRef>(),
+                   new Runnable()
+    {
+      @Override
+      public void run()
+      {
+        // this will be run whenever a return void is found
+        // so return void
+        LLVM.LLVMBuildRetVoid(builder);
+      }
+    });
+    // add a "ret void" if control reaches the end of the function
+    if (!implementationBlock.stopsExecution())
+    {
+      LLVM.LLVMBuildRetVoid(builder);
+    }
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
   }
 
   private void addMethodBodies()
@@ -1475,6 +1874,8 @@ public class CodeGenerator
       Assignee[] assignees = assignStatement.getAssignees();
       LLVMValueRef[] llvmAssigneePointers = new LLVMValueRef[assignees.length];
       boolean[] standardTypeRepresentations = new boolean[assignees.length];
+      LLVMValueRef[] assigneePropertyCallees = new LLVMValueRef[assignees.length];
+      LLVMValueRef[] assigneePropertySetters = new LLVMValueRef[assignees.length];
       for (int i = 0; i < assignees.length; i++)
       {
         if (assignees[i] instanceof VariableAssignee)
@@ -1482,13 +1883,29 @@ public class CodeGenerator
           Variable resolvedVariable = ((VariableAssignee) assignees[i]).getResolvedVariable();
           if (resolvedVariable instanceof MemberVariable)
           {
-            Field field = ((MemberVariable) resolvedVariable).getField();
-            llvmAssigneePointers[i] = typeHelper.getFieldPointer(builder, thisValue, field);
+            llvmAssigneePointers[i] = typeHelper.getMemberPointer(builder, thisValue, (MemberVariable) resolvedVariable);
             standardTypeRepresentations[i] = true;
           }
           else if (resolvedVariable instanceof GlobalVariable)
           {
             llvmAssigneePointers[i] = getGlobal((GlobalVariable) resolvedVariable);
+            standardTypeRepresentations[i] = true;
+          }
+          else if (resolvedVariable instanceof PropertyPseudoVariable)
+          {
+            Property property = ((PropertyPseudoVariable) resolvedVariable).getProperty();
+            boolean isPropertyConstructor = ((VariableAssignee) assignees[i]).isPropertyConstructorCall();
+            if (property.isStatic())
+            {
+              assigneePropertySetters[i] = isPropertyConstructor ? getPropertyConstructorFunction(property) : getPropertySetterFunction(property);
+              assigneePropertyCallees[i] = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
+            }
+            else
+            {
+              MemberFunction propertySetterFunction = isPropertyConstructor ? property.getConstructorMemberFunction() : property.getSetterMemberFunction();
+              assigneePropertySetters[i] = virtualFunctionHandler.getPropertyFuntionPointer(builder, landingPadContainer, thisValue, new NamedType(false, false, typeDefinition), propertySetterFunction);
+              assigneePropertyCallees[i] = typeHelper.convertPropertyCallee(builder, landingPadContainer, thisValue, new NamedType(false, false, typeDefinition), property);
+            }
             standardTypeRepresentations[i] = true;
           }
           else
@@ -1521,9 +1938,27 @@ public class CodeGenerator
             else
             {
               LLVMValueRef expressionValue = buildExpression(fieldAccessExpression.getBaseExpression(), builder, thisValue, variables, landingPadContainer);
-              llvmAssigneePointers[i] = typeHelper.getFieldPointer(builder, expressionValue, field);
+              llvmAssigneePointers[i] = typeHelper.getMemberPointer(builder, expressionValue, field.getMemberVariable());
               standardTypeRepresentations[i] = true;
             }
+          }
+          else if (fieldAccessExpression.getResolvedMember() instanceof Property)
+          {
+            Property property = (Property) fieldAccessExpression.getResolvedMember();
+            boolean isPropertyConstructor = fieldAssignee.isPropertyConstructorCall();
+            if (property.isStatic())
+            {
+              assigneePropertySetters[i] = isPropertyConstructor ? getPropertyConstructorFunction(property) : getPropertySetterFunction(property);
+              assigneePropertyCallees[i] = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
+            }
+            else
+            {
+              MemberFunction propertySetterFunction = isPropertyConstructor ? property.getConstructorMemberFunction() : property.getSetterMemberFunction();
+              assigneePropertyCallees[i] = buildExpression(fieldAccessExpression.getBaseExpression(), builder, thisValue, variables, landingPadContainer);
+              assigneePropertySetters[i] = virtualFunctionHandler.getPropertyFuntionPointer(builder, landingPadContainer, assigneePropertyCallees[i], fieldAccessExpression.getBaseExpression().getType(), propertySetterFunction);
+              assigneePropertyCallees[i] = typeHelper.convertPropertyCallee(builder, landingPadContainer, assigneePropertyCallees[i], fieldAccessExpression.getBaseExpression().getType(), property);
+            }
+            standardTypeRepresentations[i] = true;
           }
           else
           {
@@ -1547,7 +1982,7 @@ public class CodeGenerator
         LLVMValueRef value = buildExpression(assignStatement.getExpression(), builder, thisValue, variables, landingPadContainer);
         if (llvmAssigneePointers.length == 1)
         {
-          if (llvmAssigneePointers[0] != null)
+          if (llvmAssigneePointers[0] != null || assigneePropertySetters[0] != null)
           {
             LLVMValueRef convertedValue;
             if (standardTypeRepresentations[0])
@@ -1558,8 +1993,18 @@ public class CodeGenerator
             {
               convertedValue = typeHelper.convertTemporary(builder, landingPadContainer, value, assignStatement.getExpression().getType(), assignees[0].getResolvedType());
             }
-            // TODO: compound types should be copied here, rather than having their pointer copied
-            LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[0]);
+            if (llvmAssigneePointers[0] != null)
+            {
+              // TODO: compound types should be copied here, rather than having their pointer copied
+              LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[0]);
+            }
+            else // assigneePropertySetters[0] != null
+            {
+              LLVMValueRef[] setterArguments = new LLVMValueRef[] {assigneePropertyCallees[0], convertedValue};
+              LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "propertySetInvokeContinue");
+              LLVM.LLVMBuildInvoke(builder, assigneePropertySetters[0], C.toNativePointerArray(setterArguments, false, true), setterArguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+              LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
+            }
           }
         }
         else
@@ -1571,7 +2016,7 @@ public class CodeGenerator
           Type[] expressionSubTypes = ((TupleType) assignStatement.getExpression().getType()).getSubTypes();
           for (int i = 0; i < llvmAssigneePointers.length; i++)
           {
-            if (llvmAssigneePointers[i] != null)
+            if (llvmAssigneePointers[i] != null || assigneePropertySetters[i] != null)
             {
               LLVMValueRef extracted = LLVM.LLVMBuildExtractValue(builder, value, i, "");
               LLVMValueRef convertedValue;
@@ -1583,7 +2028,18 @@ public class CodeGenerator
               {
                 convertedValue = typeHelper.convertTemporary(builder, landingPadContainer, extracted, expressionSubTypes[i], assignees[i].getResolvedType());
               }
-              LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[i]);
+              if (llvmAssigneePointers[i] != null)
+              {
+                // TODO: compound types should be copied here, rather than having their pointer copied
+                LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[i]);
+              }
+              else // assigneePropertySetters[i] != null
+              {
+                LLVMValueRef[] setterArguments = new LLVMValueRef[] {assigneePropertyCallees[i], convertedValue};
+                LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "propertySetInvokeContinue");
+                LLVM.LLVMBuildInvoke(builder, assigneePropertySetters[i], C.toNativePointerArray(setterArguments, false, true), setterArguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+                LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
+              }
             }
           }
         }
@@ -1843,20 +2299,41 @@ public class CodeGenerator
     {
       PrefixIncDecStatement prefixIncDecStatement = (PrefixIncDecStatement) statement;
       Assignee assignee = prefixIncDecStatement.getAssignee();
-      LLVMValueRef pointer;
+      LLVMValueRef pointer = null;
+      LLVMValueRef propertyCallee = null;
+      LLVMValueRef propertyGetterFunction = null;
+      LLVMValueRef propertySetterFunction = null;
       boolean standardTypeRepresentation = false;
       if (assignee instanceof VariableAssignee)
       {
         Variable resolvedVariable = ((VariableAssignee) assignee).getResolvedVariable();
         if (resolvedVariable instanceof MemberVariable)
         {
-          Field field = ((MemberVariable) resolvedVariable).getField();
-          pointer = typeHelper.getFieldPointer(builder, thisValue, field);
+          pointer = typeHelper.getMemberPointer(builder, thisValue, (MemberVariable) resolvedVariable);
           standardTypeRepresentation = true;
         }
         else if (resolvedVariable instanceof GlobalVariable)
         {
           pointer = getGlobal((GlobalVariable) resolvedVariable);
+          standardTypeRepresentation = true;
+        }
+        else if (resolvedVariable instanceof PropertyPseudoVariable)
+        {
+          Property property = ((PropertyPseudoVariable) resolvedVariable).getProperty();
+          boolean isPropertyConstructor = ((VariableAssignee) assignee).isPropertyConstructorCall();
+          if (property.isStatic())
+          {
+            propertyGetterFunction = getPropertyGetterFunction(property);
+            propertySetterFunction = isPropertyConstructor ? getPropertyConstructorFunction(property) : getPropertySetterFunction(property);
+            propertyCallee = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
+          }
+          else
+          {
+            propertyGetterFunction = virtualFunctionHandler.getPropertyFuntionPointer(builder, landingPadContainer, thisValue, new NamedType(false, false, typeDefinition), property.getGetterMemberFunction());
+            MemberFunction setterMemberFunction = isPropertyConstructor ? property.getConstructorMemberFunction() : property.getSetterMemberFunction();
+            propertySetterFunction = virtualFunctionHandler.getPropertyFuntionPointer(builder, landingPadContainer, thisValue, new NamedType(false, false, typeDefinition), setterMemberFunction);
+            propertyCallee = typeHelper.convertPropertyCallee(builder, landingPadContainer, thisValue, new NamedType(false, false, typeDefinition), property);
+          }
           standardTypeRepresentation = true;
         }
         else
@@ -1889,9 +2366,29 @@ public class CodeGenerator
           else
           {
             LLVMValueRef expressionValue = buildExpression(fieldAccessExpression.getBaseExpression(), builder, thisValue, variables, landingPadContainer);
-            pointer = typeHelper.getFieldPointer(builder, expressionValue, field);
+            pointer = typeHelper.getMemberPointer(builder, expressionValue, field.getMemberVariable());
             standardTypeRepresentation = true;
           }
+        }
+        else if (fieldAccessExpression.getResolvedMember() instanceof Property)
+        {
+          Property property = (Property) fieldAccessExpression.getResolvedMember();
+          boolean isPropertyConstructor = ((FieldAssignee) assignee).isPropertyConstructorCall();
+          if (property.isStatic())
+          {
+            propertyGetterFunction = getPropertyGetterFunction(property);
+            propertySetterFunction = isPropertyConstructor ? getPropertyConstructorFunction(property) : getPropertySetterFunction(property);
+            propertyCallee = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
+          }
+          else
+          {
+            propertyCallee = buildExpression(fieldAccessExpression.getBaseExpression(), builder, thisValue, variables, landingPadContainer);
+            propertyGetterFunction = virtualFunctionHandler.getPropertyFuntionPointer(builder, landingPadContainer, propertyCallee, fieldAccessExpression.getBaseExpression().getType(), property.getGetterMemberFunction());
+            MemberFunction setterMemberFunction = isPropertyConstructor ? property.getConstructorMemberFunction() : property.getSetterMemberFunction();
+            propertySetterFunction = virtualFunctionHandler.getPropertyFuntionPointer(builder, landingPadContainer, propertyCallee, fieldAccessExpression.getBaseExpression().getType(), setterMemberFunction);
+            propertyCallee = typeHelper.convertPropertyCallee(builder, landingPadContainer, propertyCallee, fieldAccessExpression.getBaseExpression().getType(), property);
+          }
+          standardTypeRepresentation = true;
         }
         else
         {
@@ -1903,8 +2400,23 @@ public class CodeGenerator
         // ignore blank assignees, they shouldn't be able to get through variable resolution
         throw new IllegalStateException("Unknown Assignee type: " + assignee);
       }
-      LLVMValueRef loaded = LLVM.LLVMBuildLoad(builder, pointer, "");
+      LLVMValueRef loaded;
+      if (pointer != null)
+      {
+        loaded = LLVM.LLVMBuildLoad(builder, pointer, "");
+      }
+      else // propertyGetterFunction != null
+      {
+        LLVMValueRef[] getterArguments = new LLVMValueRef[] {propertyCallee};
+        LLVMBasicBlockRef getterInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "propertyGetterInvokeContinue");
+        loaded = LLVM.LLVMBuildInvoke(builder, propertyGetterFunction, C.toNativePointerArray(getterArguments, false, true), getterArguments.length, getterInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+        LLVM.LLVMPositionBuilderAtEnd(builder, getterInvokeContinueBlock);
+      }
       PrimitiveType type = (PrimitiveType) assignee.getResolvedType();
+      if (standardTypeRepresentation)
+      {
+        loaded = typeHelper.convertStandardToTemporary(builder, loaded, type);
+      }
       LLVMValueRef result;
       if (type.getPrimitiveTypeType().isFloating())
       {
@@ -1934,7 +2446,17 @@ public class CodeGenerator
       {
         result = typeHelper.convertTemporaryToStandard(builder, result, type);
       }
-      LLVM.LLVMBuildStore(builder, result, pointer);
+      if (pointer != null)
+      {
+        LLVM.LLVMBuildStore(builder, result, pointer);
+      }
+      else // propertySetterFunction != null
+      {
+        LLVMValueRef[] setterArguments = new LLVMValueRef[] {propertyCallee, result};
+        LLVMBasicBlockRef setterInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "propertySetterInvokeContinue");
+        LLVM.LLVMBuildInvoke(builder, propertySetterFunction, C.toNativePointerArray(setterArguments, false, true), setterArguments.length, setterInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+        LLVM.LLVMPositionBuilderAtEnd(builder, setterInvokeContinueBlock);
+      }
     }
     else if (statement instanceof ReturnStatement)
     {
@@ -2018,6 +2540,9 @@ public class CodeGenerator
       ShorthandAssignStatement shorthandAssignStatement = (ShorthandAssignStatement) statement;
       Assignee[] assignees = shorthandAssignStatement.getAssignees();
       LLVMValueRef[] llvmAssigneePointers = new LLVMValueRef[assignees.length];
+      LLVMValueRef[] llvmPropertyCallees = new LLVMValueRef[assignees.length];
+      LLVMValueRef[] llvmGetterFunctions = new LLVMValueRef[assignees.length];
+      LLVMValueRef[] llvmSetterFunctions = new LLVMValueRef[assignees.length];
       boolean[] standardTypeRepresentations = new boolean[assignees.length];
       for (int i = 0; i < assignees.length; ++i)
       {
@@ -2026,13 +2551,31 @@ public class CodeGenerator
           Variable resolvedVariable = ((VariableAssignee) assignees[i]).getResolvedVariable();
           if (resolvedVariable instanceof MemberVariable)
           {
-            Field field = ((MemberVariable) resolvedVariable).getField();
-            llvmAssigneePointers[i] = typeHelper.getFieldPointer(builder, thisValue, field);
+            llvmAssigneePointers[i] = typeHelper.getMemberPointer(builder, thisValue, (MemberVariable) resolvedVariable);
             standardTypeRepresentations[i] = true;
           }
           else if (resolvedVariable instanceof GlobalVariable)
           {
             llvmAssigneePointers[i] = getGlobal((GlobalVariable) resolvedVariable);
+            standardTypeRepresentations[i] = true;
+          }
+          else if (resolvedVariable instanceof PropertyPseudoVariable)
+          {
+            Property property = ((PropertyPseudoVariable) resolvedVariable).getProperty();
+            boolean isPropertyConstructor = ((VariableAssignee) assignees[i]).isPropertyConstructorCall();
+            if (property.isStatic())
+            {
+              llvmGetterFunctions[i] = getPropertyGetterFunction(property);
+              llvmSetterFunctions[i] = isPropertyConstructor ? getPropertyConstructorFunction(property) : getPropertySetterFunction(property);
+              llvmPropertyCallees[i] = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
+            }
+            else
+            {
+              llvmGetterFunctions[i] = virtualFunctionHandler.getPropertyFuntionPointer(builder, landingPadContainer, thisValue, new NamedType(false, false, typeDefinition), property.getGetterMemberFunction());
+              MemberFunction setterMemberFunction = isPropertyConstructor ? property.getConstructorMemberFunction() : property.getSetterMemberFunction();
+              llvmSetterFunctions[i] = virtualFunctionHandler.getPropertyFuntionPointer(builder, landingPadContainer, thisValue, new NamedType(false, false, typeDefinition), setterMemberFunction);
+              llvmPropertyCallees[i] = typeHelper.convertPropertyCallee(builder, landingPadContainer, thisValue, new NamedType(false, false, typeDefinition), property);
+            }
             standardTypeRepresentations[i] = true;
           }
           else
@@ -2065,9 +2608,29 @@ public class CodeGenerator
             else
             {
               LLVMValueRef expressionValue = buildExpression(fieldAccessExpression.getBaseExpression(), builder, thisValue, variables, landingPadContainer);
-              llvmAssigneePointers[i] = typeHelper.getFieldPointer(builder, expressionValue, field);
+              llvmAssigneePointers[i] = typeHelper.getMemberPointer(builder, expressionValue, field.getMemberVariable());
               standardTypeRepresentations[i] = true;
             }
+          }
+          else if (fieldAccessExpression.getResolvedMember() instanceof Property)
+          {
+            Property property = (Property) fieldAccessExpression.getResolvedMember();
+            boolean isPropertyConstructor = fieldAssignee.isPropertyConstructorCall();
+            if (property.isStatic())
+            {
+              llvmGetterFunctions[i] = getPropertyGetterFunction(property);
+              llvmSetterFunctions[i] = isPropertyConstructor ? getPropertyConstructorFunction(property) : getPropertySetterFunction(property);
+              llvmPropertyCallees[i] = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
+            }
+            else
+            {
+              llvmPropertyCallees[i] = buildExpression(fieldAccessExpression.getBaseExpression(), builder, thisValue, variables, landingPadContainer);
+              llvmGetterFunctions[i] = virtualFunctionHandler.getPropertyFuntionPointer(builder, landingPadContainer, llvmPropertyCallees[i], fieldAccessExpression.getBaseExpression().getType(), property.getGetterMemberFunction());
+              MemberFunction setterMemberFunction = isPropertyConstructor ? property.getConstructorMemberFunction() : property.getSetterMemberFunction();
+              llvmSetterFunctions[i] = virtualFunctionHandler.getPropertyFuntionPointer(builder, landingPadContainer, llvmPropertyCallees[i], fieldAccessExpression.getBaseExpression().getType(), setterMemberFunction);
+              llvmPropertyCallees[i] = typeHelper.convertPropertyCallee(builder, landingPadContainer, llvmPropertyCallees[i], fieldAccessExpression.getBaseExpression().getType(), property);
+            }
+            standardTypeRepresentations[i] = true;
           }
           else
           {
@@ -2113,13 +2676,24 @@ public class CodeGenerator
       }
       for (int i = 0; i < assignees.length; ++i)
       {
-        if (llvmAssigneePointers[i] == null)
+        if (llvmAssigneePointers[i] == null && llvmGetterFunctions[i] == null)
         {
           // this is a blank assignee, so don't try to do anything for it
           continue;
         }
         Type type = assignees[i].getResolvedType();
-        LLVMValueRef leftValue = LLVM.LLVMBuildLoad(builder, llvmAssigneePointers[i], "");
+        LLVMValueRef leftValue;
+        if (llvmAssigneePointers[i] != null)
+        {
+          leftValue = LLVM.LLVMBuildLoad(builder, llvmAssigneePointers[i], "");
+        }
+        else // llvmGetterFunctions[i] != null
+        {
+          LLVMValueRef[] getterArguments = new LLVMValueRef[] {llvmPropertyCallees[i]};
+          LLVMBasicBlockRef getterInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "propertyGetterInvokeContinue");
+          leftValue = LLVM.LLVMBuildInvoke(builder, llvmGetterFunctions[i], C.toNativePointerArray(getterArguments, false, true), getterArguments.length, getterInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+          LLVM.LLVMPositionBuilderAtEnd(builder, getterInvokeContinueBlock);
+        }
         LLVMValueRef assigneeResult;
         if (shorthandAssignStatement.getOperator() == ShorthandAssignmentOperator.ADD && type.isRuntimeEquivalent(SpecialTypeHandler.STRING_TYPE))
         {
@@ -2203,7 +2777,17 @@ public class CodeGenerator
         {
           assigneeResult = typeHelper.convertTemporaryToStandard(builder, assigneeResult, type);
         }
-        LLVM.LLVMBuildStore(builder, assigneeResult, llvmAssigneePointers[i]);
+        if (llvmAssigneePointers[i] != null)
+        {
+          LLVM.LLVMBuildStore(builder, assigneeResult, llvmAssigneePointers[i]);
+        }
+        else // llvmSetterFunctions[i] != null
+        {
+          LLVMValueRef[] setterArguments = new LLVMValueRef[] {llvmPropertyCallees[i], assigneeResult};
+          LLVMBasicBlockRef setterInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "propertySetterInvokeContinue");
+          LLVM.LLVMBuildInvoke(builder, llvmSetterFunctions[i], C.toNativePointerArray(setterArguments, false, true), setterArguments.length, setterInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+          LLVM.LLVMPositionBuilderAtEnd(builder, setterInvokeContinueBlock);
+        }
       }
     }
     else if (statement instanceof ThrowStatement)
@@ -2760,31 +3344,31 @@ public class CodeGenerator
           LLVM.LLVMPositionBuilderAtEnd(builder, comparisonBlock);
         }
 
-        // compare each of the fields from the left and right values
-        Field[] nonStaticFields = typeDefinition.getNonStaticFields();
-        LLVMValueRef[] compareResults = new LLVMValueRef[nonStaticFields.length];
-        for (int i = 0; i < nonStaticFields.length; ++i)
+        // compare each of the member variables from the left and right values
+        MemberVariable[] memberVariables = ((CompoundDefinition) typeDefinition).getMemberVariables();
+        LLVMValueRef[] compareResults = new LLVMValueRef[memberVariables.length];
+        for (int i = 0; i < memberVariables.length; ++i)
         {
-          Type fieldType = nonStaticFields[i].getType();
+          Type variableType = memberVariables[i].getType();
           LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                        LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), i, false)};
           LLVMValueRef leftField = LLVM.LLVMBuildGEP(builder, left, C.toNativePointerArray(indices, false, true), indices.length, "");
           LLVMValueRef rightField = LLVM.LLVMBuildGEP(builder, right, C.toNativePointerArray(indices, false, true), indices.length, "");
           LLVMValueRef leftValue = LLVM.LLVMBuildLoad(builder, leftField, "");
           LLVMValueRef rightValue = LLVM.LLVMBuildLoad(builder, rightField, "");
-          leftValue = typeHelper.convertStandardToTemporary(builder, leftValue, fieldType);
-          rightValue = typeHelper.convertStandardToTemporary(builder, rightValue, fieldType);
-          compareResults[i] = buildEqualityCheck(builder, leftValue, rightValue, fieldType, operator);
+          leftValue = typeHelper.convertStandardToTemporary(builder, leftValue, variableType);
+          rightValue = typeHelper.convertStandardToTemporary(builder, rightValue, variableType);
+          compareResults[i] = buildEqualityCheck(builder, leftValue, rightValue, variableType, operator);
         }
 
         // AND or OR the list together, using a binary tree
         int multiple = 1;
-        while (multiple < nonStaticFields.length)
+        while (multiple < memberVariables.length)
         {
-          for (int i = 0; i < nonStaticFields.length; i += 2 * multiple)
+          for (int i = 0; i < memberVariables.length; i += 2 * multiple)
           {
             LLVMValueRef first = compareResults[i];
-            if (i + multiple >= nonStaticFields.length)
+            if (i + multiple >= memberVariables.length)
             {
               continue;
             }
@@ -3223,8 +3807,23 @@ public class CodeGenerator
           {
             throw new IllegalStateException("A FieldAccessExpression for a static field should not have a base expression");
           }
-          LLVMValueRef fieldPointer = typeHelper.getFieldPointer(builder, notNullValue, field);
+          LLVMValueRef fieldPointer = typeHelper.getMemberPointer(builder, notNullValue, field.getMemberVariable());
           result = typeHelper.convertStandardPointerToTemporary(builder, landingPadContainer, fieldPointer, field.getType(), fieldAccessExpression.getType());
+        }
+        else if (member instanceof Property)
+        {
+          Property property = (Property) member;
+          if (property.isStatic())
+          {
+            throw new IllegalStateException("A FieldAccessExpression for a static property should not have a base expression");
+          }
+          LLVMValueRef getterFunction = virtualFunctionHandler.getPropertyFuntionPointer(builder, landingPadContainer, notNullValue, notNullType, property.getGetterMemberFunction());
+          LLVMValueRef getterCallee = typeHelper.convertPropertyCallee(builder, landingPadContainer, notNullValue, notNullType, property);
+          LLVMValueRef[] getterArguments = new LLVMValueRef[] {getterCallee};
+          LLVMBasicBlockRef getterInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "propertyGetterInvokeContinue");
+          result = LLVM.LLVMBuildInvoke(builder, getterFunction, C.toNativePointerArray(getterArguments, false, true), getterArguments.length, getterInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+          LLVM.LLVMPositionBuilderAtEnd(builder, getterInvokeContinueBlock);
+          result = typeHelper.convertStandardToTemporary(builder, landingPadContainer, result, property.getType(), fieldAccessExpression.getType());
         }
         else if (member instanceof Method)
         {
@@ -3293,6 +3892,20 @@ public class CodeGenerator
         }
         LLVMValueRef global = getGlobal(field.getGlobalVariable());
         return typeHelper.convertStandardPointerToTemporary(builder, landingPadContainer, global, field.getType(), fieldAccessExpression.getType());
+      }
+      if (member instanceof Property)
+      {
+        Property property = (Property) member;
+        if (!property.isStatic())
+        {
+          throw new IllegalStateException("A FieldAccessExpression for a non-static property should have a base expression");
+        }
+        LLVMValueRef getterFunction = getPropertyGetterFunction(property);
+        LLVMValueRef[] getterArguments = new LLVMValueRef[] {LLVM.LLVMConstNull(typeHelper.getOpaquePointer())};
+        LLVMBasicBlockRef getterInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "propertyGetterInvokeContinue");
+        LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, getterFunction, C.toNativePointerArray(getterArguments, false, true), getterArguments.length, getterInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+        LLVM.LLVMPositionBuilderAtEnd(builder, getterInvokeContinueBlock);
+        return typeHelper.convertStandardToTemporary(builder, landingPadContainer, result, property.getType(), fieldAccessExpression.getType());
       }
       if (member instanceof Method)
       {
@@ -3609,6 +4222,8 @@ public class CodeGenerator
           return LLVM.LLVMBuildOr(builder, left, right, "");
         case XOR:
           return LLVM.LLVMBuildXor(builder, left, right, "");
+        case SHORT_CIRCUIT_AND:
+        case SHORT_CIRCUIT_OR:
         default:
           throw new IllegalStateException("Unexpected non-short-circuit operator: " + logicalExpression.getOperator());
         }
@@ -3835,14 +4450,34 @@ public class CodeGenerator
       {
         if (variable instanceof MemberVariable)
         {
-          Field field = ((MemberVariable) variable).getField();
-          LLVMValueRef fieldPointer = typeHelper.getFieldPointer(builder, thisValue, field);
+          LLVMValueRef fieldPointer = typeHelper.getMemberPointer(builder, thisValue, (MemberVariable) variable);
           return typeHelper.convertStandardPointerToTemporary(builder, landingPadContainer, fieldPointer, variable.getType(), variableExpression.getType());
         }
         if (variable instanceof GlobalVariable)
         {
           LLVMValueRef global = getGlobal((GlobalVariable) variable);
           return typeHelper.convertStandardPointerToTemporary(builder, landingPadContainer, global, variable.getType(), variableExpression.getType());
+        }
+        if (variable instanceof PropertyPseudoVariable)
+        {
+          Property property = ((PropertyPseudoVariable) variable).getProperty();
+          LLVMValueRef getterCallee;
+          LLVMValueRef getterFunction;
+          if (property.isStatic())
+          {
+            getterCallee = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
+            getterFunction = getPropertyGetterFunction(property);
+          }
+          else
+          {
+            getterFunction = virtualFunctionHandler.getPropertyFuntionPointer(builder, landingPadContainer, thisValue, new NamedType(false, false, typeDefinition), property.getGetterMemberFunction());
+            getterCallee = typeHelper.convertPropertyCallee(builder, landingPadContainer, thisValue, new NamedType(false, false, typeDefinition), property);
+          }
+          LLVMValueRef[] getterArguments = new LLVMValueRef[] {getterCallee};
+          LLVMBasicBlockRef getterInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "propertyGetterInvokeContinue");
+          LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, getterFunction, C.toNativePointerArray(getterArguments, false, true), getterArguments.length, getterInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+          LLVM.LLVMPositionBuilderAtEnd(builder, getterInvokeContinueBlock);
+          return typeHelper.convertStandardToTemporary(builder, landingPadContainer, result, property.getType(), variableExpression.getType());
         }
         LLVMValueRef value = variables.get(variable);
         if (value == null)

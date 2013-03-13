@@ -14,7 +14,11 @@ import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
+import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
+import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
@@ -119,28 +123,51 @@ public abstract class TypeDefinition
   }
 
   /**
-   * Builds the array of non-static fields and sets the fields' indices.
-   * The field order is based on the lexicographical ordering of their names.
+   * Builds the array of member variables and sets the variables' indices.
+   * The variable order is based on the lexicographical ordering of their names.
    */
-  protected static Field[] buildNonStaticFieldList(Collection<Field> allFields)
+  protected static MemberVariable[] buildMemberVariableList(Collection<Field> allFields, Collection<Property> allProperties)
   {
     // filter out static fields, and sort the non-static fields by name
-    List<Field> list = new LinkedList<Field>();
+    List<MemberVariable> list = new LinkedList<MemberVariable>();
     for (Field field : allFields)
     {
       if (!field.isStatic())
       {
-        list.add(field);
+        list.add(field.getMemberVariable());
       }
     }
-    Collections.sort(list, new Comparator<Field>()
+    for (Property property : allProperties)
+    {
+      if (!property.isStatic() && !property.isUnbacked())
+      {
+        list.add(property.getBackingMemberVariable());
+      }
+    }
+    Collections.sort(list, new Comparator<MemberVariable>()
     {
       @Override
-      public int compare(Field o1, Field o2)
+      public int compare(MemberVariable o1, MemberVariable o2)
       {
         // first, compare the since specifiers, as they are always the first thing we sort on
-        SinceSpecifier since1 = o1.getSinceSpecifier();
-        SinceSpecifier since2 = o2.getSinceSpecifier();
+        SinceSpecifier since1;
+        if (o1.getField() != null)
+        {
+          since1 = o1.getField().getSinceSpecifier();
+        }
+        else // o1.getProperty() != null
+        {
+          since1 = o1.getProperty().getSinceSpecifier();
+        }
+        SinceSpecifier since2;
+        if (o2.getField() != null)
+        {
+          since2 = o2.getField().getSinceSpecifier();
+        }
+        else // o2.getProperty() != null
+        {
+          since2 = o2.getProperty().getSinceSpecifier();
+        }
         // two null since specifiers are equal, and a null since specifiers always comes before a not-null one
         if ((since1 == null) != (since2 == null))
         {
@@ -158,12 +185,12 @@ public abstract class TypeDefinition
         return o1.getName().compareTo(o2.getName());
       }
     });
-    Field[] nonStaticFields = list.toArray(new Field[list.size()]);
-    for (int i = 0; i < nonStaticFields.length; ++i)
+    MemberVariable[] memberVariables = list.toArray(new MemberVariable[list.size()]);
+    for (int i = 0; i < memberVariables.length; ++i)
     {
-      nonStaticFields[i].setMemberIndex(i);
+      memberVariables[i].setMemberIndex(i);
     }
-    return nonStaticFields;
+    return memberVariables;
   }
 
   /**
@@ -171,60 +198,65 @@ public abstract class TypeDefinition
    * The field order is based on the lexicographical ordering of their names.
    * @return the sorted array of non-static methods for this type
    */
-  protected Method[] buildNonStaticMethodList()
+  protected MemberFunction[] buildMemberFunctionList(Collection<Method> allMethods, Collection<Property> allProperties)
   {
-    Method[] allMethods = getAllMethods();
     // filter out static methods
-    List<Method> list = new LinkedList<Method>();
+    List<MemberFunction> list = new LinkedList<MemberFunction>();
     for (Method method : allMethods)
     {
       if (method.isStatic())
       {
         continue;
       }
-      list.add(method);
+      list.add(method.getMemberFunction());
     }
-    // sort them by disambiguator
-    Collections.sort(list, new Comparator<Method>()
+    for (Property property : allProperties)
     {
-      @Override
-      public int compare(Method o1, Method o2)
+      if (property.isStatic())
       {
-        return o1.getDisambiguator().compareTo(o2.getDisambiguator());
+        continue;
       }
-    });
-    Method[] nonStaticMethods = list.toArray(new Method[list.size()]);
-    for (int i = 0; i < nonStaticMethods.length; ++i)
-    {
-      nonStaticMethods[i].setMethodIndex(i);
+      list.add(property.getGetterMemberFunction());
+      if (!property.isFinal())
+      {
+        list.add(property.getSetterMemberFunction());
+      }
+      if (property.hasConstructor())
+      {
+        list.add(property.getConstructorMemberFunction());
+      }
     }
-    return nonStaticMethods;
+    // sort the member functions into their natural order
+    Collections.sort(list);
+    MemberFunction[] memberFunctions = list.toArray(new MemberFunction[list.size()]);
+    for (int i = 0; i < memberFunctions.length; ++i)
+    {
+      memberFunctions[i].setMemberIndex(i);
+    }
+    return memberFunctions;
   }
 
   /**
    * Builds the list of non-static methods, so that they can be used by the compilation passes.
    */
-  public abstract void buildNonStaticMethods();
+  public abstract void buildMemberFunctions();
 
   /**
+   * @return the member functions
+   */
+  public abstract MemberFunction[] getMemberFunctions();
+
+  /**
+   * Note: the returned list should never be modified
    * @return the Initialisers, in declaration order
    */
-  public abstract Initialiser[] getInitialisers();
+  public abstract List<Initialiser> getInitialisers();
 
   /**
+   * Note: the returned collection should never be modified
    * @return the fields
    */
-  public abstract Field[] getFields();
-
-  /**
-   * @return the non-static fields, in order of their indices
-   */
-  public abstract Field[] getNonStaticFields();
-
-  /**
-   * @return the static fields
-   */
-  public abstract Field[] getStaticFields();
+  public abstract Collection<Field> getFields();
 
   /**
    * @param name - the name of the field to get
@@ -232,7 +264,21 @@ public abstract class TypeDefinition
    */
   public abstract Field getField(String name);
 
+
   /**
+   * Note: the returned collection should never be modified
+   * @return the properties
+   */
+  public abstract Collection<Property> getProperties();
+
+  /**
+   * @param name - the name of the Property to get
+   * @return the Property with the specified name, or null if none exists
+   */
+  public abstract Property getProperty(String name);
+
+  /**
+   * Note: this collection should never be modified
    * @return all of the constructors of this TypeDefinition, including ones which only differ in their since specifiers
    */
   public abstract Collection<Constructor> getAllConstructors();
@@ -269,22 +315,10 @@ public abstract class TypeDefinition
   }
 
   /**
-   * @return an array containing all of the methods in this TypeDefinition
+   * Note: this collection should never be modified
+   * @return a Collection containing all of the methods in this TypeDefinition
    */
-  public abstract Method[] getAllMethods();
-
-  /**
-   * NOTE: for a newly parsed TypeDefinition, buildNonStaticMethods() should always be called before this, as before it is called, this will return null
-   * For imported type definitions, the metadata contains the non-static method list in the correct order, so this should not be called.
-   * @return the non-static methods, in order of their indices
-   */
-  public abstract Method[] getNonStaticMethods();
-
-  /**
-   * NOTE: for a newly parsed TypeDefinition, buildNonStaticMethods() should always be called before this, because it can rely on the non-static methods list.
-   * @return all of the static methods in this TypeDefinition
-   */
-  public abstract Method[] getStaticMethods();
+  public abstract Collection<Method> getAllMethods();
 
   /**
    * @param name - the name to get the methods with
@@ -304,7 +338,7 @@ public abstract class TypeDefinition
     // (with field initialisers run between two standard initialisers if that is the order they are defined in)
     for (Initialiser initialiser : getInitialisers())
     {
-      if (initialiser instanceof FieldInitialiser)
+      if (initialiser instanceof FieldInitialiser || initialiser instanceof PropertyInitialiser)
       {
         continue;
       }
@@ -314,6 +348,11 @@ public abstract class TypeDefinition
     for (Field field : getFields())
     {
       buffer.append(field.toString().replaceAll("(?m)^", "  "));
+      buffer.append("\n");
+    }
+    for (Property property : getProperties())
+    {
+      buffer.append(property.toString().replaceAll("(?m)^", "  "));
       buffer.append("\n");
     }
     for (Constructor constructor : getAllConstructors())

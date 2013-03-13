@@ -1,64 +1,75 @@
 package foo.bar;
 
-class Test
+interface Foo
 {
-  string field;
-  selfish this(uint a) throws CastError
+  property string str;
+  void doStuff()
   {
-    stderr::println("Test(uint): " + a);
-    field = a.toString();
-    foo();
+    stdout::println(str);
   }
-  
-  static void throwSomething() throws Exception, unchecked Error
-  {
-    throw new Error("Hello, Exceptions!");
-  }
+}
 
-  void foo() throws CastError
+class Super
+{
+  property string str
+  constructor(value)
   {
-    throw new CastError("an apple", "an orange", null);
+    stdout::println("constructor: " + value);
+    str = value;
+  }
+  setter(final string value)
+  {
+    stdout::println("setter: " + value + " old: " + str);
+    string old = str.toString();
+    str = value;
+    if (!value.equals(old))
+    {
+      this.str = value;
+    }
+  }
+  getter
+  {
+    stdout::println("getter: " + str);
+    return str;
+  };
+
+  constructor(string s)
+  {
+    str = s;
+  }
+}
+
+class Test extends Super implements Foo
+{
+  static
+  {
+    stdout::println(x);
+  }
+  static final property uint x = 2
+  constructor(value)
+  {
+    stdout::println("x-constructor: " + value);
+    x = value;
+  }
+  getter
+  {
+    return x;
+  };
+
+  selfish constructor(string a)
+  {
+    super("foo");
+    str = "twice";
+    str = "again";
+    stdout::println("Test(uint): " + a);
   }
 
   static uint main([]string args) throws Error
   {
-    new Test(3);
-    { -> void throws Exception} func = throwSomething;
-    Exception e = new Exception("AAAAA");
-    final object o;
-    uint i = args.length;
-    while true
-    {
-      try
-      {
-        if i == 2
-        {
-          throw e;
-        }
-        try
-        {
-          throwSomething();
-          stderr::println("After throwSomething()");
-        }
-        catch Exception ex
-        {
-          stderr::println("First catch");
-          throw ex;
-        }
-      }
-      catch Exception | Error ex
-      {
-        stderr::println("Caught Exception|Error: " + ex.getMessage());
-      }
-      finally
-      {
-        stderr::println("Second Finally!");
-        o = new object();
-      }
-      stderr::println("after finally");
-      break;
-    }
-    stderr::println("after loop");
+    Test test = new Test("test");
+    stdout::println(x);
+    stdout::println(test.str);
+    test.doStuff();
     return 0;
   }
 }

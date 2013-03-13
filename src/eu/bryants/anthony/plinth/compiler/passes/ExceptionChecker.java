@@ -36,6 +36,7 @@ import eu.bryants.anthony.plinth.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.plinth.ast.expression.VariableExpression;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
@@ -81,6 +82,52 @@ public class ExceptionChecker
   public static void checkExceptions(TypeDefinition typeDefinition) throws ConceptualException
   {
     CoalescedConceptualException coalescedException = null;
+    {} // TODO: check initialisers for uncaught exceptions
+    for (Property property : typeDefinition.getProperties())
+    {
+      if (property.getGetterBlock() != null)
+      {
+        List<ThrownTypeEntry> getterUncaught = new LinkedList<ThrownTypeEntry>();
+        findUncaughtExceptions(property.getGetterBlock(), getterUncaught);
+        for (ThrownTypeEntry thrownTypeEntry : getterUncaught)
+        {
+          if (!matchesDeclaredType(thrownTypeEntry.thrownType, property.getGetterUncheckedThrownTypes()))
+          {
+            ConceptualException noteException = new ConceptualException("Note: thrown from here", thrownTypeEntry.throwLocation);
+            ConceptualException exception = new ConceptualException(thrownTypeEntry.thrownType + " must either be caught or declared to be thrown by this property's getter", property.getLexicalPhrase(), noteException);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, exception);
+          }
+        }
+      }
+      if (property.getSetterBlock() != null)
+      {
+        List<ThrownTypeEntry> setterUncaught = new LinkedList<ThrownTypeEntry>();
+        findUncaughtExceptions(property.getSetterBlock(), setterUncaught);
+        for (ThrownTypeEntry thrownTypeEntry : setterUncaught)
+        {
+          if (!matchesDeclaredType(thrownTypeEntry.thrownType, property.getSetterUncheckedThrownTypes()))
+          {
+            ConceptualException noteException = new ConceptualException("Note: thrown from here", thrownTypeEntry.throwLocation);
+            ConceptualException exception = new ConceptualException(thrownTypeEntry.thrownType + " must either be caught or declared to be thrown by this property's setter", property.getLexicalPhrase(), noteException);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, exception);
+          }
+        }
+      }
+      if (property.getConstructorBlock() != null)
+      {
+        List<ThrownTypeEntry> constructorUncaught = new LinkedList<ThrownTypeEntry>();
+        findUncaughtExceptions(property.getConstructorBlock(), constructorUncaught);
+        for (ThrownTypeEntry thrownTypeEntry : constructorUncaught)
+        {
+          if (!matchesDeclaredType(thrownTypeEntry.thrownType, property.getConstructorUncheckedThrownTypes()))
+          {
+            ConceptualException noteException = new ConceptualException("Note: thrown from here", thrownTypeEntry.throwLocation);
+            ConceptualException exception = new ConceptualException(thrownTypeEntry.thrownType + " must either be caught or declared to be thrown by this property's constructor", property.getLexicalPhrase(), noteException);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, exception);
+          }
+        }
+      }
+    }
     for (Constructor constructor : typeDefinition.getAllConstructors())
     {
       List<ThrownTypeEntry> uncaught = new LinkedList<ThrownTypeEntry>();
@@ -129,6 +176,10 @@ public class ExceptionChecker
    */
   private static boolean matchesDeclaredType(NamedType thrownType, NamedType[] declaredTypes)
   {
+    if (declaredTypes == null)
+    {
+      return false;
+    }
     for (NamedType declaredThrown : declaredTypes)
     {
       if (declaredThrown.canAssign(thrownType))

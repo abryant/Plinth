@@ -119,6 +119,8 @@ public class ClassDefinitionRule extends Rule<ParseType>
         break;
       case STATIC:
         throw new LanguageParseException("Unexpected modifier: Class definitions cannot be static", modifier.getLexicalPhrase());
+      case UNBACKED:
+        throw new LanguageParseException("Unexpected modifier: Class definitions cannot be unbacked", modifier.getLexicalPhrase());
       default:
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }

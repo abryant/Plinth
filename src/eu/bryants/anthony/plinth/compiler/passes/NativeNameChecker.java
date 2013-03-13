@@ -9,6 +9,7 @@ import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
 
@@ -63,6 +64,22 @@ public class NativeNameChecker
       }
       GlobalVariable global = field.getGlobalVariable();
       checkName(global.getMangledName(), field.getLexicalPhrase());
+    }
+    for (Property property : typeDefinition.getProperties())
+    {
+      if (property.isStatic() && !property.isUnbacked())
+      {
+        checkName(property.getBackingVariableMangledName(), property.getLexicalPhrase());
+      }
+      checkName(property.getGetterMangledName(), property.getLexicalPhrase());
+      if (!property.isFinal())
+      {
+        checkName(property.getSetterMangledName(), property.getLexicalPhrase());
+      }
+      if (property.hasConstructor())
+      {
+        checkName(property.getConstructorMangledName(), property.getLexicalPhrase());
+      }
     }
     for (Method method : typeDefinition.getAllMethods())
     {

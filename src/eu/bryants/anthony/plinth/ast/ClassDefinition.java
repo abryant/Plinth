@@ -3,7 +3,6 @@ package eu.bryants.anthony.plinth.ast;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -15,9 +14,13 @@ import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
 import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunction.MemberFunctionType;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
+import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 
@@ -37,11 +40,12 @@ public class ClassDefinition extends TypeDefinition
   private List<Initialiser> initialisers = new LinkedList<Initialiser>();
   // fields need a guaranteed order, so use a LinkedHashMap to store them
   private Map<String, Field> fields = new LinkedHashMap<String, Field>();
+  private Map<String, Property> properties = new LinkedHashMap<String, Property>();
   private Set<Constructor> constructors = new HashSet<Constructor>();
   private Map<String, Set<Method>> methods = new HashMap<String, Set<Method>>();
 
-  private Field[] nonStaticFields;
-  private Method[] nonStaticMethods;
+  private MemberVariable[] memberVariables;
+  private MemberFunction[] memberFunctions;
 
   private ClassDefinition superClassDefinition;
   private InterfaceDefinition[] superInterfaceDefinitions;
@@ -70,12 +74,16 @@ public class ClassDefinition extends TypeDefinition
       {
         initialisers.add((Initialiser) member);
       }
-      if (member instanceof Field)
+      else if (member instanceof Field)
       {
         Field field = (Field) member;
         if (fields.containsKey(field.getName()))
         {
           throw new LanguageParseException("A field with the name '" + field.getName() + "' already exists in '" + name + "', so another field cannot be defined with the same name", field.getLexicalPhrase());
+        }
+        if (properties.containsKey(field.getName()))
+        {
+          throw new LanguageParseException("A property with the name '" + field.getName() + "' already exists in '" + name + "', so a field cannot be defined with the same name", field.getLexicalPhrase());
         }
         if (methods.containsKey(field.getName()))
         {
@@ -83,11 +91,15 @@ public class ClassDefinition extends TypeDefinition
         }
         if (field.isStatic())
         {
-          field.setGlobalVariable(new GlobalVariable(field, this));
+          GlobalVariable globalVariable = new GlobalVariable(field);
+          globalVariable.setEnclosingTypeDefinition(this);
+          field.setGlobalVariable(globalVariable);
         }
         else
         {
-          field.setMemberVariable(new MemberVariable(field, this));
+          MemberVariable memberVariable = new MemberVariable(field);
+          memberVariable.setEnclosingTypeDefinition(this);
+          field.setMemberVariable(memberVariable);
         }
         fields.put(field.getName(), field);
         if (field.getInitialiserExpression() != null)
@@ -95,7 +107,61 @@ public class ClassDefinition extends TypeDefinition
           initialisers.add(new FieldInitialiser(field));
         }
       }
-      if (member instanceof Constructor)
+      else if (member instanceof Property)
+      {
+        Property property = (Property) member;
+        if (fields.containsKey(property.getName()))
+        {
+          throw new LanguageParseException("A field with the name '" + property.getName() + "' already exists in '" + name + "', so a property cannot be defined with the same name", property.getLexicalPhrase());
+        }
+        if (properties.containsKey(property.getName()))
+        {
+          throw new LanguageParseException("A property with the name '" + property.getName() + "' already exists in '" + name + "', so another property cannot be defined with the same name", property.getLexicalPhrase());
+        }
+        if (methods.containsKey(property.getName()))
+        {
+          throw new LanguageParseException("A method with the name '" + property.getName() + "' already exists in '" + name + "', so a property cannot be defined with the same name", property.getLexicalPhrase());
+        }
+        if (property.isAbstract())
+        {
+          // abstract properties are automatically unbacked
+          property.setUnbacked(true);
+        }
+        if (!property.isUnbacked())
+        {
+          if (property.isStatic())
+          {
+            GlobalVariable globalVariable = new GlobalVariable(property);
+            globalVariable.setEnclosingTypeDefinition(this);
+            property.setBackingGlobalVariable(globalVariable);
+          }
+          else
+          {
+            MemberVariable memberVariable = new MemberVariable(property);
+            memberVariable.setEnclosingTypeDefinition(this);
+            property.setBackingMemberVariable(memberVariable);
+          }
+        }
+        if (!property.isStatic())
+        {
+          property.setGetterMemberFunction(new MemberFunction(property, MemberFunctionType.PROPERTY_GETTER));
+          if (!property.isFinal())
+          {
+            property.setSetterMemberFunction(new MemberFunction(property, MemberFunctionType.PROPERTY_SETTER));
+          }
+          if (property.hasConstructor())
+          {
+            property.setConstructorMemberFunction(new MemberFunction(property, MemberFunctionType.PROPERTY_CONSTRUCTOR));
+          }
+        }
+        property.setContainingTypeDefinition(this);
+        properties.put(property.getName(), property);
+        if (property.getInitialiserExpression() != null)
+        {
+          initialisers.add(new PropertyInitialiser(property));
+        }
+      }
+      else if (member instanceof Constructor)
       {
         Constructor constructor = (Constructor) member;
         constructor.setContainingTypeDefinition(this);
@@ -105,12 +171,16 @@ public class ClassDefinition extends TypeDefinition
         }
         constructors.add(constructor);
       }
-      if (member instanceof Method)
+      else if (member instanceof Method)
       {
         Method method = (Method) member;
         if (fields.containsKey(method.getName()))
         {
           throw new LanguageParseException("A field with the name '" + method.getName() + "' already exists in '" + name + "', so a method cannot be defined with the same name", method.getLexicalPhrase());
+        }
+        if (properties.containsKey(method.getName()))
+        {
+          throw new LanguageParseException("A property with the name '" + method.getName() + "' already exists in '" + name + "', so a method cannot be defined with the same name", method.getLexicalPhrase());
         }
         Set<Method> methodSet = methods.get(method.getName());
         if (methodSet == null)
@@ -123,11 +193,19 @@ public class ClassDefinition extends TypeDefinition
         {
           method.setImmutable(true);
         }
+        if (!method.isStatic())
+        {
+          method.setMemberFunction(new MemberFunction(method));
+        }
         methodSet.add(method);
         allMethods.add(method);
       }
+      else
+      {
+        throw new LanguageParseException("Unknown Member: " + member, member.getLexicalPhrase());
+      }
     }
-    nonStaticFields = buildNonStaticFieldList(fields.values());
+    memberVariables = buildMemberVariableList(fields.values(), properties.values());
   }
 
   /**
@@ -137,57 +215,69 @@ public class ClassDefinition extends TypeDefinition
    * @param qname - the qualified name of the class definition
    * @param superQName - the qualified name of the superclass, or null if there is no superclass
    * @param superInterfaceQNames - the qualified names of all interfaces that this class implements, or null if it does not implement any
-   * @param nonStaticFields - the non static fields, with their indexes already filled in
-   * @param staticFields - the static fields
+   * @param newFields - the fields, with their variables already filled in
+   * @param newProperties - the properties, with their backing variables and MemberFunctions already filled in
    * @param newConstructors - the constructors
-   * @param nonStaticMethods - the non-static methods, with their indexes already filled in
-   * @param staticMethods - the static methods
+   * @param newMethods - the methods, with their MemberFunctions already filled in
+   * @param memberVariables - the MemberVariables for each of the non-static variables in this class
+   * @param memberFunctions - the MemberFunctions for each of the non-static functions in this class
    * @throws LanguageParseException - if there is a name collision between any of the methods
    */
-  public ClassDefinition(boolean isAbstract, boolean isImmutable, QName qname, QName superQName, QName[] superInterfaceQNames, Field[] nonStaticFields, Field[] staticFields, Constructor[] newConstructors, Method[] nonStaticMethods, Method[] staticMethods) throws LanguageParseException
+  public ClassDefinition(boolean isAbstract, boolean isImmutable, QName qname, QName superQName, QName[] superInterfaceQNames,
+                         Field[] newFields, Property[] newProperties, Constructor[] newConstructors, Method[] newMethods,
+                         MemberVariable[] memberVariables, MemberFunction[] memberFunctions) throws LanguageParseException
   {
     super(isAbstract, isImmutable, qname.getLastName(), null);
     setQualifiedName(qname);
     this.superQName = superQName;
     this.superInterfaceQNames = superInterfaceQNames;
-    for (Field f : nonStaticFields)
+    for (Field field : newFields)
     {
-      if (fields.containsKey(f.getName()))
+      if (fields.containsKey(field.getName()))
       {
-        throw new LanguageParseException("A field with the name '" + f.getName() + "' already exists in '" + getName() + "', so another field cannot be defined with the same name", f.getLexicalPhrase());
+        throw new LanguageParseException("A field with the name '" + field.getName() + "' already exists in '" + getName() + "', so another field cannot be defined with the same name", field.getLexicalPhrase());
       }
-      if (methods.containsKey(f.getName()))
+      if (properties.containsKey(field.getName()))
       {
-        throw new LanguageParseException("A method with the name '" + f.getName() + "' already exists in '" + getName() + "', so a field cannot be defined with the same name", f.getLexicalPhrase());
+        throw new LanguageParseException("A property with the name '" + field.getName() + "' already exists in '" + getName() + "', so a field cannot be defined with the same name", field.getLexicalPhrase());
       }
-      f.setMemberVariable(new MemberVariable(f, this));
-      // we assume that the fields' indices have already been filled in
-      fields.put(f.getName(), f);
+      if (methods.containsKey(field.getName()))
+      {
+        throw new LanguageParseException("A method with the name '" + field.getName() + "' already exists in '" + getName() + "', so a field cannot be defined with the same name", field.getLexicalPhrase());
+      }
+      // we assume that the fields' variables have already been filled in
+      fields.put(field.getName(), field);
     }
-    this.nonStaticFields = nonStaticFields;
-    for (Field f : staticFields)
+    for (Property property : newProperties)
     {
-      if (fields.containsKey(f.getName()))
+      if (fields.containsKey(property.getName()))
       {
-        throw new LanguageParseException("A field with the name '" + f.getName() + "' already exists in '" + getName() + "', so another field cannot be defined with the same name", f.getLexicalPhrase());
+        throw new LanguageParseException("A field with the name '" + property.getName() + "' already exists in '" + getName() + "', so a property cannot be defined with the same name", property.getLexicalPhrase());
       }
-      if (methods.containsKey(f.getName()))
+      if (properties.containsKey(property.getName()))
       {
-        throw new LanguageParseException("A method with the name '" + f.getName() + "' already exists in '" + getName() + "', so a field cannot be defined with the same name", f.getLexicalPhrase());
+        throw new LanguageParseException("A property with the name '" + property.getName() + "' already exists in '" + getName() + "', so another property cannot be defined with the same name", property.getLexicalPhrase());
       }
-      f.setGlobalVariable(new GlobalVariable(f, this));
-      fields.put(f.getName(), f);
+      if (methods.containsKey(property.getName()))
+      {
+        throw new LanguageParseException("A method with the name '" + property.getName() + "' already exists in '" + getName() + "', so a property cannot be defined with the same name", property.getLexicalPhrase());
+      }
+      properties.put(property.getName(), property);
     }
     for (Constructor constructor : newConstructors)
     {
       constructor.setContainingTypeDefinition(this);
       constructors.add(constructor);
     }
-    for (Method method : nonStaticMethods)
+    for (Method method : newMethods)
     {
       if (fields.containsKey(method.getName()))
       {
         throw new LanguageParseException("A field with the name '" + method.getName() + "' already exists in '" + getName() + "', so a method cannot be defined with the same name", method.getLexicalPhrase());
+      }
+      if (properties.containsKey(method.getName()))
+      {
+        throw new LanguageParseException("A property with the name '" + method.getName() + "' already exists in '" + getName() + "', so a method cannot be defined with the same name", method.getLexicalPhrase());
       }
       Set<Method> methodSet = methods.get(method.getName());
       if (methodSet == null)
@@ -198,22 +288,8 @@ public class ClassDefinition extends TypeDefinition
       method.setContainingTypeDefinition(this);
       methodSet.add(method);
     }
-    this.nonStaticMethods = nonStaticMethods;
-    for (Method method : staticMethods)
-    {
-      if (fields.containsKey(method.getName()))
-      {
-        throw new LanguageParseException("A field with the name '" + method.getName() + "' already exists in '" + getName() + "', so a method cannot be defined with the same name", method.getLexicalPhrase());
-      }
-      Set<Method> methodSet = methods.get(method.getName());
-      if (methodSet == null)
-      {
-        methodSet = new HashSet<Method>();
-        methods.put(method.getName(), methodSet);
-      }
-      method.setContainingTypeDefinition(this);
-      methodSet.add(method);
-    }
+    this.memberVariables = memberVariables;
+    this.memberFunctions = memberFunctions;
   }
 
   /**
@@ -236,64 +312,44 @@ public class ClassDefinition extends TypeDefinition
    * {@inheritDoc}
    */
   @Override
-  public void buildNonStaticMethods()
+  public void buildMemberFunctions()
   {
-    nonStaticMethods = buildNonStaticMethodList();
+    memberFunctions = buildMemberFunctionList(getAllMethods(), properties.values());
+  }
+
+  /**
+   * @return the memberVariables
+   */
+  public MemberVariable[] getMemberVariables()
+  {
+    return memberVariables;
+  }
+
+  /**
+   * @return the memberFunctions
+   */
+  @Override
+  public MemberFunction[] getMemberFunctions()
+  {
+    return memberFunctions;
   }
 
   /**
    * {@inheritDoc}
    */
   @Override
-  public Initialiser[] getInitialisers()
+  public List<Initialiser> getInitialisers()
   {
-    return initialisers.toArray(new Initialiser[initialisers.size()]);
+    return initialisers;
   }
 
   /**
    * @return the fields
    */
   @Override
-  public Field[] getFields()
+  public Collection<Field> getFields()
   {
-    // iterate over the fields LinkedHashMap so that we retain their order
-    Field[] fieldArray = new Field[fields.size()];
-    Iterator<Field> it = fields.values().iterator();
-    int i = 0;
-    while (it.hasNext())
-    {
-      fieldArray[i] = it.next();
-      i++;
-    }
-    return fieldArray;
-  }
-
-  /**
-   * @return the non-static fields, in order of their indices
-   */
-  @Override
-  public Field[] getNonStaticFields()
-  {
-    return nonStaticFields;
-  }
-
-  /**
-   * {@inheritDoc}
-   */
-  @Override
-  public Field[] getStaticFields()
-  {
-    Field[] staticFields = new Field[fields.size() - nonStaticFields.length];
-    int index = 0;
-    for (Field f : fields.values())
-    {
-      if (f.isStatic())
-      {
-        staticFields[index] = f;
-        ++index;
-      }
-    }
-    return staticFields;
+    return fields.values();
   }
 
   /**
@@ -304,6 +360,24 @@ public class ClassDefinition extends TypeDefinition
   public Field getField(String name)
   {
     return fields.get(name);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public Collection<Property> getProperties()
+  {
+    return properties.values();
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public Property getProperty(String name)
+  {
+    return properties.get(name);
   }
 
   /**
@@ -319,53 +393,14 @@ public class ClassDefinition extends TypeDefinition
    * @return an array containing all of the methods in this ClassDefinition
    */
   @Override
-  public Method[] getAllMethods()
+  public Collection<Method> getAllMethods()
   {
-    int size = 0;
+    Set<Method> allMethods = new HashSet<Method>();
     for (Set<Method> methodSet : methods.values())
     {
-      size += methodSet.size();
+      allMethods.addAll(methodSet);
     }
-    Method[] methodArray = new Method[size];
-    int index = 0;
-    for (Set<Method> methodSet : methods.values())
-    {
-      for (Method method : methodSet)
-      {
-        methodArray[index] = method;
-        index++;
-      }
-    }
-    return methodArray;
-  }
-
-  /**
-   * @return the sorted array of all of the non-static methods in this ClassDefinition
-   */
-  @Override
-  public Method[] getNonStaticMethods()
-  {
-    return nonStaticMethods;
-  }
-
-  /**
-   * {@inheritDoc}
-   */
-  @Override
-  public Method[] getStaticMethods()
-  {
-    Method[] allMethods = getAllMethods();
-    Method[] staticMethods = new Method[allMethods.length - nonStaticMethods.length];
-    int index = 0;
-    for (Method m : allMethods)
-    {
-      if (m.isStatic())
-      {
-        staticMethods[index] = m;
-        ++index;
-      }
-    }
-    return staticMethods;
+    return allMethods;
   }
 
   /**

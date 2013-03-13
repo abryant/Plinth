@@ -19,8 +19,9 @@ import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
-import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.member.Property;
+import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
@@ -247,11 +248,11 @@ public class TypeHelper
         nativeNamedTypes.put(typeDefinition, nonNullableStructType);
 
         // add the fields to the struct recursively
-        Field[] fields = typeDefinition.getNonStaticFields();
-        LLVMTypeRef[] llvmSubTypes = new LLVMTypeRef[fields.length];
-        for (int i = 0; i < fields.length; i++)
+        MemberVariable[] instanceVariables = ((CompoundDefinition) typeDefinition).getMemberVariables();
+        LLVMTypeRef[] llvmSubTypes = new LLVMTypeRef[instanceVariables.length];
+        for (int i = 0; i < instanceVariables.length; i++)
         {
-          llvmSubTypes[i] = findNativeType(fields[i].getType(), false);
+          llvmSubTypes[i] = findNativeType(instanceVariables[i].getType(), false);
         }
         LLVM.LLVMStructSetBody(nonNullableStructType, C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
         if (temporary)
@@ -386,6 +387,63 @@ public class TypeHelper
   }
 
   /**
+   * Finds the native (LLVM) type of the getter of the specified Property
+   * @param property - the Property to find the LLVM type of the getter of
+   * @return the LLVMTypeRef representing the type of the specified Property's getter method
+   */
+  public LLVMTypeRef findPropertyGetterType(Property property)
+  {
+    TypeDefinition typeDefinition = property.getContainingTypeDefinition();
+    LLVMTypeRef[] types = new LLVMTypeRef[1];
+    if (property.isStatic())
+    {
+      types[0] = getOpaquePointer();
+    }
+    else
+    {
+      if (typeDefinition instanceof InterfaceDefinition)
+      {
+        types[0] = findTemporaryType(new ObjectType(false, false, null));
+      }
+      else
+      {
+        types[0] = findTemporaryType(new NamedType(false, false, typeDefinition));
+      }
+    }
+    LLVMTypeRef resultType = findStandardType(property.getType());
+    return LLVM.LLVMFunctionType(resultType, C.toNativePointerArray(types, false, true), types.length, false);
+  }
+
+  /**
+   * Finds the native (LLVM) type of the setter or constructor of the specified Property
+   * @param property - the Property to find the LLVM type of the setter/constructor of
+   * @return the LLVMTypeRef representing the type of the specified Property's setter/constructor method
+   */
+  public LLVMTypeRef findPropertySetterConstructorType(Property property)
+  {
+    TypeDefinition typeDefinition = property.getContainingTypeDefinition();
+    LLVMTypeRef[] types = new LLVMTypeRef[2];
+    if (property.isStatic())
+    {
+      types[0] = getOpaquePointer();
+    }
+    else
+    {
+      if (typeDefinition instanceof InterfaceDefinition)
+      {
+        types[0] = findTemporaryType(new ObjectType(false, false, null));
+      }
+      else
+      {
+        types[0] = findTemporaryType(new NamedType(false, false, typeDefinition));
+      }
+    }
+    types[1] = findStandardType(property.getType());
+    LLVMTypeRef resultType = LLVM.LLVMVoidType();
+    return LLVM.LLVMFunctionType(resultType, C.toNativePointerArray(types, false, true), types.length, false);
+  }
+
+  /**
    * Finds the sub-types of the native representation of the specified ClassDefinition, including fields and virtual function table pointers.
    * @param classDefinition - the class definition to find the sub-types of
    * @return the sub-types of the specified ClassDefinition
@@ -395,12 +453,12 @@ public class TypeHelper
     InterfaceDefinition[] implementedInterfaces = findSubClassInterfaces(classDefinition);
     ClassDefinition superClassDefinition = classDefinition.getSuperClassDefinition();
     LLVMTypeRef[] subTypes;
-    Field[] nonStaticFields = classDefinition.getNonStaticFields();
+    MemberVariable[] nonStaticVariables = classDefinition.getMemberVariables();
     int offset; // offset to the class VFT
     if (superClassDefinition == null)
     {
       // 1 RTTI pointer, 1 object-VFT (for builtin methods), 1 class VFT, some interface VFTs, and some fields
-      subTypes = new LLVMTypeRef[3 + implementedInterfaces.length + nonStaticFields.length];
+      subTypes = new LLVMTypeRef[3 + implementedInterfaces.length + nonStaticVariables.length];
       subTypes[0] = rttiHelper.getGenericInstanceRTTIType();
       subTypes[1] = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
       offset = 2;
@@ -410,7 +468,7 @@ public class TypeHelper
       LLVMTypeRef[] superClassSubTypes = findClassSubTypes(superClassDefinition);
       // everything from the super-class, 1 class VFT, some interface VFTs, and some fields
       // we only include interfaces which were not included in any super-classes
-      subTypes = new LLVMTypeRef[superClassSubTypes.length + 1 + implementedInterfaces.length + nonStaticFields.length];
+      subTypes = new LLVMTypeRef[superClassSubTypes.length + 1 + implementedInterfaces.length + nonStaticVariables.length];
       System.arraycopy(superClassSubTypes, 0, subTypes, 0, superClassSubTypes.length);
       offset = superClassSubTypes.length;
     }
@@ -420,9 +478,9 @@ public class TypeHelper
       subTypes[offset + 1 + i] = LLVM.LLVMPointerType(virtualFunctionHandler.getVFTType(implementedInterfaces[i]), 0);
     }
     offset += 1 + implementedInterfaces.length;
-    for (int i = 0; i < nonStaticFields.length; ++i)
+    for (int i = 0; i < nonStaticVariables.length; ++i)
     {
-      subTypes[offset + i] = findNativeType(nonStaticFields[i].getType(), false);
+      subTypes[offset + i] = findNativeType(nonStaticVariables[i].getType(), false);
     }
     return subTypes;
   }
@@ -459,17 +517,13 @@ public class TypeHelper
    * The value should be a NamedType in a temporary type representation, and should be for the type which contains the specified field, or a subtype thereof.
    * @param builder - the LLVMBuilderRef to build instructions with
    * @param baseValue - the base value to get the field of
-   * @param field - the Field to extract
+   * @param memberVariable - the MemberVariable to extract
    * @return a pointer to the specified field inside baseValue
    */
-  public LLVMValueRef getFieldPointer(LLVMBuilderRef builder, LLVMValueRef baseValue, Field field)
+  public LLVMValueRef getMemberPointer(LLVMBuilderRef builder, LLVMValueRef baseValue, MemberVariable memberVariable)
   {
-    if (field.isStatic())
-    {
-      throw new IllegalArgumentException("Cannot get a field pointer for a static field");
-    }
-    TypeDefinition typeDefinition = field.getMemberVariable().getEnclosingTypeDefinition();
-    int index = field.getMemberIndex();
+    TypeDefinition typeDefinition = memberVariable.getEnclosingTypeDefinition();
+    int index = memberVariable.getMemberIndex();
     if (typeDefinition instanceof ClassDefinition)
     {
       // skip the RTTI pointer and the object VFT from the top-level class
@@ -479,7 +533,7 @@ public class TypeHelper
       while (superClassDefinition != null)
       {
         // 1 class VFT, some interface VFTs, and some fields
-        index += 1 + findSubClassInterfaces(superClassDefinition).length + superClassDefinition.getNonStaticFields().length;
+        index += 1 + findSubClassInterfaces(superClassDefinition).length + superClassDefinition.getMemberVariables().length;
         superClassDefinition = superClassDefinition.getSuperClassDefinition();
       }
       // skip the virtual function tables from this class
@@ -543,7 +597,7 @@ public class TypeHelper
     TypeDefinition containingDefinition = method.getContainingTypeDefinition();
     if (containingDefinition != null)
     {
-      // bitcast the callee to the correct type for this Method
+      // convert the callee to the correct type for this Method
       // this is determined by the type definition which it is declared in, so that it matches the VFT we look up the Method in
       if (containingDefinition instanceof ClassDefinition)
       {
@@ -557,6 +611,38 @@ public class TypeHelper
     }
     // the callee should already have its required value
     return callee;
+  }
+
+  /**
+   * Converts the specified Property's callee to the correct type to be passed into one of its property methods
+   * This method assumes that the callee is already a subtype of the correct type to pass into the Property method.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
+   * @param callee - the callee to convert, in a temporary type representation
+   * @param calleeType - the current type of the callee
+   * @param property - the Property that the callee will be passed into a method of
+   * @return the converted callee
+   */
+  public LLVMValueRef convertPropertyCallee(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef callee, Type calleeType, Property property)
+  {
+    if (property.isStatic())
+    {
+      // the callee should already have its required type (i.e. a null opaque pointer)
+      return callee;
+    }
+    TypeDefinition containingDefinition = property.getContainingTypeDefinition();
+    // convert the callee to the correct type for this Property
+    // this is determined by the type definition which it is declared in, so that it matches the VFT we look up the Method in
+    if (containingDefinition instanceof ClassDefinition)
+    {
+      return convertTemporary(builder, landingPadContainer, callee, calleeType, new NamedType(false, false, containingDefinition));
+    }
+    // for interfaces, the callee will be of type object
+    if (containingDefinition instanceof InterfaceDefinition)
+    {
+      return convertTemporary(builder, landingPadContainer, callee, calleeType, new ObjectType(false, false, null));
+    }
+    throw new IllegalArgumentException("Cannot convert a property callee for the property: " + containingDefinition + "." + property.getName());
   }
 
   /**
@@ -654,12 +740,12 @@ public class TypeHelper
   void initialiseCompoundType(LLVMBuilderRef builder, CompoundDefinition compoundDefinition, LLVMValueRef compoundValue)
   {
     // initialise all of the fields which have default values to zero/null
-    for (Field field : compoundDefinition.getNonStaticFields())
+    for (MemberVariable variable : compoundDefinition.getMemberVariables())
     {
-      if (field.getType().hasDefaultValue())
+      if (variable.getType().hasDefaultValue())
       {
-        LLVMValueRef pointer = getFieldPointer(builder, compoundValue, field);
-        LLVM.LLVMBuildStore(builder, LLVM.LLVMConstNull(findStandardType(field.getType())), pointer);
+        LLVMValueRef pointer = getMemberPointer(builder, compoundValue, variable);
+        LLVM.LLVMBuildStore(builder, LLVM.LLVMConstNull(findStandardType(variable.getType())), pointer);
       }
     }
   }

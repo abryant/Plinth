@@ -27,7 +27,6 @@ public class Field extends Member
 
   private MemberVariable memberVariable;
   private GlobalVariable globalVariable;
-  private int memberIndex;
 
   public Field(Type type, String name, boolean isStatic, boolean isFinal, boolean isMutable, SinceSpecifier sinceSpecifier, Expression initialiserExpression, LexicalPhrase lexicalPhrase)
   {
@@ -95,22 +94,6 @@ public class Field extends Member
   public Expression getInitialiserExpression()
   {
     return initialiserExpression;
-  }
-
-  /**
-   * @return the memberIndex
-   */
-  public int getMemberIndex()
-  {
-    return memberIndex;
-  }
-
-  /**
-   * @param memberIndex - the memberIndex to set
-   */
-  public void setMemberIndex(int memberIndex)
-  {
-    this.memberIndex = memberIndex;
   }
 
   /**

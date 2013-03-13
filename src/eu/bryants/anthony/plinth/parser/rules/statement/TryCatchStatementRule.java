@@ -130,6 +130,8 @@ public class TryCatchStatementRule extends Rule<ParseType>
           throw new LanguageParseException("Unexpected modifier: Local variables cannot have since(...) specifiers", modifier.getLexicalPhrase());
         case STATIC:
           throw new LanguageParseException("Unexpected modifier: Local variables cannot be static", modifier.getLexicalPhrase());
+        case UNBACKED:
+          throw new LanguageParseException("Unexpected modifier: Local variables cannot be unbacked", modifier.getLexicalPhrase());
         default:
           throw new IllegalStateException("Unknown modifier: " + modifier);
         }

@@ -7,14 +7,14 @@ immutable compound bigint
   // so for a bigint with two ulongs, the binary value would be: data[0] | data[1] << 64
   #[]ulong data;
 
-  this()
+  constructor()
   {
     negative = false;
     bitLength = 0;
     data = new [0]ulong;
   }
 
-  this(boolean negative, ulong value)
+  constructor(boolean negative, ulong value)
   {
     this.negative = negative;
     if value == 0
@@ -27,12 +27,12 @@ immutable compound bigint
     data = new []ulong {value};
   }
 
-  this(ulong value)
+  constructor(ulong value)
   {
     this(false, value);
   }
 
-  this(boolean negative, #[]ulong data)
+  constructor(boolean negative, #[]ulong data)
   {
     this.negative = negative;
     this.bitLength = findBitLength(data);

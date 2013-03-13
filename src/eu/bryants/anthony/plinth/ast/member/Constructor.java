@@ -185,7 +185,7 @@ public class Constructor extends Member
       buffer.append(sinceSpecifier);
       buffer.append(' ');
     }
-    buffer.append("this(");
+    buffer.append("constructor(");
     for (int i = 0; i < parameters.length; i++)
     {
       buffer.append(parameters[i]);

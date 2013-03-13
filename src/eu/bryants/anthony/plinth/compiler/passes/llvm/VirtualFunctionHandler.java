@@ -14,6 +14,8 @@ import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.member.Property;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
@@ -201,10 +203,9 @@ public class VirtualFunctionHandler
     {
       return existingDesc;
     }
-    LLVMValueRef result = LLVM.LLVMAddGlobal(module, getDescriptorType(typeDefinition.getNonStaticMethods().length), mangledName);
+    LLVMValueRef result = LLVM.LLVMAddGlobal(module, getDescriptorType(typeDefinition.getMemberFunctions().length), mangledName);
     return result;
   }
-
 
   /**
    * Adds the class's virtual function table, and stores it in the global variable that has been allocated for this VFT.
@@ -216,17 +217,54 @@ public class VirtualFunctionHandler
       throw new IllegalStateException("Cannot add a virtual function table for types which are neither a ClassDefinition nor an InterfaceDefinition");
     }
     LLVMValueRef vftGlobal = getVFTGlobal(typeDefinition);
-    Method[] methods = typeDefinition.getNonStaticMethods();
-    LLVMValueRef[] llvmMethods = new LLVMValueRef[methods.length];
-    for (int i = 0; i < methods.length; ++i)
+    MemberFunction[] memberFunctions = typeDefinition.getMemberFunctions();
+    LLVMValueRef[] llvmMethods = new LLVMValueRef[memberFunctions.length];
+    for (int i = 0; i < memberFunctions.length; ++i)
     {
-      if (methods[i].isAbstract())
+      switch (memberFunctions[i].getMemberFunctionType())
       {
-        llvmMethods[i] = LLVM.LLVMConstNull(LLVM.LLVMPointerType(typeHelper.findMethodType(methods[i]), 0));
-      }
-      else
-      {
-        llvmMethods[i] = codeGenerator.getMethodFunction(methods[i]);
+      case METHOD:
+        if (memberFunctions[i].getMethod().isAbstract())
+        {
+          llvmMethods[i] = LLVM.LLVMConstNull(LLVM.LLVMPointerType(typeHelper.findMethodType(memberFunctions[i].getMethod()), 0));
+        }
+        else
+        {
+          llvmMethods[i] = codeGenerator.getMethodFunction(memberFunctions[i].getMethod());
+        }
+        break;
+      case PROPERTY_GETTER:
+        if (memberFunctions[i].getProperty().isAbstract())
+        {
+          llvmMethods[i] = LLVM.LLVMConstNull(LLVM.LLVMPointerType(typeHelper.findPropertyGetterType(memberFunctions[i].getProperty()), 0));
+        }
+        else
+        {
+          llvmMethods[i] = codeGenerator.getPropertyGetterFunction(memberFunctions[i].getProperty());
+        }
+        break;
+      case PROPERTY_SETTER:
+        if (memberFunctions[i].getProperty().isAbstract())
+        {
+          llvmMethods[i] = LLVM.LLVMConstNull(LLVM.LLVMPointerType(typeHelper.findPropertySetterConstructorType(memberFunctions[i].getProperty()), 0));
+        }
+        else
+        {
+          llvmMethods[i] = codeGenerator.getPropertySetterFunction(memberFunctions[i].getProperty());
+        }
+        break;
+      case PROPERTY_CONSTRUCTOR:
+        if (memberFunctions[i].getProperty().isAbstract())
+        {
+          llvmMethods[i] = LLVM.LLVMConstNull(LLVM.LLVMPointerType(typeHelper.findPropertySetterConstructorType(memberFunctions[i].getProperty()), 0));
+        }
+        else
+        {
+          llvmMethods[i] = codeGenerator.getPropertyConstructorFunction(memberFunctions[i].getProperty());
+        }
+        break;
+      default:
+        throw new IllegalStateException("Unknown member function type: " + memberFunctions[i].getMemberFunctionType());
       }
     }
     LLVMTypeRef vftType = getVFTType(typeDefinition);
@@ -243,14 +281,31 @@ public class VirtualFunctionHandler
       throw new IllegalStateException("Cannot add a virtual function table descriptor for a type which is neither a ClassDefinition nor an InterfaceDefinition");
     }
     LLVMValueRef vftDescriptorGlobalVar = getVFTDescriptorPointer(typeDefinition);
-    Method[] methods = typeDefinition.getNonStaticMethods();
-    LLVMValueRef[] llvmStrings = new LLVMValueRef[methods.length];
+    MemberFunction[] memberFunctions = typeDefinition.getMemberFunctions();
+    LLVMValueRef[] llvmStrings = new LLVMValueRef[memberFunctions.length];
 
     LLVMTypeRef stringType = typeHelper.findRawStringType();
 
-    for (int i = 0; i < methods.length; ++i)
+    for (int i = 0; i < memberFunctions.length; ++i)
     {
-      String disambiguator = methods[i].getDisambiguator().toString();
+      String disambiguator;
+      switch (memberFunctions[i].getMemberFunctionType())
+      {
+      case METHOD:
+        disambiguator = memberFunctions[i].getMethod().getDisambiguator().toString();
+        break;
+      case PROPERTY_GETTER:
+        disambiguator = memberFunctions[i].getProperty().getGetterDisambiguator();
+        break;
+      case PROPERTY_SETTER:
+        disambiguator = memberFunctions[i].getProperty().getSetterDisambiguator();
+        break;
+      case PROPERTY_CONSTRUCTOR:
+        disambiguator = memberFunctions[i].getProperty().getConstructorDisambiguator();
+        break;
+      default:
+        throw new IllegalStateException("Unknown member function type: " + memberFunctions[i].getMemberFunctionType());
+      }
       LLVMValueRef stringConstant = codeGenerator.addStringConstant(disambiguator);
       llvmStrings[i] = LLVM.LLVMConstBitCast(stringConstant, stringType);
     }
@@ -434,7 +489,7 @@ public class VirtualFunctionHandler
     ClassDefinition superClassDefinition = encapsulatingClassDefinition.getSuperClassDefinition();
     while (superClassDefinition != null)
     {
-      index += 1 + typeHelper.findSubClassInterfaces(superClassDefinition).length + superClassDefinition.getNonStaticFields().length;
+      index += 1 + typeHelper.findSubClassInterfaces(superClassDefinition).length + superClassDefinition.getMemberVariables().length;
       superClassDefinition = superClassDefinition.getSuperClassDefinition();
     }
     if (searchTypeDefinition instanceof InterfaceDefinition)
@@ -523,7 +578,61 @@ public class VirtualFunctionHandler
     {
       throw new IllegalArgumentException("Cannot get a method pointer for a method from anything but an object, a ClassDefinition, or an InterfaceDefinition");
     }
-    int index = method.getMethodIndex();
+    int index = method.getMemberFunction().getMemberIndex();
+    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), index, false)};
+    LLVMValueRef vftElement = LLVM.LLVMBuildGEP(builder, vft, C.toNativePointerArray(indices, false, true), indices.length, "");
+    return LLVM.LLVMBuildLoad(builder, vftElement, "");
+  }
+
+  /**
+   * Finds the pointer to the specified property MemberFunction inside the specified base value.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
+   * @param baseValue - the base value to look up the property function in one of the virtual function tables of
+   * @param baseType - the Type of the base value
+   * @param propertyFunction - the function to look up in a virtual function table
+   * @return a pointer to the native function representing the specified property function
+   */
+  public LLVMValueRef getPropertyFuntionPointer(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef baseValue, Type baseType, MemberFunction propertyFunction)
+  {
+    Property property = propertyFunction.getProperty();
+    TypeDefinition propertyTypeDefinition = property.getContainingTypeDefinition();
+    if (!(baseType instanceof NamedType))
+    {
+      throw new IllegalArgumentException("Cannot get a property function pointer for a property on anything other than a NamedType");
+    }
+    LLVMValueRef vft;
+    TypeDefinition baseTypeDefinition = ((NamedType) baseType).getResolvedTypeDefinition();
+    if (baseTypeDefinition instanceof ClassDefinition)
+    {
+      LLVMValueRef vftPointer = getVirtualFunctionTablePointer(builder, baseValue, (ClassDefinition) baseTypeDefinition, propertyTypeDefinition);
+      vft = LLVM.LLVMBuildLoad(builder, vftPointer, "");
+    }
+    else if (baseTypeDefinition instanceof InterfaceDefinition)
+    {
+      boolean inLinearisation = false;
+      for (TypeDefinition t : baseTypeDefinition.getInheritanceLinearisation())
+      {
+        if (t == propertyTypeDefinition)
+        {
+          inLinearisation = true;
+          break;
+        }
+      }
+      if (!inLinearisation)
+      {
+        throw new IllegalArgumentException("Cannot get a property funtion pointer for '" + property.getName() + "', it is not part of the base value's type: " + baseType);
+      }
+      LLVMValueRef convertedBaseValue = typeHelper.convertTemporary(builder, landingPadContainer, baseValue, baseType, new NamedType(false, false, propertyTypeDefinition));
+      // extract the VFT from the interface's type representation
+      vft = LLVM.LLVMBuildExtractValue(builder, convertedBaseValue, 0, "");
+    }
+    else
+    {
+      throw new IllegalArgumentException("Cannot get a property function pointer for a property from anything but a ClassDefinition or an InterfaceDefinition (accessing property: '" + property.getName() + "')");
+    }
+    int index = propertyFunction.getMemberIndex();
     LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                  LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), index, false)};
     LLVMValueRef vftElement = LLVM.LLVMBuildGEP(builder, vft, C.toNativePointerArray(indices, false, true), indices.length, "");
@@ -578,13 +687,29 @@ public class VirtualFunctionHandler
     // later on, we add the fields using LLVMStructSetBody
     nativeVirtualTableTypes.put(typeDefinition, result);
 
-    Method[] methods = typeDefinition.getNonStaticMethods();
-    LLVMTypeRef[] methodTypes = new LLVMTypeRef[methods.length];
-    for (int i = 0; i < methods.length; ++i)
+    MemberFunction[] memberFunctions = typeDefinition.getMemberFunctions();
+    LLVMTypeRef[] functionTypes = new LLVMTypeRef[memberFunctions.length];
+    for (int i = 0; i < memberFunctions.length; ++i)
     {
-      methodTypes[i] = LLVM.LLVMPointerType(typeHelper.findMethodType(methods[i]), 0);
+      switch (memberFunctions[i].getMemberFunctionType())
+      {
+      case METHOD:
+        functionTypes[i] = LLVM.LLVMPointerType(typeHelper.findMethodType(memberFunctions[i].getMethod()), 0);
+        break;
+      case PROPERTY_GETTER:
+        functionTypes[i] = LLVM.LLVMPointerType(typeHelper.findPropertyGetterType(memberFunctions[i].getProperty()), 0);
+        break;
+      case PROPERTY_SETTER:
+        functionTypes[i] = LLVM.LLVMPointerType(typeHelper.findPropertySetterConstructorType(memberFunctions[i].getProperty()), 0);
+        break;
+      case PROPERTY_CONSTRUCTOR:
+        functionTypes[i] = LLVM.LLVMPointerType(typeHelper.findPropertySetterConstructorType(memberFunctions[i].getProperty()), 0);
+        break;
+      default:
+        throw new IllegalStateException("Unknown member function type: " + memberFunctions[i].getMemberFunctionType());
+      }
     }
-    LLVM.LLVMStructSetBody(result, C.toNativePointerArray(methodTypes, false, true), methodTypes.length, false);
+    LLVM.LLVMStructSetBody(result, C.toNativePointerArray(functionTypes, false, true), functionTypes.length, false);
     return result;
   }
 

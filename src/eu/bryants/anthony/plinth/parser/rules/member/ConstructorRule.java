@@ -30,8 +30,8 @@ public class ConstructorRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> MODIFIERS_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.THIS_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
-  private static final Production<ParseType> PRODUCTION           = new Production<ParseType>(                     ParseType.THIS_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.CONSTRUCTOR_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> PRODUCTION           = new Production<ParseType>(                     ParseType.CONSTRUCTOR_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
 
   public ConstructorRule()
   {
@@ -69,7 +69,7 @@ public class ConstructorRule extends Rule<ParseType>
       return processModifiers(modifiers, parameters.toArray(new Parameter[parameters.size()]),
                               checkedThrownTypes.toArray(new NamedType[checkedThrownTypes.size()]), uncheckedThrownTypes.toArray(new NamedType[uncheckedThrownTypes.size()]),
                               block,
-                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], parameters.getLexicalPhrase(), block.getLexicalPhrase()));
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], parameters.getLexicalPhrase(), throwsList.getLexicalPhrase(), block.getLexicalPhrase()));
     }
     if (production == PRODUCTION)
     {
@@ -139,6 +139,8 @@ public class ConstructorRule extends Rule<ParseType>
         break;
       case STATIC:
         throw new LanguageParseException("Unexpected modifier: Constructors cannot be static", modifier.getLexicalPhrase());
+      case UNBACKED:
+        throw new LanguageParseException("Unexpected modifier: Constructors cannot be unbacked", modifier.getLexicalPhrase());
       default:
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }

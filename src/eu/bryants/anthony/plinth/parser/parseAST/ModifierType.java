@@ -17,5 +17,6 @@ public enum ModifierType
   SELFISH,
   SINCE,
   STATIC,
+  UNBACKED,
   ;
 }

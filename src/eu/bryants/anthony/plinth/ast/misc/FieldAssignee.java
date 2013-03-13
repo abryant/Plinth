@@ -13,6 +13,7 @@ public class FieldAssignee extends Assignee
 {
 
   private FieldAccessExpression fieldAccessExpression;
+  private boolean isPropertyConstructorCall;
 
   public FieldAssignee(FieldAccessExpression fieldAccessExpression)
   {
@@ -26,6 +27,22 @@ public class FieldAssignee extends Assignee
   public FieldAccessExpression getFieldAccessExpression()
   {
     return fieldAccessExpression;
+  }
+
+  /**
+   * @return the isPropertyConstructorCall
+   */
+  public boolean isPropertyConstructorCall()
+  {
+    return isPropertyConstructorCall;
+  }
+
+  /**
+   * @param isPropertyConstructorCall - the isPropertyConstructorCall to set
+   */
+  public void setPropertyConstructorCall(boolean isPropertyConstructorCall)
+  {
+    this.isPropertyConstructorCall = isPropertyConstructorCall;
   }
 
   /**

@@ -27,6 +27,7 @@ public enum ParseType
   FIELD,                         // Field
   CONSTRUCTOR,                   // Constructor
   METHOD,                        // Method
+  PROPERTY,                      // Property
 
   // Misc
   ARGUMENTS,                     // ParseList<Expression>
@@ -35,6 +36,8 @@ public enum ParseType
   ASSIGNEE_LIST,                 // ParseList<Assignee>
   DECLARATION_ASSIGNEE_LIST,     // ParseList<Assignee>
   CATCH_TYPE_LIST,               // ParseList<Type>
+  PROPERTY_METHOD_LIST,          // ParseList<PropertyMethod>
+  PROPERTY_METHOD,               // PropertyMethod
   PARAMETERS,                    // ParseList<Parameter>
   PARAMETER_LIST,                // ParseList<Parameter>
   FOR_INIT,                      // ParseContainer<Statement> (possibly containing null)
@@ -166,6 +169,7 @@ public enum ParseType
   CATCH_KEYWORD,
   CLASS_KEYWORD,
   COMPOUND_KEYWORD,
+  CONSTRUCTOR_KEYWORD,
   CONTINUE_KEYWORD,
   DOUBLE_KEYWORD,
   ELSE_KEYWORD,
@@ -175,6 +179,7 @@ public enum ParseType
   FINALLY_KEYWORD,
   FLOAT_KEYWORD,
   FOR_KEYWORD,
+  GETTER_KEYWORD,
   IF_KEYWORD,
   IMMUTABLE_KEYWORD,
   IMPLEMENTS_KEYWORD,
@@ -189,8 +194,10 @@ public enum ParseType
   NULL_KEYWORD,
   OBJECT_KEYWORD,
   PACKAGE_KEYWORD,
+  PROPERTY_KEYWORD,
   RETURN_KEYWORD,
   SELFISH_KEYWORD,
+  SETTER_KEYWORD,
   SHORT_KEYWORD,
   STATIC_KEYWORD,
   SUPER_KEYWORD,
@@ -202,6 +209,7 @@ public enum ParseType
   UBYTE_KEYWORD,
   UINT_KEYWORD,
   ULONG_KEYWORD,
+  UNBACKED_KEYWORD,
   UNCHECKED_KEYWORD,
   USHORT_KEYWORD,
   VOID_KEYWORD,

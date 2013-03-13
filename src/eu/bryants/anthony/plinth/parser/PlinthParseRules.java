@@ -31,6 +31,7 @@ import eu.bryants.anthony.plinth.parser.rules.member.FieldRule;
 import eu.bryants.anthony.plinth.parser.rules.member.InitialiserRule;
 import eu.bryants.anthony.plinth.parser.rules.member.MemberListRule;
 import eu.bryants.anthony.plinth.parser.rules.member.MethodRule;
+import eu.bryants.anthony.plinth.parser.rules.member.PropertyRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ArgumentsRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.AssigneeListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.AssigneeNoQNameRule;
@@ -47,6 +48,8 @@ import eu.bryants.anthony.plinth.parser.rules.misc.NestedQNameListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.OptionalModifiersRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ParameterListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ParametersRule;
+import eu.bryants.anthony.plinth.parser.rules.misc.PropertyMethodListRule;
+import eu.bryants.anthony.plinth.parser.rules.misc.PropertyMethodRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.QNameListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.QNameRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ThrowsClauseRule;
@@ -113,6 +116,7 @@ public class PlinthParseRules
     new InitialiserRule(),
     new MemberListRule(),
     new MethodRule(),
+    new PropertyRule(),
 
     // misc
     new ArgumentsRule(),
@@ -131,6 +135,8 @@ public class PlinthParseRules
     new OptionalModifiersRule(),
     new ParameterListRule(),
     new ParametersRule(),
+    new PropertyMethodListRule(),
+    new PropertyMethodRule(),
     new QNameListRule(),
     new QNameRule(),
     new ThrowsClauseRule(),

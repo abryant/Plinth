@@ -1,6 +1,9 @@
 package eu.bryants.anthony.plinth.compiler.passes.llvm;
 
 import java.math.BigInteger;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -20,6 +23,11 @@ import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.member.Property;
+import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunction.MemberFunctionType;
+import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
@@ -81,7 +89,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A class definition must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 10)
+    if (values.length != 9)
     {
       throw new MalformedMetadataException("A class definition's metadata node must have the correct number of sub-nodes");
     }
@@ -121,15 +129,27 @@ public class MetadataLoader
 
     QName[] superInterfaceQNames = loadSuperInterfaces(values[4]);
 
-    Field[] nonStaticFields = loadFields(values[5], false);
-    Field[] staticFields = loadFields(values[6], true);
+    Field[] fields = loadFields(values[5]);
+    Property[] properties = loadProperties(values[6]);
     Constructor[] constructors = loadConstructors(values[7]);
-    Method[] nonStaticMethods = loadMethods(values[8], false);
-    Method[] staticMethods = loadMethods(values[9], true);
+    Method[] methods = loadMethods(values[8]);
+
+    MemberVariable[] memberVariables = processMemberVariables(fields, properties);
+    MemberFunction[] memberFunctions = processMemberFunctions(properties, methods);
+    Collection<GlobalVariable> globalVariables = extractGlobalVariables(fields, properties);
 
     try
     {
-      return new ClassDefinition(isAbstract, isImmutable, qname, superClassQName, superInterfaceQNames, nonStaticFields, staticFields, constructors, nonStaticMethods, staticMethods);
+      ClassDefinition result = new ClassDefinition(isAbstract, isImmutable, qname, superClassQName, superInterfaceQNames, fields, properties, constructors, methods, memberVariables, memberFunctions);
+      for (MemberVariable memberVariable : memberVariables)
+      {
+        memberVariable.setEnclosingTypeDefinition(result);
+      }
+      for (GlobalVariable globalVariable : globalVariables)
+      {
+        globalVariable.setEnclosingTypeDefinition(result);
+      }
+      return result;
     }
     catch (LanguageParseException e)
     {
@@ -145,7 +165,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A compound type definition must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 7)
+    if (values.length != 6)
     {
       throw new MalformedMetadataException("A compound type definition's metadata node must have the correct number of sub-nodes");
     }
@@ -167,15 +187,27 @@ public class MetadataLoader
 
     boolean isImmutable = readBooleanValue(values[1], "compound type definition", "immutable");
 
-    Field[] nonStaticFields = loadFields(values[2], false);
-    Field[] staticFields = loadFields(values[3], true);
+    Field[] fields = loadFields(values[2]);
+    Property[] properties = loadProperties(values[3]);
     Constructor[] constructors = loadConstructors(values[4]);
-    Method[] nonStaticMethods = loadMethods(values[5], false);
-    Method[] staticMethods = loadMethods(values[6], true);
+    Method[] methods = loadMethods(values[5]);
+
+    MemberVariable[] memberVariables = processMemberVariables(fields, properties);
+    MemberFunction[] memberFunctions = processMemberFunctions(properties, methods);
+    Collection<GlobalVariable> globalVariables = extractGlobalVariables(fields, properties);
 
     try
     {
-      return new CompoundDefinition(isImmutable, qname, nonStaticFields, staticFields, constructors, nonStaticMethods, staticMethods);
+      CompoundDefinition result = new CompoundDefinition(isImmutable, qname, fields, properties, constructors, methods, memberVariables, memberFunctions);
+      for (MemberVariable memberVariable : memberVariables)
+      {
+        memberVariable.setEnclosingTypeDefinition(result);
+      }
+      for (GlobalVariable globalVariable : globalVariables)
+      {
+        globalVariable.setEnclosingTypeDefinition(result);
+      }
+      return result;
     }
     catch (LanguageParseException e)
     {
@@ -215,18 +247,103 @@ public class MetadataLoader
 
     QName[] superInterfaceQNames = loadSuperInterfaces(values[2]);
 
-    Field[] staticFields = loadFields(values[3], true);
-    Method[] nonStaticMethods = loadMethods(values[4], false);
-    Method[] staticMethods = loadMethods(values[5], true);
+    Field[] fields = loadFields(values[3]);
+    Property[] properties = loadProperties(values[4]);
+    Method[] methods = loadMethods(values[5]);
+
+    MemberFunction[] memberFunctions = processMemberFunctions(properties, methods);
+    Collection<GlobalVariable> globalVariables = extractGlobalVariables(fields, properties);
 
     try
     {
-      return new InterfaceDefinition(isImmutable, qname, superInterfaceQNames, staticFields, nonStaticMethods, staticMethods);
+      InterfaceDefinition result = new InterfaceDefinition(isImmutable, qname, superInterfaceQNames, fields, properties, methods, memberFunctions);
+      for (GlobalVariable globalVariable : globalVariables)
+      {
+        globalVariable.setEnclosingTypeDefinition(result);
+      }
+      return result;
     }
     catch (LanguageParseException e)
     {
       throw new MalformedMetadataException(e.getMessage(), e);
     }
+  }
+
+  private static MemberVariable[] processMemberVariables(Field[] fields, Property[] properties)
+  {
+    List<MemberVariable> memberVariables = new LinkedList<MemberVariable>();
+    for (Field field : fields)
+    {
+      if (!field.isStatic())
+      {
+        memberVariables.add(field.getMemberVariable());
+      }
+    }
+    for (Property property : properties)
+    {
+      if (!property.isUnbacked() && !property.isStatic())
+      {
+        memberVariables.add(property.getBackingMemberVariable());
+      }
+    }
+    Collections.sort(memberVariables, new Comparator<MemberVariable>()
+    {
+      @Override
+      public int compare(MemberVariable o1, MemberVariable o2)
+      {
+        return o1.getMemberIndex() - o2.getMemberIndex();
+      }
+    });
+    return memberVariables.toArray(new MemberVariable[memberVariables.size()]);
+  }
+
+  private static Collection<GlobalVariable> extractGlobalVariables(Field[] fields, Property[] properties)
+  {
+    List<GlobalVariable> globalVariables = new LinkedList<GlobalVariable>();
+    for (Field field : fields)
+    {
+      if (field.isStatic())
+      {
+        globalVariables.add(field.getGlobalVariable());
+      }
+    }
+    for (Property property : properties)
+    {
+      if (!property.isUnbacked() && property.isStatic())
+      {
+        globalVariables.add(property.getBackingGlobalVariable());
+      }
+    }
+    return globalVariables;
+  }
+
+  private static MemberFunction[] processMemberFunctions(Property[] properties, Method[] methods)
+  {
+    List<MemberFunction> memberFunctions = new LinkedList<MemberFunction>();
+    for (Property property : properties)
+    {
+      if (!property.isStatic())
+      {
+        memberFunctions.add(property.getGetterMemberFunction());
+        memberFunctions.add(property.getSetterMemberFunction());
+      }
+    }
+    for (Method method : methods)
+    {
+      if (!method.isStatic())
+      {
+        memberFunctions.add(method.getMemberFunction());
+      }
+    }
+    Collections.sort(memberFunctions, new Comparator<MemberFunction>()
+    {
+      @Override
+      public int compare(MemberFunction o1, MemberFunction o2)
+      {
+        return o1.getMemberIndex() - o2.getMemberIndex();
+      }
+    });
+    return memberFunctions.toArray(new MemberFunction[memberFunctions.size()]);
   }
 
   private static QName[] loadSuperInterfaces(LLVMValueRef metadataNode) throws MalformedMetadataException
@@ -261,7 +378,7 @@ public class MetadataLoader
   }
 
 
-  private static Field[] loadFields(LLVMValueRef metadataNode, boolean isStatic) throws MalformedMetadataException
+  private static Field[] loadFields(LLVMValueRef metadataNode) throws MalformedMetadataException
   {
     if (LLVM.LLVMIsAMDNode(metadataNode) == null)
     {
@@ -271,9 +388,24 @@ public class MetadataLoader
     Field[] fields = new Field[fieldNodes.length];
     for (int i = 0; i < fieldNodes.length; ++i)
     {
-      fields[i] = loadField(fieldNodes[i], isStatic, i);
+      fields[i] = loadField(fieldNodes[i]);
     }
     return fields;
+  }
+
+  private static Property[] loadProperties(LLVMValueRef metadataNode) throws MalformedMetadataException
+  {
+    if (LLVM.LLVMIsAMDNode(metadataNode) == null)
+    {
+      throw new MalformedMetadataException("A property list must be represented by a metadata node");
+    }
+    LLVMValueRef[] propertyNodes = readOperands(metadataNode);
+    Property[] properties = new Property[propertyNodes.length];
+    for (int i = 0; i < propertyNodes.length; ++i)
+    {
+      properties[i] = loadProperty(propertyNodes[i]);
+    }
+    return properties;
   }
 
   private static Constructor[] loadConstructors(LLVMValueRef metadataNode) throws MalformedMetadataException
@@ -291,7 +423,7 @@ public class MetadataLoader
     return constructors;
   }
 
-  private static Method[] loadMethods(LLVMValueRef metadataNode, boolean isStatic) throws MalformedMetadataException
+  private static Method[] loadMethods(LLVMValueRef metadataNode) throws MalformedMetadataException
   {
     if (LLVM.LLVMIsAMDNode(metadataNode) == null)
     {
@@ -301,19 +433,19 @@ public class MetadataLoader
     Method[] methods = new Method[methodNodes.length];
     for (int i = 0; i < methodNodes.length; ++i)
     {
-      methods[i] = loadMethod(methodNodes[i], isStatic, i);
+      methods[i] = loadMethod(methodNodes[i]);
     }
     return methods;
   }
 
-  private static Field loadField(LLVMValueRef metadataNode, boolean isStatic, int index) throws MalformedMetadataException
+  private static Field loadField(LLVMValueRef metadataNode) throws MalformedMetadataException
   {
     if (LLVM.LLVMIsAMDNode(metadataNode) == null)
     {
       throw new MalformedMetadataException("A field must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 5)
+    if (values.length != 6)
     {
       throw new MalformedMetadataException("A field's metadata node must have the correct number of sub-nodes");
     }
@@ -323,18 +455,190 @@ public class MetadataLoader
 
     SinceSpecifier sinceSpecifier = loadSinceSpecifier(values[2]);
 
-    Type type = loadType(values[3]);
-    String name = readMDString(values[4]);
+    String memberIndexString = readMDString(values[3]);
+    if (memberIndexString == null)
+    {
+      throw new MalformedMetadataException("A field must either have a valid member index in its metadata node, or declare itself as static");
+    }
+    boolean isStatic = false;
+    int memberIndex = -1;
+    if (memberIndexString.equals("static"))
+    {
+      isStatic = true;
+    }
+    else
+    {
+      try
+      {
+        memberIndex = Integer.parseInt(memberIndexString);
+      }
+      catch (NumberFormatException e)
+      {
+        throw new MalformedMetadataException("A field must either have a valid member index in its metadata node, or declare itself as static", e);
+      }
+    }
+
+    Type type = loadType(values[4]);
+    String name = readMDString(values[5]);
     if (name == null)
     {
       throw new MalformedMetadataException("A field must have a valid name in its metadata node");
     }
     Field field = new Field(type, name, isStatic, isFinal, isMutable, sinceSpecifier, null, null);
-    if (!isStatic)
+    if (isStatic)
     {
-      field.setMemberIndex(index);
+      field.setGlobalVariable(new GlobalVariable(field));
+    }
+    else
+    {
+      MemberVariable memberVariable = new MemberVariable(field);
+      memberVariable.setMemberIndex(memberIndex);
+      field.setMemberVariable(memberVariable);
     }
     return field;
+  }
+
+  private static Property loadProperty(LLVMValueRef metadataNode) throws MalformedMetadataException
+  {
+    if (LLVM.LLVMIsAMDNode(metadataNode) == null)
+    {
+      throw new MalformedMetadataException("A property must be represented by a metadata node");
+    }
+    LLVMValueRef[] values = readOperands(metadataNode);
+    if (values.length != 14)
+    {
+      throw new MalformedMetadataException("A property's metadata node must have the correct number of sub-nodes");
+    }
+
+    boolean isAbstract = readBooleanValue(values[0], "property", "abstract");
+    boolean isFinal = readBooleanValue(values[1], "property", "final");
+    boolean isMutable = readBooleanValue(values[2], "property", "mutable");
+    boolean isUnbacked = readBooleanValue(values[3], "property", "unbacked");
+    boolean isGetterImmutable = readBooleanValue(values[4], "property", "getter-immutable");
+    boolean isSetterImmutable = readBooleanValue(values[5], "property", "setter-immutable");
+    boolean isConstructorImmutable = readBooleanValue(values[6], "property", "constructor-immutable");
+    SinceSpecifier sinceSpecifier = loadSinceSpecifier(values[7]);
+
+    String backingMemberIndexString = readMDString(values[8]);
+    if (backingMemberIndexString == null)
+    {
+      throw new MalformedMetadataException("A property must either have a valid backing member index in its metadata node, or declare itself as having none");
+    }
+    int memberIndex = -1;
+    if (!backingMemberIndexString.equals("no_index"))
+    {
+      try
+      {
+        memberIndex = Integer.parseInt(backingMemberIndexString);
+      }
+      catch (NumberFormatException e)
+      {
+        throw new MalformedMetadataException("A property must either have a valid backing member index in its metadata node, or declare itself as having none", e);
+      }
+    }
+
+    String getterMemberFunctionIndexString = readMDString(values[9]);
+    String setterMemberFunctionIndexString = readMDString(values[10]);
+    String constructorMemberFunctionIndexString = readMDString(values[11]);
+    if (getterMemberFunctionIndexString == null || setterMemberFunctionIndexString == null || constructorMemberFunctionIndexString == null)
+    {
+      throw new MalformedMetadataException("A property must either have valid member function indexes in its metadata node for a getter, a setter, and a constructor, or declare itself as static");
+    }
+    int getterMemberFunctionIndex = -1;
+    int setterMemberFunctionIndex = -1;
+    int constructorMemberFunctionIndex = -1;
+    boolean isStatic = false;
+    boolean hasConstructorIndex = false;
+    if (getterMemberFunctionIndexString.equals("static") && setterMemberFunctionIndexString.equals("static") && constructorMemberFunctionIndexString.equals("static"))
+    {
+      isStatic = true;
+    }
+    else
+    {
+      try
+      {
+        getterMemberFunctionIndex = Integer.parseInt(getterMemberFunctionIndexString);
+      }
+      catch (NumberFormatException e)
+      {
+        throw new MalformedMetadataException("A property must either have a valid member function index in its metadata node for its getter, or declare itself as static", e);
+      }
+      if (!isFinal)
+      {
+        try
+        {
+          setterMemberFunctionIndex = Integer.parseInt(setterMemberFunctionIndexString);
+        }
+        catch (NumberFormatException e)
+        {
+          throw new MalformedMetadataException("A property must either have a valid setter member function index in its metadata node, or declare itself as static or final", e);
+        }
+      }
+      if (!constructorMemberFunctionIndexString.equals("no-constructor"))
+      {
+        try
+        {
+          constructorMemberFunctionIndex = Integer.parseInt(constructorMemberFunctionIndexString);
+          hasConstructorIndex = true;
+        }
+        catch (NumberFormatException e)
+        {
+          throw new MalformedMetadataException("A property must either have a valid constructor member function index in its metadata node, or declare itself as static or unbacked", e);
+        }
+      }
+    }
+
+    if (!isStatic && !isUnbacked && backingMemberIndexString.equals("no_index"))
+    {
+      throw new MalformedMetadataException("A non-static property must either have a backing member index in its metadata node, or be declared as unbacked");
+    }
+    if (isAbstract && !isUnbacked)
+    {
+      throw new MalformedMetadataException("An abstract property must be saved as unbacked");
+    }
+
+    Type type = loadType(values[12]);
+    String name = readMDString(values[13]);
+    if (name == null)
+    {
+      throw new MalformedMetadataException("A property must have a valid name in its metadata node");
+    }
+
+    boolean hasGetter = true;
+    boolean hasSetter = !isFinal;
+    boolean hasConstructor = isFinal || (!isStatic && hasConstructorIndex);
+
+    Property property = new Property(isAbstract, isFinal, isMutable, isStatic, isUnbacked, sinceSpecifier, type, name, null,
+                                     hasGetter, isGetterImmutable, null, null,
+                                     hasSetter, isSetterImmutable, null, null, null,
+                                     hasConstructor, isConstructorImmutable, null, null, null,
+                                     null);
+    if (!isUnbacked)
+    {
+      if (isStatic)
+      {
+        property.setBackingGlobalVariable(new GlobalVariable(property));
+      }
+      else
+      {
+        MemberVariable backingMemberVariable = new MemberVariable(property);
+        backingMemberVariable.setMemberIndex(memberIndex);
+        property.setBackingMemberVariable(backingMemberVariable);
+      }
+    }
+    if (!isStatic)
+    {
+      MemberFunction getterMemberFunction = new MemberFunction(property, MemberFunctionType.PROPERTY_GETTER);
+      getterMemberFunction.setMemberIndex(getterMemberFunctionIndex);
+      property.setGetterMemberFunction(getterMemberFunction);
+      MemberFunction setterMemberFunction = new MemberFunction(property, MemberFunctionType.PROPERTY_SETTER);
+      setterMemberFunction.setMemberIndex(setterMemberFunctionIndex);
+      property.setSetterMemberFunction(setterMemberFunction);
+      MemberFunction constructorMemberFunction = new MemberFunction(property, MemberFunctionType.PROPERTY_CONSTRUCTOR);
+      constructorMemberFunction.setMemberIndex(constructorMemberFunctionIndex);
+      property.setConstructorMemberFunction(constructorMemberFunction);
+    }
+    return property;
   }
 
   private static Constructor loadConstructor(LLVMValueRef metadataNode) throws MalformedMetadataException
@@ -358,14 +662,14 @@ public class MetadataLoader
     return new Constructor(isImmutable, isSelfish, sinceSpecifier, parameters, thrownTypes, new NamedType[0], null, null);
   }
 
-  private static Method loadMethod(LLVMValueRef metadataNode, boolean isStatic, int index) throws MalformedMetadataException
+  private static Method loadMethod(LLVMValueRef metadataNode) throws MalformedMetadataException
   {
     if (LLVM.LLVMIsAMDNode(metadataNode) == null)
     {
       throw new MalformedMetadataException("A method must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 8)
+    if (values.length != 9)
     {
       throw new MalformedMetadataException("A method's metadata node must have the correct number of sub-nodes");
     }
@@ -388,18 +692,36 @@ public class MetadataLoader
       nativeName = null;
     }
     SinceSpecifier sinceSpecifier = loadSinceSpecifier(values[4]);
-    Type returnType = loadType(values[5]);
-    Parameter[] parameters = loadParameters(values[6]);
-    NamedType[] thrownTypes = loadThrownTypes(values[7]);
 
-    if (isAbstract && isStatic)
+    String memberIndexString = readMDString(values[5]);
+    int memberIndex = -1;
+    boolean isStatic = false;
+    if (memberIndexString.equals("static"))
     {
-      throw new MalformedMetadataException("A static method cannot be abstract");
+      isStatic = true;
     }
+    else
+    {
+      try
+      {
+        memberIndex = Integer.parseInt(memberIndexString);
+      }
+      catch (NumberFormatException e)
+      {
+        throw new MalformedMetadataException("A method must either have a valid member index in its metadata node, or declare itself as static", e);
+      }
+    }
+
+    Type returnType = loadType(values[6]);
+    Parameter[] parameters = loadParameters(values[7]);
+    NamedType[] thrownTypes = loadThrownTypes(values[8]);
+
     Method method = new Method(returnType, name, isAbstract, isStatic, isImmutable, nativeName, sinceSpecifier, parameters, thrownTypes, new NamedType[0], null, null);
     if (!isStatic)
     {
-      method.setMethodIndex(index);
+      MemberFunction memberFunction = new MemberFunction(method);
+      memberFunction.setMemberIndex(memberIndex);
+      method.setMemberFunction(memberFunction);
     }
     return method;
   }

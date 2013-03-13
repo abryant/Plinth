@@ -91,6 +91,8 @@ public class ParametersRule extends Rule<ParseType>
         throw new LanguageParseException("Unexpected modifier: Parameters cannot have since(...) specifiers", modifier.getLexicalPhrase());
       case STATIC:
         throw new LanguageParseException("Unexpected modifier: Parameters cannot be static", modifier.getLexicalPhrase());
+      case UNBACKED:
+        throw new LanguageParseException("Unexpected modifier: Parameters cannot be unbacked", modifier.getLexicalPhrase());
       default:
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
