@@ -32,8 +32,15 @@ class Super
   }
   setter(value)
   {
-    stdout::println("setter: " + value + " old: " + str);
+    stdout::println("1 str: " + str + " value: " + value);
+    string old = str;
+    stdout::println("2 str: " + str + " old: " + old + " value: " + value);
     str = value;
+    stdout::println("3 str: " + str + " old: " + old + " value: " + value);
+    if !value.equals(old)
+    {
+      this.str = value;
+    }
   }
   getter
   {

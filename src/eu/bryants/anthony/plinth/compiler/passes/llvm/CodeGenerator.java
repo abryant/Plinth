@@ -1995,7 +1995,12 @@ public class CodeGenerator
             }
             if (llvmAssigneePointers[0] != null)
             {
-              // TODO: compound types should be copied here, rather than having their pointer copied
+              if (!standardTypeRepresentations[0])
+              {
+                // on assignment, we need to make sure compound types do not result in an alias to an existing variable, so convert to standard and back again
+                convertedValue = typeHelper.convertTemporaryToStandard(builder, convertedValue, assignees[0].getResolvedType());
+                convertedValue = typeHelper.convertStandardToTemporary(builder, convertedValue, assignees[0].getResolvedType());
+              }
               LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[0]);
             }
             else // assigneePropertySetters[0] != null
@@ -2030,7 +2035,12 @@ public class CodeGenerator
               }
               if (llvmAssigneePointers[i] != null)
               {
-                // TODO: compound types should be copied here, rather than having their pointer copied
+                if (!standardTypeRepresentations[i])
+                {
+                  // on assignment, we need to make sure compound types do not result in an alias to an existing variable, so convert to standard and back again
+                  convertedValue = typeHelper.convertTemporaryToStandard(builder, convertedValue, assignees[i].getResolvedType());
+                  convertedValue = typeHelper.convertStandardToTemporary(builder, convertedValue, assignees[i].getResolvedType());
+                }
                 LLVM.LLVMBuildStore(builder, convertedValue, llvmAssigneePointers[i]);
               }
               else // assigneePropertySetters[i] != null
@@ -2448,6 +2458,13 @@ public class CodeGenerator
       }
       if (pointer != null)
       {
+        if (!standardTypeRepresentation)
+        {
+          // on assignment, we need to make sure compound types do not result in an alias to an existing variable, so convert to standard and back again
+          // (this is mainly for compound types, so it will probably not be very useful here, but we leave it for consistency - it won't add any extra code)
+          result = typeHelper.convertTemporaryToStandard(builder, result, type);
+          result = typeHelper.convertStandardToTemporary(builder, result, type);
+        }
         LLVM.LLVMBuildStore(builder, result, pointer);
       }
       else // propertySetterFunction != null
@@ -2779,6 +2796,13 @@ public class CodeGenerator
         }
         if (llvmAssigneePointers[i] != null)
         {
+          if (!standardTypeRepresentations[i])
+          {
+            // on assignment, we need to make sure compound types do not result in an alias to an existing variable, so convert to standard and back again
+            // (this is mainly for compound types, so it will probably not be very useful here, but we leave it for consistency - it won't add any extra code)
+            assigneeResult = typeHelper.convertTemporaryToStandard(builder, assigneeResult, assignees[i].getResolvedType());
+            assigneeResult = typeHelper.convertStandardToTemporary(builder, assigneeResult, assignees[i].getResolvedType());
+          }
           LLVM.LLVMBuildStore(builder, assigneeResult, llvmAssigneePointers[i]);
         }
         else // llvmSetterFunctions[i] != null
