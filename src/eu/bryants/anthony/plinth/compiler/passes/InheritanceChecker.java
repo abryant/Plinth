@@ -189,11 +189,30 @@ public class InheritanceChecker
         throw new ConceptualException("Cannot define a non-immutable class to be a subclass of an immutable class", classDefinition.getLexicalPhrase());
       }
 
-      // TODO: should super-interfaces be checked for the same immutability constraint as super-classes?
+      if (classDefinition.getSuperInterfaceDefinitions() != null)
+      {
+        for (InterfaceDefinition superInterface : classDefinition.getSuperInterfaceDefinitions())
+        {
+          if (superInterface.isImmutable() && !classDefinition.isImmutable())
+          {
+            throw new ConceptualException("Cannot define a non-immutable class to implement an immutable interface", classDefinition.getLexicalPhrase());
+          }
+        }
+      }
     }
     else if (typeDefinition instanceof InterfaceDefinition)
     {
-      // TODO: should super-interfaces of interfaces be checked for the same immutability constraint as super-classes?
+      InterfaceDefinition interfaceDefinition = (InterfaceDefinition) typeDefinition;
+      if (interfaceDefinition.getSuperInterfaceDefinitions() != null)
+      {
+        for (InterfaceDefinition superInterface : interfaceDefinition.getSuperInterfaceDefinitions())
+        {
+          if (superInterface.isImmutable() && !interfaceDefinition.isImmutable())
+          {
+            throw new ConceptualException("Cannot define a non-immutable interface to implement an immutable interface", interfaceDefinition.getLexicalPhrase());
+          }
+        }
+      }
     }
 
     for (TypeDefinition currentType : linearisation)
