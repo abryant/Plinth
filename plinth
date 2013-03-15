@@ -1,0 +1,15 @@
+#!/bin/bash
+# A much less-verbose way of invoking the plinth compiler
+# Use 'plinth arg1 arg2 ...' from anywhere rather than changing to the bin directory and running:
+# 'java -cp ../lib/jna.jar:. eu.bryants.anthony.plinth.compiler.Compiler arg1 arg2 ...'
+
+DIR="$( cd "$( dirname "$0" )" && pwd )"
+
+if [ -f "$DIR/bin/eu/bryants/anthony/plinth/compiler/Compiler.class" ]
+then
+  java -cp $DIR/lib/jna.jar:$DIR/bin:. eu.bryants.anthony.plinth.compiler.Compiler $*
+else
+  echo "Please compile the plinth compiler before using this script"
+  exit 1
+fi
+

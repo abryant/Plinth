@@ -16,7 +16,7 @@ This will compile all of the source files in `src` to `bin`, all of the runtime 
 
 To compile `Test.pth` to `binary.pbc`:
 
-    bin$ java -cp ../lib/jna.jar:. eu.bryants.anthony.plinth.compiler.Compiler -o ../binary.pbc --main-type foo.bar.Test -l ../runtime/runtime.bc -l ../plinth-bin/plinth.pbc ../Test.pth
+    Plinth$ ./plinth -o binary.pbc --main-type foo.bar.Test -l runtime/runtime.bc -l plinth-bin/plinth.pbc Test.pth
 
 The file `runtime/runtime.bc` is the compiled and linked version of all of the C and LLVM code in `runtime`. The ant build compiles this for whichever platform you are on.
 
