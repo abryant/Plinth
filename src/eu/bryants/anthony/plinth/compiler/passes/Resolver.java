@@ -1152,14 +1152,7 @@ public class Resolver
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A super(...) constructor can only be called from inside a class definition", delegateConstructorStatement.getLexicalPhrase()));
           throw coalescedException;
         }
-        ClassDefinition superClassDefinition = ((ClassDefinition) enclosingDefinition).getSuperClassDefinition();
-        if (superClassDefinition == null)
-        {
-          // TODO: once the type system has been unified under a single common super-type, remove this restriction, and allow super() to mean just calling the object() constructor (a no-op) and running the initialisers
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a super(...) constructor from a class with no superclass", delegateConstructorStatement.getLexicalPhrase()));
-          throw coalescedException;
-        }
-        constructorTypeDefinition = superClassDefinition;
+        constructorTypeDefinition = ((ClassDefinition) enclosingDefinition).getSuperClassDefinition();
       }
       else
       {
@@ -1169,8 +1162,16 @@ public class Resolver
       {
         throw coalescedException;
       }
-      Constructor resolvedConstructor = resolveConstructor(constructorTypeDefinition, arguments, delegateConstructorStatement.getLexicalPhrase());
-      delegateConstructorStatement.setResolvedConstructor(resolvedConstructor);
+      if (constructorTypeDefinition == null)
+      {
+        // if the resolved type definition is null, it means that the object constructor should be called (which is a no-op, but runs the initialiser)
+        delegateConstructorStatement.setResolvedConstructor(null);
+      }
+      else
+      {
+        Constructor resolvedConstructor = resolveConstructor(constructorTypeDefinition, arguments, delegateConstructorStatement.getLexicalPhrase());
+        delegateConstructorStatement.setResolvedConstructor(resolvedConstructor);
+      }
       // if there was no matching constructor, the resolved constructor call may not type check
       // in this case, we should point out this error before we run the cycle checker, because the cycle checker could find that the constructor is recursive
       // so run the type checker on this statement now

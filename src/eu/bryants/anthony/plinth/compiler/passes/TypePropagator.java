@@ -168,7 +168,8 @@ public class TypePropagator
     else if (statement instanceof DelegateConstructorStatement)
     {
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
-      Parameter[] parameters = delegateConstructorStatement.getResolvedConstructor().getParameters();
+      Constructor constructor = delegateConstructorStatement.getResolvedConstructor();
+      Parameter[] parameters = constructor == null ? new Parameter[0] : constructor.getParameters();
       Expression[] arguments = delegateConstructorStatement.getArguments();
       // propagate the parameter types to the arguments
       for (int i = 0; i < parameters.length; ++i)

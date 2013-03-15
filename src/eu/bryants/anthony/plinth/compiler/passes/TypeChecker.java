@@ -597,7 +597,7 @@ public class TypeChecker
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
       Constructor constructor = delegateConstructorStatement.getResolvedConstructor();
 
-      Parameter[] parameters = constructor.getParameters();
+      Parameter[] parameters = constructor == null ? new Parameter[0] : constructor.getParameters();
       Type[] parameterTypes = new Type[parameters.length];
       for (int i = 0; i < parameters.length; ++i)
       {
@@ -616,7 +616,8 @@ public class TypeChecker
             buffer.append(", ");
           }
         }
-        throw new ConceptualException("The constructor '" + constructor.getContainingTypeDefinition().getQualifiedName() + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", delegateConstructorStatement.getLexicalPhrase());
+        String typeName = constructor == null ? "object" : constructor.getContainingTypeDefinition().getQualifiedName().toString();
+        throw new ConceptualException("The constructor '" + typeName + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", delegateConstructorStatement.getLexicalPhrase());
       }
 
       CoalescedConceptualException coalescedException = null;

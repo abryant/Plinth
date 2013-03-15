@@ -208,6 +208,7 @@ public class CycleChecker
       findDelegateConstructors(constructor.getBlock(), delegateConstructors);
       // some of delegateConstructors may be super(...) constructors, which is allowed, and will not affect the cycle detection
       // in fact, they must be in the list so that setCallsDelegateConstructor() gets the correct value
+      // some of the delegateConstructors may even be null, representing the object super-constructor
       if (!delegateConstructors.isEmpty())
       {
         constructorDelegates.put(constructor, delegateConstructors);

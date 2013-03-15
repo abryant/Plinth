@@ -2170,20 +2170,24 @@ public class CodeGenerator
     {
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
       Constructor delegatedConstructor = delegateConstructorStatement.getResolvedConstructor();
-      Parameter[] parameters = delegatedConstructor.getParameters();
-      Expression[] arguments = delegateConstructorStatement.getArguments();
-      LLVMValueRef llvmConstructor = getConstructorFunction(delegatedConstructor);
-      LLVMValueRef[] llvmArguments = new LLVMValueRef[1 + parameters.length];
-      // convert the thisValue to the delegated constructor's type, since if this is a super(...) constructor, the native type representation will be different
-      llvmArguments[0] = typeHelper.convertTemporary(builder, landingPadContainer, thisValue, new NamedType(false, false, typeDefinition), new NamedType(false, false, delegatedConstructor.getContainingTypeDefinition()));
-      for (int i = 0; i < parameters.length; ++i)
+      // a null delegate constructor represents a call to the object super-constructor, which is a no-op, but the initialiser is still run afterwards
+      if (delegatedConstructor != null)
       {
-        LLVMValueRef argument = buildExpression(arguments[i], builder, thisValue, variables, landingPadContainer);
-        llvmArguments[1 + i] = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, argument, arguments[i].getType(), parameters[i].getType());
+        Parameter[] parameters = delegatedConstructor.getParameters();
+        Expression[] arguments = delegateConstructorStatement.getArguments();
+        LLVMValueRef llvmConstructor = getConstructorFunction(delegatedConstructor);
+        LLVMValueRef[] llvmArguments = new LLVMValueRef[1 + parameters.length];
+        // convert the thisValue to the delegated constructor's type, since if this is a super(...) constructor, the native type representation will be different
+        llvmArguments[0] = typeHelper.convertTemporary(builder, landingPadContainer, thisValue, new NamedType(false, false, typeDefinition), new NamedType(false, false, delegatedConstructor.getContainingTypeDefinition()));
+        for (int i = 0; i < parameters.length; ++i)
+        {
+          LLVMValueRef argument = buildExpression(arguments[i], builder, thisValue, variables, landingPadContainer);
+          llvmArguments[1 + i] = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, argument, arguments[i].getType(), parameters[i].getType());
+        }
+        LLVMBasicBlockRef constructorInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "delegateConstructorInvokeContinue");
+        LLVM.LLVMBuildInvoke(builder, llvmConstructor, C.toNativePointerArray(llvmArguments, false, true), llvmArguments.length, constructorInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+        LLVM.LLVMPositionBuilderAtEnd(builder, constructorInvokeContinueBlock);
       }
-      LLVMBasicBlockRef constructorInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "delegateConstructorInvokeContinue");
-      LLVM.LLVMBuildInvoke(builder, llvmConstructor, C.toNativePointerArray(llvmArguments, false, true), llvmArguments.length, constructorInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
-      LLVM.LLVMPositionBuilderAtEnd(builder, constructorInvokeContinueBlock);
       if (delegateConstructorStatement.isSuperConstructor())
       {
         // call the non-static initialiser function, which runs all non-static initialisers and sets the initial values for all of the fields

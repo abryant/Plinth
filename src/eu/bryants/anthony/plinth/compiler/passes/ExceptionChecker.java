@@ -262,9 +262,12 @@ public class ExceptionChecker
       {
         findUncaughtExceptions(argument, uncaughtExceptions);
       }
-      for (NamedType thrownType : delegateConstructorStatement.getResolvedConstructor().getCheckedThrownTypes())
+      if (delegateConstructorStatement.getResolvedConstructor() != null)
       {
-        addUncaughtException(thrownType, delegateConstructorStatement.getLexicalPhrase(), uncaughtExceptions);
+        for (NamedType thrownType : delegateConstructorStatement.getResolvedConstructor().getCheckedThrownTypes())
+        {
+          addUncaughtException(thrownType, delegateConstructorStatement.getLexicalPhrase(), uncaughtExceptions);
+        }
       }
     }
     else if (statement instanceof ExpressionStatement)

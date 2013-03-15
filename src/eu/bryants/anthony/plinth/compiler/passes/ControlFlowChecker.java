@@ -1292,6 +1292,9 @@ public class ControlFlowChecker
     {
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
       CoalescedConceptualException coalescedException = null;
+      Constructor constructor = delegateConstructorStatement.getResolvedConstructor();
+      boolean isConstructorImmutable = constructor == null ? true : constructor.isImmutable();
+      boolean isConstructorSelfish = constructor == null ? false : constructor.isSelfish();
       if (!inConstructor | inStaticContext | inInitialiser)
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Delegate constructors may only be called from other constructors", delegateConstructorStatement.getLexicalPhrase()));
@@ -1300,16 +1303,16 @@ public class ControlFlowChecker
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A delegate constructor may already have been run", delegateConstructorStatement.getLexicalPhrase()));
       }
-      if (inImmutableContext && !delegateConstructorStatement.getResolvedConstructor().isImmutable())
+      if (inImmutableContext && !isConstructorImmutable)
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a non-immutable delegate constructor from an immutable constructor", delegateConstructorStatement.getLexicalPhrase()));
       }
 
-      if (delegateConstructorStatement.isSuperConstructor() && delegateConstructorStatement.getResolvedConstructor().isSelfish())
+      if (delegateConstructorStatement.isSuperConstructor() && isConstructorSelfish)
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a selfish constructor as a super() constructor", delegateConstructorStatement.getLexicalPhrase()));
       }
-      if (!inSelfishContext && delegateConstructorStatement.getResolvedConstructor().isSelfish())
+      if (!inSelfishContext && isConstructorSelfish)
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a selfish delegate constructor from a not-selfish constructor", delegateConstructorStatement.getLexicalPhrase()));
       }

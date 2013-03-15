@@ -48,9 +48,16 @@ class Super
     return str;
   };
 
+  {
+    stdout::println("foo.bar.Super initialiser");
+  }
+
   constructor(string s)
   {
     str = s;
+    stdout::println("foo.bar.Super constructor");
+    super();
+    stdout::println("foo.bar.Super constructor, after super() call");
   }
 }
 
