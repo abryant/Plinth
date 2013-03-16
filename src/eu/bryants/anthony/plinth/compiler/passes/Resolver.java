@@ -43,6 +43,7 @@ import eu.bryants.anthony.plinth.ast.expression.ObjectCreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression;
 import eu.bryants.anthony.plinth.ast.expression.ShiftExpression;
 import eu.bryants.anthony.plinth.ast.expression.StringLiteralExpression;
+import eu.bryants.anthony.plinth.ast.expression.SuperVariableExpression;
 import eu.bryants.anthony.plinth.ast.expression.ThisExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleIndexExpression;
@@ -2034,6 +2035,11 @@ public class Resolver
             {
               // the base resolved to a Method, so just resolve this FunctionCallExpression to the same Method
               expr.setResolvedMethod(variableExpression.getResolvedMethod());
+              if (variableExpression instanceof SuperVariableExpression)
+              {
+                // this function call is of the form 'super.method()', so make it non-virtual
+                expr.setResolvedIsVirtual(false);
+              }
               return;
             }
           }
@@ -2070,14 +2076,16 @@ public class Resolver
       Map<Parameter[], Member> paramLists = new HashMap<Parameter[], Member>();
       Map<Parameter[], Member> hintedParamLists = new HashMap<Parameter[], Member>();
       Map<Method, Expression> methodBaseExpressions = new HashMap<Method, Expression>();
+      boolean isSuperAccess = false;
       if (functionExpression instanceof VariableExpression)
       {
         VariableExpression variableExpression = (VariableExpression) functionExpression;
+        isSuperAccess = variableExpression instanceof SuperVariableExpression;
         String name = variableExpression.getName();
         // the sub-expression didn't resolve to a variable or a field, or we would have got a valid type back in expressionType
         if (enclosingDefinition != null)
         {
-          Set<Member> memberSet = new NamedType(false, false, enclosingDefinition).getMembers(name, true);
+          Set<Member> memberSet = new NamedType(false, false, enclosingDefinition).getMembers(name, !isSuperAccess, isSuperAccess);
           memberSet = memberSet != null ? memberSet : new HashSet<Member>();
           Set<Member> hintedMemberSet = applyTypeHints(memberSet, variableExpression.getTypeHint(), variableExpression.getReturnTypeHint(), variableExpression.getIsFunctionHint(), variableExpression.getIsAssignableHint());
           for (Member m : memberSet)
@@ -2094,35 +2102,38 @@ public class Resolver
             }
           }
         }
-        // try resolving it as a constructor call for a CompoundDefinition, by calling resolve() on it as a NamedType
-        try
+        if (!isSuperAccess)
         {
-          NamedType type = new NamedType(false, false, new QName(name, null), null);
-          resolve(type, compilationUnit);
-          TypeDefinition typeDefinition = type.getResolvedTypeDefinition();
-          if (typeDefinition != null && typeDefinition instanceof CompoundDefinition)
+          // try resolving it as a constructor call for a CompoundDefinition, by calling resolve() on it as a NamedType
+          try
           {
-            for (Constructor c : typeDefinition.getUniqueConstructors())
+            NamedType type = new NamedType(false, false, new QName(name, null), null);
+            resolve(type, compilationUnit);
+            TypeDefinition typeDefinition = type.getResolvedTypeDefinition();
+            if (typeDefinition != null && typeDefinition instanceof CompoundDefinition)
             {
-              paramLists.put(c.getParameters(), c);
-              if (!variableExpression.getIsAssignableHint() && variableExpression.getTypeHint() == null)
+              for (Constructor c : typeDefinition.getUniqueConstructors())
               {
-                Type returnTypeHint = variableExpression.getReturnTypeHint();
-                if (returnTypeHint != null && returnTypeHint.canAssign(new NamedType(false, false, typeDefinition)))
+                paramLists.put(c.getParameters(), c);
+                if (!variableExpression.getIsAssignableHint() && variableExpression.getTypeHint() == null)
                 {
-                  hintedParamLists.put(c.getParameters(), c);
+                  Type returnTypeHint = variableExpression.getReturnTypeHint();
+                  if (returnTypeHint != null && returnTypeHint.canAssign(new NamedType(false, false, typeDefinition)))
+                  {
+                    hintedParamLists.put(c.getParameters(), c);
+                  }
                 }
               }
             }
           }
-        }
-        catch (NameNotResolvedException e)
-        {
-          // ignore this error, just assume it wasn't meant to resolve to a constructor call
-        }
-        catch (ConceptualException e)
-        {
-          // ignore this error, just assume it wasn't meant to resolve to a constructor call
+          catch (NameNotResolvedException e)
+          {
+            // ignore this error, just assume it wasn't meant to resolve to a constructor call
+          }
+          catch (ConceptualException e)
+          {
+            // ignore this error, just assume it wasn't meant to resolve to a constructor call
+          }
         }
       }
       else if (functionExpression instanceof FieldAccessExpression)
@@ -2280,6 +2291,11 @@ public class Resolver
         expr.setResolvedMethod((Method) entry.getValue());
         // if the method call had no base expression, e.g. it was a VariableExpression being called, this will just set it to null
         expr.setResolvedBaseExpression(methodBaseExpressions.get(entry.getValue()));
+        if (isSuperAccess)
+        {
+          // this function call is of the form 'super.method()', so make it non-virtual
+          expr.setResolvedIsVirtual(false);
+        }
       }
       else
       {
@@ -2499,16 +2515,17 @@ public class Resolver
     else if (expression instanceof VariableExpression)
     {
       VariableExpression expr = (VariableExpression) expression;
+      boolean isSuperAccess = expr instanceof SuperVariableExpression;
       expr.setResolvedContextImmutability(inImmutableContext);
       Variable var = block.getVariable(expr.getName());
-      if (var != null)
+      if (var != null & !isSuperAccess)
       {
         expr.setResolvedVariable(var);
         return;
       }
       if (enclosingDefinition != null)
       {
-        Set<Member> members = new NamedType(false, false, enclosingDefinition).getMembers(expr.getName(), true);
+        Set<Member> members = new NamedType(false, false, enclosingDefinition).getMembers(expr.getName(), !isSuperAccess, isSuperAccess);
         members = members != null ? members : new HashSet<Member>();
 
         Member resolved = null;
@@ -2574,7 +2591,7 @@ public class Resolver
           throw new IllegalStateException("Unknown member type: " + resolved);
         }
       }
-      throw new NameNotResolvedException("Unable to resolve \"" + expr.getName() + "\"", expr.getLexicalPhrase());
+      throw new NameNotResolvedException("Unable to resolve \"" + (isSuperAccess ? "super." : "") + expr.getName() + "\"", expr.getLexicalPhrase());
     }
     else
     {
@@ -2804,7 +2821,7 @@ public class Resolver
       {
         current = (FieldAccessExpression) baseExpression;
       }
-      else if (baseExpression instanceof VariableExpression)
+      else if (baseExpression instanceof VariableExpression && !(baseExpression instanceof SuperVariableExpression))
       {
         nameStack.push(((VariableExpression) baseExpression).getName());
         String[] names = new String[nameStack.size()];

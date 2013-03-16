@@ -15,6 +15,7 @@ import eu.bryants.anthony.plinth.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.ObjectCreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.StringLiteralExpression;
+import eu.bryants.anthony.plinth.ast.expression.SuperVariableExpression;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.FloatingLiteral;
 import eu.bryants.anthony.plinth.ast.terminal.IntegerLiteral;
@@ -47,6 +48,7 @@ public class BasicPrimaryRule extends Rule<ParseType>
   private static Production<ParseType> NESTED_QNAME_LIST_ARRAY_ACCESS_PRODUCTION = new Production<ParseType>(ParseType.NESTED_QNAME_LIST, ParseType.LSQUARE, ParseType.EXPRESSION, ParseType.RSQUARE);
   private static Production<ParseType> ARRAY_CREATION_EMPTY_LIST_PRODUCTION = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE, ParseType.LBRACE, ParseType.RBRACE);
   private static Production<ParseType> ARRAY_CREATION_LIST_PRODUCTION       = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE, ParseType.LBRACE, ParseType.EXPRESSION_LIST, ParseType.RBRACE);
+  private static Production<ParseType> SUPER_ACCESS_PRODUCTION                       = new Production<ParseType>(ParseType.SUPER_KEYWORD,            ParseType.DOT,               ParseType.NAME);
   private static Production<ParseType> FIELD_ACCESS_PRODUCTION                       = new Production<ParseType>(ParseType.PRIMARY_NO_TRAILING_TYPE, ParseType.DOT,               ParseType.NAME);
   private static Production<ParseType> NESTED_QNAME_LIST_FIELD_ACCESS_PRODUCTION     = new Production<ParseType>(ParseType.NESTED_QNAME_LIST,        ParseType.DOT,               ParseType.NAME);
   private static Production<ParseType> NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION       = new Production<ParseType>(ParseType.PRIMARY_NO_TRAILING_TYPE, ParseType.QUESTION_MARK_DOT, ParseType.NAME);
@@ -65,6 +67,7 @@ public class BasicPrimaryRule extends Rule<ParseType>
                                    NULL_PRODUCTION,
                                    ARRAY_ACCESS_PRODUCTION, QNAME_ARRAY_ACCESS_PRODUCTION, NESTED_QNAME_LIST_ARRAY_ACCESS_PRODUCTION,
                                    ARRAY_CREATION_EMPTY_LIST_PRODUCTION, ARRAY_CREATION_LIST_PRODUCTION,
+                                   SUPER_ACCESS_PRODUCTION,
                                    FIELD_ACCESS_PRODUCTION, NESTED_QNAME_LIST_FIELD_ACCESS_PRODUCTION, NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION, QNAME_NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION, TYPE_FIELD_ACCESS_PRODUCTION,
                                    FUNCTION_CALL_PRODUCTION,
                                    BRACKETS_PRODUCTION,
@@ -135,6 +138,11 @@ public class BasicPrimaryRule extends Rule<ParseType>
       ArrayType arrayType = new ArrayType(false, false, type, null);
       return new ArrayCreationExpression(arrayType, null, valueExpressions.toArray(new Expression[valueExpressions.size()]),
                                          LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], type.getLexicalPhrase(), (LexicalPhrase) args[4], valueExpressions.getLexicalPhrase(), (LexicalPhrase) args[6]));
+    }
+    if (production == SUPER_ACCESS_PRODUCTION)
+    {
+      Name name = (Name) args[2];
+      return new SuperVariableExpression(name.getName(), LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], name.getLexicalPhrase()));
     }
     if (production == FIELD_ACCESS_PRODUCTION || production == NESTED_QNAME_LIST_FIELD_ACCESS_PRODUCTION || production == NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION || production == QNAME_NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION)
     {

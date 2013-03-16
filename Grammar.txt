@@ -203,6 +203,7 @@ BasicPrimary = IntegerLiteral | FloatingLiteral |
                NestedQNameList LSquare Expression RSquare |
                NewKeyword LSquare RSquare Type LBrace RBrace |
                NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace |
+               SuperKeyword Dot Name |
                PrimaryNoTrailingType Dot Name |
                NestedQNameList Dot Name |
                PrimaryNoTrailingType QuestionMarkDot Name |

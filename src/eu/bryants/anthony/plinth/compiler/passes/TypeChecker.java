@@ -2202,6 +2202,7 @@ public class TypeChecker
         // create a function type for this method
         if (!resolvedMethod.isStatic() && resolvedMethod.getContainingTypeDefinition() instanceof CompoundDefinition)
         {
+          // TODO: remove this restriction
           throw new ConceptualException("Cannot convert a non-static method on a compound type to a function type, as there is nowhere to store the compound value of 'this' to call the method on", expression.getLexicalPhrase());
         }
         Parameter[] parameters = resolvedMethod.getParameters();

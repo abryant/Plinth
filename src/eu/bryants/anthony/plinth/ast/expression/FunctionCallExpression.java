@@ -26,6 +26,8 @@ public class FunctionCallExpression extends Expression
   private Constructor resolvedConstructor;
   private Method resolvedMethod;
   private boolean resolvedNullTraversal;
+  // if there is a resolved method and no resolved base expression, the function call may be resolved as non-virtual, this represents calls of the form 'super.method()'
+  private boolean resolvedIsVirtual = true;
 
   public FunctionCallExpression(Expression functionExpression, Expression[] arguments, LexicalPhrase lexicalPhrase)
   {
@@ -112,6 +114,22 @@ public class FunctionCallExpression extends Expression
   public void setResolvedNullTraversal(boolean resolvedNullTraversal)
   {
     this.resolvedNullTraversal = resolvedNullTraversal;
+  }
+
+  /**
+   * @return the resolvedIsVirtual
+   */
+  public boolean getResolvedIsVirtual()
+  {
+    return resolvedIsVirtual;
+  }
+
+  /**
+   * @param resolvedIsVirtual - the resolvedIsVirtual to set
+   */
+  public void setResolvedIsVirtual(boolean resolvedIsVirtual)
+  {
+    this.resolvedIsVirtual = resolvedIsVirtual;
   }
 
   @Override

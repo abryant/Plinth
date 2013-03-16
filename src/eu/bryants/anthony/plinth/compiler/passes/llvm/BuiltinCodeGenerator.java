@@ -471,7 +471,7 @@ public class BuiltinCodeGenerator
     // we shouldn't usually create BuiltinMethods like this, as they might need to have a method index set depending on the base type
     // but it's fine in this case, because we're just using it to get a Disambiguator
     Method toStringMethod = notNullBaseType.getMethod(new BuiltinMethod(notNullBaseType, BuiltinMethodType.TO_STRING).getDisambiguator());
-    LLVMValueRef toStringFunction = codeGenerator.lookupMethodFunction(builder, landingPadContainer, notNullElement, notNullBaseType, toStringMethod);
+    LLVMValueRef toStringFunction = codeGenerator.lookupMethodFunction(builder, landingPadContainer, notNullElement, notNullBaseType, toStringMethod, false);
     LLVMValueRef[] arguments = new LLVMValueRef[] {notNullElement};
     LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "invokeContinue");
     LLVMValueRef notNullElementString = LLVM.LLVMBuildInvoke(builder, toStringFunction, C.toNativePointerArray(arguments, false, true), arguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
@@ -662,7 +662,7 @@ public class BuiltinCodeGenerator
         // we shouldn't usually create BuiltinMethods like this, as they might need to have a method index set depending on the base type
         // but it's fine in this case, because we're just using it to get a Disambiguator
         Method toStringMethod = notNullSubType.getMethod(new BuiltinMethod(notNullSubType, BuiltinMethodType.TO_STRING).getDisambiguator());
-        LLVMValueRef toStringFunction = codeGenerator.lookupMethodFunction(builder, landingPadContainer, notNullSubValue, notNullSubType, toStringMethod);
+        LLVMValueRef toStringFunction = codeGenerator.lookupMethodFunction(builder, landingPadContainer, notNullSubValue, notNullSubType, toStringMethod, false);
         LLVMValueRef[] arguments = new LLVMValueRef[] {typeHelper.convertMethodCallee(builder, landingPadContainer, notNullSubValue, notNullSubType, toStringMethod)};
         LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "invokeContinue");
         LLVMValueRef llvmTypeString = LLVM.LLVMBuildInvoke(builder, toStringFunction, C.toNativePointerArray(arguments, false, true), arguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");

@@ -50,6 +50,7 @@ import eu.bryants.anthony.plinth.ast.expression.RelationalExpression;
 import eu.bryants.anthony.plinth.ast.expression.RelationalExpression.RelationalOperator;
 import eu.bryants.anthony.plinth.ast.expression.ShiftExpression;
 import eu.bryants.anthony.plinth.ast.expression.StringLiteralExpression;
+import eu.bryants.anthony.plinth.ast.expression.SuperVariableExpression;
 import eu.bryants.anthony.plinth.ast.expression.ThisExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleIndexExpression;
@@ -521,11 +522,12 @@ public class CodeGenerator
    * @param callee - the callee of the method, to look up the virtual method on if the Method is part of a virtual function table
    * @param calleeType - the Type of the callee of the method, to determine how to extract the function from the callee value
    * @param method - the Method to find
+   * @param skipVirtualLookup - true if the method should not be looked up in the virtual function table
    * @return the function to call for the specified Method
    */
-  LLVMValueRef lookupMethodFunction(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef callee, Type calleeType, Method method)
+  LLVMValueRef lookupMethodFunction(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef callee, Type calleeType, Method method, boolean skipVirtualLookup)
   {
-    if (!method.isStatic() &&
+    if (!method.isStatic() && !skipVirtualLookup &&
          (calleeType instanceof ObjectType ||
            (calleeType instanceof NamedType && ((NamedType) calleeType).getResolvedTypeDefinition() instanceof ClassDefinition) ||
            (calleeType instanceof NamedType && ((NamedType) calleeType).getResolvedTypeDefinition() instanceof InterfaceDefinition)))
@@ -3873,7 +3875,7 @@ public class CodeGenerator
               (notNullType instanceof NamedType && ((NamedType) notNullType).getResolvedTypeDefinition() instanceof InterfaceDefinition) ||
               notNullType instanceof ArrayType)
           {
-            function = lookupMethodFunction(builder, landingPadContainer, notNullValue, notNullType, method);
+            function = lookupMethodFunction(builder, landingPadContainer, notNullValue, notNullType, method, false);
           }
           else
           {
@@ -4076,7 +4078,7 @@ public class CodeGenerator
           realArguments[0] = notNullCallee != null ? notNullCallee : thisValue;
         }
         // converting the callee can change the type of the callee, so look up the method's function first (while we know the type)
-        LLVMValueRef llvmResolvedFunction = lookupMethodFunction(builder, landingPadContainer, realArguments[0], calleeType, resolvedMethod);
+        LLVMValueRef llvmResolvedFunction = lookupMethodFunction(builder, landingPadContainer, realArguments[0], calleeType, resolvedMethod, !functionExpression.getResolvedIsVirtual());
         realArguments[0] = typeHelper.convertMethodCallee(builder, landingPadContainer, realArguments[0], calleeType, resolvedMethod);
         LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "methodInvokeContinue");
         result = LLVM.LLVMBuildInvoke(builder, llvmResolvedFunction, C.toNativePointerArray(realArguments, false, true), realArguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
@@ -4528,7 +4530,8 @@ public class CodeGenerator
         LLVMValueRef callee = method.isStatic() ? LLVM.LLVMConstNull(typeHelper.getOpaquePointer()) : thisValue;
         Type calleeType = method.isStatic() ? null : new NamedType(false, false, typeDefinition);
 
-        LLVMValueRef function = lookupMethodFunction(builder, landingPadContainer, callee, calleeType, method);
+        boolean isNonVirtual = variableExpression instanceof SuperVariableExpression;
+        LLVMValueRef function = lookupMethodFunction(builder, landingPadContainer, callee, calleeType, method, isNonVirtual);
         function = LLVM.LLVMBuildBitCast(builder, function, typeHelper.findRawFunctionPointerType(functionType), "");
 
         LLVMValueRef firstArgument = typeHelper.convertMethodCallee(builder, landingPadContainer, callee, calleeType, method);

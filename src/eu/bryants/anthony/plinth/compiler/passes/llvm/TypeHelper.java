@@ -698,7 +698,7 @@ public class TypeHelper
     LLVMValueRef callee = LLVM.LLVMGetParam(objectFunction, 0);
     LLVMValueRef convertedBaseValue = convertTemporary(builder, landingPadContainer, callee, objectType, baseType);
 
-    LLVMValueRef methodFunction = codeGenerator.lookupMethodFunction(builder, landingPadContainer, convertedBaseValue, baseType, method);
+    LLVMValueRef methodFunction = codeGenerator.lookupMethodFunction(builder, landingPadContainer, convertedBaseValue, baseType, method, false);
     LLVMValueRef[] arguments = new LLVMValueRef[1 + parameters.length];
     arguments[0] = convertedBaseValue;
     for (int i = 0; i < parameters.length; ++i)
@@ -1560,7 +1560,7 @@ public class TypeHelper
     {
       throw new IllegalStateException("Type " + type + " does not have a 'toString()' method!");
     }
-    LLVMValueRef function = codeGenerator.lookupMethodFunction(builder, landingPadContainer, notNullValue, notNullType, method);
+    LLVMValueRef function = codeGenerator.lookupMethodFunction(builder, landingPadContainer, notNullValue, notNullType, method, false);
     LLVMValueRef callee = convertMethodCallee(builder, landingPadContainer, notNullValue, notNullType, method);
     LLVMValueRef[] arguments = new LLVMValueRef[] {callee};
     LLVMBasicBlockRef toStringInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "toStringInvokeContinue");

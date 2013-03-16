@@ -20,6 +20,10 @@ interface Foo
   {
     stdout::println(str);
   }
+  void test()
+  {
+    stdout::println("Foo::test()");
+  }
 }
 
 class Super
@@ -50,6 +54,15 @@ class Super
 
   {
     stdout::println("foo.bar.Super initialiser");
+  }
+
+  void test()
+  {
+    stdout::println("Super::test()");
+  }
+  void test(uint x)
+  {
+    stdout::println("Super::test(" + x + ")");
   }
 
   constructor(string s)
@@ -85,6 +98,13 @@ class Test extends Super implements Foo
     }
   }
 
+  void test()
+  {
+    stdout::println("Test::test()");
+    { -> void} f = cast<{-> void}> super.test;
+    f();
+  }
+
   selfish constructor(string a) throws Error
   {
     super("foo");
@@ -98,6 +118,7 @@ class Test extends Super implements Foo
     stdout::println(x);
     stdout::println(test.str);
     test.doStuff();
+    test.test();
     return 0;
   }
 }
