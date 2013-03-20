@@ -16,6 +16,16 @@ declare void @plinth_stderr_write({ %opaque*, %opaque*, i32, [0 x i8] }* %array)
 
 declare void @abort()
 
+declare i32 @_Unwind_RaiseException(i8* %exception)
+declare void @plinth_throw_failed(i8* %exception, i32 %result)
+
+define void @plinth_throw(i8* %exception) uwtable {
+entry:
+  %result = call i32 @_Unwind_RaiseException(i8* %exception)
+  call void @plinth_throw_failed(i8* %exception, i32 %result)
+  unreachable
+}
+
 ; This method is used in exception handling, to find out whether an exception is caught by a given handler
 define i1 @plinth_exception_instanceof(i8* %exception, i8* %typeInfo) {
 entry:

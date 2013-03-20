@@ -46,7 +46,7 @@ bool plinth_exception_instanceof(const uint8_t *plinthObject, const uint8_t *typ
 void plinth_print_uncaught_exception(const uint8_t *plinthException);
 
 void* plinth_create_exception(const uint8_t *plinthExceptionObject);
-void plinth_throw(_Unwind_Exception *exception);
+void plinth_throw_failed(_Unwind_Exception *exception, _Unwind_Reason_Code reason);
 _Unwind_Reason_Code plinth_personality(int version, _Unwind_Action actions, uint64_t exceptionClass,
                                        _Unwind_Exception *exception, _Unwind_Context *context);
 const uint8_t* plinth_catch(_Unwind_Exception *exception);
@@ -86,9 +86,8 @@ void* plinth_create_exception(const uint8_t *plinthExceptionObject)
   return exception;
 }
 
-void plinth_throw(_Unwind_Exception *exception)
+void plinth_throw_failed(_Unwind_Exception *exception, _Unwind_Reason_Code reason)
 {
-  _Unwind_Reason_Code reason = _Unwind_RaiseException(exception);
   if (reason == _URC_END_OF_STACK)
   {
     const uint8_t *plinthException = extractExceptionObject(exception);
