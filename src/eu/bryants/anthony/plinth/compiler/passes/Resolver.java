@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.Stack;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompilationUnit;
@@ -26,7 +25,7 @@ import eu.bryants.anthony.plinth.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.plinth.ast.expression.BracketedExpression;
 import eu.bryants.anthony.plinth.ast.expression.CastExpression;
-import eu.bryants.anthony.plinth.ast.expression.ClassCreationExpression;
+import eu.bryants.anthony.plinth.ast.expression.CreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.EqualityExpression;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.expression.FieldAccessExpression;
@@ -1809,21 +1808,21 @@ public class Resolver
         throw coalescedException;
       }
     }
-    else if (expression instanceof ClassCreationExpression)
+    else if (expression instanceof CreationExpression)
     {
-      ClassCreationExpression classCreationExpression = (ClassCreationExpression) expression;
+      CreationExpression creationExpression = (CreationExpression) expression;
       CoalescedConceptualException coalescedException = null;
-      NamedType type = new NamedType(false, false, classCreationExpression.getQualifiedName(), null);
+      NamedType type = new NamedType(false, false, creationExpression.getQualifiedName(), null);
       try
       {
         resolve(type, compilationUnit);
-        classCreationExpression.setResolvedType(type);
+        creationExpression.setResolvedType(type);
       }
       catch (ConceptualException e)
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
-      Expression[] arguments = classCreationExpression.getArguments();
+      Expression[] arguments = creationExpression.getArguments();
       for (Expression argument : arguments)
       {
         try
@@ -1839,8 +1838,8 @@ public class Resolver
       {
         throw coalescedException;
       }
-      Constructor resolvedConstructor = resolveConstructor(type.getResolvedTypeDefinition(), arguments, classCreationExpression.getLexicalPhrase());
-      classCreationExpression.setResolvedConstructor(resolvedConstructor);
+      Constructor resolvedConstructor = resolveConstructor(type.getResolvedTypeDefinition(), arguments, creationExpression.getLexicalPhrase());
+      creationExpression.setResolvedConstructor(resolvedConstructor);
     }
     else if (expression instanceof EqualityExpression)
     {
@@ -2073,8 +2072,8 @@ public class Resolver
         functionExpression = ((BracketedExpression) functionExpression).getExpression();
       }
 
-      Map<Parameter[], Member> paramLists = new HashMap<Parameter[], Member>();
-      Map<Parameter[], Member> hintedParamLists = new HashMap<Parameter[], Member>();
+      Map<Parameter[], Method> paramLists = new HashMap<Parameter[], Method>();
+      Map<Parameter[], Method> hintedParamLists = new HashMap<Parameter[], Method>();
       Map<Method, Expression> methodBaseExpressions = new HashMap<Method, Expression>();
       boolean isSuperAccess = false;
       if (functionExpression instanceof VariableExpression)
@@ -2092,47 +2091,15 @@ public class Resolver
           {
             if (m instanceof Method)
             {
-              Parameter[] params = ((Method) m).getParameters();
-              paramLists.put(params, m);
-              if (hintedMemberSet.contains(m))
+              Method method = (Method) m;
+              Parameter[] params = method.getParameters();
+              paramLists.put(params, method);
+              if (hintedMemberSet.contains(method))
               {
-                hintedParamLists.put(params, m);
+                hintedParamLists.put(params, method);
               }
               // leave methodBaseExpressions with a null value for this method, as we have no base expression
             }
-          }
-        }
-        if (!isSuperAccess)
-        {
-          // try resolving it as a constructor call for a CompoundDefinition, by calling resolve() on it as a NamedType
-          try
-          {
-            NamedType type = new NamedType(false, false, new QName(name, null), null);
-            resolve(type, compilationUnit);
-            TypeDefinition typeDefinition = type.getResolvedTypeDefinition();
-            if (typeDefinition != null && typeDefinition instanceof CompoundDefinition)
-            {
-              for (Constructor c : typeDefinition.getUniqueConstructors())
-              {
-                paramLists.put(c.getParameters(), c);
-                if (!variableExpression.getIsAssignableHint() && variableExpression.getTypeHint() == null)
-                {
-                  Type returnTypeHint = variableExpression.getReturnTypeHint();
-                  if (returnTypeHint != null && returnTypeHint.canAssign(new NamedType(false, false, typeDefinition)))
-                  {
-                    hintedParamLists.put(c.getParameters(), c);
-                  }
-                }
-              }
-            }
-          }
-          catch (NameNotResolvedException e)
-          {
-            // ignore this error, just assume it wasn't meant to resolve to a constructor call
-          }
-          catch (ConceptualException e)
-          {
-            // ignore this error, just assume it wasn't meant to resolve to a constructor call
           }
         }
       }
@@ -2141,42 +2108,6 @@ public class Resolver
         FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) functionExpression;
         expr.setResolvedNullTraversal(fieldAccessExpression.isNullTraversing());
 
-        // first, check whether this is a call to a constructor of a CompoundDefinition
-        QName qname = extractFieldAccessQName(fieldAccessExpression);
-        if (qname != null)
-        {
-          try
-          {
-            NamedType type = new NamedType(false, false, qname, null);
-            resolve(type, compilationUnit);
-            TypeDefinition typeDefinition = type.getResolvedTypeDefinition();
-            if (typeDefinition != null && typeDefinition instanceof CompoundDefinition)
-            {
-              for (Constructor c : typeDefinition.getUniqueConstructors())
-              {
-                paramLists.put(c.getParameters(), c);
-                if (!fieldAccessExpression.getIsAssignableHint() && fieldAccessExpression.getTypeHint() == null)
-                {
-                  Type returnTypeHint = fieldAccessExpression.getReturnTypeHint();
-                  if (returnTypeHint != null && returnTypeHint.canAssign(new NamedType(false, false, typeDefinition)))
-                  {
-                    hintedParamLists.put(c.getParameters(), c);
-                  }
-                }
-              }
-            }
-          }
-          catch (NameNotResolvedException e)
-          {
-            // ignore this error, just assume it wasn't meant to resolve to a constructor call
-          }
-          catch (ConceptualException e)
-          {
-            // ignore this error, just assume it wasn't meant to resolve to a constructor call
-          }
-        }
-
-        // now look for normal method accesses
         try
         {
           String name = fieldAccessExpression.getFieldName();
@@ -2214,7 +2145,7 @@ public class Resolver
             {
               Method method = (Method) member;
               paramLists.put(method.getParameters(), method);
-              if (hintedMemberSet.contains(member))
+              if (hintedMemberSet.contains(method))
               {
                 hintedParamLists.put(method.getParameters(), method);
               }
@@ -2237,7 +2168,7 @@ public class Resolver
       // if there are multiple parameter lists, try to narrow it down to one that is equivalent to the argument list
       if (hintedParamLists.size() > 1)
       {
-        Map<Parameter[], Member> backupHintedParamLists = new HashMap<Parameter[], Member>(hintedParamLists);
+        Map<Parameter[], Method> backupHintedParamLists = new HashMap<Parameter[], Method>(hintedParamLists);
         filterParameterLists(hintedParamLists.entrySet(), expr.getArguments(), true, false);
         // if we have filtered out all of the parameter lists, try to narrow it down again, but this time allow nullable versions of argument types for parameters
         if (hintedParamLists.isEmpty())
@@ -2257,7 +2188,7 @@ public class Resolver
         filterParameterLists(paramLists.entrySet(), expr.getArguments(), false, false);
         if (paramLists.size() > 1)
         {
-          Map<Parameter[], Member> backupParamLists = new HashMap<Parameter[], Member>(paramLists);
+          Map<Parameter[], Method> backupParamLists = new HashMap<Parameter[], Method>(paramLists);
           filterParameterLists(paramLists.entrySet(), expr.getArguments(), true, false);
           if (paramLists.isEmpty())
           {
@@ -2269,7 +2200,7 @@ public class Resolver
 
       if (paramLists.size() > 1)
       {
-        throw new ConceptualException("Ambiguous function call, there are at least two applicable functions which take these arguments", expr.getLexicalPhrase());
+        throw new ConceptualException("Ambiguous method call, there are at least two applicable methods which take these arguments", expr.getLexicalPhrase());
       }
       if (paramLists.isEmpty())
       {
@@ -2281,25 +2212,14 @@ public class Resolver
         throw (ConceptualException) cachedException;
       }
 
-      Entry<Parameter[], Member> entry = paramLists.entrySet().iterator().next();
-      if (entry.getValue() instanceof Constructor)
+      Entry<Parameter[], Method> entry = paramLists.entrySet().iterator().next();
+      expr.setResolvedMethod(entry.getValue());
+      // if the method call had no base expression, e.g. it was a VariableExpression being called, this will just set it to null
+      expr.setResolvedBaseExpression(methodBaseExpressions.get(entry.getValue()));
+      if (isSuperAccess)
       {
-        expr.setResolvedConstructor((Constructor) entry.getValue());
-      }
-      else if (entry.getValue() instanceof Method)
-      {
-        expr.setResolvedMethod((Method) entry.getValue());
-        // if the method call had no base expression, e.g. it was a VariableExpression being called, this will just set it to null
-        expr.setResolvedBaseExpression(methodBaseExpressions.get(entry.getValue()));
-        if (isSuperAccess)
-        {
-          // this function call is of the form 'super.method()', so make it non-virtual
-          expr.setResolvedIsVirtual(false);
-        }
-      }
-      else
-      {
-        throw new IllegalStateException("Unknown function call expression target type: " + entry.getValue());
+        // this function call is of the form 'super.method()', so make it non-virtual
+        expr.setResolvedIsVirtual(false);
       }
     }
     else if (expression instanceof InlineIfExpression)
@@ -2798,45 +2718,6 @@ public class Resolver
       return constructors.iterator().next();
     }
     throw new ConceptualException("Cannot create a '" + typeDefinition.getQualifiedName() + "' - it has no constructors", callerLexicalPhrase);
-  }
-
-  /**
-   * Tries to extract a qualified name from the specified FieldAccessExpression, but fails if it doesn't look EXACTLY like one.
-   * @param fieldAccessExpression - the FieldAccessExpression to extract the QName from
-   * @return the QName from the specified FieldAccessExpression, or null if it isn't just a QName
-   */
-  private static QName extractFieldAccessQName(FieldAccessExpression fieldAccessExpression)
-  {
-    Stack<String> nameStack = new Stack<String>();
-    FieldAccessExpression current = fieldAccessExpression;
-    while (current != null)
-    {
-      nameStack.push(current.getFieldName());
-      if (current.getBaseExpression() == null || current.getBaseType() != null || current.isNullTraversing())
-      {
-        return null;
-      }
-      Expression baseExpression = current.getBaseExpression();
-      if (baseExpression instanceof FieldAccessExpression)
-      {
-        current = (FieldAccessExpression) baseExpression;
-      }
-      else if (baseExpression instanceof VariableExpression && !(baseExpression instanceof SuperVariableExpression))
-      {
-        nameStack.push(((VariableExpression) baseExpression).getName());
-        String[] names = new String[nameStack.size()];
-        for (int i = 0; i < names.length; ++i)
-        {
-          names[i] = nameStack.pop();
-        }
-        return new QName(names);
-      }
-      else
-      {
-        return null;
-      }
-    }
-    throw new IllegalStateException("Unknown error extracting a QName from a FieldAccessExpression");
   }
 
   /**

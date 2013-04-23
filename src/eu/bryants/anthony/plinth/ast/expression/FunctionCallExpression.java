@@ -1,7 +1,6 @@
 package eu.bryants.anthony.plinth.ast.expression;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
-import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Method;
 
 /*
@@ -18,12 +17,10 @@ public class FunctionCallExpression extends Expression
 
   // when this has been resolved (assuming there were no errors) we will have one of the following situations:
   // * just a resolvedBaseExpression, which has a function type
-  // * just a resolvedConstructor, and no resolvedBaseExpression
   // * just a resolvedMethod, and no resolvedBaseExpression, in which case the method is assumed to be called on 'this' (or on nothing, if the method is static)
   // * a resolvedMethod and a resolvedBaseExpression, in which case the base expression has a type has the resolved method as a member
   //   in this last case, a resolvedNullTraversal is specified, which specifies whether or not this expression will just return null if the base expression is null
   private Expression resolvedBaseExpression;
-  private Constructor resolvedConstructor;
   private Method resolvedMethod;
   private boolean resolvedNullTraversal;
   // if there is a resolved method and no resolved base expression, the function call may be resolved as non-virtual, this represents calls of the form 'super.method()'
@@ -66,22 +63,6 @@ public class FunctionCallExpression extends Expression
   public void setResolvedBaseExpression(Expression resolvedBaseExpression)
   {
     this.resolvedBaseExpression = resolvedBaseExpression;
-  }
-
-  /**
-   * @return the resolvedConstructor
-   */
-  public Constructor getResolvedConstructor()
-  {
-    return resolvedConstructor;
-  }
-
-  /**
-   * @param resolvedConstructor - the resolvedConstructor to set
-   */
-  public void setResolvedConstructor(Constructor resolvedConstructor)
-  {
-    this.resolvedConstructor = resolvedConstructor;
   }
 
   /**

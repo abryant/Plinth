@@ -35,8 +35,8 @@ Field = Modifiers Type Name Semicolon |
         Modifiers Type Name Equals Expression Semicolon |
         Type Name Semicolon |
         Type Name Equals Expression Semicolon
-Constructor = Modifiers ConstructorKeyword ParameterList ThrowsClause Block |
-              ConstructorKeyword ParameterList ThrowsClause Block
+Constructor = Modifiers CreateKeyword ParameterList ThrowsClause Block |
+              CreateKeyword ParameterList ThrowsClause Block
 Method = Modifiers Type        Name ParameterList ThrowsClause Block |
          Modifiers VoidKeyword Name ParameterList ThrowsClause Block |
                    Type        Name ParameterList ThrowsClause Block |
@@ -53,9 +53,9 @@ PropertyMethod = OptionalModifiers GetterKeyword |
                  OptionalModifiers SetterKeyword |
                  OptionalModifiers SetterKeyword LParen OptionalModifiers Name RParen ThrowsClause Block |
                  OptionalModifiers SetterKeyword ParameterList ThrowsClause Block |
-                 OptionalModifiers ConstructorKeyword |
-                 OptionalModifiers ConstructorKeyword LParen OptionalModifiers Name RParen ThrowsClause Block |
-                 OptionalModifiers ConstructorKeyword ParameterList ThrowsClause Block
+                 OptionalModifiers CreateKeyword |
+                 OptionalModifiers CreateKeyword LParen OptionalModifiers Name RParen ThrowsClause Block |
+                 OptionalModifiers CreateKeyword ParameterList ThrowsClause Block
 
 ParameterList = LParen Parameters RParen | LParen RParen
 Parameters = OptionalModifiers Type Name | Parameters Comma OptionalModifiers Type Name
@@ -214,7 +214,7 @@ BasicPrimary = IntegerLiteral | FloatingLiteral |
                ClassCreationExpression |
                NewKeyword ObjectKeyword Arguments |
                StringLiteral
-ClassCreationExpression = NewKeyword QName Arguments
+CreationExpression = NewKeyword QName Arguments | CreateKeyword QName Arguments
 FunctionCallExpression = PrimaryNoThis Arguments | QNameExpression Arguments
 
 ExpressionList = QNameExpression | ExpressionNoTuple | ExpressionList Comma QNameExpression | ExpressionList Comma ExpressionNoTuple

@@ -35,9 +35,9 @@ public class PropertyMethodRule extends Rule<ParseType>
   private static final Production<ParseType> SETTER_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.SETTER_KEYWORD);
   private static final Production<ParseType> SETTER_BLOCK_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.SETTER_KEYWORD, ParseType.LPAREN, ParseType.OPTIONAL_MODIFIERS, ParseType.NAME, ParseType.RPAREN, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
   private static final Production<ParseType> SETTER_BLOCK_PARAMETERS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.SETTER_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
-  private static final Production<ParseType> CONSTRUCTOR_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CONSTRUCTOR_KEYWORD);
-  private static final Production<ParseType> CONSTRUCTOR_BLOCK_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CONSTRUCTOR_KEYWORD, ParseType.LPAREN, ParseType.OPTIONAL_MODIFIERS, ParseType.NAME, ParseType.RPAREN, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
-  private static final Production<ParseType> CONSTRUCTOR_BLOCK_PARAMETERS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CONSTRUCTOR_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> CONSTRUCTOR_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CREATE_KEYWORD);
+  private static final Production<ParseType> CONSTRUCTOR_BLOCK_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CREATE_KEYWORD, ParseType.LPAREN, ParseType.OPTIONAL_MODIFIERS, ParseType.NAME, ParseType.RPAREN, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> CONSTRUCTOR_BLOCK_PARAMETERS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CREATE_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
 
   public PropertyMethodRule()
   {

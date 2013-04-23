@@ -67,6 +67,6 @@ compound stdin
     {
       finalBuf[j] = buffer[j];
     }
-    return string(finalBuf);
+    return create string(finalBuf);
   }
 }

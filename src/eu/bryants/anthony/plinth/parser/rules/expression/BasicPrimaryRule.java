@@ -56,7 +56,7 @@ public class BasicPrimaryRule extends Rule<ParseType>
   private static Production<ParseType> TYPE_FIELD_ACCESS_PRODUCTION                  = new Production<ParseType>(ParseType.TYPE,                     ParseType.DOUBLE_COLON,      ParseType.NAME);
   private static Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION);
   private static Production<ParseType> BRACKETS_PRODUCTION = new Production<ParseType>(ParseType.LPAREN, ParseType.TUPLE_EXPRESSION, ParseType.RPAREN);
-  private static Production<ParseType> CLASS_CREATION_PRODUCTION = new Production<ParseType>(ParseType.CLASS_CREATION_EXPRESSION);
+  private static Production<ParseType> CREATION_PRODUCTION = new Production<ParseType>(ParseType.CREATION_EXPRESSION);
   private static Production<ParseType> OBJECT_CREATION_PRODUCTION = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.OBJECT_KEYWORD, ParseType.ARGUMENTS);
   private static Production<ParseType> STRING_LITERAL_PRODUCTION = new Production<ParseType>(ParseType.STRING_LITERAL);
 
@@ -71,7 +71,7 @@ public class BasicPrimaryRule extends Rule<ParseType>
                                    FIELD_ACCESS_PRODUCTION, NESTED_QNAME_LIST_FIELD_ACCESS_PRODUCTION, NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION, QNAME_NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION, TYPE_FIELD_ACCESS_PRODUCTION,
                                    FUNCTION_CALL_PRODUCTION,
                                    BRACKETS_PRODUCTION,
-                                   CLASS_CREATION_PRODUCTION,
+                                   CREATION_PRODUCTION,
                                    OBJECT_CREATION_PRODUCTION,
                                    STRING_LITERAL_PRODUCTION);
   }
@@ -175,7 +175,7 @@ public class BasicPrimaryRule extends Rule<ParseType>
       Expression expression = (Expression) args[1];
       return new BracketedExpression(expression, LexicalPhrase.combine((LexicalPhrase) args[0], expression.getLexicalPhrase(), (LexicalPhrase) args[2]));
     }
-    if (production == CLASS_CREATION_PRODUCTION)
+    if (production == CREATION_PRODUCTION)
     {
       return args[0];
     }

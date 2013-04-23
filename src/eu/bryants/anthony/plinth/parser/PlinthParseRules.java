@@ -8,8 +8,8 @@ import eu.bryants.anthony.plinth.parser.rules.CompoundDefinitionRule;
 import eu.bryants.anthony.plinth.parser.rules.InterfaceDefinitionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.AdditiveExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.BasicPrimaryRule;
-import eu.bryants.anthony.plinth.parser.rules.expression.ClassCreationExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.ComparisonExpressionRule;
+import eu.bryants.anthony.plinth.parser.rules.expression.CreationExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.DimensionsRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.ExpressionListRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.ExpressionNoTupleRule;
@@ -91,8 +91,8 @@ public class PlinthParseRules
     // expression
     new AdditiveExpressionRule(),
     new BasicPrimaryRule(),
-    new ClassCreationExpressionRule(),
     new ComparisonExpressionRule(),
+    new CreationExpressionRule(),
     new DimensionsRule(),
     new ExpressionListRule(),
     new ExpressionNoTupleRule(),

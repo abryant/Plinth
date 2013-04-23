@@ -12,7 +12,7 @@ interface Foo
   {
     stdout::println("interface setter: " + value);
   }
-  constructor(value)
+  create(value)
   {
     stdout::println("interface constructor: " + value);
   };
@@ -29,7 +29,7 @@ interface Foo
 class Super
 {
   property string str
-  constructor(value)
+  create(value)
   {
     stdout::println("constructor: " + value);
     str = value;
@@ -65,7 +65,7 @@ class Super
     stdout::println("Super::test(" + x + ")");
   }
 
-  constructor(string s)
+  create(string s)
   {
     str = s;
     stdout::println("foo.bar.Super constructor");
@@ -81,7 +81,7 @@ class Test extends Super implements Foo
     stdout::println(x);
   }
   static final property uint x = 2
-  constructor(value)
+  create(value)
   {
     stdout::println("x-constructor: " + value);
     x = value;
@@ -105,7 +105,7 @@ class Test extends Super implements Foo
     f();
   }
 
-  selfish constructor(string a) throws Error
+  selfish create(string a) throws Error
   {
     super("foo");
     str = "init";

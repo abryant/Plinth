@@ -10,7 +10,7 @@ immutable compound string
   /**
    * Creates an empty string.
    */
-  constructor()
+  create()
   {
     bytes = new [0]ubyte;
   }
@@ -19,7 +19,7 @@ immutable compound string
    * Creates a string containing the specified UTF-8 bytes.
    * @param bytes - the UTF-8 bytes
    */
-  constructor(#[]ubyte bytes)
+  create(#[]ubyte bytes)
   {
     this.bytes = bytes;
   }
@@ -28,7 +28,7 @@ immutable compound string
    * Creates a string containing the specified unicode (UTF-32) characters.
    * @param chars - the unicode characters
    */
-  constructor([]uint chars)
+  create([]uint chars)
   {
     bytes = convertUTF32ToUTF8(chars);
     this.chars = chars;
@@ -39,7 +39,7 @@ immutable compound string
    * @param str1 - the first string
    * @param str2 - the second string
    */
-  constructor(string str1, string str2)
+  create(string str1, string str2)
   {
     []ubyte bytes = new [str1.bytes.length + str2.bytes.length]ubyte;
     for (uint i = 0; i < str1.bytes.length; ++i)
@@ -72,7 +72,7 @@ immutable compound string
    * Creates a string containing the concatenation of the specified array of strings
    * @param strings - the array of strings to concatenate together
    */
-  constructor([]string strings)
+  create([]string strings)
   {
     uint len = 0;
     ?uint charLength = 0;
@@ -178,7 +178,7 @@ immutable compound string
     {
       subChars[i] = chars[start + i];
     }
-    return string(subChars);
+    return create string(subChars);
   }
 
   /**
@@ -324,7 +324,7 @@ immutable compound string
     {
       bytes[0] = numerals[cast<uint> abs];
     }
-    return string(bytes);
+    return create string(bytes);
   }
 
   /**
@@ -358,7 +358,7 @@ immutable compound string
       value /= radix;
     }
     bytes[0] = numerals[cast<uint> value];
-    return string(bytes);
+    return create string(bytes);
   }
 
   /**
@@ -477,7 +477,7 @@ immutable compound string
       {
         bytes[2 + i] = zero + digits[i + offset];
       }
-      return (negative ? "-" : "") + string(bytes) + "E" + decimalExponent.toString();
+      return (negative ? "-" : "") + create string(bytes) + "E" + decimalExponent.toString();
     }
     if decimalExponent > 0
     {
@@ -504,14 +504,14 @@ immutable compound string
         }
         bytes[offset + cast<uint> decimalExponent] = ".".bytes[0];
         bytes[offset + cast<uint> decimalExponent + 1] = zero;
-        return (negative ? "-" : "") + string(bytes);
+        return (negative ? "-" : "") + create string(bytes);
       }
       bytes[offset + cast<uint> decimalExponent] = ".".bytes[0];
       for (uint i = cast<uint> decimalExponent; i < digits.length; ++i)
       {
         bytes[offset + 1 + i] = zero + digits[i];
       }
-      return (negative ? "-" : "") + string(bytes);
+      return (negative ? "-" : "") + create string(bytes);
     }
     if decimalExponent == 0
     {
@@ -522,7 +522,7 @@ immutable compound string
       {
         bytes[2 + i] = zero + digits[i];
       }
-      return (negative ? "-" : "") + string(bytes);
+      return (negative ? "-" : "") + create string(bytes);
     }
     []ubyte bytes = new [2 + cast<uint> (-decimalExponent) + digits.length]ubyte;
     bytes[0] = zero;
@@ -538,7 +538,7 @@ immutable compound string
     {
       bytes[offset + i] = zero + digits[i];
     }
-    return (negative ? "-" : "") + string(bytes);
+    return (negative ? "-" : "") + create string(bytes);
   }
 
   /**

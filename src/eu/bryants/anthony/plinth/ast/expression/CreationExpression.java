@@ -12,20 +12,30 @@ import eu.bryants.anthony.plinth.ast.type.NamedType;
 /**
  * @author Anthony Bryant
  */
-public class ClassCreationExpression extends Expression
+public class CreationExpression extends Expression
 {
 
+  private boolean isHeapAllocation;
   private QName qname;
   private Expression[] arguments;
 
   private NamedType resolvedType;
   private Constructor resolvedConstructor;
 
-  public ClassCreationExpression(QName qname, Expression[] arguments, LexicalPhrase lexicalPhrase)
+  public CreationExpression(boolean isHeapAllocation, QName qname, Expression[] arguments, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
+    this.isHeapAllocation = isHeapAllocation;
     this.qname = qname;
     this.arguments = arguments;
+  }
+
+  /**
+   * @return the isHeapAllocation
+   */
+  public boolean isHeapAllocation()
+  {
+    return isHeapAllocation;
   }
 
   /**
@@ -82,7 +92,7 @@ public class ClassCreationExpression extends Expression
   @Override
   public String toString()
   {
-    StringBuffer buffer = new StringBuffer("new ");
+    StringBuffer buffer = new StringBuffer(isHeapAllocation ? "new " : "create ");
     buffer.append(qname);
     buffer.append('(');
     for (int i = 0; i < arguments.length; ++i)

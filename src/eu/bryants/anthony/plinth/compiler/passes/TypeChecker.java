@@ -17,7 +17,7 @@ import eu.bryants.anthony.plinth.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.plinth.ast.expression.BracketedExpression;
 import eu.bryants.anthony.plinth.ast.expression.CastExpression;
-import eu.bryants.anthony.plinth.ast.expression.ClassCreationExpression;
+import eu.bryants.anthony.plinth.ast.expression.CreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.EqualityExpression;
 import eu.bryants.anthony.plinth.ast.expression.EqualityExpression.EqualityOperator;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
@@ -1312,22 +1312,32 @@ public class TypeChecker
       }
       throw new ConceptualException("Cannot cast from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
     }
-    else if (expression instanceof ClassCreationExpression)
+    else if (expression instanceof CreationExpression)
     {
-      ClassCreationExpression classCreationExpression = (ClassCreationExpression) expression;
+      CreationExpression creationExpression = (CreationExpression) expression;
       // the type has already been resolved by the Resolver
-      NamedType type = classCreationExpression.getResolvedType();
+      NamedType type = creationExpression.getResolvedType();
       TypeDefinition resolvedTypeDefinition = type.getResolvedTypeDefinition();
-      if (resolvedTypeDefinition == null || !(resolvedTypeDefinition instanceof ClassDefinition))
+      if (creationExpression.isHeapAllocation())
       {
-        throw new ConceptualException("Cannot use the 'new' operator on '" + type + "', it must be on a class definition", expression.getLexicalPhrase());
+        if (!(resolvedTypeDefinition instanceof ClassDefinition))
+        {
+          throw new ConceptualException("Cannot use the 'new' operator on '" + type + "', it must be on a class definition", expression.getLexicalPhrase());
+        }
+        if (((ClassDefinition) resolvedTypeDefinition).isAbstract())
+        {
+          throw new ConceptualException("Cannot create a new " + resolvedTypeDefinition.getQualifiedName() + ", because it is an abstract class", expression.getLexicalPhrase());
+        }
       }
-      if (((ClassDefinition) resolvedTypeDefinition).isAbstract())
+      else
       {
-        throw new ConceptualException("Cannot create a new " + resolvedTypeDefinition.getQualifiedName() + ", because it is an abstract class", expression.getLexicalPhrase());
+        if (!(resolvedTypeDefinition instanceof CompoundDefinition))
+        {
+          throw new ConceptualException("Cannot use the 'create' operator on '" + type + "', it must be on a compound definition", expression.getLexicalPhrase());
+        }
       }
-      Expression[] arguments = classCreationExpression.getArguments();
-      Constructor constructor = classCreationExpression.getResolvedConstructor();
+      Expression[] arguments = creationExpression.getArguments();
+      Constructor constructor = creationExpression.getResolvedConstructor();
       Parameter[] parameters = constructor.getParameters();
       if (arguments.length != parameters.length)
       {
@@ -1340,7 +1350,7 @@ public class TypeChecker
             buffer.append(", ");
           }
         }
-        throw new ConceptualException("The constructor '" + constructor.getContainingTypeDefinition().getQualifiedName() + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", classCreationExpression.getLexicalPhrase());
+        throw new ConceptualException("The constructor '" + constructor.getContainingTypeDefinition().getQualifiedName() + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", creationExpression.getLexicalPhrase());
       }
       CoalescedConceptualException coalescedException = null;
       for (int i = 0; i < arguments.length; ++i)
@@ -1362,7 +1372,7 @@ public class TypeChecker
       {
         throw coalescedException;
       }
-      classCreationExpression.setType(type);
+      creationExpression.setType(type);
       return type;
     }
     else if (expression instanceof EqualityExpression)
@@ -1599,12 +1609,6 @@ public class TypeChecker
         }
         name = functionCallExpression.getResolvedMethod().getName();
       }
-      else if (functionCallExpression.getResolvedConstructor() != null)
-      {
-        parameters = functionCallExpression.getResolvedConstructor().getParameters();
-        resultType = new NamedType(false, false, false, functionCallExpression.getResolvedConstructor().getContainingTypeDefinition());
-        name = functionCallExpression.getResolvedConstructor().getContainingTypeDefinition().getQualifiedName().toString();
-      }
       else if (functionCallExpression.getResolvedBaseExpression() != null)
       {
         Expression baseExpression = functionCallExpression.getResolvedBaseExpression();
@@ -1615,7 +1619,7 @@ public class TypeChecker
         }
         if (!(baseType instanceof FunctionType))
         {
-          throw new ConceptualException("Cannot call something which is not a function type, a method or a constructor", functionCallExpression.getLexicalPhrase());
+          throw new ConceptualException("Cannot call something which is not a function type or a method", functionCallExpression.getLexicalPhrase());
         }
         parameterTypes = ((FunctionType) baseType).getParameterTypes();
         resultType = ((FunctionType) baseType).getReturnType();

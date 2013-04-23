@@ -14,7 +14,7 @@ import eu.bryants.anthony.plinth.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.plinth.ast.expression.BracketedExpression;
 import eu.bryants.anthony.plinth.ast.expression.CastExpression;
-import eu.bryants.anthony.plinth.ast.expression.ClassCreationExpression;
+import eu.bryants.anthony.plinth.ast.expression.CreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.EqualityExpression;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.expression.FieldAccessExpression;
@@ -479,16 +479,16 @@ public class ExceptionChecker
     {
       findUncaughtExceptions(((CastExpression) expression).getExpression(), uncaughtExceptions);
     }
-    else if (expression instanceof ClassCreationExpression)
+    else if (expression instanceof CreationExpression)
     {
-      ClassCreationExpression classCreationExpression = (ClassCreationExpression) expression;
-      for (Expression argument : classCreationExpression.getArguments())
+      CreationExpression creationExpression = (CreationExpression) expression;
+      for (Expression argument : creationExpression.getArguments())
       {
         findUncaughtExceptions(argument, uncaughtExceptions);
       }
-      for (NamedType thrownType : classCreationExpression.getResolvedConstructor().getCheckedThrownTypes())
+      for (NamedType thrownType : creationExpression.getResolvedConstructor().getCheckedThrownTypes())
       {
-        addUncaughtException(thrownType, classCreationExpression.getLexicalPhrase(), uncaughtExceptions);
+        addUncaughtException(thrownType, creationExpression.getLexicalPhrase(), uncaughtExceptions);
       }
     }
     else if (expression instanceof EqualityExpression)
@@ -515,14 +515,7 @@ public class ExceptionChecker
       {
         findUncaughtExceptions(argument, uncaughtExceptions);
       }
-      if (functionCallExpression.getResolvedConstructor() != null)
-      {
-        for (NamedType thrownType : functionCallExpression.getResolvedConstructor().getCheckedThrownTypes())
-        {
-          addUncaughtException(thrownType, functionCallExpression.getLexicalPhrase(), uncaughtExceptions);
-        }
-      }
-      else if (functionCallExpression.getResolvedMethod() != null)
+      if (functionCallExpression.getResolvedMethod() != null)
       {
         if (functionCallExpression.getResolvedBaseExpression() != null)
         {

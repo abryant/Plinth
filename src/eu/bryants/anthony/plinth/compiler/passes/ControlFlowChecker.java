@@ -22,7 +22,7 @@ import eu.bryants.anthony.plinth.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.plinth.ast.expression.BracketedExpression;
 import eu.bryants.anthony.plinth.ast.expression.CastExpression;
-import eu.bryants.anthony.plinth.ast.expression.ClassCreationExpression;
+import eu.bryants.anthony.plinth.ast.expression.CreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.EqualityExpression;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.expression.FieldAccessExpression;
@@ -2650,11 +2650,11 @@ public class ControlFlowChecker
     {
       checkControlFlow(((CastExpression) expression).getExpression(), enclosingTypeDefinition, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
     }
-    else if (expression instanceof ClassCreationExpression)
+    else if (expression instanceof CreationExpression)
     {
-      ClassCreationExpression classCreationExpression = (ClassCreationExpression) expression;
+      CreationExpression creationExpression = (CreationExpression) expression;
       CoalescedConceptualException coalescedException = null;
-      for (Expression argument : classCreationExpression.getArguments())
+      for (Expression argument : creationExpression.getArguments())
       {
         try
         {
@@ -2665,9 +2665,9 @@ public class ControlFlowChecker
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
-      if (inImmutableContext && !classCreationExpression.getResolvedConstructor().isImmutable())
+      if (inImmutableContext && !creationExpression.getResolvedConstructor().isImmutable())
       {
-        coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a non-immutable constructor from an immutable context (it may alter global variables)", classCreationExpression.getLexicalPhrase()));
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a non-immutable constructor from an immutable context (it may alter global variables)", creationExpression.getLexicalPhrase()));
       }
       if (coalescedException != null)
       {
@@ -2824,13 +2824,6 @@ public class ControlFlowChecker
               coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a non-immutable method on an immutable object", functionCallExpression.getLexicalPhrase()));
             }
           }
-        }
-      }
-      else if (functionCallExpression.getResolvedConstructor() != null)
-      {
-        if (inImmutableContext && !functionCallExpression.getResolvedConstructor().isImmutable())
-        {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a non-immutable constructor from an immutable context (it may alter global variables)", functionCallExpression.getLexicalPhrase()));
         }
       }
       else if (functionCallExpression.getResolvedBaseExpression() != null)

@@ -30,7 +30,7 @@ import eu.bryants.anthony.plinth.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.plinth.ast.expression.BracketedExpression;
 import eu.bryants.anthony.plinth.ast.expression.CastExpression;
-import eu.bryants.anthony.plinth.ast.expression.ClassCreationExpression;
+import eu.bryants.anthony.plinth.ast.expression.CreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.EqualityExpression;
 import eu.bryants.anthony.plinth.ast.expression.EqualityExpression.EqualityOperator;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
@@ -3678,11 +3678,11 @@ public class CodeGenerator
       LLVMValueRef value = buildExpression(castExpression.getExpression(), builder, thisValue, variables, landingPadContainer);
       return typeHelper.convertTemporary(builder, landingPadContainer, value, castExpression.getExpression().getType(), castExpression.getType());
     }
-    if (expression instanceof ClassCreationExpression)
+    if (expression instanceof CreationExpression)
     {
-      ClassCreationExpression classCreationExpression = (ClassCreationExpression) expression;
-      Expression[] arguments = classCreationExpression.getArguments();
-      Constructor constructor = classCreationExpression.getResolvedConstructor();
+      CreationExpression creationExpression = (CreationExpression) expression;
+      Expression[] arguments = creationExpression.getArguments();
+      Constructor constructor = creationExpression.getResolvedConstructor();
       Parameter[] parameters = constructor.getParameters();
       LLVMValueRef[] llvmArguments = new LLVMValueRef[1 + arguments.length];
       for (int i = 0; i < arguments.length; ++i)
@@ -3690,23 +3690,39 @@ public class CodeGenerator
         LLVMValueRef argument = buildExpression(arguments[i], builder, thisValue, variables, landingPadContainer);
         llvmArguments[i + 1] = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, argument, arguments[i].getType(), parameters[i].getType());
       }
-      Type type = classCreationExpression.getType();
-      if (!(type instanceof NamedType) || !(((NamedType) type).getResolvedTypeDefinition() instanceof ClassDefinition))
+      NamedType type = creationExpression.getResolvedType();
+      LLVMValueRef pointer;
+      if (creationExpression.isHeapAllocation())
       {
-        throw new IllegalStateException("A class creation expression must be for a class type");
+        if (!(type.getResolvedTypeDefinition() instanceof ClassDefinition))
+        {
+          throw new IllegalStateException("A 'new' creation expression must be for a class type");
+        }
+        ClassDefinition classDefinition = (ClassDefinition) type.getResolvedTypeDefinition();
+        LLVMValueRef[] allocatorArgs = new LLVMValueRef[0];
+        LLVMBasicBlockRef allocatorInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "allocatorInvokeContinue");
+        pointer = LLVM.LLVMBuildInvoke(builder, getAllocatorFunction(classDefinition), C.toNativePointerArray(allocatorArgs, false, true), allocatorArgs.length, allocatorInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+        LLVM.LLVMPositionBuilderAtEnd(builder, allocatorInvokeContinueBlock);
       }
-      ClassDefinition classDefinition = (ClassDefinition) ((NamedType) type).getResolvedTypeDefinition();
-      LLVMValueRef[] allocatorArgs = new LLVMValueRef[0];
-      LLVMBasicBlockRef allocatorInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "allocatorInvokeContinue");
-      LLVMValueRef pointer = LLVM.LLVMBuildInvoke(builder, getAllocatorFunction(classDefinition), C.toNativePointerArray(allocatorArgs, false, true), allocatorArgs.length, allocatorInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
-      LLVM.LLVMPositionBuilderAtEnd(builder, allocatorInvokeContinueBlock);
+      else
+      {
+        if (!(type.getResolvedTypeDefinition() instanceof CompoundDefinition))
+        {
+          throw new IllegalStateException("A 'create' creation expression must be for a compound type");
+        }
+        // find the type to alloca, which is the standard representation of a non-nullable type
+        // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with either nullability)
+        LLVMTypeRef allocaBaseType = typeHelper.findStandardType(type);
+        pointer = LLVM.LLVMBuildAllocaInEntryBlock(builder, allocaBaseType, "");
+        typeHelper.initialiseCompoundType(builder, (CompoundDefinition) type.getResolvedTypeDefinition(), pointer);
+      }
       llvmArguments[0] = pointer;
       // get the constructor and call it
       LLVMValueRef llvmFunc = getConstructorFunction(constructor);
       LLVMBasicBlockRef constructorInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "constructorInvokeContinue");
       LLVM.LLVMBuildInvoke(builder, llvmFunc, C.toNativePointerArray(llvmArguments, false, true), llvmArguments.length, constructorInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
       LLVM.LLVMPositionBuilderAtEnd(builder, constructorInvokeContinueBlock);
-      return pointer;
+      return typeHelper.convertTemporary(builder, landingPadContainer, pointer, type, creationExpression.getType());
     }
     if (expression instanceof EqualityExpression)
     {
@@ -3973,23 +3989,12 @@ public class CodeGenerator
     if (expression instanceof FunctionCallExpression)
     {
       FunctionCallExpression functionExpression = (FunctionCallExpression) expression;
-      Constructor resolvedConstructor = functionExpression.getResolvedConstructor();
       Method resolvedMethod = functionExpression.getResolvedMethod();
       Expression resolvedBaseExpression = functionExpression.getResolvedBaseExpression();
 
       Type[] parameterTypes;
       Type returnType;
-      if (resolvedConstructor != null)
-      {
-        Parameter[] params = resolvedConstructor.getParameters();
-        parameterTypes = new Type[params.length];
-        for (int i = 0; i < params.length; ++i)
-        {
-          parameterTypes[i] = params[i].getType();
-        }
-        returnType = new NamedType(false, false, resolvedConstructor.getContainingTypeDefinition());
-      }
-      else if (resolvedMethod != null)
+      if (resolvedMethod != null)
       {
         Parameter[] params = resolvedMethod.getParameters();
         parameterTypes = new Type[params.length];
@@ -4045,26 +4050,7 @@ public class CodeGenerator
       }
 
       LLVMValueRef result;
-      boolean resultIsTemporary = false; // true iff result has a temporary type representation
-      if (resolvedConstructor != null)
-      {
-        // find the type to alloca, which is the standard representation of a non-nullable type
-        // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with any nullability)
-        LLVMTypeRef allocaBaseType = typeHelper.findStandardType(returnType);
-        LLVMValueRef alloca = LLVM.LLVMBuildAllocaInEntryBlock(builder, allocaBaseType, "");
-        typeHelper.initialiseCompoundType(builder, (CompoundDefinition) ((NamedType) returnType).getResolvedTypeDefinition(), alloca);
-
-        LLVMValueRef[] realArguments = new LLVMValueRef[1 + values.length];
-        realArguments[0] = alloca;
-        System.arraycopy(values, 0, realArguments, 1, values.length);
-        LLVMValueRef llvmResolvedFunction = getConstructorFunction(resolvedConstructor);
-        LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "constructorInvokeContinue");
-        LLVM.LLVMBuildInvoke(builder, llvmResolvedFunction, C.toNativePointerArray(realArguments, false, true), realArguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
-        LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
-        result = alloca;
-        resultIsTemporary = true;
-      }
-      else if (resolvedMethod != null)
+      if (resolvedMethod != null)
       {
         LLVMValueRef[] realArguments = new LLVMValueRef[values.length + 1];
         System.arraycopy(values, 0, realArguments, 1, values.length);
@@ -4110,14 +4096,7 @@ public class CodeGenerator
           return null;
         }
 
-        if (resultIsTemporary)
-        {
-          result = typeHelper.convertTemporary(builder, landingPadContainer, result, returnType, functionExpression.getType());
-        }
-        else
-        {
-          result = typeHelper.convertStandardToTemporary(builder, landingPadContainer, result, returnType, functionExpression.getType());
-        }
+        result = typeHelper.convertStandardToTemporary(builder, landingPadContainer, result, returnType, functionExpression.getType());
         LLVMBasicBlockRef callBlock = LLVM.LLVMGetInsertBlock(builder);
         LLVM.LLVMBuildBr(builder, continuationBlock);
 
@@ -4133,10 +4112,6 @@ public class CodeGenerator
       if (returnType instanceof VoidType)
       {
         return result;
-      }
-      if (resultIsTemporary)
-      {
-        return typeHelper.convertTemporary(builder, landingPadContainer, result, returnType, functionExpression.getType());
       }
       return typeHelper.convertStandardToTemporary(builder, landingPadContainer, result, returnType, functionExpression.getType());
     }

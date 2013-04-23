@@ -228,7 +228,7 @@ immutable compound maths
     boolean sPowerOfTwo;
     if decimalExponent == 0
     {
-      r = bigint(mantissa).shiftLeft(rExp);
+      r = create bigint(mantissa).shiftLeft(rExp);
       s = bigint::getPowerOfTwo(sExp);
       sPowerOfTwo = true;
       mMinus = bigint::getPowerOfTwo(mExp);
@@ -238,8 +238,8 @@ immutable compound maths
     {
       sExp += cast<uint> decimalExponent;
       rExp, sExp, mExp -= maths::min(mExp, sExp);
-      r = bigint(mantissa).shiftLeft(rExp);
-      s = bigint(1);
+      r = create bigint(mantissa).shiftLeft(rExp);
+      s = create bigint(1);
       for (uint i = 0; i < decimalExponent; ++i)
       {
         s = s.mult(5);
@@ -251,7 +251,7 @@ immutable compound maths
     }
     else // decimalExponent < 0
     {
-      bigint power = bigint(1);
+      bigint power = create bigint(1);
       for (uint i = 0; i < -decimalExponent; ++i)
       {
         power = power.mult(5);
@@ -305,7 +305,7 @@ immutable compound maths
           []ulong data = r.copyData();
           digit = cast<ubyte> (data[sExp / 64] >> (sExp % 64));
           data[sExp / 64] &= (cast<ulong> 1 << (sExp % 64)) - 1;
-          r = bigint(false, data);
+          r = create bigint(false, data);
         }
         else
         {
@@ -313,7 +313,7 @@ immutable compound maths
           digit = cast<ubyte> ((data[(sExp / 64) + 1] << (64 - (sExp % 64))) | (data[sExp / 64] >> (sExp % 64)));
           data[sExp / 64] &= (cast<ulong> 1 << (sExp % 64)) - 1;
           data[(sExp / 64) + 1] = 0;
-          r = bigint(false, data);
+          r = create bigint(false, data);
         }
       }
       else

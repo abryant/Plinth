@@ -91,7 +91,7 @@ public enum ParseType
   PRIMARY_NO_THIS,               // Expression
   PRIMARY_NO_TRAILING_TYPE,      // Expression
   BASIC_PRIMARY,                 // Expression
-  CLASS_CREATION_EXPRESSION,     // ClassCreationExpression
+  CREATION_EXPRESSION,           // CreationExpression
   FUNCTION_CALL_EXPRESSION,      // FunctionCallExpression
   EXPRESSION_LIST,               // ParseList<Expression>
   DIMENSIONS,                    // ParseList<Expression>
@@ -169,8 +169,8 @@ public enum ParseType
   CATCH_KEYWORD,
   CLASS_KEYWORD,
   COMPOUND_KEYWORD,
-  CONSTRUCTOR_KEYWORD,
   CONTINUE_KEYWORD,
+  CREATE_KEYWORD,
   DOUBLE_KEYWORD,
   ELSE_KEYWORD,
   EXTENDS_KEYWORD,

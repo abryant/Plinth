@@ -7,14 +7,14 @@ immutable compound bigint
   // so for a bigint with two ulongs, the binary value would be: data[0] | data[1] << 64
   #[]ulong data;
 
-  constructor()
+  create()
   {
     negative = false;
     bitLength = 0;
     data = new [0]ulong;
   }
 
-  constructor(boolean negative, ulong value)
+  create(boolean negative, ulong value)
   {
     this.negative = negative;
     if value == 0
@@ -27,12 +27,12 @@ immutable compound bigint
     data = new []ulong {value};
   }
 
-  constructor(ulong value)
+  create(ulong value)
   {
     this(false, value);
   }
 
-  constructor(boolean negative, #[]ulong data)
+  create(boolean negative, #[]ulong data)
   {
     this.negative = negative;
     this.bitLength = findBitLength(data);
@@ -86,7 +86,7 @@ immutable compound bigint
    */
   bigint negate()
   {
-    return bigint(!negative, data);
+    return create bigint(!negative, data);
   }
 
   /**
@@ -144,7 +144,7 @@ immutable compound bigint
     {
       newData[(larger.bitLength + 63) / 64] = 1;
     }
-    return bigint(resultNegative, newData);
+    return create bigint(resultNegative, newData);
   }
 
   /**
@@ -191,10 +191,10 @@ immutable compound bigint
     if thisLarger == borrow
     {
       // either we have done (this - x) and got a negative answer, or we have done (x - this) and got a positive answer
-      return bigint(true, newData);
+      return create bigint(true, newData);
     }
     // either we have done (this - x) and got a positive answer, or we have done (x - this) and got a negative answer
-    return bigint(false, newData);
+    return create bigint(false, newData);
   }
 
   /**
@@ -227,7 +227,7 @@ immutable compound bigint
     {
       newData[(bitLength + 63) / 64] = carry;
     }
-    return bigint(negative, newData);
+    return create bigint(negative, newData);
   }
 
   /**
@@ -269,7 +269,7 @@ immutable compound bigint
         newData[zeroElements + ((bitLength + 63) / 64)] = carry;
       }
     }
-    return bigint(negative, newData);
+    return create bigint(negative, newData);
   }
 
   /**
@@ -322,7 +322,7 @@ immutable compound bigint
       ulong value = (data[bitIndex / 64] >> (bitIndex % 64)) & 0xf;
       hexChars[i] = numerals[cast<uint> value];
     }
-    return (negative ? "-" : "") + string(hexChars);
+    return (negative ? "-" : "") + create string(hexChars);
   }
 
   /**
@@ -340,7 +340,7 @@ immutable compound bigint
       data[i] = 0;
     }
     data[zeroElements] = (cast<ulong> 1) << finalZeros;
-    return bigint(false, data);
+    return create bigint(false, data);
   }
 
   /**

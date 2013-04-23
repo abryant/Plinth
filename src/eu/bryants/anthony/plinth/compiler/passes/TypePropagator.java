@@ -9,7 +9,7 @@ import eu.bryants.anthony.plinth.ast.expression.BooleanLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.BooleanNotExpression;
 import eu.bryants.anthony.plinth.ast.expression.BracketedExpression;
 import eu.bryants.anthony.plinth.ast.expression.CastExpression;
-import eu.bryants.anthony.plinth.ast.expression.ClassCreationExpression;
+import eu.bryants.anthony.plinth.ast.expression.CreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.EqualityExpression;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.expression.FieldAccessExpression;
@@ -420,15 +420,15 @@ public class TypePropagator
       CastExpression castExpression = (CastExpression) expression;
       propagateTypes(castExpression.getExpression(), castExpression.getType());
     }
-    else if (expression instanceof ClassCreationExpression)
+    else if (expression instanceof CreationExpression)
     {
-      ClassCreationExpression classCreationExpression = (ClassCreationExpression) expression;
-      Constructor resolvedConstructor = classCreationExpression.getResolvedConstructor();
+      CreationExpression creationExpression = (CreationExpression) expression;
+      Constructor resolvedConstructor = creationExpression.getResolvedConstructor();
       Parameter[] parameters = resolvedConstructor.getParameters();
-      Expression[] arguments = classCreationExpression.getArguments();
+      Expression[] arguments = creationExpression.getArguments();
       if (parameters.length != arguments.length)
       {
-        throw new IllegalStateException("A constructor call must have the same number of arguments as the Constructor has parameters (" + parameters.length + " parameters vs " + arguments.length + " arguments)");
+        throw new IllegalStateException("A constructor call must have the same number of arguments as the constructor has parameters (" + parameters.length + " parameters vs " + arguments.length + " arguments)");
       }
       for (int i = 0; i < parameters.length; ++i)
       {
@@ -479,10 +479,6 @@ public class TypePropagator
           propagateTypes(functionCallExpression.getResolvedBaseExpression(), functionCallExpression.getResolvedBaseExpression().getType());
         }
         parameters = functionCallExpression.getResolvedMethod().getParameters();
-      }
-      else if (functionCallExpression.getResolvedConstructor() != null)
-      {
-        parameters = functionCallExpression.getResolvedConstructor().getParameters();
       }
       else if (functionCallExpression.getResolvedBaseExpression() != null)
       {

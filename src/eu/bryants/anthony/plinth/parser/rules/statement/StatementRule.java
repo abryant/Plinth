@@ -41,7 +41,7 @@ public class StatementRule extends Rule<ParseType>
 
   private static final Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION, ParseType.SEMICOLON);
   private static final Production<ParseType> CAST_FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.CAST_KEYWORD, ParseType.LANGLE, ParseType.TYPE, ParseType.RANGLE, ParseType.FUNCTION_CALL_EXPRESSION, ParseType.SEMICOLON);
-  private static final Production<ParseType> CLASS_CREATION_PRODUCTION = new Production<ParseType>(ParseType.CLASS_CREATION_EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> CREATION_PRODUCTION = new Production<ParseType>(ParseType.CREATION_EXPRESSION, ParseType.SEMICOLON);
 
   private static final Production<ParseType> DELEGATE_THIS_CONSTRUCTOR_PRODUCTION = new Production<ParseType>(ParseType.THIS_KEYWORD, ParseType.ARGUMENTS, ParseType.SEMICOLON);
   private static final Production<ParseType> DELEGATE_SUPER_CONSTRUCTOR_PRODUCTION = new Production<ParseType>(ParseType.SUPER_KEYWORD, ParseType.ARGUMENTS, ParseType.SEMICOLON);
@@ -53,7 +53,7 @@ public class StatementRule extends Rule<ParseType>
     super(ParseType.STATEMENT, ASSIGN_PRODUCTION, BLOCK_PRODUCTION, BREAK_PRODUCTION, CONTINUE_PRODUCTION, IF_PRODUCTION, FOR_PRODUCTION, INC_DEC_PRODUCTION,
                                RETURN_PRODUCTION, TRY_CATCH_PRODUCTION, TRY_FINALLY_PRODUCTION, WHILE_PRODUCTION,
                                SHORTHAND_ASSIGN_PRODUCTION,
-                               FUNCTION_CALL_PRODUCTION, CAST_FUNCTION_CALL_PRODUCTION, CLASS_CREATION_PRODUCTION,
+                               FUNCTION_CALL_PRODUCTION, CAST_FUNCTION_CALL_PRODUCTION, CREATION_PRODUCTION,
                                DELEGATE_THIS_CONSTRUCTOR_PRODUCTION, DELEGATE_SUPER_CONSTRUCTOR_PRODUCTION,
                                THROW_PRODUCTION);
   }
@@ -91,7 +91,7 @@ public class StatementRule extends Rule<ParseType>
                                                      LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], castType.getLexicalPhrase(), (LexicalPhrase) args[3], functionCallExpression.getLexicalPhrase()));
       return new ExpressionStatement(castExpression, LexicalPhrase.combine(castExpression.getLexicalPhrase(), (LexicalPhrase) args[5]));
     }
-    if (production == CLASS_CREATION_PRODUCTION)
+    if (production == CREATION_PRODUCTION)
     {
       Expression expression = (Expression) args[0];
       return new ExpressionStatement(expression, LexicalPhrase.combine(expression.getLexicalPhrase(), (LexicalPhrase) args[1]));
