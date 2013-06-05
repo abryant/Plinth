@@ -1,124 +1,103 @@
 package foo.bar;
 
-interface Foo
+interface Comparator<T>
 {
-  unbacked property string str
-  getter
+  property boolean lastResult;
+  boolean equals(T t1, T t2);
+  {T, T -> boolean} getEquals()
   {
-    stdout::println("interface getter");
-    return "hi";
-  }
-  setter(value)
-  {
-    stdout::println("interface setter: " + value);
-  }
-  create(value)
-  {
-    stdout::println("interface constructor: " + value);
-  };
-  void doStuff()
-  {
-    stdout::println(str);
-  }
-  void test()
-  {
-    stdout::println("Foo::test()");
+    return equals;
   }
 }
 
-class Super
+class StringComparator implements Comparator<string>, Comparator<int>
 {
-  property string str
-  create(value)
+  property boolean lastResult;
+  create()
   {
-    stdout::println("constructor: " + value);
-    str = value;
   }
-  setter(value)
+  boolean equals(string s1, string s2)
   {
-    stdout::println("1 str: " + str + " value: " + value);
-    string old = str;
-    stdout::println("2 str: " + str + " old: " + old + " value: " + value);
-    str = value;
-    stdout::println("3 str: " + str + " old: " + old + " value: " + value);
-    if !value.equals(old)
-    {
-      this.str = value;
-    }
+    boolean eq = s1.length() == s2.length();
+    lastResult = eq;
+    return eq;
   }
-  getter
+  boolean equals(int i1, int i2)
   {
-    stdout::println("getter: " + str);
-    return str;
-  };
-
-  {
-    stdout::println("foo.bar.Super initialiser");
+    boolean eq = i1 == i2;
+    lastResult = eq;
+    return eq;
   }
-
-  void test()
+  {string, string -> boolean} getEquals()
   {
-    stdout::println("Super::test()");
+    return notEquals;
   }
-  void test(uint x)
+  boolean notEquals(string s1, string s2)
   {
-    stdout::println("Super::test(" + x + ")");
-  }
-
-  create(string s)
-  {
-    str = s;
-    stdout::println("foo.bar.Super constructor");
-    super();
-    stdout::println("foo.bar.Super constructor, after super() call");
+    return !equals(s1, s2);
   }
 }
 
-class Test extends Super implements Foo
+compound holder<T, S>
 {
-  static
-  {
-    stdout::println(x);
-  }
-  static final property uint x = 2
-  create(value)
-  {
-    stdout::println("x-constructor: " + value);
-    x = value;
-  }
-  getter
-  {
-    return x;
-  };
+  property T t immutable create;
+  S s;
 
+  immutable create(T t, S s)
   {
-    if (false)
-    {
-      throw new Error("from initialiser");
-    }
+    this.t = t;
+    this.s = s;
   }
-
-  void test()
+  immutable string toString()
   {
-    stdout::println("Test::test()");
-    { -> void} f = cast<{-> void}> super.test;
-    f();
+    return "<" + t + ">, <" + s + ">";
   }
+}
 
-  selfish create(string a) throws Error
+interface Foo<T>
+{
+  property T t;
+}
+
+class Test implements Foo<holder<(uint, string), (long, []string)>>
+{
+  property holder<(uint, string), (long, []string)> t;
+
+  create(uint x, string s, []string args)
   {
-    super("foo");
-    str = "init";
-    stdout::println("Test(uint): " + a);
+    t = create holder<(uint, string), (long, []string)>((x, s), (-0xffffffffffff, args));
   }
 
   static uint main([]string args) throws Error
   {
-    Test test = new Test("test");
-    stdout::println(x);
-    stdout::println(test.str);
-    test.doStuff();
-    test.test();
+    StringComparator sc = new StringComparator();
+    Comparator<string> c = sc;
+    {string, string -> boolean} f = c.getEquals();
+    if f("hi", args[1])
+    {
+      stdout::println("hi == " + args[1]);
+    }
+    else
+    {
+      stdout::println("hi != " + args[1]);
+    }
+    Comparator<int> cInt = sc;
+    stdout::println("lastResult: " + cInt.lastResult);
+    {int, int -> boolean} intF = cInt.getEquals();
+    if intF(5, cast<int> args.length)
+    {
+      stdout::println("5 == " + args.length);
+    }
+    else
+    {
+      stdout::println("5 != " + args.length);
+    }
+    stdout::println("lastResult: " + sc.lastResult);
+
+    Test test = new Test(args.length, args[1], args);
+    Foo<holder<(uint, string), (long, []string)>> foo = test;
+    holder<(uint, string), (long, []string)> aaaaa = foo.t;
+    stdout::println(aaaaa);
     return 0;
   }
 }

@@ -6,8 +6,9 @@ import parser.Rule;
 import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.Member;
-import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
+import eu.bryants.anthony.plinth.ast.type.TypeParameter;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.Modifier;
@@ -24,8 +25,11 @@ public class InterfaceDefinitionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION         = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.INTERFACE_KEYWORD, ParseType.NAME,                                                      ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
-  private static final Production<ParseType> EXTENDS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.INTERFACE_KEYWORD, ParseType.NAME, ParseType.EXTENDS_KEYWORD, ParseType.INTERFACE_LIST, ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
+  private static final Production<ParseType> PRODUCTION         = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.INTERFACE_KEYWORD, ParseType.NAME, ParseType.OPTIONAL_TYPE_PARAMETERS,
+                                                                                            ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
+  private static final Production<ParseType> EXTENDS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.INTERFACE_KEYWORD, ParseType.NAME, ParseType.OPTIONAL_TYPE_PARAMETERS,
+                                                                                            ParseType.EXTENDS_KEYWORD, ParseType.INTERFACE_LIST,
+                                                                                            ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
 
   public InterfaceDefinitionRule()
   {
@@ -44,9 +48,12 @@ public class InterfaceDefinitionRule extends Rule<ParseType>
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
       Name name = (Name) args[2];
       @SuppressWarnings("unchecked")
-      ParseList<Member> members = (ParseList<Member>) args[4];
-      return processModifiers(modifiers, name.getName(), null, members.toArray(new Member[members.size()]),
-                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), (LexicalPhrase) args[3], members.getLexicalPhrase(), (LexicalPhrase) args[5]));
+      ParseList<TypeParameter> typeParameterList = (ParseList<TypeParameter>) args[3];
+      TypeParameter[] typeParameters = typeParameterList.toArray(new TypeParameter[typeParameterList.size()]);
+      @SuppressWarnings("unchecked")
+      ParseList<Member> members = (ParseList<Member>) args[5];
+      return processModifiers(modifiers, name.getName(), typeParameters, null, members.toArray(new Member[members.size()]),
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), typeParameterList.getLexicalPhrase(), (LexicalPhrase) args[4], members.getLexicalPhrase(), (LexicalPhrase) args[6]));
     }
     if (production == EXTENDS_PRODUCTION)
     {
@@ -54,16 +61,21 @@ public class InterfaceDefinitionRule extends Rule<ParseType>
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
       Name name = (Name) args[2];
       @SuppressWarnings("unchecked")
-      ParseList<QName> superInterfaceQNames = (ParseList<QName>) args[4];
+      ParseList<TypeParameter> typeParameterList = (ParseList<TypeParameter>) args[3];
+      TypeParameter[] typeParameters = typeParameterList.toArray(new TypeParameter[typeParameterList.size()]);
       @SuppressWarnings("unchecked")
-      ParseList<Member> members = (ParseList<Member>) args[6];
-      return processModifiers(modifiers, name.getName(), superInterfaceQNames.toArray(new QName[superInterfaceQNames.size()]), members.toArray(new Member[members.size()]),
-                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), (LexicalPhrase) args[3], superInterfaceQNames.getLexicalPhrase(), (LexicalPhrase) args[5], members.getLexicalPhrase(), (LexicalPhrase) args[7]));
+      ParseList<NamedType> superInterfaceTypes = (ParseList<NamedType>) args[5];
+      @SuppressWarnings("unchecked")
+      ParseList<Member> members = (ParseList<Member>) args[7];
+      return processModifiers(modifiers, name.getName(), typeParameters, superInterfaceTypes.toArray(new NamedType[superInterfaceTypes.size()]), members.toArray(new Member[members.size()]),
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), typeParameterList.getLexicalPhrase(),
+                                                    (LexicalPhrase) args[4], superInterfaceTypes.getLexicalPhrase(),
+                                                    (LexicalPhrase) args[6], members.getLexicalPhrase(), (LexicalPhrase) args[8]));
     }
     throw badTypeList();
   }
 
-  private InterfaceDefinition processModifiers(ParseList<Modifier> modifiers, String name, QName[] superInterfaceQNames, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  private InterfaceDefinition processModifiers(ParseList<Modifier> modifiers, String name, TypeParameter[] typeParameters, NamedType[] superInterfaceTypes, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     boolean isImmutable = false;
     boolean hasSince = false;
@@ -104,6 +116,6 @@ public class InterfaceDefinitionRule extends Rule<ParseType>
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }
-    return new InterfaceDefinition(isImmutable, name, superInterfaceQNames, members, lexicalPhrase);
+    return new InterfaceDefinition(isImmutable, name, typeParameters, superInterfaceTypes, members, lexicalPhrase);
   }
 }

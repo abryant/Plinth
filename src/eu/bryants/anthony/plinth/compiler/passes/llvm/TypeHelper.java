@@ -1,6 +1,7 @@
 package eu.bryants.anthony.plinth.compiler.passes.llvm;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -17,11 +18,16 @@ import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
+import eu.bryants.anthony.plinth.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.member.Property;
+import eu.bryants.anthony.plinth.ast.metadata.GenericTypeSpecialiser;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunctionType;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
+import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
@@ -32,9 +38,9 @@ import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
+import eu.bryants.anthony.plinth.ast.type.TypeParameter;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
 import eu.bryants.anthony.plinth.compiler.passes.SpecialTypeHandler;
-import eu.bryants.anthony.plinth.compiler.passes.TypeChecker;
 
 /*
  * Created on 23 Sep 2012
@@ -47,6 +53,14 @@ import eu.bryants.anthony.plinth.compiler.passes.TypeChecker;
 public class TypeHelper
 {
   private static final String BASE_CHANGE_FUNCTION_PREFIX = "_base_change_o";
+  private static final String PROXY_FUNCTION_PREFIX = "_PROXY_";
+  private static final String REFERENCE_PROXY_FUNCTION_PREFIX = "_METHOD_PROXY_";
+  private static final String PROXY_ARRAY_GETTER_FUNCTION_PREFIX = "_PROXY_ARRAY_GET_";
+  private static final String PROXY_ARRAY_SETTER_FUNCTION_PREFIX = "_PROXY_ARRAY_SET_";
+  private static final String ARRAY_GETTER_FUNCTION_PREFIX = "_ARRAY_GET_";
+  private static final String ARRAY_SETTER_FUNCTION_PREFIX = "_ARRAY_SET_";
+
+  private TypeDefinition typeDefinition;
 
   private CodeGenerator codeGenerator;
   private VirtualFunctionHandler virtualFunctionHandler;
@@ -61,12 +75,14 @@ public class TypeHelper
 
   /**
    * Creates a new TypeHelper to build type conversions with the specified builder.
+   * @param typeDefinition - the TypeDefinition to generate proxy functions in the context of
    * @param codeGenerator - the CodeGenerator to use to generate any miscellaneous sections of code, such as null checks
    * @param virtualFunctionHandler - the VirtualFunctionHandler to handle building the types of virtual function tables
    * @param module - the LLVMModuleRef that this TypeHelper will build inside
    */
-  public TypeHelper(CodeGenerator codeGenerator, VirtualFunctionHandler virtualFunctionHandler, LLVMModuleRef module)
+  public TypeHelper(TypeDefinition typeDefinition, CodeGenerator codeGenerator, VirtualFunctionHandler virtualFunctionHandler, LLVMModuleRef module)
   {
+    this.typeDefinition = typeDefinition;
     this.codeGenerator = codeGenerator;
     this.virtualFunctionHandler = virtualFunctionHandler;
     this.module = module;
@@ -145,7 +161,7 @@ public class TypeHelper
       {
         nonNullableType = LLVM.LLVMIntType(primitiveTypeType.getBitCount());
       }
-      if (type.isNullable())
+      if (type.canBeNullable())
       {
         // tuple the non-nullable type with a boolean, so that we can tell whether or not the value is null
         LLVMTypeRef[] types = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), nonNullableType};
@@ -155,7 +171,10 @@ public class TypeHelper
     }
     if (type instanceof ArrayType)
     {
-      ArrayType arrayType = new ArrayType(false, false, ((ArrayType) type).getBaseType(), null);
+      // strip any type parameters out of the base type, as we don't want them to change the mangled name of the array
+      // the reason for this is that there should never be any difference between the native representation of a type, and its native representation after having its type parameters stripped
+      Type baseType = stripTypeParameters(((ArrayType) type).getBaseType());
+      ArrayType arrayType = new ArrayType(false, false, baseType, null);
       String mangledTypeName = arrayType.getMangledName();
       LLVMTypeRef existingType = nativeArrayTypes.get(mangledTypeName);
       if (existingType != null)
@@ -165,11 +184,16 @@ public class TypeHelper
       LLVMTypeRef llvmArrayType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), mangledTypeName);
       nativeArrayTypes.put(mangledTypeName, llvmArrayType);
 
-      LLVMTypeRef baseType = findNativeType(arrayType.getBaseType(), false);
-      LLVMTypeRef llvmArray = LLVM.LLVMArrayType(baseType, 0);
       LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
       LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
-      LLVMTypeRef[] structureTypes = new LLVMTypeRef[] {rttiType, vftPointerType, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), llvmArray};
+      LLVMTypeRef lengthType = LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount());
+
+      LLVMTypeRef[] getterFunctionParamTypes = new LLVMTypeRef[] {LLVM.LLVMPointerType(llvmArrayType, 0), lengthType};
+      LLVMTypeRef getterFunctionType = LLVM.LLVMFunctionType(findTemporaryType(arrayType.getBaseType()), C.toNativePointerArray(getterFunctionParamTypes, false, true), getterFunctionParamTypes.length, false);
+      LLVMTypeRef[] setterFunctionParamTypes = new LLVMTypeRef[] {LLVM.LLVMPointerType(llvmArrayType, 0), lengthType, findStandardType(arrayType.getBaseType())};
+      LLVMTypeRef setterFunctionType = LLVM.LLVMFunctionType(LLVM.LLVMVoidType(), C.toNativePointerArray(setterFunctionParamTypes, false, true), setterFunctionParamTypes.length, false);
+
+      LLVMTypeRef[] structureTypes = new LLVMTypeRef[] {rttiType, vftPointerType, lengthType, LLVM.LLVMPointerType(getterFunctionType, 0), LLVM.LLVMPointerType(setterFunctionType, 0)};
       LLVM.LLVMStructSetBody(llvmArrayType, C.toNativePointerArray(structureTypes, false, true), structureTypes.length, false);
       return LLVM.LLVMPointerType(llvmArrayType, 0);
     }
@@ -193,7 +217,7 @@ public class TypeHelper
         llvmSubTypes[i] = findNativeType(subTypes[i], temporary);
       }
       LLVMTypeRef nonNullableType = LLVM.LLVMStructType(C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
-      if (tupleType.isNullable())
+      if (tupleType.canBeNullable())
       {
         // tuple the non-nullable type with a boolean, so that we can tell whether or not the value is null
         LLVMTypeRef[] types = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), nonNullableType};
@@ -201,7 +225,7 @@ public class TypeHelper
       }
       return nonNullableType;
     }
-    if (type instanceof NamedType)
+    if (type instanceof NamedType && ((NamedType) type).getResolvedTypeDefinition() != null)
     {
       NamedType namedType = (NamedType) type;
       TypeDefinition typeDefinition = namedType.getResolvedTypeDefinition();
@@ -216,7 +240,7 @@ public class TypeHelper
             // for temporary CompoundDefinition values, we use a pointer to the non-nullable type, whether or not the type is nullable
             return LLVM.LLVMPointerType(existingType, 0);
           }
-          if (namedType.isNullable())
+          if (namedType.canBeNullable())
           {
             // tuple the non-nullable type with a boolean, so that we can tell whether or not the value is null
             // this is not necessary for ClassDefinitions, since they are pointers which can actually be null
@@ -247,12 +271,20 @@ public class TypeHelper
         LLVMTypeRef nonNullableStructType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), typeDefinition.getQualifiedName().toString());
         nativeNamedTypes.put(typeDefinition, nonNullableStructType);
 
-        // add the fields to the struct recursively
+        TypeParameter[] typeParameters = typeDefinition.getTypeParameters();
         MemberVariable[] instanceVariables = ((CompoundDefinition) typeDefinition).getMemberVariables();
-        LLVMTypeRef[] llvmSubTypes = new LLVMTypeRef[instanceVariables.length];
+        LLVMTypeRef[] llvmSubTypes = new LLVMTypeRef[typeParameters.length + instanceVariables.length];
+
+        // add the type argument RTTI pointers to the struct
+        for (int i = 0; i < typeParameters.length; ++i)
+        {
+          llvmSubTypes[i] = rttiHelper.getGenericPureRTTIType();
+        }
+
+        // add the fields to the struct recursively
         for (int i = 0; i < instanceVariables.length; i++)
         {
-          llvmSubTypes[i] = findNativeType(instanceVariables[i].getType(), false);
+          llvmSubTypes[typeParameters.length + i] = findNativeType(instanceVariables[i].getType(), false);
         }
         LLVM.LLVMStructSetBody(nonNullableStructType, C.toNativePointerArray(llvmSubTypes, false, true), llvmSubTypes.length, false);
         if (temporary)
@@ -260,7 +292,7 @@ public class TypeHelper
           // for temporary values, we use a pointer to the non-nullable type, whether or not the type is nullable
           return LLVM.LLVMPointerType(nonNullableStructType, 0);
         }
-        if (namedType.isNullable())
+        if (namedType.canBeNullable())
         {
           // tuple the non-nullable type with a boolean, so that we can tell whether or not the value is null
           LLVMTypeRef[] types = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), nonNullableStructType};
@@ -276,7 +308,8 @@ public class TypeHelper
         return LLVM.LLVMStructType(C.toNativePointerArray(types, false, true), types.length, false);
       }
     }
-    if (type instanceof ObjectType)
+    if (type instanceof ObjectType ||
+        (type instanceof NamedType && ((NamedType) type).getResolvedTypeParameter() != null))
     {
       if (objectType != null)
       {
@@ -323,12 +356,15 @@ public class TypeHelper
   }
 
   /**
-   * Finds the raw string type, which is just the type of []ubyte, as an LLVM struct.
-   * @return the raw LLVM type of a string constant (i.e. []ubyte)
+   * Finds the raw string type.
+   * This is similar to the type of []ubyte, as an LLVM struct, but also contains the actual array of values in addition to the getter and setter functions.
+   * This makes it incompatible with any arrays of ubyte which might be proxied generic arrays.
+   * @return the raw LLVM type of a string constant
    */
   public LLVMTypeRef findRawStringType()
   {
-    return findNativeType(new ArrayType(false, false, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null), false);
+    ArrayType arrayType = new ArrayType(false, false, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
+    return LLVM.LLVMPointerType(findNonProxiedArrayStructureType(arrayType, 0), 0);
   }
 
   /**
@@ -347,6 +383,33 @@ public class TypeHelper
   }
 
   /**
+   * Finds the type of the structure inside (i.e. not a pointer to) a non-proxied array of the specified length.
+   * @param arrayType - the type of array to find the non-proxied type of
+   * @param length - the length of the native array
+   * @return the LLVM type of the structure inside a non-proxied array of the specified ArrayType
+   */
+  public LLVMTypeRef findNonProxiedArrayStructureType(ArrayType arrayType, int length)
+  {
+    LLVMTypeRef llvmArrayType = findStandardType(arrayType);
+
+    LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
+    LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
+    LLVMTypeRef lengthType = findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE);
+
+    LLVMTypeRef[] getFunctionParamTypes = new LLVMTypeRef[] {llvmArrayType, lengthType};
+    LLVMTypeRef getFunctionType = LLVM.LLVMFunctionType(findTemporaryType(arrayType.getBaseType()), C.toNativePointerArray(getFunctionParamTypes, false, true), getFunctionParamTypes.length, false);
+    LLVMTypeRef[] setFunctionParamTypes = new LLVMTypeRef[] {llvmArrayType, lengthType, findStandardType(arrayType.getBaseType())};
+    LLVMTypeRef setFunctionType = LLVM.LLVMFunctionType(LLVM.LLVMVoidType(), C.toNativePointerArray(setFunctionParamTypes, false, true), setFunctionParamTypes.length, false);
+
+    LLVMTypeRef standardElementType = findStandardType(arrayType.getBaseType());
+    LLVMTypeRef elementsArrayType = LLVM.LLVMArrayType(standardElementType, length);
+
+    LLVMTypeRef[] structureTypes = new LLVMTypeRef[] {rttiType, vftPointerType, lengthType, LLVM.LLVMPointerType(getFunctionType, 0), LLVM.LLVMPointerType(setFunctionType, 0), elementsArrayType};
+    LLVMTypeRef resultType = LLVM.LLVMStructType(C.toNativePointerArray(structureTypes, false, true), structureTypes.length, false);
+    return resultType;
+  }
+
+  /**
    * Finds the native (LLVM) type of the specified Method
    * @param method - the Method to find the LLVM type of
    * @return the LLVMTypeRef representing the type of the specified Method
@@ -354,32 +417,48 @@ public class TypeHelper
   public LLVMTypeRef findMethodType(Method method)
   {
     Parameter[] parameters = method.getParameters();
-    LLVMTypeRef[] types = new LLVMTypeRef[1 + parameters.length];
+    LLVMTypeRef[] types;
+    int offset = 1;
     // add the 'this' type to the function - 'this' always has a temporary type representation
     if (method.isStatic())
     {
       // for static methods, we add an unused opaque*, so that the static method can be easily converted to a function type
+      types = new LLVMTypeRef[1 + parameters.length];
       types[0] = getOpaquePointer();
-    }
-    else if (method instanceof BuiltinMethod)
-    {
-      types[0] = findTemporaryType(((BuiltinMethod) method).getBaseType());
     }
     else if (method.getContainingTypeDefinition() instanceof ClassDefinition)
     {
-      types[0] = findTemporaryType(new NamedType(false, method.isImmutable(), method.getContainingTypeDefinition()));
+      types = new LLVMTypeRef[1 + parameters.length];
+      types[0] = findTemporaryType(new NamedType(false, method.isImmutable(), method.isImmutable(), method.getContainingTypeDefinition()));
     }
     else if (method.getContainingTypeDefinition() instanceof CompoundDefinition)
     {
-      types[0] = findTemporaryType(new NamedType(false, method.isImmutable(), method.getContainingTypeDefinition()));
+      types = new LLVMTypeRef[1 + parameters.length];
+      types[0] = findTemporaryType(new NamedType(false, method.isImmutable(), method.isImmutable(), method.getContainingTypeDefinition()));
     }
     else if (method.getContainingTypeDefinition() instanceof InterfaceDefinition)
     {
-      types[0] = findTemporaryType(new ObjectType(false, method.isImmutable(), null));
+      TypeParameter[] typeParameters = method.getContainingTypeDefinition().getTypeParameters();
+      types = new LLVMTypeRef[1 + typeParameters.length + parameters.length];
+      types[0] = findTemporaryType(new NamedType(false, method.isImmutable(), method.isImmutable(), method.getContainingTypeDefinition()));
+      for (int i = 0; i < typeParameters.length; ++i)
+      {
+        types[offset + i] = rttiHelper.getGenericPureRTTIType();
+      }
+      offset += typeParameters.length;
+    }
+    else if (method instanceof BuiltinMethod)
+    {
+      types = new LLVMTypeRef[1 + parameters.length];
+      types[0] = findTemporaryType(((BuiltinMethod) method).getBaseType());
+    }
+    else
+    {
+      throw new IllegalArgumentException("Unknown type of method: " + method);
     }
     for (int i = 0; i < parameters.length; ++i)
     {
-      types[i + 1] = findStandardType(parameters[i].getType());
+      types[offset + i] = findStandardType(parameters[i].getType());
     }
     LLVMTypeRef resultType = findStandardType(method.getReturnType());
 
@@ -394,20 +473,28 @@ public class TypeHelper
   public LLVMTypeRef findPropertyGetterType(Property property)
   {
     TypeDefinition typeDefinition = property.getContainingTypeDefinition();
-    LLVMTypeRef[] types = new LLVMTypeRef[1];
+    LLVMTypeRef[] types;
     if (property.isStatic())
     {
+      types = new LLVMTypeRef[1];
       types[0] = getOpaquePointer();
     }
     else
     {
       if (typeDefinition instanceof InterfaceDefinition)
       {
-        types[0] = findTemporaryType(new ObjectType(false, false, null));
+        TypeParameter[] typeParameters = typeDefinition.getTypeParameters();
+        types = new LLVMTypeRef[1 + typeParameters.length];
+        types[0] = findTemporaryType(new NamedType(false, false, false, typeDefinition));
+        for (int i = 0; i < typeParameters.length; ++i)
+        {
+          types[1 + i] = rttiHelper.getGenericPureRTTIType();
+        }
       }
       else
       {
-        types[0] = findTemporaryType(new NamedType(false, false, typeDefinition));
+        types = new LLVMTypeRef[1];
+        types[0] = findTemporaryType(new NamedType(false, false, false, typeDefinition));
       }
     }
     LLVMTypeRef resultType = findStandardType(property.getType());
@@ -422,23 +509,33 @@ public class TypeHelper
   public LLVMTypeRef findPropertySetterConstructorType(Property property)
   {
     TypeDefinition typeDefinition = property.getContainingTypeDefinition();
-    LLVMTypeRef[] types = new LLVMTypeRef[2];
+    LLVMTypeRef[] types;
+    int offset = 1;
     if (property.isStatic())
     {
+      types = new LLVMTypeRef[2];
       types[0] = getOpaquePointer();
     }
     else
     {
       if (typeDefinition instanceof InterfaceDefinition)
       {
-        types[0] = findTemporaryType(new ObjectType(false, false, null));
+        TypeParameter[] typeParameters = typeDefinition.getTypeParameters();
+        types = new LLVMTypeRef[2 + typeParameters.length];
+        types[0] = findTemporaryType(new NamedType(false, false, false, typeDefinition));
+        for (int i = 0; i < typeParameters.length; ++i)
+        {
+          types[offset + i] = rttiHelper.getGenericPureRTTIType();
+        }
+        offset += typeParameters.length;
       }
       else
       {
-        types[0] = findTemporaryType(new NamedType(false, false, typeDefinition));
+        types = new LLVMTypeRef[2];
+        types[0] = findTemporaryType(new NamedType(false, false, false, typeDefinition));
       }
     }
-    types[1] = findStandardType(property.getType());
+    types[offset] = findStandardType(property.getType());
     LLVMTypeRef resultType = LLVM.LLVMVoidType();
     return LLVM.LLVMFunctionType(resultType, C.toNativePointerArray(types, false, true), types.length, false);
   }
@@ -450,34 +547,41 @@ public class TypeHelper
    */
   private LLVMTypeRef[] findClassSubTypes(ClassDefinition classDefinition)
   {
-    InterfaceDefinition[] implementedInterfaces = findSubClassInterfaces(classDefinition);
-    ClassDefinition superClassDefinition = classDefinition.getSuperClassDefinition();
-    LLVMTypeRef[] subTypes;
+    NamedType[] implementedInterfaces = findSubClassInterfaces(classDefinition);
+    NamedType superType = classDefinition.getSuperType();
+    TypeParameter[] typeParameters = classDefinition.getTypeParameters();
     MemberVariable[] nonStaticVariables = classDefinition.getMemberVariables();
     int offset; // offset to the class VFT
-    if (superClassDefinition == null)
+    LLVMTypeRef[] subTypes;
+    if (superType == null)
     {
-      // 1 RTTI pointer, 1 object-VFT (for builtin methods), 1 class VFT, some interface VFTs, and some fields
-      subTypes = new LLVMTypeRef[3 + implementedInterfaces.length + nonStaticVariables.length];
+      // 1 RTTI pointer, 1 object-VFT (for builtin methods), 1 class VFT, some interface VFTs, some type parameter RTTI pointers, and some fields
+      subTypes = new LLVMTypeRef[3 + implementedInterfaces.length + typeParameters.length + nonStaticVariables.length];
       subTypes[0] = rttiHelper.getGenericInstanceRTTIType();
       subTypes[1] = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
       offset = 2;
     }
     else
     {
+      ClassDefinition superClassDefinition = (ClassDefinition) superType.getResolvedTypeDefinition();
       LLVMTypeRef[] superClassSubTypes = findClassSubTypes(superClassDefinition);
-      // everything from the super-class, 1 class VFT, some interface VFTs, and some fields
+      // everything from the super-class, 1 class VFT, some interface VFTs, some type parameter RTTI pointers, and some fields
       // we only include interfaces which were not included in any super-classes
-      subTypes = new LLVMTypeRef[superClassSubTypes.length + 1 + implementedInterfaces.length + nonStaticVariables.length];
+      subTypes = new LLVMTypeRef[superClassSubTypes.length + 1 + implementedInterfaces.length + typeParameters.length + nonStaticVariables.length];
       System.arraycopy(superClassSubTypes, 0, subTypes, 0, superClassSubTypes.length);
       offset = superClassSubTypes.length;
     }
     subTypes[offset] = LLVM.LLVMPointerType(virtualFunctionHandler.getVFTType(classDefinition), 0);
     for (int i = 0; i < implementedInterfaces.length; ++i)
     {
-      subTypes[offset + 1 + i] = LLVM.LLVMPointerType(virtualFunctionHandler.getVFTType(implementedInterfaces[i]), 0);
+      subTypes[offset + 1 + i] = LLVM.LLVMPointerType(virtualFunctionHandler.getVFTType(implementedInterfaces[i].getResolvedTypeDefinition()), 0);
     }
     offset += 1 + implementedInterfaces.length;
+    for (int i = 0; i < typeParameters.length; ++i)
+    {
+      subTypes[offset + i] = rttiHelper.getGenericPureRTTIType();
+    }
+    offset += typeParameters.length;
     for (int i = 0; i < nonStaticVariables.length; ++i)
     {
       subTypes[offset + i] = findNativeType(nonStaticVariables[i].getType(), false);
@@ -486,30 +590,89 @@ public class TypeHelper
   }
 
   /**
-   * Finds the list of interfaces which are implemented in the specified ClassDefinition, but none of its super-classes, in linearisation order.
+   * Finds the list of interface types which are implemented in the specified ClassDefinition, but in none of its super-classes, in linearisation order.
    * @param classDefinition - the ClassDefinition to find the list of interfaces for
    * @return the list of interfaces for the specified sub-class in linearisation order
    */
-  InterfaceDefinition[] findSubClassInterfaces(ClassDefinition classDefinition)
+  NamedType[] findSubClassInterfaces(ClassDefinition classDefinition)
   {
-    List<InterfaceDefinition> result = new LinkedList<InterfaceDefinition>();
-    for (TypeDefinition typeDefinition : classDefinition.getInheritanceLinearisation())
+    List<NamedType> result = new LinkedList<NamedType>();
+    for (NamedType superType : classDefinition.getInheritanceLinearisation())
     {
-      if (typeDefinition instanceof InterfaceDefinition)
+      if (superType.getResolvedTypeDefinition() instanceof InterfaceDefinition)
       {
-        result.add((InterfaceDefinition) typeDefinition);
+        result.add(superType);
       }
     }
     // since the direct super-class's linearisation contains everything inherited above this class, we don't need to go through the whole hierarchy ourselves
-    ClassDefinition superClass = classDefinition.getSuperClassDefinition();
-    if (superClass != null)
+    NamedType directSuperType = classDefinition.getSuperType();
+    if (directSuperType != null)
     {
-      for (TypeDefinition typeDefinition : superClass.getInheritanceLinearisation())
+      GenericTypeSpecialiser genericTypeSpecialiser = new GenericTypeSpecialiser(directSuperType);
+      for (NamedType superSuperType : directSuperType.getResolvedTypeDefinition().getInheritanceLinearisation())
       {
-        result.remove(typeDefinition);
+        Iterator<NamedType> it = result.iterator();
+        while (it.hasNext())
+        {
+          if (it.next().isRuntimeEquivalent(genericTypeSpecialiser.getSpecialisedType(superSuperType)))
+          {
+            it.remove();
+          }
+        }
       }
     }
-    return result.toArray(new InterfaceDefinition[result.size()]);
+    return result.toArray(new NamedType[result.size()]);
+  }
+
+  /**
+   * Finds the pointer to the specified TypeParameter inside the specified value.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param baseValue - the base value to get the TypeParameter of, in a temporary type representation - this must be of a type which contains the specified TypeParameter (or a sub-type thereof)
+   * @param typeParameter - the TypeParameter to get the pointer to - this must not be an interface's TypeParameter
+   * @return the pointer to the specified TypeParameter's location inside the specified base value
+   */
+  public LLVMValueRef getTypeParameterPointer(LLVMBuilderRef builder, LLVMValueRef baseValue, TypeParameter typeParameter)
+  {
+    TypeDefinition typeDefinition = typeParameter.getContainingTypeDefinition();
+    if (typeDefinition instanceof InterfaceDefinition)
+    {
+      throw new IllegalArgumentException("Cannot get a pointer to an interface's TypeParameter RTTI block: " + typeParameter);
+    }
+
+    TypeParameter[] typeParameters = typeDefinition.getTypeParameters();
+    int index = -1;
+    for (int i = 0; i < typeParameters.length; ++i)
+    {
+      if (typeParameters[i] == typeParameter)
+      {
+        index = i;
+        break;
+      }
+    }
+    if (index == -1)
+    {
+      throw new IllegalStateException("A TypeParameter is not contained by its containingTypeDefinition: " + typeParameter);
+    }
+
+    if (typeDefinition instanceof ClassDefinition)
+    {
+      // skip the RTTI pointer and the object VFT from the top-level class
+      index += 2;
+
+      // skip the super-class representations
+      NamedType superType = ((ClassDefinition) typeDefinition).getSuperType();
+      while (superType != null)
+      {
+        ClassDefinition superClassDefinition = (ClassDefinition) superType.getResolvedTypeDefinition();
+        // 1 class VFT, some interface VFTs, some type parameter RTTI pointers, and some fields
+        index += 1 + findSubClassInterfaces(superClassDefinition).length + superClassDefinition.getTypeParameters().length + superClassDefinition.getMemberVariables().length;
+        superType = superClassDefinition.getSuperType();
+      }
+      // skip the virtual function tables from this class
+      index += 1 + findSubClassInterfaces((ClassDefinition) typeDefinition).length;
+    }
+    // note: compound definitions work here too, because their type parameters are stored right at the start of their type representation
+    return LLVM.LLVMBuildStructGEP(builder, baseValue, index, "");
   }
 
   /**
@@ -529,19 +692,23 @@ public class TypeHelper
       // skip the RTTI pointer and the object VFT from the top-level class
       index += 2;
       // skip the super-class representations
-      ClassDefinition superClassDefinition = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
-      while (superClassDefinition != null)
+      NamedType superType = ((ClassDefinition) typeDefinition).getSuperType();
+      while (superType != null)
       {
-        // 1 class VFT, some interface VFTs, and some fields
-        index += 1 + findSubClassInterfaces(superClassDefinition).length + superClassDefinition.getMemberVariables().length;
-        superClassDefinition = superClassDefinition.getSuperClassDefinition();
+        ClassDefinition superClassDefinition = (ClassDefinition) superType.getResolvedTypeDefinition();
+        // 1 class VFT, some interface VFTs, some type parameter RTTI pointers, and some fields
+        index += 1 + findSubClassInterfaces(superClassDefinition).length + superClassDefinition.getTypeParameters().length + superClassDefinition.getMemberVariables().length;
+        superType = superClassDefinition.getSuperType();
       }
-      // skip the virtual function tables from this class
-      index += 1 + findSubClassInterfaces((ClassDefinition) typeDefinition).length;
+      // skip the virtual function tables and type parameters from this class
+      index += 1 + findSubClassInterfaces((ClassDefinition) typeDefinition).length + typeDefinition.getTypeParameters().length;
     }
-    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), index, false)};
-    return LLVM.LLVMBuildGEP(builder, baseValue, C.toNativePointerArray(indices, false, true), indices.length, "");
+    else if (typeDefinition instanceof CompoundDefinition)
+    {
+      // skip this compound type's type parameters
+      index += typeDefinition.getTypeParameters().length;
+    }
+    return LLVM.LLVMBuildStructGEP(builder, baseValue, index, "");
   }
 
   /**
@@ -552,102 +719,598 @@ public class TypeHelper
    */
   public LLVMValueRef getArrayLengthPointer(LLVMBuilderRef builder, LLVMValueRef array)
   {
-    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 2, false)};
-    return LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
+    return LLVM.LLVMBuildStructGEP(builder, array, 2, "");
   }
 
   /**
-   * Gets the pointer to the specified element of the specified array.
+   * Finds the pointer to the getter function inside the specified array
    * @param builder - the LLVMBuilderRef to build instructions with
-   * @param array - the array to get the element of, in a temporary type representation
-   * @param index - the index into the array to go, as a uint
-   * @return a pointer to the specified array element (in a pointer-to-standard type representation)
+   * @param array - the array to get the getter function of
+   * @return the pointer to the getter function of the specified array
    */
-  public LLVMValueRef getArrayElementPointer(LLVMBuilderRef builder, LLVMValueRef array, LLVMValueRef index)
+  public LLVMValueRef getArrayGetterFunctionPointer(LLVMBuilderRef builder, LLVMValueRef array)
   {
-    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 3, false),
-                                                 index};
-    return LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
+    return LLVM.LLVMBuildStructGEP(builder, array, 3, "");
   }
 
   /**
-   * Converts the specified Method's callee to the correct type to be passed into the Method.
-   * This method assumes that the callee is already a subtype of the correct type to pass into the Method.
+   * Finds the pointer to the setter function inside the specified array
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param array - the array to get the setter function of
+   * @return the pointer to the setter function of the specified array
+   */
+  public LLVMValueRef getArraySetterFunctionPointer(LLVMBuilderRef builder, LLVMValueRef array)
+  {
+    return LLVM.LLVMBuildStructGEP(builder, array, 4, "");
+  }
+
+  /**
+   * Finds the pointer to the specified element inside the specified non-proxied array.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param array - the non-proxied array to get the element of
+   * @param index - the index to get inside the array
+   * @return the pointer to the element at the specified index inside the non-proxied array
+   */
+  public LLVMValueRef getNonProxiedArrayElementPointer(LLVMBuilderRef builder, LLVMValueRef array, LLVMValueRef index)
+  {
+    LLVMValueRef[] elementIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                        LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 5, false),
+                                                        index};
+    return LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(elementIndices, false, true), elementIndices.length, "");
+  }
+
+  /**
+   * Retrieves the value at the specified index in the specified array.
    * @param builder - the LLVMBuilderRef to build instructions with
    * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
-   * @param callee - the callee to convert, in a temporary type representation
-   * @param calleeType - the current type of the callee
-   * @param method - the Method that the callee will be passed into
-   * @return the converted callee
+   * @param array - the array to get the element out of, in a temporary type representation
+   * @param index - the index in the array to retrieve the element from, as an i32
+   * @return the array element at the specified index, in a temporary type representation
    */
-  public LLVMValueRef convertMethodCallee(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef callee, Type calleeType, Method method)
+  public LLVMValueRef buildRetrieveArrayElement(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef array, LLVMValueRef index)
   {
+    LLVMValueRef getterFunctionPtr = LLVM.LLVMBuildStructGEP(builder, array, 3, "");
+    LLVMValueRef getterFunction = LLVM.LLVMBuildLoad(builder, getterFunctionPtr, "");
+    LLVMValueRef[] arguments = new LLVMValueRef[] {array, index};
+    LLVMBasicBlockRef continuationBlock = LLVM.LLVMAddBasicBlock(builder, "arrayRetrieveInvokeContinue");
+    LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, getterFunction, C.toNativePointerArray(arguments, false, true), arguments.length, continuationBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+    return result;
+  }
+
+  /**
+   * Stores the specified value in the specified array.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
+   * @param array - the array to store the element inside
+   * @param index - the index in the array to store the element in, as an i32
+   * @param value - the value to store in the array, in a standard type representation
+   */
+  public void buildStoreArrayElement(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef array, LLVMValueRef index, LLVMValueRef value)
+  {
+    LLVMValueRef setterFunctionPtr = LLVM.LLVMBuildStructGEP(builder, array, 4, "");
+    LLVMValueRef setterFunction = LLVM.LLVMBuildLoad(builder, setterFunctionPtr, "");
+    LLVMValueRef[] arguments = new LLVMValueRef[] {array, index, value};
+    LLVMBasicBlockRef continuationBlock = LLVM.LLVMAddBasicBlock(builder, "arrayStoreInvokeContinue");
+    LLVM.LLVMBuildInvoke(builder, setterFunction, C.toNativePointerArray(arguments, false, true), arguments.length, continuationBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+  }
+
+  /**
+   * Finds the type of the callee to the specified MethodReference.
+   * @param methodReference - the reference to the method to find the callee type of
+   * @return the type that a callee should be converted to before being passed into the low-level function for the specified method
+   */
+  public Type getMethodCalleeType(MethodReference methodReference)
+  {
+    Method method = methodReference.getReferencedMember();
     if (method.isStatic())
     {
-      // the callee should already have its required type (i.e. a null opaque pointer)
-      return callee;
+      return null;
     }
     if (method instanceof BuiltinMethod)
     {
       BuiltinMethod builtinMethod = (BuiltinMethod) method;
-      return convertTemporary(builder, landingPadContainer, callee, calleeType, builtinMethod.getBaseType());
-    }
-    TypeDefinition containingDefinition = method.getContainingTypeDefinition();
-    if (containingDefinition != null)
-    {
-      // convert the callee to the correct type for this Method
-      // this is determined by the type definition which it is declared in, so that it matches the VFT we look up the Method in
-      if (containingDefinition instanceof ClassDefinition)
+      if (builtinMethod.getContainingTypeDefinition() == null)
       {
-        return convertTemporary(builder, landingPadContainer, callee, calleeType, new NamedType(false, false, containingDefinition));
-      }
-      // for interfaces, the callee will be of type object
-      if (containingDefinition instanceof InterfaceDefinition)
-      {
-        return convertTemporary(builder, landingPadContainer, callee, calleeType, new ObjectType(false, false, null));
+        return builtinMethod.getBaseType();
       }
     }
-    // the callee should already have its required value
-    return callee;
+    return methodReference.getContainingType();
   }
 
   /**
-   * Converts the specified Property's callee to the correct type to be passed into one of its property methods
-   * This method assumes that the callee is already a subtype of the correct type to pass into the Property method.
-   * @param builder - the LLVMBuilderRef to build instructions with
-   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
-   * @param callee - the callee to convert, in a temporary type representation
-   * @param calleeType - the current type of the callee
-   * @param property - the Property that the callee will be passed into a method of
-   * @return the converted callee
+   * Finds the type of the callee to the specified PropertyReference.
+   * @param propertyReference - the reference to the property to find the callee type of
+   * @return the type that a callee should be converted to before being passed into one of the low-level functions for the specified property
    */
-  public LLVMValueRef convertPropertyCallee(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef callee, Type calleeType, Property property)
+  public Type getPropertyCalleeType(PropertyReference propertyReference)
   {
+    Property property = propertyReference.getReferencedMember();
     if (property.isStatic())
     {
-      // the callee should already have its required type (i.e. a null opaque pointer)
-      return callee;
+      return null;
     }
-    TypeDefinition containingDefinition = property.getContainingTypeDefinition();
-    // convert the callee to the correct type for this Property
-    // this is determined by the type definition which it is declared in, so that it matches the VFT we look up the Method in
-    if (containingDefinition instanceof ClassDefinition)
+    return propertyReference.getContainingType();
+  }
+
+  /**
+   * Builds a function which proxies a given Method and converts the argument and return types to the types of the specified MethodReference.
+   * The generated function accepts arguments and returns results of the MethodReference's type, and expects a callee containing some proxy-function-specific data, which includes a type argument mapper.
+   * The generated function is private to the current TypeDefinition, as it extracts data from a type argument mapper which is expected to be in the format of this TypeDefinition.
+   * @param methodReference - the MethodReference that the proxy function is for
+   * @return the LLVM function created
+   */
+  private LLVMValueRef buildMethodReferenceProxyFunction(MethodReference methodReference)
+  {
+    String mangledName = REFERENCE_PROXY_FUNCTION_PREFIX + methodReference.getDisambiguator().toString() + "_" + methodReference.getReferencedMember().getMangledName();
+    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunction != null)
     {
-      return convertTemporary(builder, landingPadContainer, callee, calleeType, new NamedType(false, false, containingDefinition));
+      return existingFunction;
     }
-    // for interfaces, the callee will be of type object
-    if (containingDefinition instanceof InterfaceDefinition)
+
+    Method method = methodReference.getReferencedMember();
+    Parameter[] proxiedParameters = method.getParameters();
+
+    Type[] parameterTypes = methodReference.getParameterTypes();
+    LLVMTypeRef[] llvmParameterTypes = new LLVMTypeRef[1 + parameterTypes.length];
+    llvmParameterTypes[0] = getOpaquePointer();
+    for (int i = 0; i < parameterTypes.length; ++i)
     {
-      return convertTemporary(builder, landingPadContainer, callee, calleeType, new ObjectType(false, false, null));
+      llvmParameterTypes[1 + i] = findStandardType(parameterTypes[i]);
     }
-    throw new IllegalArgumentException("Cannot convert a property callee for the property: " + containingDefinition + "." + property.getName());
+    LLVMTypeRef returnType = findStandardType(methodReference.getReturnType());
+    LLVMTypeRef functionType = LLVM.LLVMFunctionType(returnType, C.toNativePointerArray(llvmParameterTypes, false, true), llvmParameterTypes.length, false);
+
+    LLVMValueRef function = LLVM.LLVMAddFunction(module, mangledName, functionType);
+    LLVM.LLVMSetLinkage(function, LLVM.LLVMLinkage.LLVMPrivateLinkage);
+    LLVM.LLVMSetVisibility(function, LLVM.LLVMVisibility.LLVMHiddenVisibility);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(function);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+
+    // find the type of the callee opaque pointer, and the things we need to extract from it
+    LLVMTypeRef nativeCalleeType;
+    if (method.isStatic())
+    {
+      nativeCalleeType = getOpaquePointer();
+    }
+    else
+    {
+      Type calleeType = getMethodCalleeType(methodReference);
+      nativeCalleeType = findStandardType(calleeType);
+    }
+    LLVMTypeRef proxiedFunctionType = LLVM.LLVMPointerType(findMethodType(method), 0);
+    LLVMTypeRef typeArgumentMapperType = rttiHelper.getGenericTypeArgumentMapperStructureType();
+    LLVMTypeRef[] opaquePointerSubTypes = new LLVMTypeRef[] {nativeCalleeType, proxiedFunctionType, typeArgumentMapperType};
+    LLVMTypeRef opaquePointerType = LLVM.LLVMStructType(C.toNativePointerArray(opaquePointerSubTypes, false, true), opaquePointerSubTypes.length, false);
+
+    LLVMValueRef opaquePointer = LLVM.LLVMGetParam(function, 0);
+    opaquePointer = LLVM.LLVMBuildBitCast(builder, opaquePointer, LLVM.LLVMPointerType(opaquePointerType, 0), "");
+
+    LLVMValueRef calleePointer = LLVM.LLVMBuildStructGEP(builder, opaquePointer, 0, "");
+    LLVMValueRef callee = LLVM.LLVMBuildLoad(builder, calleePointer, "");
+
+    LLVMValueRef proxiedFunctionPtr = LLVM.LLVMBuildStructGEP(builder, opaquePointer, 1, "");
+    LLVMValueRef proxiedFunction = LLVM.LLVMBuildLoad(builder, proxiedFunctionPtr, "");
+
+    LLVMValueRef typeMapper = LLVM.LLVMBuildStructGEP(builder, opaquePointer, 2, "");
+    TypeParameterAccessor typeParameterAccessor = new TypeParameterAccessor(builder, rttiHelper, typeDefinition, typeMapper);
+
+    // create the argument list to the proxy function, and put the callee and any required type parameter RTTI pointers into it
+    LLVMValueRef[] realArguments;
+    int offset;
+    if (!method.isStatic() && method.getContainingTypeDefinition() instanceof InterfaceDefinition)
+    {
+      // interfaces need type argument RTTI blocks to be passed in as parameters
+      NamedType containingType = methodReference.getContainingType();
+      Type[] typeArguments = containingType.getTypeArguments();
+      realArguments = new LLVMValueRef[1 + typeArguments.length + proxiedParameters.length];
+      for (int i = 0; i < typeArguments.length; ++i)
+      {
+        realArguments[1 + i] = rttiHelper.buildRTTICreation(builder, false, typeArguments[i], typeParameterAccessor);
+      }
+      offset = 1 + typeArguments.length;
+    }
+    else
+    {
+      realArguments = new LLVMValueRef[1 + proxiedParameters.length];
+      offset = 1;
+    }
+    realArguments[0] = callee;
+
+    // convert the arguments
+    GenericTypeSpecialiser methodTypeSpecialiser = GenericTypeSpecialiser.IDENTITY_SPECIALISER;
+    if (methodReference.getContainingType() != null)
+    {
+      methodTypeSpecialiser = new GenericTypeSpecialiser(methodReference.getContainingType());
+    }
+    for (int i = 0; i < parameterTypes.length; ++i)
+    {
+      LLVMValueRef argument = LLVM.LLVMGetParam(function, 1 + i);
+      Type realArgumentType = getContextualisedActualMemberType(proxiedParameters[i].getType(), methodTypeSpecialiser);
+      argument = convertStandardToTemporary(builder, argument, parameterTypes[i]);
+      // we skip run-time checks for this conversion, because the only change is type parameters being filled in by the MethodReference,
+      // and we know at compile-time that they are more specific in the MethodReference than in the Method's actual type
+      argument = convertTemporary(builder, landingPadContainer, argument, parameterTypes[i], realArgumentType, true, typeParameterAccessor);
+      argument = convertTemporaryToStandard(builder, argument, realArgumentType);
+      realArguments[offset + i] = argument;
+    }
+
+    // call the function
+    LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "methodInvokeContinue");
+    LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, proxiedFunction, C.toNativePointerArray(realArguments, false, true), realArguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
+
+    if (methodReference.getReturnType() instanceof VoidType)
+    {
+      LLVM.LLVMBuildRetVoid(builder);
+    }
+    else
+    {
+      // convert the result
+      Type realResultType = getContextualisedActualMemberType(method.getReturnType(), methodTypeSpecialiser);
+      result = convertStandardToTemporary(builder, result, realResultType);
+      // we skip run-time checks for this conversion, because the only change is type parameters being filled in by the MethodReference,
+      // and we know at compile-time that they are more specific in the MethodReference than in the Method's actual type
+      result = convertTemporary(builder, landingPadContainer, result, realResultType, methodReference.getReturnType(), true, typeParameterAccessor);
+      result = convertTemporaryToStandard(builder, result, methodReference.getReturnType());
+      LLVM.LLVMBuildRet(builder, result);
+    }
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return function;
+  }
+
+  /**
+   * Extracts the specified MethodReference on the specified callee into a function-typed value.
+   * If the callee is an interface, or some conversion needs to be done between the MethodReference's type
+   * and the underlying Method's type, then the function is proxied, and the proxy function is returned.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
+   * @param callee - the callee for the method, in a temporary type representation
+   * @param calleeType - the current type of the callee
+   * @param methodReference - the reference to the Method to extract
+   * @param skipVirtualLookup - true to skip a virtual function table lookup and use the function directly, false to do a VFT lookup as normal
+   * @param typeParameterAccessor - the TypeParameterAccessor to get the values of any TypeParameters from
+   * @return the function extracted, in the temporary type representation of a FunctionType constructed from the MethodReference (not the underlying Method)
+   */
+  public LLVMValueRef extractMethodFunction(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef callee, Type calleeType, MethodReference methodReference, boolean skipVirtualLookup, TypeParameterAccessor typeParameterAccessor)
+  {
+    Method method = methodReference.getReferencedMember();
+
+    boolean needsProxying = false;
+    if (!method.isStatic() && method.getContainingTypeDefinition() instanceof InterfaceDefinition)
+    {
+      // for interface methods, the callee is the standard representation of the interface (i.e. a tuple of the object and the interface VFT)
+      // so in order to extract it to a function pointer (a tuple of RTTI, callee pointer, and function pointer), we need to store the interface
+      // callee as a pointer, which can only be done by proxying the method
+      needsProxying = true;
+    }
+    else
+    {
+      // if the return type or any of the parameter types need converting, we need to proxy the method
+      Parameter[] parameters = method.getParameters();
+      Type[] referenceParameterTypes = methodReference.getParameterTypes();
+      GenericTypeSpecialiser methodSpecialiser = GenericTypeSpecialiser.IDENTITY_SPECIALISER;
+      if (methodReference.getContainingType() != null)
+      {
+        methodSpecialiser = new GenericTypeSpecialiser(methodReference.getContainingType());
+      }
+      for (int i = 0; i < parameters.length; ++i)
+      {
+        if (!referenceParameterTypes[i].isRuntimeEquivalent(parameters[i].getType()))
+        {
+          Type actualParameterType = getContextualisedActualMemberType(parameters[i].getType(), methodSpecialiser);
+          // we skip run-time checks for this conversion, because the only change is type parameters being filled in by the MethodReference,
+          // and we know at compile-time that they are more specific in the MethodReference than in the Method's actual type
+          if (checkRequiresConversion(referenceParameterTypes[i], actualParameterType, false))
+          {
+            needsProxying = true;
+            break;
+          }
+        }
+      }
+      if (!methodReference.getReturnType().isRuntimeEquivalent(method.getReturnType()))
+      {
+        Type actualReturnType = getContextualisedActualMemberType(method.getReturnType(), methodSpecialiser);
+        // we skip run-time checks for this conversion, because the only change is type parameters being filled in by the MethodReference,
+        // and we know at compile-time that they are more specific in the MethodReference than in the Method's actual type
+        if (checkRequiresConversion(actualReturnType, methodReference.getReturnType(), false))
+        {
+          needsProxying = true;
+        }
+      }
+    }
+
+    if (!method.isStatic())
+    {
+      Type newCalleeType = getMethodCalleeType(methodReference);
+      callee = convertTemporary(builder, landingPadContainer, callee, calleeType, newCalleeType, false, typeParameterAccessor);
+      calleeType = newCalleeType;
+    }
+
+    LLVMValueRef function;
+    if (needsProxying ||
+        method.isStatic() ||
+        calleeType instanceof ObjectType ||
+        (calleeType instanceof NamedType && ((NamedType) calleeType).getResolvedTypeDefinition() instanceof ClassDefinition) ||
+        (calleeType instanceof NamedType && ((NamedType) calleeType).getResolvedTypeDefinition() instanceof InterfaceDefinition) ||
+        (calleeType instanceof NamedType && ((NamedType) calleeType).getResolvedTypeParameter() != null) ||
+        calleeType instanceof ArrayType)
+    {
+      function = codeGenerator.lookupMethodFunction(builder, landingPadContainer, callee, calleeType, methodReference, skipVirtualLookup, typeParameterAccessor);
+    }
+    else
+    {
+      function = getBaseChangeFunction(method);
+    }
+
+    LLVMValueRef realCallee;
+    LLVMValueRef realFunction;
+    if (needsProxying)
+    {
+      // find the type of the callee opaque pointer, and the things we need to extract from it
+      LLVMTypeRef nativeCalleeType;
+      if (method.isStatic())
+      {
+        nativeCalleeType = getOpaquePointer();
+      }
+      else
+      {
+        Type proxyCalleeType = getMethodCalleeType(methodReference);
+        nativeCalleeType = findStandardType(proxyCalleeType);
+      }
+      LLVMTypeRef proxiedFunctionType = LLVM.LLVMPointerType(findMethodType(method), 0);
+      LLVMTypeRef typeArgumentMapperType = typeParameterAccessor.getTypeArgumentMapperType();
+      LLVMTypeRef[] opaqueSubTypes = new LLVMTypeRef[] {nativeCalleeType, proxiedFunctionType, typeArgumentMapperType};
+      LLVMTypeRef opaquePointerType = LLVM.LLVMPointerType(LLVM.LLVMStructType(C.toNativePointerArray(opaqueSubTypes, false, true), opaqueSubTypes.length, false), 0);
+
+      // allocate the opaque pointer as the real callee of this object
+      LLVMValueRef pointer = codeGenerator.buildHeapAllocation(builder, opaquePointerType);
+
+      // store the callee inside the new piece of memory
+      LLVMValueRef calleePointer = LLVM.LLVMBuildStructGEP(builder, pointer, 0, "");
+      LLVM.LLVMBuildStore(builder, callee, calleePointer);
+
+      // store the function pointer inside the new piece of memory
+      LLVMValueRef functionPointer = LLVM.LLVMBuildStructGEP(builder, pointer, 1, "");
+      LLVM.LLVMBuildStore(builder, function, functionPointer);
+
+      // store the type argument mapper inside the new piece of memory
+      LLVMValueRef typeMapper = LLVM.LLVMBuildStructGEP(builder, pointer, 2, "");
+      typeParameterAccessor.buildTypeArgumentMapper(typeMapper);
+
+      // set the callee and the function to the proxied callee and function
+      realCallee = LLVM.LLVMBuildBitCast(builder, pointer, getOpaquePointer(), "");
+      realFunction = buildMethodReferenceProxyFunction(methodReference);
+    }
+    else
+    {
+      if (method.isStatic())
+      {
+        realCallee = LLVM.LLVMConstNull(getOpaquePointer());
+      }
+      else
+      {
+        realCallee = convertTemporary(builder, landingPadContainer, callee, calleeType, new ObjectType(false, false, null), false, typeParameterAccessor);
+        realCallee = LLVM.LLVMBuildBitCast(builder, realCallee, getOpaquePointer(), "");
+      }
+      realFunction = function;
+    }
+
+    FunctionType functionType = new FunctionType(false, method.isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), methodReference.getCheckedThrownTypes(), null);
+    realFunction = LLVM.LLVMBuildBitCast(builder, realFunction, findRawFunctionPointerType(functionType), "");
+
+    LLVMValueRef result = LLVM.LLVMGetUndef(findStandardType(functionType));
+    result = LLVM.LLVMBuildInsertValue(builder, result, rttiHelper.buildRTTICreation(builder, true, functionType, typeParameterAccessor), 0, "");
+    result = LLVM.LLVMBuildInsertValue(builder, result, realCallee, 1, "");
+    result = LLVM.LLVMBuildInsertValue(builder, result, realFunction, 2, "");
+    return convertStandardToTemporary(builder, result, functionType);
+  }
+
+  /**
+   * Builds code to call the specified MethodReference.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
+   * @param callee - the callee for the method, in a temporary type representation
+   * @param calleeType - the current type of the callee
+   * @param methodReference - the MethodReference to build the call to
+   * @param arguments - the arguments, in temporary type representations of the types that the MethodReference (not the Method) expects
+   * @param typeParameterAccessor - the TypeParameterAccessor to get the values of any TypeParameters from
+   * @return the result of the method call, in a temporary type representation of the type that the MethodReference (not the Method) returns
+   */
+  public LLVMValueRef buildMethodCall(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef callee, Type calleeType, MethodReference methodReference, LLVMValueRef[] arguments, TypeParameterAccessor typeParameterAccessor)
+  {
+    Method method = methodReference.getReferencedMember();
+
+    if (!method.isStatic())
+    {
+      Type newCalleeType = getMethodCalleeType(methodReference);
+      callee = convertTemporary(builder, landingPadContainer, callee, calleeType, newCalleeType, false, typeParameterAccessor);
+      calleeType = newCalleeType;
+    }
+
+    LLVMValueRef function = codeGenerator.lookupMethodFunction(builder, landingPadContainer, callee, calleeType, methodReference, false, typeParameterAccessor);
+    LLVMValueRef[] realArguments;
+    int offset;
+    if (!method.isStatic() && method.getContainingTypeDefinition() instanceof InterfaceDefinition)
+    {
+      // interfaces need type argument RTTI blocks to be passed in as parameters
+      NamedType containingType = methodReference.getContainingType();
+      Type[] typeArguments = containingType.getTypeArguments();
+      realArguments = new LLVMValueRef[1 + (typeArguments == null ? 0 : typeArguments.length) + arguments.length];
+      for (int i = 0; typeArguments != null && i < typeArguments.length; ++i)
+      {
+        realArguments[1 + i] = rttiHelper.buildRTTICreation(builder, false, typeArguments[i], typeParameterAccessor);
+      }
+      offset = 1 + (typeArguments == null ? 0 : typeArguments.length);
+    }
+    else
+    {
+      realArguments = new LLVMValueRef[1 + arguments.length];
+      offset = 1;
+    }
+    realArguments[0] = callee;
+    Type[] referenceParameterTypes = methodReference.getParameterTypes();
+    GenericTypeSpecialiser methodTypeSpecialiser = GenericTypeSpecialiser.IDENTITY_SPECIALISER;
+    if (methodReference.getContainingType() != null)
+    {
+      methodTypeSpecialiser = new GenericTypeSpecialiser(methodReference.getContainingType());
+    }
+    Parameter[] parameters = method.getParameters();
+    for (int i = 0; i < arguments.length; ++i)
+    {
+      Type realArgumentType = getContextualisedActualMemberType(parameters[i].getType(), methodTypeSpecialiser);
+      realArguments[offset + i] = convertTemporaryToStandard(builder, landingPadContainer, arguments[i], referenceParameterTypes[i], realArgumentType, typeParameterAccessor);
+    }
+    LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "methodInvokeContinue");
+    LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, function, C.toNativePointerArray(realArguments, false, true), realArguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
+
+    if (methodReference.getReturnType() instanceof VoidType)
+    {
+      return null;
+    }
+    Type resultType = getContextualisedActualMemberType(method.getReturnType(), methodTypeSpecialiser);
+    result = convertStandardToTemporary(builder, landingPadContainer, result, resultType, methodReference.getReturnType(), typeParameterAccessor);
+    return result;
+  }
+
+  /**
+   * Builds code to call the specified PropertyReference's getter.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
+   * @param callee - the callee for the property function, in a temporary type representation
+   * @param calleeType - the current type of the callee
+   * @param propertyReference - the PropertyReference to build the call to the getter of
+   * @param typeParameterAccessor - the TypeParameterAccessor to get the values of any TypeParameters from
+   * @return the result of the property getter call, in a temporary type representation of the type that the PropertyReference (not the Property) returns
+   */
+  public LLVMValueRef buildPropertyGetterFunctionCall(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef callee, Type calleeType, PropertyReference propertyReference, TypeParameterAccessor typeParameterAccessor)
+  {
+    Property property = propertyReference.getReferencedMember();
+
+    if (!property.isStatic())
+    {
+      Type newCalleeType = getPropertyCalleeType(propertyReference);
+      callee = convertTemporary(builder, landingPadContainer, callee, calleeType, newCalleeType, false, typeParameterAccessor);
+      calleeType = newCalleeType;
+    }
+
+    LLVMValueRef function = codeGenerator.lookupPropertyFunction(builder, landingPadContainer, callee, calleeType, propertyReference, MemberFunctionType.PROPERTY_GETTER, typeParameterAccessor);
+    LLVMValueRef[] realArguments;
+    if (!property.isStatic() && property.getContainingTypeDefinition() instanceof InterfaceDefinition)
+    {
+      // interfaces need type argument RTTI blocks to be passed in as parameters
+      NamedType containingType = propertyReference.getContainingType();
+      Type[] typeArguments = containingType.getTypeArguments();
+      realArguments = new LLVMValueRef[1 + typeArguments.length];
+      for (int i = 0; i < typeArguments.length; ++i)
+      {
+        realArguments[1 + i] = rttiHelper.buildRTTICreation(builder, false, typeArguments[i], typeParameterAccessor);
+      }
+    }
+    else
+    {
+      realArguments = new LLVMValueRef[1];
+    }
+    realArguments[0] = callee;
+    LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "propertyGetterInvokeContinue");
+    LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, function, C.toNativePointerArray(realArguments, false, true), realArguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
+
+    Type contextualisedResultType = getContextualisedActualMemberType(property.getType(), new GenericTypeSpecialiser(propertyReference.getContainingType()));
+    result = convertStandardToTemporary(builder, landingPadContainer, result, contextualisedResultType, propertyReference.getType(), typeParameterAccessor);
+    return result;
+  }
+
+  /**
+   * Builds code to call the specified PropertyReference's setter or constructor.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
+   * @param callee - the callee for the property function, in a temporary type representation
+   * @param calleeType - the current type of the callee
+   * @param argument - the value to pass to the setter/constructor, in a temporary type representation
+   * @param propertyReference - the PropertyReference to build the call to the setter/constructor of
+   * @param functionType - the type of function to call, should be either PROPERTY_SETTER or PROPERTY_CONSTRUCTOR
+   * @param typeParameterAccessor - the TypeParameterAccessor to get the values of any TypeParameters from
+   */
+  public void buildPropertySetterConstructorFunctionCall(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef callee, Type calleeType, LLVMValueRef argument, PropertyReference propertyReference, MemberFunctionType functionType, TypeParameterAccessor typeParameterAccessor)
+  {
+    Property property = propertyReference.getReferencedMember();
+
+    if (!property.isStatic())
+    {
+      Type newCalleeType = getPropertyCalleeType(propertyReference);
+      callee = convertTemporary(builder, landingPadContainer, callee, calleeType, newCalleeType, false, typeParameterAccessor);
+      calleeType = newCalleeType;
+    }
+
+    LLVMValueRef function = codeGenerator.lookupPropertyFunction(builder, landingPadContainer, callee, calleeType, propertyReference, functionType, typeParameterAccessor);
+    LLVMValueRef[] realArguments;
+    int offset;
+    if (!property.isStatic() && property.getContainingTypeDefinition() instanceof InterfaceDefinition)
+    {
+      // interfaces need type argument RTTI blocks to be passed in as parameters
+      NamedType containingType = propertyReference.getContainingType();
+      Type[] typeArguments = containingType.getTypeArguments();
+      realArguments = new LLVMValueRef[2 + typeArguments.length];
+      for (int i = 0; i < typeArguments.length; ++i)
+      {
+        realArguments[1 + i] = rttiHelper.buildRTTICreation(builder, false, typeArguments[i], typeParameterAccessor);
+      }
+      offset = 1 + typeArguments.length;
+    }
+    else
+    {
+      realArguments = new LLVMValueRef[2];
+      offset = 1;
+    }
+    realArguments[0] = callee;
+
+    // convert the argument from the PropertyReference's expected type to the Property's expected type
+    Type contextualisedArgumentType = getContextualisedActualMemberType(property.getType(), new GenericTypeSpecialiser(propertyReference.getContainingType()));
+    realArguments[offset] = convertTemporaryToStandard(builder, landingPadContainer, argument, propertyReference.getType(), contextualisedArgumentType, typeParameterAccessor);
+
+    LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "property" + (functionType == MemberFunctionType.PROPERTY_CONSTRUCTOR ? "Constructor" : "Setter") + "InvokeContinue");
+    LLVM.LLVMBuildInvoke(builder, function, C.toNativePointerArray(realArguments, false, true), realArguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
+  }
+
+  /**
+   * Finds a version of the specified actualType that can be converted to/from in the context that referenceContainingType was created in.
+   * An example of when this needs to be used is when converting from a MethodReference's parameter type to its underlying Method's parameter type.
+   * It needs to be used in this sort of scenario because we need a type which has the same native type as the Method's parameter,
+   * but which otherwise looks like the MemberReference's type and does not contain any TypeParameters from outside the current context.
+   * @param actualType - the actual type to convert, which should be the type of part of a MemberReference's referenced member.
+   * @param contextSpecialiser - the GenericTypeSpecialiser that we can use to map any TypeParameters in actualType to their values in the current context
+   * @return the contextualised actual type
+   */
+  public Type getContextualisedActualMemberType(Type actualType, GenericTypeSpecialiser contextSpecialiser)
+  {
+    // modify the actual type so that we can convert to it in this context
+    // first, strip any type parameters, turning them into objects
+    actualType = stripTypeParameters(actualType);
+    // then, replace any remaining type parameters (i.e. those inside type argument lists for a NamedType) with their actual values, so that the type is converted correctly
+    actualType = contextSpecialiser.getSpecialisedType(actualType);
+    return actualType;
   }
 
   /**
    * Gets a function that takes a callee of type 'object' and converts it to the base type of the specified method before calling that method.
-   * @param method - the method to find the base change method for
+   * @param method - the method to find the base change method for, cannot be an interface method
    * @return the base change method for the specified method
    */
   public LLVMValueRef getBaseChangeFunction(Method method)
@@ -655,6 +1318,10 @@ public class TypeHelper
     if (method.isStatic())
     {
       throw new IllegalArgumentException("Cannot change the base of a static method");
+    }
+    if (method.getContainingTypeDefinition() instanceof InterfaceDefinition)
+    {
+      throw new IllegalArgumentException("Cannot change the base of an interface method");
     }
     String mangledName = BASE_CHANGE_FUNCTION_PREFIX + method.getMangledName();
 
@@ -685,7 +1352,7 @@ public class TypeHelper
     Type baseType;
     if (method.getContainingTypeDefinition() != null)
     {
-      baseType = new NamedType(false, false, method.getContainingTypeDefinition());
+      baseType = new NamedType(false, false, false, method.getContainingTypeDefinition());
     }
     else if (method instanceof BuiltinMethod)
     {
@@ -696,9 +1363,11 @@ public class TypeHelper
       throw new IllegalArgumentException("Method has no base type: " + method);
     }
     LLVMValueRef callee = LLVM.LLVMGetParam(objectFunction, 0);
-    LLVMValueRef convertedBaseValue = convertTemporary(builder, landingPadContainer, callee, objectType, baseType);
+    // disable checks for this conversion, since (a) we know the the object contains exactly the type we are expecting, and (b) we don't have the TypeParameterAccessor to do the instanceof check with
+    LLVMValueRef convertedBaseValue = convertTemporary(builder, landingPadContainer, callee, objectType, baseType, true, null);
 
-    LLVMValueRef methodFunction = codeGenerator.lookupMethodFunction(builder, landingPadContainer, convertedBaseValue, baseType, method, false);
+    MethodReference methodReference = new MethodReference(method, GenericTypeSpecialiser.IDENTITY_SPECIALISER);
+    LLVMValueRef methodFunction = codeGenerator.lookupMethodFunction(builder, landingPadContainer, convertedBaseValue, baseType, methodReference, false, null);
     LLVMValueRef[] arguments = new LLVMValueRef[1 + parameters.length];
     arguments[0] = convertedBaseValue;
     for (int i = 0; i < parameters.length; ++i)
@@ -733,12 +1402,26 @@ public class TypeHelper
 
   /**
    * Initialises the specified value as a compound definition of the specified type.
-   * This method performs any initialisation which must happen before the constructor is called, such as zeroing fields which have default values.
-   * @param compoundDefinition - the CompoundDefinition to initialise the value as
+   * This method performs any initialisation which must happen before the constructor is called, such as zeroing fields which have default values, and setting the type parameters.
+   * @param compoundType - the compound type to initialise the value as
    * @param compoundValue - the value to initialise, which is a temporary type representation of the specified CompoundDefinition
    */
-  void initialiseCompoundType(LLVMBuilderRef builder, CompoundDefinition compoundDefinition, LLVMValueRef compoundValue)
+  void initialiseCompoundType(LLVMBuilderRef builder, NamedType compoundType, LLVMValueRef compoundValue, TypeParameterAccessor typeParameterAccessor)
   {
+    CompoundDefinition compoundDefinition = (CompoundDefinition) compoundType.getResolvedTypeDefinition();
+    TypeParameter[] typeParameters = compoundDefinition.getTypeParameters();
+    Type[] typeArguments = compoundType.getTypeArguments();
+    if (typeArguments == null ? typeParameters.length > 0 : (typeArguments.length != typeParameters.length))
+    {
+      throw new IllegalArgumentException("Cannot initialise a compound type without the required type arguments");
+    }
+    // initialise the type parameters (this must be done during allocation, not in the constructor)
+    for (int i = 0; typeArguments != null && i < typeArguments.length; ++i)
+    {
+      LLVMValueRef pointer = getTypeParameterPointer(builder, compoundValue, typeParameters[i]);
+      LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, false, typeArguments[i], typeParameterAccessor);
+      LLVM.LLVMBuildStore(builder, rtti, pointer);
+    }
     // initialise all of the fields which have default values to zero/null
     for (MemberVariable variable : compoundDefinition.getMemberVariables())
     {
@@ -748,6 +1431,498 @@ public class TypeHelper
         LLVM.LLVMBuildStore(builder, LLVM.LLVMConstNull(findStandardType(variable.getType())), pointer);
       }
     }
+  }
+
+  /**
+   * Builds a conversion from one function type to another, through a proxy function.
+   * @param builder - the LLVMBuilderRef to build the conversion with
+   * @param value - the function to convert, in a temporary type representation
+   * @param fromType - the function type to convert from
+   * @param toType - the function type to convert to
+   * @param typeParameterAccessor - the TypeParameterAccessor containing the values of all TypeParameters accessible in this context
+   * @return the proxied function, in a temporary type representation
+   */
+  private LLVMValueRef buildFunctionProxyConversion(LLVMBuilderRef builder, LLVMValueRef value, FunctionType fromType, FunctionType toType, TypeParameterAccessor typeParameterAccessor)
+  {
+    LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, true, toType, typeParameterAccessor);
+
+    LLVMValueRef proxyFunction = getProxyFunction(fromType, toType);
+
+    LLVMTypeRef fromNativeType = findStandardType(fromType);
+    LLVMTypeRef typeMapperType = typeParameterAccessor.getTypeArgumentMapperType();
+    LLVMTypeRef[] opaquePointerSubTypes = new LLVMTypeRef[] {fromNativeType, typeMapperType};
+    LLVMTypeRef allocationType = LLVM.LLVMStructType(C.toNativePointerArray(opaquePointerSubTypes, false, true), opaquePointerSubTypes.length, false);
+    LLVMTypeRef allocationPtrType = LLVM.LLVMPointerType(allocationType, 0);
+
+    LLVMValueRef pointer = codeGenerator.buildHeapAllocation(builder, allocationPtrType);
+
+    LLVMValueRef functionValuePtr = LLVM.LLVMBuildStructGEP(builder, pointer, 0, "");
+    LLVMValueRef functionValue = convertTemporaryToStandard(builder, value, fromType);
+    LLVM.LLVMBuildStore(builder, functionValue, functionValuePtr);
+    LLVMValueRef typeMapperPtr = LLVM.LLVMBuildStructGEP(builder, pointer, 1, "");
+    typeParameterAccessor.buildTypeArgumentMapper(typeMapperPtr);
+
+    LLVMValueRef callee = LLVM.LLVMBuildBitCast(builder, pointer, getOpaquePointer(), "");
+
+
+    LLVMValueRef result = LLVM.LLVMGetUndef(findTemporaryType(toType));
+    result = LLVM.LLVMBuildInsertValue(builder, result, rtti, 0, "");
+    result = LLVM.LLVMBuildInsertValue(builder, result, callee, 1, "");
+    result = LLVM.LLVMBuildInsertValue(builder, result, proxyFunction, 2, "");
+    return result;
+  }
+
+  /**
+   * Builds a proxy function that allows one function type to be converted into another.
+   * @param fromType - the type of function that the proxy function will call down into
+   * @param toType - the type of function that the proxy function will be
+   * @return the proxy function created
+   */
+  private LLVMValueRef getProxyFunction(FunctionType fromType, FunctionType toType)
+  {
+    String mangledName = PROXY_FUNCTION_PREFIX + typeDefinition.getQualifiedName().getMangledName() + "_" + fromType.getMangledName() + "_" + toType.getMangledName();
+    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunction != null)
+    {
+      return existingFunction;
+    }
+
+    Type[] fromParamTypes = fromType.getParameterTypes();
+    Type[] toParamTypes = toType.getParameterTypes();
+
+    if (fromParamTypes.length > toParamTypes.length)
+    {
+      throw new IllegalArgumentException("Cannot convert from " + fromType + " to " + toType + " - not enough parameter types");
+    }
+    if ((fromType.getReturnType() instanceof VoidType) && !(toType.getReturnType() instanceof VoidType))
+    {
+      throw new IllegalArgumentException("Cannot convert from " + fromType + " to " + toType + " - return types conflict");
+    }
+
+    LLVMTypeRef[] parameterTypes = new LLVMTypeRef[1 + toParamTypes.length];
+    parameterTypes[0] = getOpaquePointer();
+    for (int i = 0; i < toParamTypes.length; ++i)
+    {
+      parameterTypes[1 + i] = findStandardType(toParamTypes[i]);
+    }
+    LLVMTypeRef returnType = findStandardType(toType.getReturnType());
+
+    LLVMTypeRef proxyFunctionType = LLVM.LLVMFunctionType(returnType, C.toNativePointerArray(parameterTypes, false, true), parameterTypes.length, false);
+    LLVMValueRef proxyFunction = LLVM.LLVMAddFunction(module, mangledName, proxyFunctionType);
+    LLVM.LLVMSetLinkage(proxyFunction, LLVM.LLVMLinkage.LLVMPrivateLinkage);
+    LLVM.LLVMSetVisibility(proxyFunction, LLVM.LLVMVisibility.LLVMHiddenVisibility);
+
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(proxyFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+
+    LLVMTypeRef fromNativeType = findStandardType(fromType);
+    LLVMTypeRef typeMapperType = rttiHelper.getGenericTypeArgumentMapperStructureType();
+    LLVMTypeRef[] subTypes = new LLVMTypeRef[] {fromNativeType, typeMapperType};
+    LLVMTypeRef opaqueValueType = LLVM.LLVMStructType(C.toNativePointerArray(subTypes, false, true), subTypes.length, false);
+    LLVMTypeRef opaquePointerType = LLVM.LLVMPointerType(opaqueValueType, 0);
+
+    LLVMValueRef opaquePointer = LLVM.LLVMGetParam(proxyFunction, 0);
+    LLVMValueRef calleeValue = LLVM.LLVMBuildBitCast(builder, opaquePointer, opaquePointerType, "");
+    LLVMValueRef baseFunctionStructurePtr = LLVM.LLVMBuildStructGEP(builder, calleeValue, 0, "");
+    LLVMValueRef typeMapper = LLVM.LLVMBuildStructGEP(builder, calleeValue, 1, "");
+
+    TypeParameterAccessor typeParameterAccessor = new TypeParameterAccessor(builder, rttiHelper, typeDefinition, typeMapper);
+
+    LLVMValueRef[] baseFunctionParameters = new LLVMValueRef[1 + fromParamTypes.length];
+    for (int i = 0; i < fromParamTypes.length; ++i)
+    {
+      LLVMValueRef parameter = LLVM.LLVMGetParam(proxyFunction, 1 + i);
+      if (toParamTypes[i].isRuntimeEquivalent(fromParamTypes[i]))
+      {
+        baseFunctionParameters[i + 1] = parameter;
+      }
+      else
+      {
+        LLVMValueRef converted = convertStandardToTemporary(builder, landingPadContainer, parameter, toParamTypes[i], fromParamTypes[i], typeParameterAccessor);
+        converted = convertTemporaryToStandard(builder, converted, fromParamTypes[i]);
+        baseFunctionParameters[i + 1] = converted;
+      }
+    }
+
+    LLVMValueRef baseFunctionCalleePtr = LLVM.LLVMBuildStructGEP(builder, baseFunctionStructurePtr, 1, "");
+    LLVMValueRef baseFunctionCallee = LLVM.LLVMBuildLoad(builder, baseFunctionCalleePtr, "");
+    baseFunctionParameters[0] = baseFunctionCallee;
+
+    LLVMValueRef baseFunctionPtr = LLVM.LLVMBuildStructGEP(builder, baseFunctionStructurePtr, 2, "");
+    LLVMValueRef baseFunction = LLVM.LLVMBuildLoad(builder, baseFunctionPtr, "");
+
+    LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "invokeContinue");
+    LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, baseFunction, C.toNativePointerArray(baseFunctionParameters, false, true), baseFunctionParameters.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
+
+    if (toType.getReturnType() instanceof VoidType)
+    {
+      LLVM.LLVMBuildRetVoid(builder);
+    }
+    else
+    {
+      LLVMValueRef convertedResult = convertStandardToTemporary(builder, landingPadContainer, result, fromType.getReturnType(), toType.getReturnType(), typeParameterAccessor);
+      convertedResult = convertTemporaryToStandard(builder, convertedResult, toType.getReturnType());
+      LLVM.LLVMBuildRet(builder, convertedResult);
+    }
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return proxyFunction;
+  }
+
+  /**
+   * Builds a conversion from one array type to another, through a proxy array.
+   * @param builder - the LLVMBuilderRef to build the conversion with
+   * @param value - the array to convert, in a temporary type representation
+   * @param fromType - the array type to convert from
+   * @param toType - the array type to convert to - any type parameters inside this type are considered to just be objects (i.e. they are stripped out before use)
+   * @param typeParameterAccessor - the TypeParameterAccessor containing the values of all TypeParameters accessible in this context
+   * @return the proxied array, in a temporary type representation
+   */
+  private LLVMValueRef buildProxyArrayConversion(LLVMBuilderRef builder, LLVMValueRef value, ArrayType fromType, ArrayType toType, TypeParameterAccessor typeParameterAccessor)
+  {
+    // we need to create the array as if any type parameters inside it are actually objects, so strip them
+    toType = (ArrayType) stripTypeParameters(toType);
+
+    // find the type of the proxy array
+    LLVMTypeRef llvmArrayType = findStandardType(toType);
+    LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
+    LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
+    LLVMTypeRef lengthType = LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount());
+
+    LLVMTypeRef[] getFunctionParamTypes = new LLVMTypeRef[] {llvmArrayType, lengthType};
+    LLVMTypeRef getFunctionType = LLVM.LLVMFunctionType(findTemporaryType(toType.getBaseType()), C.toNativePointerArray(getFunctionParamTypes, false, true), getFunctionParamTypes.length, false);
+    LLVMTypeRef[] setFunctionParamTypes = new LLVMTypeRef[] {llvmArrayType, lengthType, findStandardType(toType.getBaseType())};
+    LLVMTypeRef setFunctionType = LLVM.LLVMFunctionType(LLVM.LLVMVoidType(), C.toNativePointerArray(setFunctionParamTypes, false, true), setFunctionParamTypes.length, false);
+
+    LLVMTypeRef baseArrayType = findStandardType(fromType);
+    LLVMTypeRef typeMapperType = typeParameterAccessor.getTypeArgumentMapperType();
+
+    LLVMTypeRef[] subTypes = new LLVMTypeRef[] {rttiType, vftPointerType, lengthType, LLVM.LLVMPointerType(getFunctionType, 0), LLVM.LLVMPointerType(setFunctionType, 0), baseArrayType, typeMapperType};
+    LLVMTypeRef proxyArrayType = LLVM.LLVMStructType(C.toNativePointerArray(subTypes, false, true), subTypes.length, false);
+    LLVMTypeRef proxyArrayPointerType = LLVM.LLVMPointerType(proxyArrayType, 0);
+
+    // allocate memory for the proxy array
+    LLVMValueRef pointer = codeGenerator.buildHeapAllocation(builder, proxyArrayPointerType);
+
+    // store the RTTI
+    LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, true, toType, typeParameterAccessor);
+    LLVMValueRef rttiPtr = LLVM.LLVMBuildStructGEP(builder, pointer, 0, "");
+    LLVM.LLVMBuildStore(builder, rtti, rttiPtr);
+
+    // store the VFT
+    LLVMValueRef vft = virtualFunctionHandler.getBaseChangeObjectVFT(toType);
+    LLVMValueRef vftPtr = LLVM.LLVMBuildStructGEP(builder, pointer, 1, "");
+    LLVM.LLVMBuildStore(builder, vft, vftPtr);
+
+    // extract the length from the underlying array, and store it here
+    LLVMValueRef baseLengthPtr = getArrayLengthPointer(builder, value);
+    LLVMValueRef length = LLVM.LLVMBuildLoad(builder, baseLengthPtr, "");
+    LLVMValueRef lengthPtr = LLVM.LLVMBuildStructGEP(builder, pointer, 2, "");
+    LLVM.LLVMBuildStore(builder, length, lengthPtr);
+
+    // store the getter and setter functions
+    LLVMValueRef getterFunction = getProxyArrayGetterFunction(fromType, toType);
+    LLVMValueRef getterFunctionPtr = LLVM.LLVMBuildStructGEP(builder, pointer, 3, "");
+    LLVM.LLVMBuildStore(builder, getterFunction, getterFunctionPtr);
+    LLVMValueRef setterFunction = getProxyArraySetterFunction(fromType, toType);
+    LLVMValueRef setterFunctionPtr = LLVM.LLVMBuildStructGEP(builder, pointer, 4, "");
+    LLVM.LLVMBuildStore(builder, setterFunction, setterFunctionPtr);
+
+    // store the base array
+    LLVMValueRef baseArrayPtr = LLVM.LLVMBuildStructGEP(builder, pointer, 5, "");
+    LLVM.LLVMBuildStore(builder, value, baseArrayPtr);
+
+    // store the type mapper
+    LLVMValueRef typeMapper = LLVM.LLVMBuildStructGEP(builder, pointer, 6, "");
+    typeParameterAccessor.buildTypeArgumentMapper(typeMapper);
+
+    // bitcast the result to the normal array type and return it
+    return LLVM.LLVMBuildBitCast(builder, pointer, findTemporaryType(toType), "");
+  }
+
+  /**
+   * Builds a getter function for a proxy array, which along with a setter function allows one array type to be converted into another.
+   * @param fromType - the type of array that this function will call the getter of
+   * @param toType - the type of array that this function will be for
+   * @return the proxy getter function created
+   */
+  private LLVMValueRef getProxyArrayGetterFunction(ArrayType fromType, ArrayType toType)
+  {
+    String mangledName = PROXY_ARRAY_GETTER_FUNCTION_PREFIX + typeDefinition.getQualifiedName().getMangledName() + "_" + fromType.getMangledName() + "_" + toType.getMangledName();
+    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunction != null)
+    {
+      return existingFunction;
+    }
+
+    LLVMTypeRef toArrayNativeType = findTemporaryType(toType);
+    LLVMTypeRef indexType = LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount());
+
+    LLVMTypeRef[] getterFunctionParamTypes = new LLVMTypeRef[] {toArrayNativeType, indexType};
+    LLVMTypeRef getterFunctionType = LLVM.LLVMFunctionType(findTemporaryType(toType.getBaseType()), C.toNativePointerArray(getterFunctionParamTypes, false, true), getterFunctionParamTypes.length, false);
+
+    LLVMValueRef proxyFunction = LLVM.LLVMAddFunction(module, mangledName, getterFunctionType);
+    LLVM.LLVMSetLinkage(proxyFunction, LLVM.LLVMLinkage.LLVMPrivateLinkage);
+    LLVM.LLVMSetVisibility(proxyFunction, LLVM.LLVMVisibility.LLVMHiddenVisibility);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(proxyFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+
+    LLVMValueRef array = LLVM.LLVMGetParam(proxyFunction, 0);
+    LLVMValueRef index = LLVM.LLVMGetParam(proxyFunction, 1);
+
+    // find the real type of the proxy array
+    LLVMTypeRef llvmArrayType = findStandardType(toType);
+    LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
+    LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
+    LLVMTypeRef lengthType = LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount());
+
+    LLVMTypeRef[] getFunctionParamTypes = new LLVMTypeRef[] {llvmArrayType, lengthType};
+    LLVMTypeRef getFunctionType = LLVM.LLVMFunctionType(findTemporaryType(toType.getBaseType()), C.toNativePointerArray(getFunctionParamTypes, false, true), getFunctionParamTypes.length, false);
+    LLVMTypeRef[] setFunctionParamTypes = new LLVMTypeRef[] {llvmArrayType, lengthType, findStandardType(toType.getBaseType())};
+    LLVMTypeRef setFunctionType = LLVM.LLVMFunctionType(LLVM.LLVMVoidType(), C.toNativePointerArray(setFunctionParamTypes, false, true), setFunctionParamTypes.length, false);
+
+    LLVMTypeRef baseArrayType = findStandardType(fromType);
+    LLVMTypeRef typeMapperType = rttiHelper.getGenericTypeArgumentMapperStructureType();
+
+    LLVMTypeRef[] realArraySubTypes = new LLVMTypeRef[] {rttiType, vftPointerType, lengthType, LLVM.LLVMPointerType(getFunctionType, 0), LLVM.LLVMPointerType(setFunctionType, 0), baseArrayType, typeMapperType};
+    LLVMTypeRef realArrayType = LLVM.LLVMPointerType(LLVM.LLVMStructType(C.toNativePointerArray(realArraySubTypes, false, true), realArraySubTypes.length, false), 0);
+    array = LLVM.LLVMBuildBitCast(builder, array, realArrayType, "");
+
+    // extract the required values from the specialised proxy array
+    LLVMValueRef baseArrayPtr = LLVM.LLVMBuildStructGEP(builder, array, 5, "");
+    LLVMValueRef baseArray = LLVM.LLVMBuildLoad(builder, baseArrayPtr, "");
+
+    LLVMValueRef typeMapper = LLVM.LLVMBuildStructGEP(builder, array, 6, "");
+
+    TypeParameterAccessor typeParameterAccessor = new TypeParameterAccessor(builder, rttiHelper, typeDefinition, typeMapper);
+
+    // call the base array's getter
+    LLVMValueRef retrievedElement = buildRetrieveArrayElement(builder, landingPadContainer, baseArray, index);
+
+    // convert the element to the base type of toType
+    LLVMValueRef convertedElement = convertTemporary(builder, landingPadContainer, retrievedElement, fromType.getBaseType(), toType.getBaseType(), false, typeParameterAccessor);
+
+    // return the converted value
+    LLVM.LLVMBuildRet(builder, convertedElement);
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return proxyFunction;
+  }
+
+  /**
+   * Builds a setter function for a proxy array, which along with a getter function allows one array type to be converted into another.
+   * @param fromType - the type of array that this function will call the setter of
+   * @param toType - the type of array that this function will be for
+   * @return the proxy setter function created
+   */
+  private LLVMValueRef getProxyArraySetterFunction(ArrayType fromType, ArrayType toType)
+  {
+    String mangledName = PROXY_ARRAY_SETTER_FUNCTION_PREFIX + typeDefinition.getQualifiedName().getMangledName() + "_" + fromType.getMangledName() + "_" + toType.getMangledName();
+    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunction != null)
+    {
+      return existingFunction;
+    }
+
+    LLVMTypeRef toArrayNativeType = findTemporaryType(toType);
+    LLVMTypeRef indexType = LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount());
+
+    LLVMTypeRef[] setterFunctionParamTypes = new LLVMTypeRef[] {toArrayNativeType, indexType, findStandardType(toType.getBaseType())};
+    LLVMTypeRef setterFunctionType = LLVM.LLVMFunctionType(LLVM.LLVMVoidType(), C.toNativePointerArray(setterFunctionParamTypes, false, true), setterFunctionParamTypes.length, false);
+
+    LLVMValueRef proxyFunction = LLVM.LLVMAddFunction(module, mangledName, setterFunctionType);
+    LLVM.LLVMSetLinkage(proxyFunction, LLVM.LLVMLinkage.LLVMPrivateLinkage);
+    LLVM.LLVMSetVisibility(proxyFunction, LLVM.LLVMVisibility.LLVMHiddenVisibility);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(proxyFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+
+    LLVMValueRef array = LLVM.LLVMGetParam(proxyFunction, 0);
+    LLVMValueRef index = LLVM.LLVMGetParam(proxyFunction, 1);
+    LLVMValueRef value = LLVM.LLVMGetParam(proxyFunction, 2);
+
+    // find the real type of the proxy array
+    LLVMTypeRef llvmArrayType = findStandardType(toType);
+    LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
+    LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
+    LLVMTypeRef lengthType = LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount());
+
+    LLVMTypeRef[] getFunctionParamTypes = new LLVMTypeRef[] {llvmArrayType, lengthType};
+    LLVMTypeRef getFunctionType = LLVM.LLVMFunctionType(findTemporaryType(toType.getBaseType()), C.toNativePointerArray(getFunctionParamTypes, false, true), getFunctionParamTypes.length, false);
+    LLVMTypeRef[] setFunctionParamTypes = new LLVMTypeRef[] {llvmArrayType, lengthType, findStandardType(toType.getBaseType())};
+    LLVMTypeRef setFunctionType = LLVM.LLVMFunctionType(LLVM.LLVMVoidType(), C.toNativePointerArray(setFunctionParamTypes, false, true), setFunctionParamTypes.length, false);
+
+    LLVMTypeRef baseArrayType = findStandardType(fromType);
+    LLVMTypeRef typeMapperType = rttiHelper.getGenericTypeArgumentMapperStructureType();
+
+    LLVMTypeRef[] realArraySubTypes = new LLVMTypeRef[] {rttiType, vftPointerType, lengthType, LLVM.LLVMPointerType(getFunctionType, 0), LLVM.LLVMPointerType(setFunctionType, 0), baseArrayType, typeMapperType};
+    LLVMTypeRef realArrayType = LLVM.LLVMPointerType(LLVM.LLVMStructType(C.toNativePointerArray(realArraySubTypes, false, true), realArraySubTypes.length, false), 0);
+    array = LLVM.LLVMBuildBitCast(builder, array, realArrayType, "");
+
+    // extract the required values from the specialised proxy array
+    LLVMValueRef baseArrayPtr = LLVM.LLVMBuildStructGEP(builder, array, 5, "");
+    LLVMValueRef baseArray = LLVM.LLVMBuildLoad(builder, baseArrayPtr, "");
+
+    LLVMValueRef typeMapper = LLVM.LLVMBuildStructGEP(builder, array, 6, "");
+
+    TypeParameterAccessor typeParameterAccessor = new TypeParameterAccessor(builder, rttiHelper, typeDefinition, typeMapper);
+
+    // convert the value to the base array's type
+    LLVMValueRef convertedValue = convertStandardToTemporary(builder, landingPadContainer, value, toType.getBaseType(), fromType.getBaseType(), typeParameterAccessor);
+    convertedValue = convertTemporaryToStandard(builder, convertedValue, fromType.getBaseType());
+
+    // call the base array's setter
+    buildStoreArrayElement(builder, landingPadContainer, baseArray, index, convertedValue);
+
+    LLVM.LLVMBuildRetVoid(builder);
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return proxyFunction;
+  }
+
+  /**
+   * Gets the non-proxied array getter function for the specified ArrayType.
+   * @param arrayType - the type of array to get the getter function for
+   * @return the getter function for the specified array type
+   */
+  public LLVMValueRef getArrayGetterFunction(ArrayType arrayType)
+  {
+    String mangledName = ARRAY_GETTER_FUNCTION_PREFIX + arrayType.getMangledName();
+    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunction != null)
+    {
+      return existingFunction;
+    }
+
+    LLVMTypeRef llvmArrayType = findTemporaryType(arrayType);
+    LLVMTypeRef indexType = LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount());
+
+    LLVMTypeRef[] getterFunctionParamTypes = new LLVMTypeRef[] {llvmArrayType, indexType};
+    LLVMTypeRef getterFunctionType = LLVM.LLVMFunctionType(findTemporaryType(arrayType.getBaseType()), C.toNativePointerArray(getterFunctionParamTypes, false, true), getterFunctionParamTypes.length, false);
+
+    LLVMValueRef function = LLVM.LLVMAddFunction(module, mangledName, getterFunctionType);
+    LLVM.LLVMSetLinkage(function, LLVM.LLVMLinkage.LLVMLinkOnceODRLinkage);
+    LLVM.LLVMSetVisibility(function, LLVM.LLVMVisibility.LLVMHiddenVisibility);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(function);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+
+    LLVMValueRef array = LLVM.LLVMGetParam(function, 0);
+    LLVMValueRef index = LLVM.LLVMGetParam(function, 1);
+
+    LLVMTypeRef realArrayType = LLVM.LLVMPointerType(findNonProxiedArrayStructureType(arrayType, 0), 0);
+    array = LLVM.LLVMBuildBitCast(builder, array, realArrayType, "");
+
+    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 5, false),
+                                                 index};
+    LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
+    LLVMValueRef element = convertStandardPointerToTemporary(builder, elementPointer, arrayType.getBaseType());
+
+    LLVM.LLVMBuildRet(builder, element);
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return function;
+  }
+
+  /**
+   * Gets the non-proxied array setter function for the specified ArrayType.
+   * @param arrayType - the type of array to get the setter function for
+   * @return the setter function for the specified array type
+   */
+  public LLVMValueRef getArraySetterFunction(ArrayType arrayType)
+  {
+    String mangledName = ARRAY_SETTER_FUNCTION_PREFIX + arrayType.getMangledName();
+    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunction != null)
+    {
+      return existingFunction;
+    }
+
+    LLVMTypeRef llvmArrayType = findTemporaryType(arrayType);
+    LLVMTypeRef indexType = LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount());
+
+    LLVMTypeRef[] setterFunctionParamTypes = new LLVMTypeRef[] {llvmArrayType, indexType, findStandardType(arrayType.getBaseType())};
+    LLVMTypeRef setterFunctionType = LLVM.LLVMFunctionType(LLVM.LLVMVoidType(), C.toNativePointerArray(setterFunctionParamTypes, false, true), setterFunctionParamTypes.length, false);
+
+    LLVMValueRef function = LLVM.LLVMAddFunction(module, mangledName, setterFunctionType);
+    LLVM.LLVMSetLinkage(function, LLVM.LLVMLinkage.LLVMLinkOnceODRLinkage);
+    LLVM.LLVMSetVisibility(function, LLVM.LLVMVisibility.LLVMHiddenVisibility);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(function);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+
+    LLVMValueRef array = LLVM.LLVMGetParam(function, 0);
+    LLVMValueRef index = LLVM.LLVMGetParam(function, 1);
+    LLVMValueRef value = LLVM.LLVMGetParam(function, 2);
+
+    LLVMTypeRef realArrayType = LLVM.LLVMPointerType(findNonProxiedArrayStructureType(arrayType, 0), 0);
+    array = LLVM.LLVMBuildBitCast(builder, array, realArrayType, "");
+
+    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 5, false),
+                                                 index};
+    LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, array, C.toNativePointerArray(indices, false, true), indices.length, "");
+    LLVM.LLVMBuildStore(builder, value, elementPointer);
+
+    LLVM.LLVMBuildRetVoid(builder);
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return function;
   }
 
   /**
@@ -786,7 +1961,7 @@ public class TypeHelper
     LLVMValueRef llvmToType = codeGenerator.buildStringCreation(builder, landingPadContainer, toType);
     llvmToType = convertTemporaryToStandard(builder, llvmToType, SpecialTypeHandler.STRING_TYPE);
     LLVMValueRef llvmReason;
-    Type nullableStringType = TypeChecker.findTypeWithNullability(SpecialTypeHandler.STRING_TYPE, true);
+    Type nullableStringType = Type.findTypeWithNullability(SpecialTypeHandler.STRING_TYPE, true);
     if (reason == null)
     {
       llvmReason = LLVM.LLVMConstNull(findStandardType(nullableStringType));
@@ -794,7 +1969,7 @@ public class TypeHelper
     else
     {
       llvmReason = codeGenerator.buildStringCreation(builder, landingPadContainer, reason);
-      llvmReason = convertTemporaryToStandard(builder, landingPadContainer, llvmReason, SpecialTypeHandler.STRING_TYPE, nullableStringType);
+      llvmReason = convertTemporaryToStandard(builder, landingPadContainer, llvmReason, SpecialTypeHandler.STRING_TYPE, nullableStringType, null);
     }
 
     LLVMValueRef constructorFunction = codeGenerator.getConstructorFunction(SpecialTypeHandler.castErrorTypesReasonConstructor);
@@ -814,19 +1989,348 @@ public class TypeHelper
    * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
    * @param value - the value to perform the null check on, in a temporary type representation
    * @param from - the Type of value
-   * @param to - the Type to pass to the CastError if the value is null
+   * @param to - the Type that the value is being converted to
    */
-  private void buildCastNullCheck(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type from, Type to)
+  private void buildCastNullCheck(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type from, Type to, TypeParameterAccessor typeParameterAccessor)
   {
-    LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
     LLVMBasicBlockRef continueBlock = LLVM.LLVMAddBasicBlock(builder, "castNullCheckContinue");
     LLVMBasicBlockRef nullBlock = LLVM.LLVMAddBasicBlock(builder, "castNullFailure");
-    LLVM.LLVMBuildCondBr(builder, isNotNull, continueBlock, nullBlock);
+
+    LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
+    String reasonString = null;
+    if (to instanceof NamedType && ((NamedType) to).getResolvedTypeParameter() != null)
+    {
+      TypeParameter typeParameter = ((NamedType) to).getResolvedTypeParameter();
+      LLVMValueRef rtti = typeParameterAccessor.findTypeParameterRTTI(typeParameter);
+      LLVMValueRef typeIsNullable = rttiHelper.buildTypeIsNullableCheck(builder, rtti);
+      LLVMValueRef success = LLVM.LLVMBuildOr(builder, isNotNull, typeIsNullable, "");
+      LLVM.LLVMBuildCondBr(builder, success, continueBlock, nullBlock);
+      reasonString = "the type parameter " + to + " turned out not to be nullable";
+    }
+    else
+    {
+      LLVM.LLVMBuildCondBr(builder, isNotNull, continueBlock, nullBlock);
+    }
 
     LLVM.LLVMPositionBuilderAtEnd(builder, nullBlock);
-    buildThrowCastError(builder, landingPadContainer, "null", to.toString(), null);
+    buildThrowCastError(builder, landingPadContainer, "null", to.toString(), reasonString);
 
     LLVM.LLVMPositionBuilderAtEnd(builder, continueBlock);
+  }
+
+  /**
+   * Checks whether a conversion is required to convert from 'from' to 'to'.
+   * This is designed to be used when deciding e.g. whether or not to proxy a function or an array during a conversion.
+   * In some circumstances it will return that no conversion is required when in fact some bitcasting of contained pointers must be done for the LLVM types to line up correctly.
+   * Crucially, it will never return false if a value needs to be re-packed into a different LLVM type, or if we would need to perform some run-time checks on the value.
+   * In case of an unexpected conversion which should be invalid, this method will always return true, so that the caller will try to perform a conversion and convertTemporary() will discover the error.
+   * @param from - the type that we are converting from
+   * @param to - the type that we are converting to
+   * @param performChecks - true if this check should assume that run-time checks need to be performed, false if it should assume that they aren't necessary
+   * @return false if we can be sure that no conversion (over and above a bitcast) is required from 'from' to 'to', true otherwise
+   */
+  private boolean checkRequiresConversion(Type from, Type to, boolean performChecks)
+  {
+    if (from.isRuntimeEquivalent(to))
+    {
+      return false;
+    }
+    if (from instanceof PrimitiveType && to instanceof PrimitiveType)
+    {
+      // they are not equivalent, so there needs to be a conversion
+      return true;
+    }
+    if (from instanceof ArrayType && to instanceof ArrayType)
+    {
+      ArrayType fromArray = (ArrayType) from;
+      ArrayType toArray = (ArrayType) to;
+      if (performChecks && fromArray.canBeNullable() && !toArray.isNullable())
+      {
+        return true;
+      }
+      return checkRequiresConversion(fromArray.getBaseType(), toArray.getBaseType(), performChecks) ||
+             checkRequiresConversion(toArray.getBaseType(), fromArray.getBaseType(), performChecks);
+    }
+    if (from instanceof FunctionType && to instanceof FunctionType)
+    {
+      FunctionType fromFunction = (FunctionType) from;
+      FunctionType toFunction = (FunctionType) to;
+      if (performChecks &&
+          ((fromFunction.canBeNullable() && !toFunction.isNullable()) ||
+           (!fromFunction.isImmutable() && toFunction.isImmutable())))
+      {
+        return true;
+      }
+      if (checkRequiresConversion(fromFunction.getReturnType(), toFunction.getReturnType(), performChecks))
+      {
+        return true;
+      }
+      Type[] fromParams = fromFunction.getParameterTypes();
+      Type[] toParams = toFunction.getParameterTypes();
+      if (fromParams.length != toParams.length)
+      {
+        return true;
+      }
+      for (int i = 0; i < fromParams.length; ++i)
+      {
+        if (checkRequiresConversion(toParams[i], fromParams[i], performChecks))
+        {
+          return true;
+        }
+      }
+      return false;
+    }
+    // note: we let single-element-tuple extraction and insertion fall through to the catch-all, as they always require conversion
+    if (from instanceof TupleType && to instanceof TupleType)
+    {
+      TupleType fromTuple = (TupleType) from;
+      TupleType toTuple = (TupleType) to;
+      Type[] fromSubTypes = fromTuple.getSubTypes();
+      Type[] toSubTypes = toTuple.getSubTypes();
+      if (from.canBeNullable() != to.isNullable() ||
+          fromSubTypes.length != toSubTypes.length)
+      {
+        return true;
+      }
+      for (int i = 0; i < fromSubTypes.length; ++i)
+      {
+        if (checkRequiresConversion(fromSubTypes[i], toSubTypes[i], performChecks))
+        {
+          return true;
+        }
+      }
+      // the elements inside the tuples do not require conversion
+      return false;
+    }
+    if (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition)
+    {
+      if (from.canBeNullable() && !to.isNullable())
+      {
+        return true;
+      }
+      // in some circumstances, we might be able to get away without casting a class, since it has the same native representation as various other types
+      if (to instanceof ObjectType ||
+          (to instanceof NamedType && ((NamedType) to).getResolvedTypeParameter() != null) ||
+          from.isRuntimeEquivalent(to) ||
+          (!performChecks && to instanceof NamedType && ((NamedType) to).getResolvedTypeDefinition() instanceof ClassDefinition))
+      {
+        return false;
+      }
+      if (!(to instanceof NamedType))
+      {
+        return true;
+      }
+      NamedType fromNamed = (NamedType) from;
+      GenericTypeSpecialiser specialiser = new GenericTypeSpecialiser(fromNamed);
+      NamedType toNoModifiers = (NamedType) Type.findTypeWithoutModifiers(to);
+      for (NamedType t : fromNamed.getResolvedTypeDefinition().getInheritanceLinearisation())
+      {
+        if (t.getResolvedTypeDefinition() instanceof ClassDefinition && specialiser.getSpecialisedType(t).isRuntimeEquivalent(toNoModifiers))
+        {
+          // this is a class which is above the from type in the type hierarchy, so the only conversion we need is a bitcast
+          return false;
+        }
+      }
+      return true;
+    }
+    if (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof InterfaceDefinition)
+    {
+      if (to instanceof NamedType && ((NamedType) to).getResolvedTypeDefinition() instanceof InterfaceDefinition)
+      {
+        if (performChecks && from.canBeNullable() && !to.isNullable())
+        {
+          return true;
+        }
+        // if these two interfaces are completely identical, then we don't need to do any conversion
+        // however, if either the interface or any of the type arguments differ, we will need to lookup the VFT again
+        NamedType fromNamed = (NamedType) from;
+        NamedType toNamed = (NamedType) to;
+        if (fromNamed.getResolvedTypeDefinition() != toNamed.getResolvedTypeDefinition() ||
+            fromNamed.getTypeArguments().length != toNamed.getTypeArguments().length)
+        {
+          return true;
+        }
+        Type[] fromArguments = fromNamed.getTypeArguments();
+        Type[] toArguments = toNamed.getTypeArguments();
+        for (int i = 0; i < fromArguments.length; ++i)
+        {
+          if (!fromArguments[i].isRuntimeEquivalent(toArguments[i]))
+          {
+            return true;
+          }
+        }
+        // the 'from' and 'to' types are identical, except for perhaps their nullability, which we have already checked for
+        return false;
+      }
+      return true;
+    }
+    if (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof CompoundDefinition)
+    {
+      if (to instanceof NamedType && ((NamedType) to).getResolvedTypeDefinition() instanceof CompoundDefinition)
+      {
+        if (performChecks && from.canBeNullable() && !to.isNullable())
+        {
+          return true;
+        }
+        // if these two compound types are completely identical, then we don't need to do any checks
+        // however, if either the compound type or any of the type arguments differ, we will need to do some checks
+        if (performChecks)
+        {
+          NamedType fromNamed = (NamedType) from;
+          NamedType toNamed = (NamedType) to;
+          if (fromNamed.getResolvedTypeDefinition() != toNamed.getResolvedTypeDefinition() ||
+              fromNamed.getTypeArguments().length != toNamed.getTypeArguments().length)
+          {
+            return true;
+          }
+          Type[] fromArguments = fromNamed.getTypeArguments();
+          Type[] toArguments = toNamed.getTypeArguments();
+          for (int i = 0; i < fromArguments.length; ++i)
+          {
+            if (!fromArguments[i].isRuntimeEquivalent(toArguments[i]))
+            {
+              return true;
+            }
+          }
+        }
+        // the 'from' and 'to' types are identical, except for perhaps their nullability, which we have already checked for
+        return false;
+      }
+      return true;
+    }
+    if (from instanceof NamedType && ((NamedType) from).getResolvedTypeParameter() != null)
+    {
+      if (performChecks && from.canBeNullable() && !to.isNullable())
+      {
+        return true;
+      }
+      TypeParameter typeParameter = ((NamedType) from).getResolvedTypeParameter();
+      if (to instanceof ObjectType ||
+          (to instanceof NamedType && ((NamedType) to).getResolvedTypeParameter() == typeParameter))
+      {
+        return false;
+      }
+      if ((to instanceof NamedType && ((NamedType) to).getResolvedTypeDefinition() instanceof ClassDefinition) ||
+          to instanceof ArrayType)
+      {
+        for (Type superType : typeParameter.getSuperTypes())
+        {
+          if (((superType instanceof NamedType && ((NamedType) superType).getResolvedTypeDefinition() instanceof ClassDefinition) ||
+                superType instanceof ArrayType) &&
+              !checkRequiresConversion(superType, to, performChecks))
+          {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+    if (from instanceof ObjectType && !performChecks)
+    {
+      // if we are coming from the object type and not performing checks, we can go to any type which is represented like an object, by bitcasting
+      return !(to instanceof ArrayType ||
+               (to instanceof NamedType && ((NamedType) to).getResolvedTypeDefinition() instanceof ClassDefinition) ||
+               (to instanceof NamedType && ((NamedType) to).getResolvedTypeParameter() != null) ||
+               to instanceof ObjectType);
+    }
+    // if we aren't doing any run-time checks, treat type parameters as objects
+    if (to instanceof ObjectType ||
+        (!performChecks && to instanceof NamedType && ((NamedType) to).getResolvedTypeParameter() != null))
+    {
+      if (performChecks && from.canBeNullable() && !to.isNullable())
+      {
+        return true;
+      }
+      // if we are converting from something which is not represented like a pointer to an object, then we require a conversion
+      return !(from instanceof ArrayType ||
+               (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition) ||
+               (from instanceof NamedType && ((NamedType) from).getResolvedTypeParameter() != null) ||
+               from instanceof ObjectType);
+    }
+    if (performChecks && to instanceof NamedType && ((NamedType) to).getResolvedTypeParameter() != null)
+    {
+      if (from instanceof NamedType && ((NamedType) from).getResolvedTypeParameter() == ((NamedType) to).getResolvedTypeParameter())
+      {
+        // these types represent the same type parameter, so we only need to do any run-time checks if their nullabilities can't always be implicitly converted
+        return from.isNullable() && !to.isNullable();
+      }
+      // if we are converting from something other than exactly the same type parameter, we will have to do RTTI checks
+      return true;
+    }
+    // note: we let all other conversions from objects fall through to the catch-all, as they always require RTTI checks
+    return true;
+  }
+
+  /**
+   * Strips any type parameters from the specified type which are not part of a type argument to a NamedType.
+   * The stripped type parameters are replaced by the object type.
+   * Types are meant to be treated as immutable, so a new stripped type is returned rather than modifying the existing one.
+   * @param type - the Type to find the stripped version of
+   * @return the type, with any type parameters which could affect the native type replaced by objects
+   */
+  public Type stripTypeParameters(Type type)
+  {
+    if (type instanceof ArrayType)
+    {
+      ArrayType arrayType = (ArrayType) type;
+      Type baseType = stripTypeParameters(arrayType.getBaseType());
+      if (baseType == arrayType.getBaseType())
+      {
+        // it wasn't modified, so return the existing array
+        return arrayType;
+      }
+      return new ArrayType(arrayType.canBeNullable(), arrayType.isExplicitlyImmutable(), arrayType.isContextuallyImmutable(), baseType, null);
+    }
+    if (type instanceof FunctionType)
+    {
+      FunctionType functionType = (FunctionType) type;
+      Type returnType = stripTypeParameters(functionType.getReturnType());
+      boolean changed = returnType != functionType.getReturnType();
+      Type[] oldParamTypes = functionType.getParameterTypes();
+      Type[] paramTypes = new Type[oldParamTypes.length];
+      for (int i = 0; i < paramTypes.length; ++i)
+      {
+        paramTypes[i] = stripTypeParameters(oldParamTypes[i]);
+        changed |= paramTypes[i] != oldParamTypes[i];
+      }
+      if (changed)
+      {
+        return new FunctionType(functionType.canBeNullable(), functionType.isImmutable(), returnType, paramTypes, functionType.getThrownTypes(), null);
+      }
+      return functionType;
+    }
+    if (type instanceof NamedType)
+    {
+      NamedType namedType = (NamedType) type;
+      if (namedType.getResolvedTypeParameter() != null)
+      {
+        return new ObjectType(namedType.canBeNullable(), namedType.canBeExplicitlyImmutable(), namedType.isContextuallyImmutable(), null);
+      }
+      // all non-type-parameter NamedTypes don't need anything to be replaced, as their native types do not depend on their type arguments
+      return namedType;
+    }
+    if (type instanceof TupleType)
+    {
+      TupleType tupleType = (TupleType) type;
+      boolean changed = false;
+      Type[] oldSubTypes = tupleType.getSubTypes();
+      Type[] subTypes = new Type[oldSubTypes.length];
+      for (int i = 0; i < oldSubTypes.length; ++i)
+      {
+        subTypes[i] = stripTypeParameters(oldSubTypes[i]);
+        changed |= subTypes[i] != oldSubTypes[i];
+      }
+      if (changed)
+      {
+        return new TupleType(tupleType.canBeNullable(), subTypes, null);
+      }
+      return tupleType;
+    }
+    if (type instanceof NullType || type instanceof ObjectType || type instanceof PrimitiveType || type instanceof VoidType)
+    {
+      return type;
+    }
+    throw new IllegalArgumentException("Unknown sort of type: " + type);
   }
 
   /**
@@ -837,66 +2341,73 @@ public class TypeHelper
    * @param value - the value to convert
    * @param from - the Type to convert from
    * @param to - the Type to convert to
+   * @param skipRuntimeChecks - true if run-time checks should be checked during this conversion - only use this if you can be SURE that the value is definitely of the correct type already
+   * @param typeParameterAccessor - the TypeParameterAccessor to get the values of type parameters from
    * @return the converted value
    */
-  public LLVMValueRef convertTemporary(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type from, Type to)
+  public LLVMValueRef convertTemporary(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type from, Type to, boolean skipRuntimeChecks, TypeParameterAccessor typeParameterAccessor)
   {
     if (from.isRuntimeEquivalent(to))
     {
       return value;
     }
 
-    // perform a null check if necessary, and throw a CastError if it fails
-    if (from.isNullable() && !to.isNullable())
-    {
-      LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
-      LLVMBasicBlockRef continueBlock = LLVM.LLVMAddBasicBlock(builder, "castNullCheckContinue");
-      LLVMBasicBlockRef nullBlock = LLVM.LLVMAddBasicBlock(builder, "castNullFailure");
-      LLVM.LLVMBuildCondBr(builder, isNotNull, continueBlock, nullBlock);
-
-      LLVM.LLVMPositionBuilderAtEnd(builder, nullBlock);
-      buildThrowCastError(builder, landingPadContainer, "null", to.toString(), null);
-
-      LLVM.LLVMPositionBuilderAtEnd(builder, continueBlock);
-    }
-
     if (from instanceof PrimitiveType && to instanceof PrimitiveType)
     {
+      if (!skipRuntimeChecks && from.canBeNullable() && !to.isNullable())
+      {
+        buildCastNullCheck(builder, landingPadContainer, value, from, to, typeParameterAccessor);
+      }
       return convertPrimitiveType(builder, value, (PrimitiveType) from, (PrimitiveType) to);
     }
     if (from instanceof ArrayType && to instanceof ArrayType)
     {
       // array casts are illegal unless the base types are the same, so they must have the same basic type
-      if (from.isNullable() && !to.isNullable())
+      if (!skipRuntimeChecks && from.canBeNullable() && !to.isNullable())
       {
-        buildCastNullCheck(builder, landingPadContainer, value, from, to);
+        buildCastNullCheck(builder, landingPadContainer, value, from, to, typeParameterAccessor);
       }
       // immutability will be checked by the type checker, but it doesn't have any effect on the native type, so we do not need to do anything special here
-      return value;
+
+      ArrayType fromArray = (ArrayType) from;
+      // the run-time type of an array never includes any references to type parameters, so they need to be stripped here
+      ArrayType toArray = (ArrayType) stripTypeParameters(to);
+
+      boolean needsProxying = checkRequiresConversion(fromArray.getBaseType(), toArray.getBaseType(), true) ||
+                              checkRequiresConversion(toArray.getBaseType(), fromArray.getBaseType(), true);
+      if (needsProxying)
+      {
+        return buildProxyArrayConversion(builder, value, fromArray, toArray, typeParameterAccessor);
+      }
+
+      return LLVM.LLVMBuildBitCast(builder, value, findTemporaryType(toArray), "");
     }
     if (from instanceof FunctionType && to instanceof FunctionType)
     {
       // function casts are illegal unless the parameter and return types are the same, so they must have the same basic type
-      if (from.isNullable() && !to.isNullable())
+      if (!skipRuntimeChecks && from.canBeNullable() && !to.isNullable())
       {
-        buildCastNullCheck(builder, landingPadContainer, value, from, to);
+        buildCastNullCheck(builder, landingPadContainer, value, from, to, typeParameterAccessor);
       }
+
+      FunctionType fromFunction = (FunctionType) from;
+      FunctionType toFunction = (FunctionType) to;
 
       // a cast from a non-immutable function to an immutable function type is impossible
       // so perform a run-time check that this constraint is not violated
-      if (!((FunctionType) from).isImmutable() && ((FunctionType) to).isImmutable())
+      if (!skipRuntimeChecks && !fromFunction.isImmutable() && toFunction.isImmutable())
       {
         // this is only allowed if the run-time type of value shows that it is immutable
         LLVMBasicBlockRef functionImmutabilityCheckContinueBlock = LLVM.LLVMAddBasicBlock(builder, "functionImmutabilityCheckContinue");
         // if the value is nullable, allow null values to pass through (we've already checked the nullability)
-        if (from.isNullable())
+        if (from.canBeNullable())
         {
           LLVMBasicBlockRef functionImmutabilityCheckBlock = LLVM.LLVMAddBasicBlock(builder, "functionImmutabilityCheck");
           LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
           LLVM.LLVMBuildCondBr(builder, isNotNull, functionImmutabilityCheckBlock, functionImmutabilityCheckContinueBlock);
           LLVM.LLVMPositionBuilderAtEnd(builder, functionImmutabilityCheckBlock);
         }
-        LLVMValueRef runtimeTypeMatches = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, value, TypeChecker.findTypeWithNullability(from, false), to);
+        LLVMValueRef runtimeTypeMatches = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, value, Type.findTypeWithNullability(from, false), to, typeParameterAccessor);
         LLVMBasicBlockRef immutabilityCastFailure = LLVM.LLVMAddBasicBlock(builder, "functionImmutabilityCheckFailure");
         LLVM.LLVMBuildCondBr(builder, runtimeTypeMatches, functionImmutabilityCheckContinueBlock, immutabilityCastFailure);
 
@@ -906,21 +2417,65 @@ public class TypeHelper
         LLVM.LLVMPositionBuilderAtEnd(builder, functionImmutabilityCheckContinueBlock);
       }
 
+      // strip any type parameters from the 'to' type, so that the RTTI doesn't contain anything which could confuse things
+      // if we tried to convert to object and back to another type, RTTI containing type parameters would cause breakages in the cast instanceof checks
+      toFunction = (FunctionType) stripTypeParameters(toFunction);
+
+      boolean needsProxying = checkRequiresConversion(toFunction.getReturnType(), fromFunction.getReturnType(), true);
+      Type[] fromParamTypes = fromFunction.getParameterTypes();
+      Type[] toParamTypes = toFunction.getParameterTypes();
+      needsProxying |= fromParamTypes.length != toParamTypes.length;
+      for (int i = 0; !needsProxying & i < fromParamTypes.length; ++i)
+      {
+        needsProxying |= checkRequiresConversion(fromParamTypes[i], toParamTypes[i], true);
+      }
+      if (needsProxying)
+      {
+        return buildFunctionProxyConversion(builder, value, fromFunction, toFunction, typeParameterAccessor);
+      }
+
+      if (!fromFunction.isRuntimeEquivalent(toFunction))
+      {
+        // repack the function, after bitcasting the function pointer
+        LLVMValueRef rtti = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
+        LLVMValueRef callee = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
+        LLVMValueRef function = LLVM.LLVMBuildExtractValue(builder, value, 2, "");
+        function = LLVM.LLVMBuildBitCast(builder, function, findRawFunctionPointerType(toFunction), "");
+        LLVMValueRef result = LLVM.LLVMGetUndef(findTemporaryType(toFunction));
+        result = LLVM.LLVMBuildInsertValue(builder, result, rtti, 0, "");
+        result = LLVM.LLVMBuildInsertValue(builder, result, callee, 1, "");
+        result = LLVM.LLVMBuildInsertValue(builder, result, function, 2, "");
+        return result;
+      }
+
       return value;
     }
     if (from instanceof NamedType && to instanceof NamedType &&
         ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition &&
         ((NamedType) to).getResolvedTypeDefinition() instanceof ClassDefinition)
     {
-      if (from.isNullable() && !to.isNullable())
+      if (!skipRuntimeChecks && from.canBeNullable() && !to.isNullable())
       {
-        buildCastNullCheck(builder, landingPadContainer, value, from, to);
+        buildCastNullCheck(builder, landingPadContainer, value, from, to, typeParameterAccessor);
       }
 
-      if (!((NamedType) from).getResolvedTypeDefinition().equals(((NamedType) to).getResolvedTypeDefinition()))
+      // check whether 'to' is a super-class of 'from'
+      NamedType fromNamed = (NamedType) from;
+      GenericTypeSpecialiser genericTypeSpecialiser = new GenericTypeSpecialiser(fromNamed);
+      NamedType toNoModifiers = (NamedType) Type.findTypeWithoutModifiers(to);
+      boolean isInherited = false;
+      for (NamedType t : fromNamed.getResolvedTypeDefinition().getInheritanceLinearisation())
+      {
+        if (t.getResolvedTypeDefinition() instanceof ClassDefinition && genericTypeSpecialiser.getSpecialisedType(t).isRuntimeEquivalent(toNoModifiers))
+        {
+          isInherited = true;
+        }
+      }
+
+      if (!isInherited && !skipRuntimeChecks)
       {
         LLVMBasicBlockRef instanceOfContinueBlock = LLVM.LLVMAddBasicBlock(builder, "castInstanceOfCheckContinue");
-        if (from.isNullable())
+        if (from.canBeNullable())
         {
           // if the value is null, then skip the check
           LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
@@ -928,68 +2483,95 @@ public class TypeHelper
           LLVM.LLVMBuildCondBr(builder, isNotNull, instanceOfCheckBlock, instanceOfContinueBlock);
           LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfCheckBlock);
         }
-        LLVMValueRef runtimeTypeMatches = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, value, TypeChecker.findTypeWithNullability(from, false), to);
+        LLVMValueRef runtimeTypeMatches = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, value, Type.findTypeWithNullability(from, false), to, typeParameterAccessor);
         LLVMBasicBlockRef castFailureBlock = LLVM.LLVMAddBasicBlock(builder, "castFailure");
         LLVM.LLVMBuildCondBr(builder, runtimeTypeMatches, instanceOfContinueBlock, castFailureBlock);
 
         LLVM.LLVMPositionBuilderAtEnd(builder, castFailureBlock);
         LLVMValueRef rttiPointer = rttiHelper.lookupPureRTTI(builder, value);
-        LLVMValueRef classNameUbyteArray = rttiHelper.lookupClassName(builder, rttiPointer);
+        LLVMValueRef classNameUbyteArray = rttiHelper.lookupNamedTypeName(builder, rttiPointer);
         LLVMValueRef classNameString = codeGenerator.buildStringCreation(builder, landingPadContainer, classNameUbyteArray);
         buildThrowCastError(builder, landingPadContainer, classNameString, to.toString(), null);
 
         LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfContinueBlock);
-        // both from and to are class types, and we have made sure that we can convert between them
-        // so bitcast value to the new type
-        value = LLVM.LLVMBuildBitCast(builder, value, findTemporaryType(to), "");
       }
-      return value;
+      // both from and to are class types, and we have made sure that we can convert between them
+      // so bitcast value to the new type
+      return LLVM.LLVMBuildBitCast(builder, value, findTemporaryType(to), "");
     }
     if (from instanceof NamedType && to instanceof NamedType &&
         ((NamedType) from).getResolvedTypeDefinition() instanceof CompoundDefinition &&
         ((NamedType) to).getResolvedTypeDefinition() instanceof CompoundDefinition)
     {
       // compound type casts are illegal unless the type definitions are the same, so they must have the same type
-      if (from.isNullable() && !to.isNullable())
+      if (!skipRuntimeChecks && from.canBeNullable() && !to.isNullable())
       {
-        buildCastNullCheck(builder, landingPadContainer, value, from, to);
+        buildCastNullCheck(builder, landingPadContainer, value, from, to, typeParameterAccessor);
       }
+
+      if (!skipRuntimeChecks && !from.isRuntimeEquivalent(to))
+      {
+        LLVMBasicBlockRef instanceOfContinueBlock = LLVM.LLVMAddBasicBlock(builder, "castInstanceOfCheckContinue");
+        if (from.canBeNullable())
+        {
+          // if the value is null, then skip the check
+          LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
+          LLVMBasicBlockRef instanceOfCheckBlock = LLVM.LLVMAddBasicBlock(builder, "castInstanceOfCheck");
+          LLVM.LLVMBuildCondBr(builder, isNotNull, instanceOfCheckBlock, instanceOfContinueBlock);
+          LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfCheckBlock);
+        }
+        LLVMValueRef runtimeTypeMatches = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, value, Type.findTypeWithNullability(from, false), to, typeParameterAccessor);
+        LLVMBasicBlockRef castFailureBlock = LLVM.LLVMAddBasicBlock(builder, "castFailure");
+        LLVM.LLVMBuildCondBr(builder, runtimeTypeMatches, instanceOfContinueBlock, castFailureBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, castFailureBlock);
+        LLVMValueRef rttiPointer = rttiHelper.lookupPureRTTI(builder, value);
+        LLVMValueRef compoundNameUbyteArray = rttiHelper.lookupNamedTypeName(builder, rttiPointer);
+        LLVMValueRef compoundNameString = codeGenerator.buildStringCreation(builder, landingPadContainer, compoundNameUbyteArray);
+        buildThrowCastError(builder, landingPadContainer, compoundNameString, to.toString(), null);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfContinueBlock);
+        // both from and to are compound types, and we have made sure that we can convert between them
+        // so bitcast value to the new type
+        value = LLVM.LLVMBuildBitCast(builder, value, findTemporaryType(to), "");
+      }
+
       return value;
     }
     if (from instanceof NamedType && to instanceof NamedType &&
         ((NamedType) from).getResolvedTypeDefinition() instanceof InterfaceDefinition &&
         ((NamedType) to).getResolvedTypeDefinition() instanceof ClassDefinition)
     {
-      ObjectType objectType = new ObjectType(from.isNullable(), false, null);
-      LLVMValueRef objectValue = convertTemporary(builder, landingPadContainer, value, from, objectType);
-      return convertTemporary(builder, landingPadContainer, objectValue, objectType, to);
+      ObjectType objectType = new ObjectType(from.canBeNullable(), false, null);
+      LLVMValueRef objectValue = convertTemporary(builder, landingPadContainer, value, from, objectType, skipRuntimeChecks, typeParameterAccessor);
+      return convertTemporary(builder, landingPadContainer, objectValue, objectType, to, skipRuntimeChecks, typeParameterAccessor);
     }
     if (from instanceof NamedType && to instanceof NamedType &&
         ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition &&
         ((NamedType) to).getResolvedTypeDefinition() instanceof InterfaceDefinition)
     {
       ClassDefinition classDefinition = (ClassDefinition) ((NamedType) from).getResolvedTypeDefinition();
-      InterfaceDefinition toInterface = (InterfaceDefinition) ((NamedType) to).getResolvedTypeDefinition();
-      boolean found = false;
-      for (TypeDefinition type : classDefinition.getInheritanceLinearisation())
+      GenericTypeSpecialiser genericTypeSpecialiser = new GenericTypeSpecialiser((NamedType) from);
+      NamedType foundType = null;
+      for (NamedType type : classDefinition.getInheritanceLinearisation())
       {
-        if (type == toInterface)
+        if (Type.findTypeWithoutModifiers(to).isRuntimeEquivalent(genericTypeSpecialiser.getSpecialisedType(type)))
         {
-          found = true;
+          foundType = type;
           break;
         }
       }
-      if (found)
+      if (foundType != null)
       {
-        if (from.isNullable() && !to.isNullable())
+        if (!skipRuntimeChecks && from.canBeNullable() && !to.isNullable())
         {
-          buildCastNullCheck(builder, landingPadContainer, value, from, to);
+          buildCastNullCheck(builder, landingPadContainer, value, from, to, typeParameterAccessor);
         }
 
         LLVMBasicBlockRef startBlock = null;
         LLVMBasicBlockRef continueBlock = null;
         // make sure we don't do a second null check if this is a cast from nullable to not-nullable
-        if (from.isNullable() && to.isNullable())
+        if (from.canBeNullable() && to.isNullable())
         {
           startBlock = LLVM.LLVMGetInsertBlock(builder);
           continueBlock = LLVM.LLVMAddBasicBlock(builder, "toInterfaceContinuation");
@@ -1002,14 +2584,13 @@ public class TypeHelper
         LLVMTypeRef resultNativeType = findStandardType(to);
 
         // we know exactly where the VFT is at compile time, so we don't need to search for it at run time, just look it up
-        LLVMValueRef vftPointer = virtualFunctionHandler.getVirtualFunctionTablePointer(builder, value, classDefinition, toInterface);
-        LLVMValueRef vft = LLVM.LLVMBuildLoad(builder, vftPointer, "");
-        LLVMValueRef objectPointer = convertTemporary(builder, landingPadContainer, value, from, new ObjectType(from.isNullable(), false, null));
+        LLVMValueRef vft = virtualFunctionHandler.getVirtualFunctionTable(builder, landingPadContainer, value, (NamedType) from, (NamedType) to, typeParameterAccessor);
+        LLVMValueRef objectPointer = convertTemporary(builder, landingPadContainer, value, from, new ObjectType(from.canBeNullable(), false, null), skipRuntimeChecks, typeParameterAccessor);
         LLVMValueRef interfaceValue = LLVM.LLVMGetUndef(resultNativeType);
         interfaceValue = LLVM.LLVMBuildInsertValue(builder, interfaceValue, vft, 0, "");
         interfaceValue = LLVM.LLVMBuildInsertValue(builder, interfaceValue, objectPointer, 1, "");
 
-        if (from.isNullable() && to.isNullable())
+        if (from.canBeNullable() && to.isNullable())
         {
           LLVMBasicBlockRef endConvertBlock = LLVM.LLVMGetInsertBlock(builder);
           LLVM.LLVMBuildBr(builder, continueBlock);
@@ -1031,13 +2612,13 @@ public class TypeHelper
       Type objectType = null;
       if (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition)
       {
-        objectType = new ObjectType(from.isNullable(), ((NamedType) from).isContextuallyImmutable(), null);
-        objectValue = convertTemporary(builder, landingPadContainer, value, from, objectType);
+        objectType = new ObjectType(from.canBeNullable(), ((NamedType) from).isContextuallyImmutable(), null);
+        objectValue = convertTemporary(builder, landingPadContainer, value, from, objectType, skipRuntimeChecks, typeParameterAccessor);
       }
       else if (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof InterfaceDefinition)
       {
-        objectType = new ObjectType(from.isNullable(), ((NamedType) from).isContextuallyImmutable(), null);
-        objectValue = convertTemporary(builder, landingPadContainer, value, from, objectType);
+        objectType = new ObjectType(from.canBeNullable(), ((NamedType) from).isContextuallyImmutable(), null);
+        objectValue = convertTemporary(builder, landingPadContainer, value, from, objectType, skipRuntimeChecks, typeParameterAccessor);
       }
       else if (from instanceof ObjectType)
       {
@@ -1046,15 +2627,15 @@ public class TypeHelper
       }
       if (objectValue != null)
       {
-        if (from.isNullable() && !to.isNullable())
+        if (!skipRuntimeChecks && from.canBeNullable() && !to.isNullable())
         {
-          buildCastNullCheck(builder, landingPadContainer, value, from, to);
+          buildCastNullCheck(builder, landingPadContainer, value, from, to, typeParameterAccessor);
         }
 
         LLVMBasicBlockRef startBlock = null;
         LLVMBasicBlockRef continueBlock = null;
         // make sure we don't do a second null check if this is a cast from nullable to not-nullable
-        if (objectType.isNullable() && to.isNullable())
+        if (objectType.canBeNullable() && to.isNullable())
         {
           startBlock = LLVM.LLVMGetInsertBlock(builder);
           continueBlock = LLVM.LLVMAddBasicBlock(builder, "toInterfaceContinuation");
@@ -1067,7 +2648,7 @@ public class TypeHelper
         LLVMTypeRef resultNativeType = findStandardType(to);
 
         InterfaceDefinition toInterfaceDefinition = (InterfaceDefinition) ((NamedType) to).getResolvedTypeDefinition();
-        LLVMValueRef vftPointer = virtualFunctionHandler.lookupInstanceVFT(builder, objectValue, toInterfaceDefinition);
+        LLVMValueRef vftPointer = virtualFunctionHandler.lookupInstanceVFT(builder, objectValue, (NamedType) to, typeParameterAccessor);
         LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getVFTType(toInterfaceDefinition), 0);
         vftPointer = LLVM.LLVMBuildBitCast(builder, vftPointer, vftPointerType, "");
         LLVMValueRef vftPointerIsNotNull = LLVM.LLVMBuildIsNotNull(builder, vftPointer, "");
@@ -1081,23 +2662,22 @@ public class TypeHelper
         {
           // if we're coming from a class or an interface, then we know that we can look up the real class name
           LLVMValueRef rttiPointer = rttiHelper.lookupPureRTTI(builder, objectValue);
-          LLVMValueRef classNameUbyteArray = rttiHelper.lookupClassName(builder, rttiPointer);
+          LLVMValueRef classNameUbyteArray = rttiHelper.lookupNamedTypeName(builder, rttiPointer);
           LLVMValueRef classNameString = codeGenerator.buildStringCreation(builder, landingPadContainer, classNameUbyteArray);
           buildThrowCastError(builder, landingPadContainer, classNameString, to.toString(), null);
         }
         else
         {
-          buildThrowCastError(builder, landingPadContainer, from.toString(), to.toString(), "this object does not implement " + toInterfaceDefinition.getQualifiedName().toString());
+          buildThrowCastError(builder, landingPadContainer, from.toString(), to.toString(), "this object does not implement " + to);
         }
 
         LLVM.LLVMPositionBuilderAtEnd(builder, castSuccessBlock);
 
-        // TODO: if the VFT pointer is null (i.e. the object doesn't implement this interface), throw an exception here instead of just storing null in the interface's VFT field (and causing undefined behaviour)
         LLVMValueRef interfaceValue = LLVM.LLVMGetUndef(resultNativeType);
         interfaceValue = LLVM.LLVMBuildInsertValue(builder, interfaceValue, vftPointer, 0, "");
         interfaceValue = LLVM.LLVMBuildInsertValue(builder, interfaceValue, objectValue, 1, "");
 
-        if (objectType.isNullable() && to.isNullable())
+        if (objectType.canBeNullable() && to.isNullable())
         {
           LLVMBasicBlockRef endConvertBlock = LLVM.LLVMGetInsertBlock(builder);
           LLVM.LLVMBuildBr(builder, continueBlock);
@@ -1113,15 +2693,19 @@ public class TypeHelper
         return interfaceValue;
       }
     }
-    if (from instanceof TupleType && !(to instanceof TupleType))
+    if (from instanceof TupleType)
     {
+      // check for a single-element-tuple extraction
       TupleType fromTuple = (TupleType) from;
       if (fromTuple.getSubTypes().length == 1 && fromTuple.getSubTypes()[0].isRuntimeEquivalent(to))
       {
-        if (from.isNullable())
+        if (from.canBeNullable())
         {
-          // if from is nullable and value is null, then we need to throw a CastError here
-          buildCastNullCheck(builder, landingPadContainer, value, from, to);
+          if (!skipRuntimeChecks)
+          {
+            // if from is nullable and value is null, then we need to throw a CastError here
+            buildCastNullCheck(builder, landingPadContainer, value, from, to, typeParameterAccessor);
+          }
 
           // extract the value of the tuple from the nullable structure
           value = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
@@ -1129,8 +2713,9 @@ public class TypeHelper
         return LLVM.LLVMBuildExtractValue(builder, value, 0, "");
       }
     }
-    if (!(from instanceof TupleType) && to instanceof TupleType)
+    if (to instanceof TupleType)
     {
+      // check for a single-element-tuple insertion
       TupleType toTuple = (TupleType) to;
       if (toTuple.getSubTypes().length == 1 && toTuple.getSubTypes()[0].isRuntimeEquivalent(from))
       {
@@ -1147,9 +2732,9 @@ public class TypeHelper
     }
     if (from instanceof TupleType && to instanceof TupleType)
     {
-      if (from.isNullable() && !to.isNullable())
+      if (!skipRuntimeChecks && from.canBeNullable() && !to.isNullable())
       {
-        buildCastNullCheck(builder, landingPadContainer, value, from, to);
+        buildCastNullCheck(builder, landingPadContainer, value, from, to, typeParameterAccessor);
       }
 
       TupleType fromTuple = (TupleType) from;
@@ -1172,13 +2757,13 @@ public class TypeHelper
       if (subTypesEquivalent)
       {
         // just convert the nullability
-        if (from.isNullable() && !to.isNullable())
+        if (from.canBeNullable() && !to.isNullable())
         {
           // extract the value of the tuple from the nullable structure
           // (we have already done the associated null check above)
           return LLVM.LLVMBuildExtractValue(builder, value, 1, "");
         }
-        if (!from.isNullable() && to.isNullable())
+        if (!from.canBeNullable() && to.isNullable())
         {
           LLVMValueRef result = LLVM.LLVMGetUndef(findTemporaryType(to));
           // set the flag to one to indicate that this value is not null
@@ -1190,7 +2775,7 @@ public class TypeHelper
 
       LLVMValueRef isNotNullValue = null;
       LLVMValueRef tupleValue = value;
-      if (from.isNullable())
+      if (from.canBeNullable())
       {
         isNotNullValue = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
         tupleValue = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
@@ -1200,14 +2785,14 @@ public class TypeHelper
       for (int i = 0; i < fromSubTypes.length; i++)
       {
         LLVMValueRef current = LLVM.LLVMBuildExtractValue(builder, tupleValue, i, "");
-        LLVMValueRef converted = convertTemporary(builder, landingPadContainer, current, fromSubTypes[i], toSubTypes[i]);
+        LLVMValueRef converted = convertTemporary(builder, landingPadContainer, current, fromSubTypes[i], toSubTypes[i], skipRuntimeChecks, typeParameterAccessor);
         currentValue = LLVM.LLVMBuildInsertValue(builder, currentValue, converted, i, "");
       }
 
       if (to.isNullable())
       {
         LLVMValueRef result = LLVM.LLVMGetUndef(findTemporaryType(to));
-        if (from.isNullable())
+        if (from.canBeNullable())
         {
           result = LLVM.LLVMBuildInsertValue(builder, result, isNotNullValue, 0, "");
         }
@@ -1221,52 +2806,92 @@ public class TypeHelper
       // return the value directly, since the to type is not nullable
       return currentValue;
     }
-    if (from instanceof ObjectType && to instanceof ObjectType)
+    if ((from instanceof ObjectType || (from instanceof NamedType && ((NamedType) from).getResolvedTypeParameter() != null)) &&
+        to instanceof ObjectType)
     {
       // object casts are always legal
-      if (from.isNullable() && !to.isNullable())
+      if (!skipRuntimeChecks && from.canBeNullable() && !to.isNullable())
       {
-        buildCastNullCheck(builder, landingPadContainer, value, from, to);
+        buildCastNullCheck(builder, landingPadContainer, value, from, to, typeParameterAccessor);
       }
       // immutability will be checked by the type checker, and doesn't have any effect on the native type, so we do not need to do anything special here
       return value;
     }
-    if (to instanceof ObjectType)
+    if (to instanceof ObjectType ||
+        (to instanceof NamedType && ((NamedType) to).getResolvedTypeParameter() != null))
     {
       // anything can convert to object
       if (from instanceof NullType)
       {
-        if (!to.isNullable())
+        if (!to.canBeNullable())
         {
-          throw new IllegalArgumentException("Cannot convert from NullType to a not-null ObjectType");
+          throw new IllegalArgumentException("Cannot convert from NullType to a not-null object/type parameter type");
+        }
+        if (!skipRuntimeChecks && !to.isNullable())
+        {
+          // make sure to is actually nullable (if it is a TypeParameter, we can't check this at compile time)
+          buildCastNullCheck(builder, landingPadContainer, value, from, to, typeParameterAccessor);
         }
         return LLVM.LLVMConstNull(findTemporaryType(to));
       }
-      if ((from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition) ||
-          from instanceof ArrayType)
+      if (from instanceof ArrayType ||
+          (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition) ||
+          (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof InterfaceDefinition) ||
+          (from instanceof NamedType && ((NamedType) from).getResolvedTypeParameter() != null) ||
+          from instanceof ObjectType)
       {
-        if (from.isNullable() && !to.isNullable())
+        if (!skipRuntimeChecks && from.canBeNullable() && !to.isNullable())
         {
-          buildCastNullCheck(builder, landingPadContainer, value, from, to);
+          buildCastNullCheck(builder, landingPadContainer, value, from, to, typeParameterAccessor);
         }
-        // class and array types can be safely bitcast to object types
+        if (!skipRuntimeChecks && to instanceof NamedType && ((NamedType) to).getResolvedTypeParameter() != null)
+        {
+          // build an instanceof check for the 'to' type
+          LLVMBasicBlockRef continuationBlock = LLVM.LLVMAddBasicBlock(builder, "toTypeParamContinuation");
+          LLVMValueRef notNullValue = value;
+          Type notNullFromType = Type.findTypeWithNullability(from, false);
+          if (from.canBeNullable())
+          {
+            // only do the instanceof check it if it is not null - if it is null then the conversion should succeed (if 'to' was nullable then we would already have failed)
+
+            // if 'to' is not nullable, then we have already done the null check, so don't repeat it
+            if (to.isNullable())
+            {
+              LLVMBasicBlockRef notNullBlock = LLVM.LLVMAddBasicBlock(builder, "toTypeParamConversionNotNull");
+
+              LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, value, from);
+              LLVM.LLVMBuildCondBr(builder, isNotNull, notNullBlock, continuationBlock);
+
+              LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
+            }
+            // skip run-time checking on this nullable -> not-null conversion, as we have already done them
+            notNullValue = convertTemporary(builder, landingPadContainer, value, from, notNullFromType, true, typeParameterAccessor);
+          }
+          LLVMValueRef isInstance = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, notNullValue, notNullFromType, to, typeParameterAccessor);
+          LLVMBasicBlockRef instanceOfFailureBlock = LLVM.LLVMAddBasicBlock(builder, "castToTypeParamInstanceOfFailure");
+          LLVM.LLVMBuildCondBr(builder, isInstance, continuationBlock, instanceOfFailureBlock);
+
+          LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfFailureBlock);
+          buildThrowCastError(builder, landingPadContainer, from.toString(), to.toString(), null);
+
+          LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+        }
+
+        if (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof InterfaceDefinition)
+        {
+          // extract the object part of the interface's type
+          return LLVM.LLVMBuildExtractValue(builder, value, 1, "");
+        }
+
+        // object, class, type parameter, and array types can be safely bitcast to object types
         return LLVM.LLVMBuildBitCast(builder, value, findTemporaryType(to), "");
       }
-      if (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof InterfaceDefinition)
-      {
-        if (from.isNullable() && !to.isNullable())
-        {
-          buildCastNullCheck(builder, landingPadContainer, value, from, to);
-        }
-        // extract the object part of the interface's type
-        return LLVM.LLVMBuildExtractValue(builder, value, 1, "");
-      }
-      Type notNullFromType = TypeChecker.findTypeWithNullability(from, false);
+      Type notNullFromType = Type.findTypeWithNullability(from, false);
       LLVMValueRef notNullValue = value;
       LLVMBasicBlockRef startBlock = null;
       LLVMBasicBlockRef notNullBlock;
       LLVMBasicBlockRef continuationBlock = null;
-      if (from.isNullable())
+      if (from.canBeNullable())
       {
         if (to.isNullable())
         {
@@ -1279,30 +2904,31 @@ public class TypeHelper
 
           LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
         }
-        else
+        else if (!skipRuntimeChecks)
         {
-          buildCastNullCheck(builder, landingPadContainer, value, from, to);
+          buildCastNullCheck(builder, landingPadContainer, value, from, to, typeParameterAccessor);
         }
-        // TODO: converting from nullable to not-null here will cause an unnecessary null check, try to eliminate it
-        notNullValue = convertTemporary(builder, landingPadContainer, value, from, notNullFromType);
+        // skip run-time checking on this nullable -> not-null conversion, as we have already done them
+        notNullValue = convertTemporary(builder, landingPadContainer, value, from, notNullFromType, true, typeParameterAccessor);
       }
+
+      if (!skipRuntimeChecks && to instanceof NamedType && ((NamedType) to).getResolvedTypeParameter() != null)
+      {
+        // do an instanceof check to make sure we are allowed to convert to this type parameter
+        LLVMValueRef isInstanceOfToType = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, notNullValue, notNullFromType, to, typeParameterAccessor);
+        LLVMBasicBlockRef instanceOfSuccessBlock = LLVM.LLVMAddBasicBlock(builder, "castObjectInstanceOfSuccess");
+        LLVMBasicBlockRef instanceOfFailureBlock = LLVM.LLVMAddBasicBlock(builder, "castObjectInstanceOfFailure");
+        LLVM.LLVMBuildCondBr(builder, isInstanceOfToType, instanceOfSuccessBlock, instanceOfFailureBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfFailureBlock);
+        buildThrowCastError(builder, landingPadContainer, from.toString(), to.toString(), null);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfSuccessBlock);
+      }
+
       LLVMTypeRef nativeType = LLVM.LLVMPointerType(findSpecialisedObjectType(notNullFromType), 0);
       // allocate memory for the object
-      LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
-      LLVMValueRef llvmStructSize = LLVM.LLVMBuildGEP(builder, LLVM.LLVMConstNull(nativeType), C.toNativePointerArray(indices, false, true), indices.length, "");
-      LLVMValueRef llvmSize = LLVM.LLVMBuildPtrToInt(builder, llvmStructSize, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
-      LLVMValueRef[] callocArguments = new LLVMValueRef[] {llvmSize, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
-      LLVMValueRef memory = LLVM.LLVMBuildCall(builder, codeGenerator.getCallocFunction(), C.toNativePointerArray(callocArguments, false, true), callocArguments.length, "");
-
-      LLVMValueRef isNotNull = LLVM.LLVMBuildIsNotNull(builder, memory, "");
-      LLVMBasicBlockRef callocContinueBlock = LLVM.LLVMAddBasicBlock(builder, "objectCastCallocContinue");
-      LLVMBasicBlockRef callocFailedBlock = LLVM.LLVMAddBasicBlock(builder, "objectCastCallocFailed");
-      LLVM.LLVMBuildCondBr(builder, isNotNull, callocContinueBlock, callocFailedBlock);
-      LLVM.LLVMPositionBuilderAtEnd(builder, callocFailedBlock);
-      codeGenerator.buildOutOfMemoryHandler(builder);
-
-      LLVM.LLVMPositionBuilderAtEnd(builder, callocContinueBlock);
-      LLVMValueRef pointer = LLVM.LLVMBuildBitCast(builder, memory, nativeType, "");
+      LLVMValueRef pointer = codeGenerator.buildHeapAllocation(builder, nativeType);
 
       // store the object's run-time type information
       LLVMValueRef rtti;
@@ -1313,7 +2939,7 @@ public class TypeHelper
       }
       else
       {
-        rtti = rttiHelper.getInstanceRTTI(TypeChecker.findTypeWithoutModifiers(notNullFromType));
+        rtti = rttiHelper.buildRTTICreation(builder, true, notNullFromType, typeParameterAccessor);
       }
       LLVMValueRef rttiPointer = rttiHelper.getRTTIPointer(builder, pointer);
       LLVM.LLVMBuildStore(builder, rtti, rttiPointer);
@@ -1324,16 +2950,14 @@ public class TypeHelper
       LLVM.LLVMBuildStore(builder, baseChangeVFT, vftElementPointer);
 
       // store the value inside the object
-      LLVMValueRef[] elementIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                          LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 2, false)};
-      LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, pointer, C.toNativePointerArray(elementIndices, false, true), elementIndices.length, "");
+      LLVMValueRef elementPointer = LLVM.LLVMBuildStructGEP(builder, pointer, 2, "");
       notNullValue = convertTemporaryToStandard(builder, notNullValue, notNullFromType);
       LLVM.LLVMBuildStore(builder, notNullValue, elementPointer);
 
       // cast away the part of the type that contains the value
       LLVMValueRef notNullResult = LLVM.LLVMBuildBitCast(builder, pointer, findTemporaryType(to), "");
 
-      if (from.isNullable() && to.isNullable())
+      if (from.canBeNullable() && to.isNullable())
       {
         LLVMBasicBlockRef endNotNullBlock = LLVM.LLVMGetInsertBlock(builder);
         LLVM.LLVMBuildBr(builder, continuationBlock);
@@ -1347,33 +2971,14 @@ public class TypeHelper
       }
       return notNullResult;
     }
-    if (from instanceof ObjectType)
+    if (from instanceof ObjectType ||
+        (from instanceof NamedType && ((NamedType) from).getResolvedTypeParameter() != null))
     {
-      if ((to instanceof NamedType && ((NamedType) to).getResolvedTypeDefinition() instanceof ClassDefinition) ||
-          to instanceof ArrayType)
-      {
-        if (from.isNullable() && !to.isNullable())
-        {
-          buildCastNullCheck(builder, landingPadContainer, value, from, to);
-        }
-
-        LLVMValueRef isInstanceOfToType = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, value, from, to);
-        LLVMBasicBlockRef instanceOfSuccessBlock = LLVM.LLVMAddBasicBlock(builder, "castObjectInstanceOfSuccess");
-        LLVMBasicBlockRef instanceOfFailureBlock = LLVM.LLVMAddBasicBlock(builder, "castObjectInstanceOfFailure");
-        LLVM.LLVMBuildCondBr(builder, isInstanceOfToType, instanceOfSuccessBlock, instanceOfFailureBlock);
-
-        LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfFailureBlock);
-        buildThrowCastError(builder, landingPadContainer, from.toString(), to.toString(), null);
-
-        LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfSuccessBlock);
-        return LLVM.LLVMBuildBitCast(builder, value, findTemporaryType(to), "");
-      }
-
       LLVMValueRef notNullValue = value;
       LLVMBasicBlockRef startBlock = null;
       LLVMBasicBlockRef notNullBlock = null;
       LLVMBasicBlockRef continuationBlock = null;
-      if (from.isNullable())
+      if (from.canBeNullable())
       {
         if (to.isNullable())
         {
@@ -1386,36 +2991,49 @@ public class TypeHelper
 
           LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
         }
-        else
+        else if (!skipRuntimeChecks)
         {
-          buildCastNullCheck(builder, landingPadContainer, value, from, to);
+          buildCastNullCheck(builder, landingPadContainer, value, from, to, typeParameterAccessor);
         }
-        // TODO: converting from nullable to not-null here will cause an unnecessary null check, try to eliminate it
-        notNullValue = convertTemporary(builder, landingPadContainer, value, from, TypeChecker.findTypeWithNullability(from, false));
+        // skip run-time checking on this nullable -> not-null conversion, as we have already done them
+        notNullValue = convertTemporary(builder, landingPadContainer, value, from, Type.findTypeWithNullability(from, false), true, typeParameterAccessor);
       }
 
-      LLVMValueRef isInstanceOfToType = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, notNullValue, TypeChecker.findTypeWithNullability(from, false), to);
-      LLVMBasicBlockRef instanceOfSuccessBlock = LLVM.LLVMAddBasicBlock(builder, "castObjectInstanceOfSuccess");
-      LLVMBasicBlockRef instanceOfFailureBlock = LLVM.LLVMAddBasicBlock(builder, "castObjectInstanceOfFailure");
-      LLVM.LLVMBuildCondBr(builder, isInstanceOfToType, instanceOfSuccessBlock, instanceOfFailureBlock);
+      if (!skipRuntimeChecks)
+      {
+        LLVMValueRef isInstanceOfToType = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, notNullValue, Type.findTypeWithNullability(from, false), to, typeParameterAccessor);
+        LLVMBasicBlockRef instanceOfSuccessBlock = LLVM.LLVMAddBasicBlock(builder, "castObjectInstanceOfSuccess");
+        LLVMBasicBlockRef instanceOfFailureBlock = LLVM.LLVMAddBasicBlock(builder, "castObjectInstanceOfFailure");
+        LLVM.LLVMBuildCondBr(builder, isInstanceOfToType, instanceOfSuccessBlock, instanceOfFailureBlock);
 
-      LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfFailureBlock);
-      buildThrowCastError(builder, landingPadContainer, from.toString(), to.toString(), null);
+        LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfFailureBlock);
+        buildThrowCastError(builder, landingPadContainer, from.toString(), to.toString(), null);
 
-      LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfSuccessBlock);
+        LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfSuccessBlock);
+      }
 
-      Type notNullToType = TypeChecker.findTypeWithNullability(to, false);
-      LLVMTypeRef nativeType = LLVM.LLVMPointerType(findSpecialisedObjectType(notNullToType), 0);
-      LLVMValueRef castedValue = LLVM.LLVMBuildBitCast(builder, notNullValue, nativeType, "");
+      LLVMValueRef notNullResult;
+      if ((to instanceof NamedType && ((NamedType) to).getResolvedTypeDefinition() instanceof ClassDefinition) ||
+          to instanceof ArrayType)
+      {
+        notNullResult = LLVM.LLVMBuildBitCast(builder, notNullValue, findTemporaryType(to), "");
+      }
+      else
+      {
+        Type notNullToType = Type.findTypeWithNullability(to, false);
+        LLVMTypeRef nativeType = LLVM.LLVMPointerType(findSpecialisedObjectType(notNullToType), 0);
+        LLVMValueRef castedValue = LLVM.LLVMBuildBitCast(builder, notNullValue, nativeType, "");
 
-      LLVMValueRef[] elementIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                          LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 2, false)};
-      LLVMValueRef elementPointer = LLVM.LLVMBuildGEP(builder, castedValue, C.toNativePointerArray(elementIndices, false, true), elementIndices.length, "");
-      LLVMValueRef notNullResult = convertStandardPointerToTemporary(builder, landingPadContainer, elementPointer, TypeChecker.findTypeWithNullability(to, false), to);
+        LLVMValueRef elementPointer = LLVM.LLVMBuildStructGEP(builder, castedValue, 2, "");
+        notNullResult = convertStandardPointerToTemporary(builder, elementPointer, notNullToType);
+        notNullResult = convertTemporary(builder, landingPadContainer, notNullResult, notNullToType, to, skipRuntimeChecks, typeParameterAccessor);
+      }
 
-      if (from.isNullable() && to.isNullable())
+      if (from.canBeNullable() && to.isNullable())
       {
         LLVMBasicBlockRef endNotNullBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildBr(builder, continuationBlock);
+
         LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
 
         LLVMValueRef resultPhi = LLVM.LLVMBuildPhi(builder, findTemporaryType(to), "");
@@ -1440,12 +3058,12 @@ public class TypeHelper
   {
     PrimitiveTypeType fromType = from.getPrimitiveTypeType();
     PrimitiveTypeType toType = to.getPrimitiveTypeType();
-    if (fromType == toType && from.isNullable() == to.isNullable())
+    if (fromType == toType && from.canBeNullable() == to.canBeNullable())
     {
       return value;
     }
     LLVMValueRef primitiveValue = value;
-    if (from.isNullable())
+    if (from.canBeNullable())
     {
       primitiveValue = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
     }
@@ -1500,10 +3118,10 @@ public class TypeHelper
       primitiveValue = LLVM.LLVMBuildZExt(builder, primitiveValue, toNativeType, "");
     }
     // pack up the result before returning it
-    if (to.isNullable())
+    if (to.canBeNullable())
     {
       LLVMValueRef result = LLVM.LLVMGetUndef(findTemporaryType(to));
-      if (from.isNullable())
+      if (from.canBeNullable())
       {
         LLVMValueRef isNotNullValue = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
         result = LLVM.LLVMBuildInsertValue(builder, result, isNotNullValue, 0, "");
@@ -1525,9 +3143,10 @@ public class TypeHelper
    * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
    * @param value - the value to convert to a string, in a temporary type representation
    * @param type - the type of the value to convert, which can be any type except VoidType (including NullType and any nullable types)
+   * @param typeParameterAccessor - the TypeParameterAccessor to get the values of any TypeParameters from
    * @return an LLVMValueRef containing the string representation of value, in a standard type representation
    */
-  public LLVMValueRef convertToString(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type type)
+  public LLVMValueRef convertToString(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type type, TypeParameterAccessor typeParameterAccessor)
   {
     if (type.isRuntimeEquivalent(SpecialTypeHandler.STRING_TYPE))
     {
@@ -1542,7 +3161,7 @@ public class TypeHelper
     Type notNullType = type;
     LLVMBasicBlockRef alternativeBlock = null;
     LLVMBasicBlockRef continuationBlock = null;
-    if (type.isNullable())
+    if (type.canBeNullable())
     {
       continuationBlock = LLVM.LLVMAddBasicBlock(builder, "stringConversionContinuation");
       alternativeBlock = LLVM.LLVMAddBasicBlock(builder, "stringConversionNull");
@@ -1552,40 +3171,36 @@ public class TypeHelper
       LLVM.LLVMBuildCondBr(builder, isNotNull, conversionBlock, alternativeBlock);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, conversionBlock);
-      notNullType = TypeChecker.findTypeWithNullability(type, false);
-      notNullValue = convertTemporary(builder, landingPadContainer, value, type, notNullType);
+      notNullType = Type.findTypeWithNullability(type, false);
+      notNullValue = convertTemporary(builder, landingPadContainer, value, type, notNullType, false, typeParameterAccessor);
     }
-    Method method = notNullType.getMethod(new BuiltinMethod(notNullType, BuiltinMethodType.TO_STRING).getDisambiguator());
-    if (method == null)
+    MethodReference methodReference = notNullType.getMethod(new MethodReference(new BuiltinMethod(notNullType, BuiltinMethodType.TO_STRING), GenericTypeSpecialiser.IDENTITY_SPECIALISER).getDisambiguator());
+    if (methodReference == null)
     {
       throw new IllegalStateException("Type " + type + " does not have a 'toString()' method!");
     }
-    LLVMValueRef function = codeGenerator.lookupMethodFunction(builder, landingPadContainer, notNullValue, notNullType, method, false);
-    LLVMValueRef callee = convertMethodCallee(builder, landingPadContainer, notNullValue, notNullType, method);
-    LLVMValueRef[] arguments = new LLVMValueRef[] {callee};
-    LLVMBasicBlockRef toStringInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "toStringInvokeContinue");
-    LLVMValueRef stringValue = LLVM.LLVMBuildInvoke(builder, function, C.toNativePointerArray(arguments, false, true), arguments.length, toStringInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
-    LLVM.LLVMPositionBuilderAtEnd(builder, toStringInvokeContinueBlock);
 
-    if (type.isNullable())
+    LLVMValueRef[] arguments = new LLVMValueRef[] {};
+    LLVMValueRef stringValue = buildMethodCall(builder, landingPadContainer, notNullValue, notNullType, methodReference, arguments, typeParameterAccessor);
+
+    if (type.canBeNullable())
     {
       LLVMBasicBlockRef endConversionBlock = LLVM.LLVMGetInsertBlock(builder);
       LLVM.LLVMBuildBr(builder, continuationBlock);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, alternativeBlock);
       LLVMValueRef alternativeStringValue = codeGenerator.buildStringCreation(builder, landingPadContainer, "null");
-      alternativeStringValue = convertTemporaryToStandard(builder, alternativeStringValue, SpecialTypeHandler.STRING_TYPE);
       LLVMBasicBlockRef endAlternativeBlock = LLVM.LLVMGetInsertBlock(builder);
       LLVM.LLVMBuildBr(builder, continuationBlock);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
-      LLVMValueRef phi = LLVM.LLVMBuildPhi(builder, findStandardType(SpecialTypeHandler.STRING_TYPE), "");
+      LLVMValueRef phi = LLVM.LLVMBuildPhi(builder, findTemporaryType(SpecialTypeHandler.STRING_TYPE), "");
       LLVMValueRef[] incomingValues = new LLVMValueRef[] {stringValue, alternativeStringValue};
       LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {endConversionBlock, endAlternativeBlock};
       LLVM.LLVMAddIncoming(phi, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
-      return phi;
+      return convertTemporaryToStandard(builder, phi, SpecialTypeHandler.STRING_TYPE);
     }
-    return stringValue;
+    return convertTemporaryToStandard(builder, stringValue, SpecialTypeHandler.STRING_TYPE);
   }
 
   /**
@@ -1595,11 +3210,12 @@ public class TypeHelper
    * @param value - the value to convert
    * @param fromType - the type to convert from
    * @param toType - the type to convert to
+   * @param typeParameterAccessor - the TypeParameterAccessor to get the values of any TypeParameters from
    * @return the converted value
    */
-  public LLVMValueRef convertTemporaryToStandard(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type fromType, Type toType)
+  public LLVMValueRef convertTemporaryToStandard(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type fromType, Type toType, TypeParameterAccessor typeParameterAccessor)
   {
-    LLVMValueRef temporary = convertTemporary(builder, landingPadContainer, value, fromType, toType);
+    LLVMValueRef temporary = convertTemporary(builder, landingPadContainer, value, fromType, toType, false, typeParameterAccessor);
     return convertTemporaryToStandard(builder, temporary, toType);
   }
 
@@ -1624,6 +3240,11 @@ public class TypeHelper
     }
     if (type instanceof NamedType)
     {
+      if (((NamedType) type).getResolvedTypeParameter() != null)
+      {
+        // the temporary and standard types are the same for type parameters
+        return value;
+      }
       TypeDefinition typeDefinition = ((NamedType) type).getResolvedTypeDefinition();
       if (typeDefinition instanceof ClassDefinition)
       {
@@ -1637,7 +3258,7 @@ public class TypeHelper
       }
       else if (typeDefinition instanceof CompoundDefinition)
       {
-        if (type.isNullable())
+        if (type.canBeNullable())
         {
           LLVMTypeRef standardType = findStandardType(type);
           // we are converting from a pointer to a non-nullable compound into a possibly-null compound
@@ -1710,11 +3331,11 @@ public class TypeHelper
       }
 
       LLVMValueRef notNullValue = value;
-      if (type.isNullable())
+      if (type.canBeNullable())
       {
         notNullValue = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
       }
-      LLVMValueRef resultNotNull = LLVM.LLVMGetUndef(findStandardType(TypeChecker.findTypeWithNullability(type, false)));
+      LLVMValueRef resultNotNull = LLVM.LLVMGetUndef(findStandardType(Type.findTypeWithNullability(type, false)));
       Type[] subTypes = ((TupleType) type).getSubTypes();
       for (int i = 0; i < subTypes.length; ++i)
       {
@@ -1722,7 +3343,7 @@ public class TypeHelper
         LLVMValueRef convertedValue = convertTemporaryToStandard(builder, extractedValue, subTypes[i]);
         resultNotNull = LLVM.LLVMBuildInsertValue(builder, resultNotNull, convertedValue, i, "");
       }
-      if (type.isNullable())
+      if (type.canBeNullable())
       {
         LLVMValueRef isNotNullValue = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
         LLVMValueRef result = LLVM.LLVMGetUndef(findStandardType(type));
@@ -1746,12 +3367,13 @@ public class TypeHelper
    * @param value - the value to convert
    * @param fromType - the type to convert from
    * @param toType - the type to convert to
+   * @param typeParameterAccessor - the TypeParameterAccessor to get the values of any TypeParameters from
    * @return the converted value
    */
-  public LLVMValueRef convertStandardToTemporary(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type fromType, Type toType)
+  public LLVMValueRef convertStandardToTemporary(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef value, Type fromType, Type toType, TypeParameterAccessor typeParameterAccessor)
   {
     LLVMValueRef temporary = convertStandardToTemporary(builder, value, fromType);
-    return convertTemporary(builder, landingPadContainer, temporary, fromType, toType);
+    return convertTemporary(builder, landingPadContainer, temporary, fromType, toType, false, typeParameterAccessor);
   }
 
   /**
@@ -1775,6 +3397,11 @@ public class TypeHelper
     }
     if (type instanceof NamedType)
     {
+      if (((NamedType) type).getResolvedTypeParameter() != null)
+      {
+        // the temporary and standard types are the same for type parameters
+        return value;
+      }
       TypeDefinition typeDefinition = ((NamedType) type).getResolvedTypeDefinition();
       if (typeDefinition instanceof ClassDefinition)
       {
@@ -1789,17 +3416,17 @@ public class TypeHelper
       else if (typeDefinition instanceof CompoundDefinition)
       {
         LLVMValueRef notNullValue = value;
-        if (type.isNullable())
+        if (type.canBeNullable())
         {
           notNullValue = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
         }
 
         // find the type to alloca, which is the standard representation of a non-nullable version of this type
         // when we alloca this type, it becomes equivalent to the temporary type representation of this compound type (with any nullability)
-        LLVMTypeRef allocaBaseType = findStandardType(TypeChecker.findTypeWithNullability(type, false));
+        LLVMTypeRef allocaBaseType = findStandardType(Type.findTypeWithNullability(type, false));
         LLVMValueRef alloca = LLVM.LLVMBuildAllocaInEntryBlock(builder, allocaBaseType, "");
         LLVM.LLVMBuildStore(builder, notNullValue, alloca);
-        if (type.isNullable())
+        if (type.canBeNullable())
         {
           LLVMValueRef isNotNullValue = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
           return LLVM.LLVMBuildSelect(builder, isNotNullValue, alloca, LLVM.LLVMConstNull(findTemporaryType(type)), "");
@@ -1851,11 +3478,11 @@ public class TypeHelper
       }
 
       LLVMValueRef notNullValue = value;
-      if (type.isNullable())
+      if (type.canBeNullable())
       {
         notNullValue = LLVM.LLVMBuildExtractValue(builder, value, 1, "");
       }
-      LLVMValueRef resultNotNull = LLVM.LLVMGetUndef(findTemporaryType(TypeChecker.findTypeWithNullability(type, false)));
+      LLVMValueRef resultNotNull = LLVM.LLVMGetUndef(findTemporaryType(Type.findTypeWithNullability(type, false)));
       Type[] subTypes = ((TupleType) type).getSubTypes();
       for (int i = 0; i < subTypes.length; ++i)
       {
@@ -1863,7 +3490,7 @@ public class TypeHelper
         LLVMValueRef convertedValue = convertStandardToTemporary(builder, extractedValue, subTypes[i]);
         resultNotNull = LLVM.LLVMBuildInsertValue(builder, resultNotNull, convertedValue, i, "");
       }
-      if (type.isNullable())
+      if (type.canBeNullable())
       {
         LLVMValueRef isNotNullValue = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
         LLVMValueRef result = LLVM.LLVMGetUndef(findTemporaryType(type));
@@ -1887,12 +3514,13 @@ public class TypeHelper
    * @param pointer - the pointer to the value to convert
    * @param fromType - the type to convert from
    * @param toType - the type to convert to
+   * @param typeParameterAccessor - the TypeParameterAccessor to get the values of any TypeParameters from
    * @return the converted value
    */
-  public LLVMValueRef convertStandardPointerToTemporary(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef pointer, Type fromType, Type toType)
+  public LLVMValueRef convertStandardPointerToTemporary(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef pointer, Type fromType, Type toType, TypeParameterAccessor typeParameterAccessor)
   {
     LLVMValueRef temporary = convertStandardPointerToTemporary(builder, pointer, fromType);
-    return convertTemporary(builder, landingPadContainer, temporary, fromType, toType);
+    return convertTemporary(builder, landingPadContainer, temporary, fromType, toType, false, typeParameterAccessor);
   }
 
   /**
@@ -1916,6 +3544,11 @@ public class TypeHelper
     }
     if (type instanceof NamedType)
     {
+      if (((NamedType) type).getResolvedTypeParameter() != null)
+      {
+        // the temporary and standard types are the same for type parameters
+        return LLVM.LLVMBuildLoad(builder, value, "");
+      }
       TypeDefinition typeDefinition = ((NamedType) type).getResolvedTypeDefinition();
       if (typeDefinition instanceof ClassDefinition)
       {
@@ -1929,7 +3562,7 @@ public class TypeHelper
       }
       else if (typeDefinition instanceof CompoundDefinition)
       {
-        if (type.isNullable())
+        if (type.canBeNullable())
         {
           LLVMValueRef[] nullabilityIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                                   LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
@@ -1990,7 +3623,7 @@ public class TypeHelper
 
       LLVMValueRef isNotNullValue = null;
       LLVMValueRef notNullPointer = value;
-      if (type.isNullable())
+      if (type.canBeNullable())
       {
         LLVMValueRef[] nullabilityIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                                 LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false)};
@@ -2001,7 +3634,7 @@ public class TypeHelper
                                                           LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 1, false)};
         notNullPointer = LLVM.LLVMBuildGEP(builder, value, C.toNativePointerArray(valueIndices, false, true), valueIndices.length, "");
       }
-      LLVMValueRef resultNotNull = LLVM.LLVMGetUndef(findTemporaryType(TypeChecker.findTypeWithNullability(type, false)));
+      LLVMValueRef resultNotNull = LLVM.LLVMGetUndef(findTemporaryType(Type.findTypeWithNullability(type, false)));
       Type[] subTypes = ((TupleType) type).getSubTypes();
       for (int i = 0; i < subTypes.length; ++i)
       {
@@ -2011,7 +3644,7 @@ public class TypeHelper
         LLVMValueRef convertedValue = convertStandardPointerToTemporary(builder, valuePointer, subTypes[i]);
         resultNotNull = LLVM.LLVMBuildInsertValue(builder, resultNotNull, convertedValue, i, "");
       }
-      if (type.isNullable())
+      if (type.canBeNullable())
       {
         LLVMValueRef result = LLVM.LLVMGetUndef(findTemporaryType(type));
         result = LLVM.LLVMBuildInsertValue(builder, result, isNotNullValue, 0, "");

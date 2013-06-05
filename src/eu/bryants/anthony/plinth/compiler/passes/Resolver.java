@@ -47,16 +47,22 @@ import eu.bryants.anthony.plinth.ast.expression.ThisExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleExpression;
 import eu.bryants.anthony.plinth.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.plinth.ast.expression.VariableExpression;
-import eu.bryants.anthony.plinth.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
-import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.member.Property;
+import eu.bryants.anthony.plinth.ast.metadata.ArrayLengthMemberReference;
+import eu.bryants.anthony.plinth.ast.metadata.ConstructorReference;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
+import eu.bryants.anthony.plinth.ast.metadata.FieldReference;
+import eu.bryants.anthony.plinth.ast.metadata.GenericTypeSpecialiser;
+import eu.bryants.anthony.plinth.ast.metadata.MemberReference;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference.Disambiguator;
 import eu.bryants.anthony.plinth.ast.metadata.PackageNode;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
+import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
 import eu.bryants.anthony.plinth.ast.metadata.Variable;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
@@ -91,7 +97,9 @@ import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
+import eu.bryants.anthony.plinth.ast.type.TypeParameter;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
+import eu.bryants.anthony.plinth.ast.type.WildcardType;
 import eu.bryants.anthony.plinth.compiler.CoalescedConceptualException;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
 import eu.bryants.anthony.plinth.compiler.NameNotResolvedException;
@@ -141,9 +149,9 @@ public class Resolver
    */
   public void resolveSpecialTypes() throws NameNotResolvedException, ConceptualException
   {
-    resolve(SpecialTypeHandler.STRING_TYPE, null);
-    resolve(SpecialTypeHandler.THROWABLE_TYPE, null);
-    resolve(SpecialTypeHandler.CAST_ERROR_TYPE, null);
+    resolve(SpecialTypeHandler.STRING_TYPE, null, null);
+    resolve(SpecialTypeHandler.THROWABLE_TYPE, null, null);
+    resolve(SpecialTypeHandler.CAST_ERROR_TYPE, null, null);
   }
 
   /**
@@ -210,94 +218,136 @@ public class Resolver
     if (typeDefinition instanceof ClassDefinition)
     {
       ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
-      QName superQName = classDefinition.getSuperClassQName();
-      if (superQName != null)
+      for (TypeParameter typeParameter : classDefinition.getTypeParameters())
+      {
+        for (Type superType : typeParameter.getSuperTypes())
+        {
+          try
+          {
+            resolve(superType, typeDefinition, compilationUnit);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+        for (Type subType : typeParameter.getSubTypes())
+        {
+          try
+          {
+            resolve(subType, typeDefinition, compilationUnit);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+      }
+      NamedType superType = classDefinition.getSuperType();
+      if (superType != null)
       {
         try
         {
-          TypeDefinition superTypeDefinition = resolveTypeDefinition(superQName, compilationUnit);
-          if (superTypeDefinition instanceof CompoundDefinition)
-          {
-            throw new ConceptualException("A class may not extend a compound type", classDefinition.getLexicalPhrase());
-          }
-          else if (superTypeDefinition instanceof InterfaceDefinition)
-          {
-            throw new ConceptualException("A class may not extend an interface", classDefinition.getLexicalPhrase());
-          }
-          else if (!(superTypeDefinition instanceof ClassDefinition))
-          {
-            throw new ConceptualException("A class may only extend another class", classDefinition.getLexicalPhrase());
-          }
-          classDefinition.setSuperClassDefinition((ClassDefinition) superTypeDefinition);
+          resolve(superType, typeDefinition, compilationUnit);
+          // make sure the super-type has the right number of type arguments, and that none of them are wildcards, etc.
+          TypeChecker.checkSuperType(superType);
         }
         catch (ConceptualException e)
         {
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
-      QName[] superInterfaceQNames = classDefinition.getSuperInterfaceQNames();
-      if (superInterfaceQNames != null)
+      NamedType[] superInterfaceTypes = classDefinition.getSuperInterfaceTypes();
+      if (superInterfaceTypes != null)
       {
-        InterfaceDefinition[] resolvedDefinitions = new InterfaceDefinition[superInterfaceQNames.length];
-        for (int i = 0; i < superInterfaceQNames.length; ++i)
+        for (int i = 0; i < superInterfaceTypes.length; ++i)
         {
           try
           {
-            TypeDefinition resolvedInterface = resolveTypeDefinition(superInterfaceQNames[i], compilationUnit);
-            if (resolvedInterface instanceof ClassDefinition)
-            {
-              throw new ConceptualException("A class may not implement another class", classDefinition.getLexicalPhrase());
-            }
-            else if (resolvedInterface instanceof CompoundDefinition)
-            {
-              throw new ConceptualException("A class may not implement a compound type", classDefinition.getLexicalPhrase());
-            }
-            else if (!(resolvedInterface instanceof InterfaceDefinition))
-            {
-              throw new ConceptualException("A class may only implement interfaces", classDefinition.getLexicalPhrase());
-            }
-            resolvedDefinitions[i] = (InterfaceDefinition) resolvedInterface;
+            resolve(superInterfaceTypes[i], typeDefinition, compilationUnit);
+            // make sure the super-type has the right number of type arguments, and that none of them are wildcards, etc.
+            TypeChecker.checkSuperType(superInterfaceTypes[i]);
           }
           catch (ConceptualException e)
           {
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
-        classDefinition.setSuperInterfaceDefinitions(resolvedDefinitions);
       }
     }
     if (typeDefinition instanceof InterfaceDefinition)
     {
       InterfaceDefinition interfaceDefinition = (InterfaceDefinition) typeDefinition;
-      QName[] superInterfaceQNames = interfaceDefinition.getSuperInterfaceQNames();
-      if (superInterfaceQNames != null)
+      for (TypeParameter typeParameter : interfaceDefinition.getTypeParameters())
       {
-        InterfaceDefinition[] resolvedDefinitions = new InterfaceDefinition[superInterfaceQNames.length];
-        for (int i = 0; i < superInterfaceQNames.length; ++i)
+        for (Type superType : typeParameter.getSuperTypes())
         {
           try
           {
-            TypeDefinition resolvedInterface = resolveTypeDefinition(superInterfaceQNames[i], compilationUnit);
-            if (resolvedInterface instanceof ClassDefinition)
-            {
-              throw new ConceptualException("An interface may not extend a class", interfaceDefinition.getLexicalPhrase());
-            }
-            else if (resolvedInterface instanceof CompoundDefinition)
-            {
-              throw new ConceptualException("An interface may not extend a compound type", interfaceDefinition.getLexicalPhrase());
-            }
-            else if (!(resolvedInterface instanceof InterfaceDefinition))
-            {
-              throw new ConceptualException("An interface may only extend other interfaces", interfaceDefinition.getLexicalPhrase());
-            }
-            resolvedDefinitions[i] = (InterfaceDefinition) resolvedInterface;
+            resolve(superType, typeDefinition, compilationUnit);
           }
           catch (ConceptualException e)
           {
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
-        interfaceDefinition.setSuperInterfaceDefinitions(resolvedDefinitions);
+        for (Type subType : typeParameter.getSubTypes())
+        {
+          try
+          {
+            resolve(subType, typeDefinition, compilationUnit);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+      }
+      NamedType[] superInterfaceTypes = interfaceDefinition.getSuperInterfaceTypes();
+      if (superInterfaceTypes != null)
+      {
+        for (int i = 0; i < superInterfaceTypes.length; ++i)
+        {
+          try
+          {
+            resolve(superInterfaceTypes[i], typeDefinition, compilationUnit);
+            // make sure the super-type has the right number of type arguments, and that none of them are wildcards, etc.
+            TypeChecker.checkSuperType(superInterfaceTypes[i]);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+      }
+    }
+    if (typeDefinition instanceof CompoundDefinition)
+    {
+      CompoundDefinition compoundDefinition = (CompoundDefinition) typeDefinition;
+      for (TypeParameter typeParameter : compoundDefinition.getTypeParameters())
+      {
+        for (Type superType : typeParameter.getSuperTypes())
+        {
+          try
+          {
+            resolve(superType, typeDefinition, compilationUnit);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+        for (Type subType : typeParameter.getSubTypes())
+        {
+          try
+          {
+            resolve(subType, typeDefinition, compilationUnit);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
       }
     }
 
@@ -307,7 +357,7 @@ public class Resolver
       Type type = field.getType();
       try
       {
-        resolve(type, compilationUnit);
+        resolve(type, typeDefinition, compilationUnit);
       }
       catch (ConceptualException e)
       {
@@ -335,7 +385,7 @@ public class Resolver
       Type type = property.getType();
       try
       {
-        resolve(type, compilationUnit);
+        resolve(type, typeDefinition, compilationUnit);
       }
       catch (ConceptualException e)
       {
@@ -348,7 +398,7 @@ public class Resolver
         {
           try
           {
-            resolve(thrownType, compilationUnit);
+            resolve(thrownType, typeDefinition, compilationUnit);
           }
           catch (ConceptualException e)
           {
@@ -361,7 +411,7 @@ public class Resolver
       {
         try
         {
-          resolve(property.getSetterParameter().getType(), compilationUnit);
+          resolve(property.getSetterParameter().getType(), typeDefinition, compilationUnit);
         }
         catch (ConceptualException e)
         {
@@ -373,7 +423,7 @@ public class Resolver
           {
             try
             {
-              resolve(thrownType, compilationUnit);
+              resolve(thrownType, typeDefinition, compilationUnit);
             }
             catch (ConceptualException e)
             {
@@ -387,7 +437,7 @@ public class Resolver
       {
         try
         {
-          resolve(property.getConstructorParameter().getType(), compilationUnit);
+          resolve(property.getConstructorParameter().getType(), typeDefinition, compilationUnit);
         }
         catch (ConceptualException e)
         {
@@ -399,7 +449,7 @@ public class Resolver
           {
             try
             {
-              resolve(thrownType, compilationUnit);
+              resolve(thrownType, typeDefinition, compilationUnit);
             }
             catch (ConceptualException e)
             {
@@ -454,7 +504,7 @@ public class Resolver
         }
         try
         {
-          resolve(p.getType(), compilationUnit);
+          resolve(p.getType(), typeDefinition, compilationUnit);
           disambiguatorBuffer.append(p.getType().getMangledName());
         }
         catch (ConceptualException e)
@@ -476,7 +526,7 @@ public class Resolver
       {
         try
         {
-          resolve(thrownType, compilationUnit);
+          resolve(thrownType, typeDefinition, compilationUnit);
         }
         catch (ConceptualException e)
         {
@@ -487,7 +537,7 @@ public class Resolver
       {
         try
         {
-          resolve(uncheckedThrownType, compilationUnit);
+          resolve(uncheckedThrownType, typeDefinition, compilationUnit);
         }
         catch (ConceptualException e)
         {
@@ -498,13 +548,13 @@ public class Resolver
 
     // resolve all method return and parameter types, and check for duplicate methods
     // however, we must allow duplicated static methods if their since specifiers differ, so our map must allow for multiple methods per disambiguator
-    Map<Object, Set<Method>> allMethods = new HashMap<Object, Set<Method>>();
+    Map<Disambiguator, Set<Method>> allMethods = new HashMap<Disambiguator, Set<Method>>();
     for (Method method : typeDefinition.getAllMethods())
     {
       boolean typeResolveFailed = false;
       try
       {
-        resolve(method.getReturnType(), compilationUnit);
+        resolve(method.getReturnType(), typeDefinition, compilationUnit);
       }
       catch (ConceptualException e)
       {
@@ -527,7 +577,7 @@ public class Resolver
         }
         try
         {
-          resolve(parameters[i].getType(), compilationUnit);
+          resolve(parameters[i].getType(), typeDefinition, compilationUnit);
         }
         catch (ConceptualException e)
         {
@@ -539,7 +589,7 @@ public class Resolver
       {
         try
         {
-          resolve(thrownType, compilationUnit);
+          resolve(thrownType, typeDefinition, compilationUnit);
         }
         catch (ConceptualException e)
         {
@@ -551,7 +601,7 @@ public class Resolver
       {
         try
         {
-          resolve(uncheckedThrownType, compilationUnit);
+          resolve(uncheckedThrownType, typeDefinition, compilationUnit);
         }
         catch (ConceptualException e)
         {
@@ -562,11 +612,12 @@ public class Resolver
 
       if (!typeResolveFailed)
       {
-        Set<Method> methodSet = allMethods.get(method.getDisambiguator());
+        MethodReference methodReference = new MethodReference(method, GenericTypeSpecialiser.IDENTITY_SPECIALISER);
+        Set<Method> methodSet = allMethods.get(methodReference.getDisambiguator());
         if (methodSet == null)
         {
           methodSet = new HashSet<Method>();
-          allMethods.put(method.getDisambiguator(), methodSet);
+          allMethods.put(methodReference.getDisambiguator(), methodSet);
         }
         if (methodSet.isEmpty())
         {
@@ -607,18 +658,16 @@ public class Resolver
   }
 
   /**
-   * Tries to resolve the specified QName to a TypeDefinition, from the context of the specified compilation unit,
-   * or if no compilation unit is given or nothing can be found there, the root package.
+   * Tries to resolve the specified QName to a TypeDefinition, from the context of the root package.
    * @param qname - the QName to resolve
-   * @param compilationUnit - the CompilationUnit to resolve the QName in the context of
    * @return the TypeDefinition resolved
    * @throws NameNotResolvedException - if the QName cannot be resolved
    * @throws ConceptualException - if a conceptual error occurs while resolving the TypeDefinition
    */
-  public TypeDefinition resolveTypeDefinition(QName qname, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  public TypeDefinition resolveTypeDefinition(QName qname) throws NameNotResolvedException, ConceptualException
   {
-    NamedType namedType = new NamedType(false, false, qname, qname.getLexicalPhrase());
-    resolve(namedType, compilationUnit);
+    NamedType namedType = new NamedType(false, false, qname, null, qname.getLexicalPhrase());
+    resolve(namedType, null, null);
     return namedType.getResolvedTypeDefinition();
   }
 
@@ -642,7 +691,7 @@ public class Resolver
       }
       try
       {
-        resolveTopLevelBlock(constructor.getBlock(), typeDefinition, compilationUnit, constructor.isImmutable(), false, null);
+        resolveTopLevelBlock(constructor.getBlock(), typeDefinition, compilationUnit, false, constructor.isImmutable(), false, null);
       }
       catch (ConceptualException e)
       {
@@ -656,7 +705,7 @@ public class Resolver
         Field field = ((FieldInitialiser) initialiser).getField();
         try
         {
-          resolve(field.getInitialiserExpression(), initialiser.getBlock(), typeDefinition, compilationUnit, !initialiser.isStatic() & hasImmutableConstructors, null);
+          resolve(field.getInitialiserExpression(), initialiser.getBlock(), typeDefinition, compilationUnit, initialiser.isStatic(), !initialiser.isStatic() & hasImmutableConstructors, null);
         }
         catch (ConceptualException e)
         {
@@ -668,7 +717,7 @@ public class Resolver
         Property property = ((PropertyInitialiser) initialiser).getProperty();
         try
         {
-          resolve(property.getInitialiserExpression(), initialiser.getBlock(), typeDefinition, compilationUnit, !initialiser.isStatic() & hasImmutableConstructors, null);
+          resolve(property.getInitialiserExpression(), initialiser.getBlock(), typeDefinition, compilationUnit, initialiser.isStatic(), !initialiser.isStatic() & hasImmutableConstructors, null);
         }
         catch (ConceptualException e)
         {
@@ -679,7 +728,7 @@ public class Resolver
       {
         try
         {
-          resolveTopLevelBlock(initialiser.getBlock(), typeDefinition, compilationUnit, !initialiser.isStatic() & hasImmutableConstructors, false, null);
+          resolveTopLevelBlock(initialiser.getBlock(), typeDefinition, compilationUnit, initialiser.isStatic(), !initialiser.isStatic() & hasImmutableConstructors, false, null);
         }
         catch (ConceptualException e)
         {
@@ -697,7 +746,7 @@ public class Resolver
           // 1. the property is not mutable (a mutable property never makes a result contextually immutable)
           // 2. it is immutable itself (otherwise being able to do this would be pointless, as nothing would be contextually immutable anyway)
           boolean canReturnAgainstContextualImmutability = !property.isMutable() && property.isGetterImmutable();
-          resolveTopLevelBlock(property.getGetterBlock(), typeDefinition, compilationUnit, property.isGetterImmutable(), canReturnAgainstContextualImmutability, property);
+          resolveTopLevelBlock(property.getGetterBlock(), typeDefinition, compilationUnit, property.isStatic(), property.isGetterImmutable(), canReturnAgainstContextualImmutability, property);
         }
         catch (ConceptualException e)
         {
@@ -708,7 +757,7 @@ public class Resolver
       {
         try
         {
-          resolveTopLevelBlock(property.getSetterBlock(), typeDefinition, compilationUnit, property.isSetterImmutable(), false, property);
+          resolveTopLevelBlock(property.getSetterBlock(), typeDefinition, compilationUnit, property.isStatic(), property.isSetterImmutable(), false, property);
         }
         catch (ConceptualException e)
         {
@@ -719,7 +768,7 @@ public class Resolver
       {
         try
         {
-          resolveTopLevelBlock(property.getConstructorBlock(), typeDefinition, compilationUnit, property.isConstructorImmutable(), false, property);
+          resolveTopLevelBlock(property.getConstructorBlock(), typeDefinition, compilationUnit, property.isStatic(), property.isConstructorImmutable(), false, property);
         }
         catch (ConceptualException e)
         {
@@ -733,7 +782,7 @@ public class Resolver
       {
         try
         {
-          resolveTopLevelBlock(method.getBlock(), typeDefinition, compilationUnit, method.isImmutable(), false, null);
+          resolveTopLevelBlock(method.getBlock(), typeDefinition, compilationUnit, method.isStatic(), method.isImmutable(), false, null);
         }
         catch (ConceptualException e)
         {
@@ -748,35 +797,67 @@ public class Resolver
     }
   }
 
-  private void resolve(Type type, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
+  private void resolve(Type type, TypeDefinition enclosingDefinition, CompilationUnit compilationUnit) throws NameNotResolvedException, ConceptualException
   {
     if (type instanceof ArrayType)
     {
-      resolve(((ArrayType) type).getBaseType(), compilationUnit);
+      resolve(((ArrayType) type).getBaseType(), enclosingDefinition, compilationUnit);
     }
     else if (type instanceof FunctionType)
     {
       FunctionType functionType = (FunctionType) type;
-      resolve(functionType.getReturnType(), compilationUnit);
+      resolve(functionType.getReturnType(), enclosingDefinition, compilationUnit);
       for (Type parameterType : functionType.getParameterTypes())
       {
-        resolve(parameterType, compilationUnit);
+        resolve(parameterType, enclosingDefinition, compilationUnit);
       }
       for (Type thrownType : functionType.getThrownTypes())
       {
-        resolve(thrownType, compilationUnit);
+        resolve(thrownType, enclosingDefinition, compilationUnit);
       }
-      TypeChecker.checkFunctionType(functionType);
     }
     else if (type instanceof NamedType)
     {
       NamedType namedType = (NamedType) type;
-      if (namedType.getResolvedTypeDefinition() != null)
+      if (namedType.getResolvedTypeDefinition() != null || namedType.getResolvedTypeParameter() != null)
       {
         return;
       }
 
       String[] names = namedType.getQualifiedName().getNames();
+      // start by looking up the first name in the current type's TypeParameters
+      if (enclosingDefinition != null)
+      {
+        TypeParameter[] typeParameters = null;
+        if (enclosingDefinition instanceof ClassDefinition)
+        {
+          typeParameters = ((ClassDefinition) enclosingDefinition).getTypeParameters();
+        }
+        else if (enclosingDefinition instanceof InterfaceDefinition)
+        {
+          typeParameters = ((InterfaceDefinition) enclosingDefinition).getTypeParameters();
+        }
+        else if (enclosingDefinition instanceof CompoundDefinition)
+        {
+          typeParameters = ((CompoundDefinition) enclosingDefinition).getTypeParameters();
+        }
+        if (typeParameters != null)
+        {
+          for (TypeParameter typeParameter : typeParameters)
+          {
+            if (names[0].equals(typeParameter.getName()))
+            {
+              if (names.length > 1)
+              {
+                throw new NameNotResolvedException("Unable to resolve '" + names[1] + "': type parameters do not have sub-types", namedType.getLexicalPhrase());
+              }
+              namedType.setResolvedTypeParameter(typeParameter);
+              return;
+            }
+          }
+        }
+      }
+
       // start by looking up the first name in the compilation unit
       TypeDefinition currentDefinition = compilationUnit == null ? null : compilationUnit.getTypeDefinition(names[0]);
       PackageNode currentPackage = null;
@@ -865,6 +946,25 @@ public class Resolver
         throw new NameNotResolvedException("Unable to resolve: " + namedType.getQualifiedName(), namedType.getLexicalPhrase());
       }
       namedType.setResolvedTypeDefinition(currentDefinition);
+      if (namedType.getTypeArguments() != null)
+      {
+        CoalescedConceptualException coalescedException = null;
+        for (Type typeArgument : namedType.getTypeArguments())
+        {
+          try
+          {
+            resolve(typeArgument, enclosingDefinition, compilationUnit);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+        if (coalescedException != null)
+        {
+          throw coalescedException;
+        }
+      }
     }
     else if (type instanceof ObjectType)
     {
@@ -879,12 +979,24 @@ public class Resolver
       TupleType tupleType = (TupleType) type;
       for (Type subType : tupleType.getSubTypes())
       {
-        resolve(subType, compilationUnit);
+        resolve(subType, enclosingDefinition, compilationUnit);
       }
     }
     else if (type instanceof VoidType)
     {
       // do nothing
+    }
+    else if (type instanceof WildcardType)
+    {
+      WildcardType wildcardType = (WildcardType) type;
+      for (Type superType : wildcardType.getSuperTypes())
+      {
+        resolve(superType, enclosingDefinition, compilationUnit);
+      }
+      for (Type subType : wildcardType.getSubTypes())
+      {
+        resolve(subType, enclosingDefinition, compilationUnit);
+      }
     }
     else
     {
@@ -892,14 +1004,14 @@ public class Resolver
     }
   }
 
-  private void resolveTopLevelBlock(Block block, TypeDefinition enclosingDefinition, CompilationUnit compilationUnit, boolean inImmutableContext, boolean canReturnAgainstContextualImmutability, Property enclosingProperty) throws ConceptualException
+  private void resolveTopLevelBlock(Block block, TypeDefinition enclosingDefinition, CompilationUnit compilationUnit, boolean inStaticContext, boolean inImmutableContext, boolean canReturnAgainstContextualImmutability, Property enclosingProperty) throws ConceptualException
   {
     CoalescedConceptualException coalescedException = null;
     for (Statement statement : block.getStatements())
     {
       try
       {
-        resolve(statement, block, enclosingDefinition, compilationUnit, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
+        resolve(statement, block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -912,7 +1024,7 @@ public class Resolver
     }
   }
 
-  private void resolve(Statement statement, Block enclosingBlock, TypeDefinition enclosingDefinition, CompilationUnit compilationUnit, boolean inImmutableContext, boolean canReturnAgainstContextualImmutability, Property enclosingProperty) throws ConceptualException
+  private void resolve(Statement statement, Block enclosingBlock, TypeDefinition enclosingDefinition, CompilationUnit compilationUnit, boolean inStaticContext, boolean inImmutableContext, boolean canReturnAgainstContextualImmutability, Property enclosingProperty) throws ConceptualException
   {
     if (statement instanceof AssignStatement)
     {
@@ -920,11 +1032,11 @@ public class Resolver
       Type type = assignStatement.getType();
       if (type != null)
       {
-        resolve(type, compilationUnit);
+        resolve(type, enclosingDefinition, compilationUnit);
       }
       CoalescedConceptualException coalescedException = null;
       Assignee[] assignees = assignStatement.getAssignees();
-      boolean distributedTupleType = type != null && type instanceof TupleType && !type.isNullable() && ((TupleType) type).getSubTypes().length == assignees.length;
+      boolean distributedTupleType = type != null && type instanceof TupleType && !type.canBeNullable() && ((TupleType) type).getSubTypes().length == assignees.length;
       boolean madeVariableDeclaration = false;
       List<VariableAssignee> alreadyDeclaredVariables = new LinkedList<VariableAssignee>();
       for (int i = 0; i < assignees.length; i++)
@@ -952,18 +1064,29 @@ public class Resolver
             enclosingBlock.addVariable(variable);
             madeVariableDeclaration = true;
           }
+          MemberReference<?> memberReference = null;
           if (variable == null && enclosingDefinition != null)
           {
             // we haven't got a declared variable, so try to resolve it outside the block
             Field field = null;
             Property property = null;
-            for (TypeDefinition t : enclosingDefinition.getInheritanceLinearisation())
+            for (final NamedType superType : enclosingDefinition.getInheritanceLinearisation())
             {
+              TypeDefinition superTypeDefinition = superType.getResolvedTypeDefinition();
               // note: this allows static fields from the superclass to be resolved, which is possible inside the class itself, but not by specifying an explicit type
-              field = t.getField(variableAssignee.getVariableName());
-              property = t.getProperty(variableAssignee.getVariableName());
+              field = superTypeDefinition.getField(variableAssignee.getVariableName());
+              property = superTypeDefinition.getProperty(variableAssignee.getVariableName());
               if (field != null || property != null)
               {
+                GenericTypeSpecialiser genericTypeSpecialiser = new GenericTypeSpecialiser(superType);
+                if (field != null)
+                {
+                  memberReference = new FieldReference(field, genericTypeSpecialiser);
+                }
+                else // property != null
+                {
+                  memberReference = new PropertyReference(property, genericTypeSpecialiser);
+                }
                 break;
               }
             }
@@ -1004,6 +1127,7 @@ public class Resolver
           else
           {
             variableAssignee.setResolvedVariable(variable);
+            variableAssignee.setResolvedMemberReference(memberReference);
           }
         }
         else if (assignees[i] instanceof ArrayElementAssignee)
@@ -1011,7 +1135,7 @@ public class Resolver
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
           try
           {
-            resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+            resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
           }
           catch (ConceptualException e)
           {
@@ -1019,7 +1143,7 @@ public class Resolver
           }
           try
           {
-            resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+            resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
           }
           catch (ConceptualException e)
           {
@@ -1033,7 +1157,7 @@ public class Resolver
           // use the expression resolver to resolve the contained field access expression
           try
           {
-            resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+            resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
           }
           catch (ConceptualException e)
           {
@@ -1079,7 +1203,7 @@ public class Resolver
       {
         try
         {
-          resolve(assignStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+          resolve(assignStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
         }
         catch (ConceptualException e)
         {
@@ -1103,7 +1227,7 @@ public class Resolver
       {
         try
         {
-          resolve(s, subBlock, enclosingDefinition, compilationUnit, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
+          resolve(s, subBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
         }
         catch (ConceptualException e)
         {
@@ -1132,14 +1256,14 @@ public class Resolver
       {
         try
         {
-          resolve(argument, enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+          resolve(argument, enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
         }
         catch (ConceptualException e)
         {
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
-      TypeDefinition constructorTypeDefinition;
+      NamedType constructorType;
       if (delegateConstructorStatement.isSuperConstructor())
       {
         if (enclosingDefinition instanceof CompoundDefinition)
@@ -1152,34 +1276,45 @@ public class Resolver
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A super(...) constructor can only be called from inside a class definition", delegateConstructorStatement.getLexicalPhrase()));
           throw coalescedException;
         }
-        constructorTypeDefinition = ((ClassDefinition) enclosingDefinition).getSuperClassDefinition();
+        constructorType = ((ClassDefinition) enclosingDefinition).getSuperType();
       }
       else
       {
-        constructorTypeDefinition = enclosingDefinition;
+        // create a NamedType from enclosingDefinition
+        TypeParameter[] typeParameters = enclosingDefinition.getTypeParameters();
+        Type[] typeArguments = null;
+        if (typeParameters != null)
+        {
+          typeArguments = new Type[typeParameters.length];
+          for (int i = 0; i < typeParameters.length; ++i)
+          {
+            typeArguments[i] = new NamedType(false, false, false, typeParameters[i]);
+          }
+        }
+        constructorType = new NamedType(false, false, enclosingDefinition, typeArguments);
       }
       if (coalescedException != null)
       {
         throw coalescedException;
       }
-      if (constructorTypeDefinition == null)
+      if (constructorType == null)
       {
         // if the resolved type definition is null, it means that the object constructor should be called (which is a no-op, but runs the initialiser)
-        delegateConstructorStatement.setResolvedConstructor(null);
+        delegateConstructorStatement.setResolvedConstructorReference(null);
       }
       else
       {
-        Constructor resolvedConstructor = resolveConstructor(constructorTypeDefinition, arguments, delegateConstructorStatement.getLexicalPhrase());
-        delegateConstructorStatement.setResolvedConstructor(resolvedConstructor);
+        ConstructorReference resolvedConstructor = resolveConstructor(constructorType, arguments, delegateConstructorStatement.getLexicalPhrase(), enclosingDefinition, inStaticContext);
+        delegateConstructorStatement.setResolvedConstructorReference(resolvedConstructor);
       }
       // if there was no matching constructor, the resolved constructor call may not type check
       // in this case, we should point out this error before we run the cycle checker, because the cycle checker could find that the constructor is recursive
       // so run the type checker on this statement now
-      TypeChecker.checkTypes(delegateConstructorStatement, null); // give a null return type here, since the type checker will not need to use it
+      TypeChecker.checkTypes(delegateConstructorStatement, null, enclosingDefinition, inStaticContext); // give a null return type here, since the type checker will not need to use it
     }
     else if (statement instanceof ExpressionStatement)
     {
-      resolve(((ExpressionStatement) statement).getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+      resolve(((ExpressionStatement) statement).getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
     }
     else if (statement instanceof ForStatement)
     {
@@ -1198,7 +1333,7 @@ public class Resolver
       {
         try
         {
-          resolve(init, block, enclosingDefinition, compilationUnit, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
+          resolve(init, block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
         }
         catch (ConceptualException e)
         {
@@ -1209,7 +1344,7 @@ public class Resolver
       {
         try
         {
-          resolve(condition, block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+          resolve(condition, block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
         }
         catch (ConceptualException e)
         {
@@ -1220,7 +1355,7 @@ public class Resolver
       {
         try
         {
-          resolve(update, block, enclosingDefinition, compilationUnit, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
+          resolve(update, block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
         }
         catch (ConceptualException e)
         {
@@ -1231,7 +1366,7 @@ public class Resolver
       {
         try
         {
-          resolve(s, block, enclosingDefinition, compilationUnit, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
+          resolve(s, block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
         }
         catch (ConceptualException e)
         {
@@ -1249,7 +1384,7 @@ public class Resolver
       CoalescedConceptualException coalescedException = null;
       try
       {
-        resolve(ifStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(ifStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -1257,7 +1392,7 @@ public class Resolver
       }
       try
       {
-        resolve(ifStatement.getThenClause(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
+        resolve(ifStatement.getThenClause(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -1267,7 +1402,7 @@ public class Resolver
       {
         try
         {
-          resolve(ifStatement.getElseClause(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
+          resolve(ifStatement.getElseClause(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
         }
         catch (ConceptualException e)
         {
@@ -1287,17 +1422,28 @@ public class Resolver
       {
         VariableAssignee variableAssignee = (VariableAssignee) assignee;
         Variable variable = enclosingBlock.getVariable(variableAssignee.getVariableName());
+        MemberReference<?> memberReference = null;
         if (variable == null && enclosingDefinition != null)
         {
           Field field = null;
           Property property = null;
-          for (TypeDefinition t : enclosingDefinition.getInheritanceLinearisation())
+          for (final NamedType superType : enclosingDefinition.getInheritanceLinearisation())
           {
+            TypeDefinition superTypeDefinition = superType.getResolvedTypeDefinition();
             // note: this allows static fields from the superclass to be resolved, which is possible inside the class itself, but not by specifying an explicit type
-            field = t.getField(variableAssignee.getVariableName());
-            property = t.getProperty(variableAssignee.getVariableName());
+            field = superTypeDefinition.getField(variableAssignee.getVariableName());
+            property = superTypeDefinition.getProperty(variableAssignee.getVariableName());
             if (field != null || property != null)
             {
+              GenericTypeSpecialiser genericTypeSpecialiser = new GenericTypeSpecialiser(superType);
+              if (field != null)
+              {
+                memberReference = new FieldReference(field, genericTypeSpecialiser);
+              }
+              else // property != null
+              {
+                memberReference = new PropertyReference(property, genericTypeSpecialiser);
+              }
               break;
             }
           }
@@ -1336,6 +1482,7 @@ public class Resolver
           throw new NameNotResolvedException("Unable to resolve: " + variableAssignee.getVariableName(), variableAssignee.getLexicalPhrase());
         }
         variableAssignee.setResolvedVariable(variable);
+        variableAssignee.setResolvedMemberReference(memberReference);
       }
       else if (assignee instanceof ArrayElementAssignee)
       {
@@ -1343,7 +1490,7 @@ public class Resolver
         CoalescedConceptualException coalescedException = null;
         try
         {
-          resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+          resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
         }
         catch (ConceptualException e)
         {
@@ -1351,7 +1498,7 @@ public class Resolver
         }
         try
         {
-          resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+          resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
         }
         catch (ConceptualException e)
         {
@@ -1370,7 +1517,7 @@ public class Resolver
       {
         FieldAssignee fieldAssignee = (FieldAssignee) assignee;
         // use the expression resolver to resolve the contained field access expression
-        resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       else
       {
@@ -1384,7 +1531,7 @@ public class Resolver
       Expression returnedExpression = returnStatement.getExpression();
       if (returnedExpression != null)
       {
-        resolve(returnedExpression, enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(returnedExpression, enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
     }
     else if (statement instanceof ShorthandAssignStatement)
@@ -1397,17 +1544,28 @@ public class Resolver
         {
           VariableAssignee variableAssignee = (VariableAssignee) assignee;
           Variable variable = enclosingBlock.getVariable(variableAssignee.getVariableName());
+          MemberReference<?> memberReference = null;
           if (variable == null && enclosingDefinition != null)
           {
             Field field = null;
             Property property = null;
-            for (TypeDefinition t : enclosingDefinition.getInheritanceLinearisation())
+            for (final NamedType superType : enclosingDefinition.getInheritanceLinearisation())
             {
+              TypeDefinition superTypeDefinition = superType.getResolvedTypeDefinition();
               // note: this allows static fields from the superclass to be resolved, which is possible inside the class itself, but not by specifying an explicit type
-              field = t.getField(variableAssignee.getVariableName());
-              property = t.getProperty(variableAssignee.getVariableName());
+              field = superTypeDefinition.getField(variableAssignee.getVariableName());
+              property = superTypeDefinition.getProperty(variableAssignee.getVariableName());
               if (field != null || property != null)
               {
+                GenericTypeSpecialiser genericTypeSpecialiser = new GenericTypeSpecialiser(superType);
+                if (field != null)
+                {
+                  memberReference = new FieldReference(field, genericTypeSpecialiser);
+                }
+                else // property != null
+                {
+                  memberReference = new PropertyReference(property, genericTypeSpecialiser);
+                }
                 break;
               }
             }
@@ -1448,6 +1606,7 @@ public class Resolver
           else
           {
             variableAssignee.setResolvedVariable(variable);
+            variableAssignee.setResolvedMemberReference(memberReference);
           }
         }
         else if (assignee instanceof ArrayElementAssignee)
@@ -1455,7 +1614,7 @@ public class Resolver
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
           try
           {
-            resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+            resolve(arrayElementAssignee.getArrayExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
           }
           catch (ConceptualException e)
           {
@@ -1463,7 +1622,7 @@ public class Resolver
           }
           try
           {
-            resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+            resolve(arrayElementAssignee.getDimensionExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
           }
           catch (ConceptualException e)
           {
@@ -1476,7 +1635,7 @@ public class Resolver
           // use the expression resolver to resolve the contained field access expression
           try
           {
-            resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+            resolve(fieldAssignee.getFieldAccessExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
           }
           catch (ConceptualException e)
           {
@@ -1494,7 +1653,7 @@ public class Resolver
       }
       try
       {
-        resolve(shorthandAssignStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(shorthandAssignStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -1507,7 +1666,7 @@ public class Resolver
     }
     else if (statement instanceof ThrowStatement)
     {
-      resolve(((ThrowStatement) statement).getThrownExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+      resolve(((ThrowStatement) statement).getThrownExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
     }
     else if (statement instanceof TryStatement)
     {
@@ -1515,7 +1674,7 @@ public class Resolver
       CoalescedConceptualException coalescedException = null;
       try
       {
-        resolve(tryStatement.getTryBlock(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
+        resolve(tryStatement.getTryBlock(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -1532,7 +1691,7 @@ public class Resolver
         {
           try
           {
-            resolve(t, compilationUnit);
+            resolve(t, enclosingDefinition, compilationUnit);
           }
           catch (ConceptualException e)
           {
@@ -1547,7 +1706,7 @@ public class Resolver
         Type variableType;
         try
         {
-          variableType = TypeChecker.checkCatchClauseTypes(catchClause.getCaughtTypes());
+          variableType = TypeChecker.checkCatchClauseTypes(catchClause.getCaughtTypes(), enclosingDefinition, inStaticContext);
         }
         catch (ConceptualException e)
         {
@@ -1577,7 +1736,7 @@ public class Resolver
         {
           try
           {
-            resolve(s, catchBlock, enclosingDefinition, compilationUnit, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
+            resolve(s, catchBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
           }
           catch (ConceptualException e)
           {
@@ -1595,7 +1754,7 @@ public class Resolver
       {
         try
         {
-          resolve(tryStatement.getFinallyBlock(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
+          resolve(tryStatement.getFinallyBlock(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
         }
         catch (ConceptualException e)
         {
@@ -1613,7 +1772,7 @@ public class Resolver
       CoalescedConceptualException coalescedException = null;
       try
       {
-        resolve(whileStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(whileStatement.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -1621,7 +1780,7 @@ public class Resolver
       }
       try
       {
-        resolve(whileStatement.getStatement(), enclosingBlock, enclosingDefinition, compilationUnit, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
+        resolve(whileStatement.getStatement(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -1638,14 +1797,14 @@ public class Resolver
     }
   }
 
-  private void resolve(Expression expression, Block block, TypeDefinition enclosingDefinition, CompilationUnit compilationUnit, boolean inImmutableContext, Property enclosingProperty) throws ConceptualException
+  private void resolve(Expression expression, Block block, TypeDefinition enclosingDefinition, CompilationUnit compilationUnit, boolean inStaticContext, boolean inImmutableContext, Property enclosingProperty) throws ConceptualException
   {
     if (expression instanceof ArithmeticExpression)
     {
       CoalescedConceptualException coalescedException = null;
       try
       {
-        resolve(((ArithmeticExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(((ArithmeticExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -1653,7 +1812,7 @@ public class Resolver
       }
       try
       {
-        resolve(((ArithmeticExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(((ArithmeticExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -1670,7 +1829,7 @@ public class Resolver
       CoalescedConceptualException coalescedException = null;
       try
       {
-        resolve(arrayAccessExpression.getArrayExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(arrayAccessExpression.getArrayExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -1678,7 +1837,7 @@ public class Resolver
       }
       try
       {
-        resolve(arrayAccessExpression.getDimensionExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(arrayAccessExpression.getDimensionExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -1695,7 +1854,7 @@ public class Resolver
       CoalescedConceptualException coalescedException = null;
       try
       {
-        resolve(creationExpression.getDeclaredType(), compilationUnit);
+        resolve(creationExpression.getDeclaredType(), enclosingDefinition, compilationUnit);
       }
       catch (ConceptualException e)
       {
@@ -1707,7 +1866,7 @@ public class Resolver
         {
           try
           {
-            resolve(expr, block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+            resolve(expr, block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
           }
           catch (ConceptualException e)
           {
@@ -1721,7 +1880,7 @@ public class Resolver
         {
           try
           {
-            resolve(expr, block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+            resolve(expr, block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
           }
           catch (ConceptualException e)
           {
@@ -1736,7 +1895,7 @@ public class Resolver
     }
     else if (expression instanceof BitwiseNotExpression)
     {
-      resolve(((BitwiseNotExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+      resolve(((BitwiseNotExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
     }
     else if (expression instanceof BooleanLiteralExpression)
     {
@@ -1744,11 +1903,11 @@ public class Resolver
     }
     else if (expression instanceof BooleanNotExpression)
     {
-      resolve(((BooleanNotExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+      resolve(((BooleanNotExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
     }
     else if (expression instanceof BracketedExpression)
     {
-      resolve(((BracketedExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+      resolve(((BracketedExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
     }
     else if (expression instanceof CastExpression)
     {
@@ -1757,7 +1916,7 @@ public class Resolver
       CoalescedConceptualException coalescedException = null;
       try
       {
-        resolve(castType, compilationUnit);
+        resolve(castType, enclosingDefinition, compilationUnit);
 
         // before resolving the casted expression, add hints for any FieldAccessExpressions or VariableExpressions that are directly inside it
         Expression subExpression = castExpression.getExpression();
@@ -1797,7 +1956,7 @@ public class Resolver
 
       try
       {
-        resolve(castExpression.getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(castExpression.getExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -1812,22 +1971,25 @@ public class Resolver
     {
       CreationExpression creationExpression = (CreationExpression) expression;
       CoalescedConceptualException coalescedException = null;
-      NamedType type = new NamedType(false, false, creationExpression.getQualifiedName(), null);
+      NamedType type = creationExpression.getCreatedType();
       try
       {
-        resolve(type, compilationUnit);
-        creationExpression.setResolvedType(type);
+        resolve(type, enclosingDefinition, compilationUnit);
       }
       catch (ConceptualException e)
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+      if (type.getResolvedTypeDefinition() == null)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot create an instance of a type parameter", type.getLexicalPhrase()));
       }
       Expression[] arguments = creationExpression.getArguments();
       for (Expression argument : arguments)
       {
         try
         {
-          resolve(argument, block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+          resolve(argument, block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
         }
         catch (ConceptualException e)
         {
@@ -1838,15 +2000,15 @@ public class Resolver
       {
         throw coalescedException;
       }
-      Constructor resolvedConstructor = resolveConstructor(type.getResolvedTypeDefinition(), arguments, creationExpression.getLexicalPhrase());
-      creationExpression.setResolvedConstructor(resolvedConstructor);
+      ConstructorReference resolvedConstructor = resolveConstructor(type, arguments, creationExpression.getLexicalPhrase(), enclosingDefinition, inStaticContext);
+      creationExpression.setResolvedConstructorReference(resolvedConstructor);
     }
     else if (expression instanceof EqualityExpression)
     {
       CoalescedConceptualException coalescedException = null;
       try
       {
-        resolve(((EqualityExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(((EqualityExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -1854,7 +2016,7 @@ public class Resolver
       }
       try
       {
-        resolve(((EqualityExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(((EqualityExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -1875,17 +2037,18 @@ public class Resolver
       boolean baseIsStatic;
       if (fieldAccessExpression.getBaseExpression() != null)
       {
-        resolve(fieldAccessExpression.getBaseExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(fieldAccessExpression.getBaseExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
 
         // find the type of the sub-expression, by calling the type checker
         // this is fine as long as we resolve all of the sub-expression first
-        baseType = TypeChecker.checkTypes(fieldAccessExpression.getBaseExpression());
+        baseType = TypeChecker.checkTypes(fieldAccessExpression.getBaseExpression(), enclosingDefinition, inStaticContext);
         baseIsStatic = false;
       }
       else if (fieldAccessExpression.getBaseType() != null)
       {
         baseType = fieldAccessExpression.getBaseType();
-        resolve(baseType, compilationUnit);
+        resolve(baseType, enclosingDefinition, compilationUnit);
+        TypeChecker.checkType(baseType, true, enclosingDefinition, inStaticContext);
         baseIsStatic = true;
       }
       else
@@ -1893,11 +2056,11 @@ public class Resolver
         throw new IllegalStateException("Unknown base type for a field access: " + fieldAccessExpression);
       }
 
-      Set<Member> memberSet = baseType.getMembers(fieldName);
-      Set<Member> staticFiltered = new HashSet<Member>();
-      for (Member member : memberSet)
+      Set<MemberReference<?>> memberSet = baseType.getMembers(fieldName);
+      Set<MemberReference<?>> staticFiltered = new HashSet<MemberReference<?>>();
+      for (MemberReference<?> member : memberSet)
       {
-        if (member instanceof ArrayLengthMember)
+        if (member instanceof ArrayLengthMemberReference)
         {
           if (baseIsStatic)
           {
@@ -1905,23 +2068,23 @@ public class Resolver
           }
           staticFiltered.add(member);
         }
-        else if (member instanceof Field)
+        else if (member instanceof FieldReference)
         {
-          if (((Field) member).isStatic() == baseIsStatic)
+          if (((FieldReference) member).getReferencedMember().isStatic() == baseIsStatic)
           {
             staticFiltered.add(member);
           }
         }
-        else if (member instanceof Property)
+        else if (member instanceof PropertyReference)
         {
-          if (((Property) member).isStatic() == baseIsStatic)
+          if (((PropertyReference) member).getReferencedMember().isStatic() == baseIsStatic)
           {
             staticFiltered.add(member);
           }
         }
-        else if (member instanceof Method)
+        else if (member instanceof MethodReference)
         {
-          if (((Method) member).isStatic() == baseIsStatic)
+          if (((MethodReference) member).getReferencedMember().isStatic() == baseIsStatic)
           {
             staticFiltered.add(member);
           }
@@ -1936,14 +2099,14 @@ public class Resolver
       {
         throw new NameNotResolvedException("No such " + (baseIsStatic ? "static" : "non-static") + " member \"" + fieldName + "\" for type " + baseType, fieldAccessExpression.getLexicalPhrase());
       }
-      Member resolved = null;
+      MemberReference<?> resolved = null;
       if (staticFiltered.size() == 1)
       {
         resolved = staticFiltered.iterator().next();
       }
       else
       {
-        Set<Member> hintFiltered = applyTypeHints(staticFiltered, fieldAccessExpression.getTypeHint(), fieldAccessExpression.getReturnTypeHint(), fieldAccessExpression.getIsFunctionHint(), fieldAccessExpression.getIsAssignableHint());
+        Set<MemberReference<?>> hintFiltered = applyTypeHints(staticFiltered, fieldAccessExpression.getTypeHint(), fieldAccessExpression.getReturnTypeHint(), fieldAccessExpression.getIsFunctionHint(), fieldAccessExpression.getIsAssignableHint());
         if (hintFiltered.size() == 1)
         {
           resolved = hintFiltered.iterator().next();
@@ -1953,7 +2116,7 @@ public class Resolver
       {
         throw new ConceptualException("Multiple " + (baseIsStatic ? "static" : "non-static") + " members have the name '" + fieldName + "'", fieldAccessExpression.getLexicalPhrase());
       }
-      fieldAccessExpression.setResolvedMember(resolved);
+      fieldAccessExpression.setResolvedMemberReference(resolved);
     }
     else if (expression instanceof FloatingLiteralExpression)
     {
@@ -1968,8 +2131,8 @@ public class Resolver
       {
         try
         {
-          resolve(e, block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
-          TypeChecker.checkTypes(e);
+          resolve(e, block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
+          TypeChecker.checkTypes(e, enclosingDefinition, inStaticContext);
         }
         catch (ConceptualException exception)
         {
@@ -2004,8 +2167,8 @@ public class Resolver
       // this MUST be done first, so that local variables with function types are considered before outside methods
       try
       {
-        resolve(functionExpression, block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
-        expressionType = TypeChecker.checkTypes(functionExpression);
+        resolve(functionExpression, block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
+        expressionType = TypeChecker.checkTypes(functionExpression, enclosingDefinition, inStaticContext);
       }
       catch (NameNotResolvedException e)
       {
@@ -2030,10 +2193,10 @@ public class Resolver
           if (testExpression instanceof VariableExpression)
           {
             VariableExpression variableExpression = (VariableExpression) testExpression;
-            if (variableExpression.getResolvedMethod() != null)
+            if (variableExpression.getResolvedMemberReference() instanceof MethodReference) // "null instanceof Something" is always false
             {
               // the base resolved to a Method, so just resolve this FunctionCallExpression to the same Method
-              expr.setResolvedMethod(variableExpression.getResolvedMethod());
+              expr.setResolvedMethodReference((MethodReference) variableExpression.getResolvedMemberReference());
               if (variableExpression instanceof SuperVariableExpression)
               {
                 // this function call is of the form 'super.method()', so make it non-virtual
@@ -2045,11 +2208,11 @@ public class Resolver
           else if (testExpression instanceof FieldAccessExpression)
           {
             FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) testExpression;
-            Member resolvedMember = fieldAccessExpression.getResolvedMember();
-            if (resolvedMember instanceof Method)
+            MemberReference<?> resolvedMemberReference = fieldAccessExpression.getResolvedMemberReference();
+            if (resolvedMemberReference instanceof MethodReference)
             {
               // the base resolved to a Method, so just resolve this FunctionCallExpression to the same Method
-              expr.setResolvedMethod((Method) resolvedMember);
+              expr.setResolvedMethodReference((MethodReference) resolvedMemberReference);
               expr.setResolvedBaseExpression(fieldAccessExpression.getBaseExpression()); // this will be null for static field accesses
               expr.setResolvedNullTraversal(fieldAccessExpression.isNullTraversing());
               return;
@@ -2072,9 +2235,9 @@ public class Resolver
         functionExpression = ((BracketedExpression) functionExpression).getExpression();
       }
 
-      Map<Parameter[], Method> paramLists = new HashMap<Parameter[], Method>();
-      Map<Parameter[], Method> hintedParamLists = new HashMap<Parameter[], Method>();
-      Map<Method, Expression> methodBaseExpressions = new HashMap<Method, Expression>();
+      Map<Type[], MethodReference> paramTypeLists = new HashMap<Type[], MethodReference>();
+      Map<Type[], MethodReference> hintedParamLists = new HashMap<Type[], MethodReference>();
+      Map<MethodReference, Expression> methodBaseExpressions = new HashMap<MethodReference, Expression>();
       boolean isSuperAccess = false;
       if (functionExpression instanceof VariableExpression)
       {
@@ -2084,19 +2247,19 @@ public class Resolver
         // the sub-expression didn't resolve to a variable or a field, or we would have got a valid type back in expressionType
         if (enclosingDefinition != null)
         {
-          Set<Member> memberSet = new NamedType(false, false, enclosingDefinition).getMembers(name, !isSuperAccess, isSuperAccess);
-          memberSet = memberSet != null ? memberSet : new HashSet<Member>();
-          Set<Member> hintedMemberSet = applyTypeHints(memberSet, variableExpression.getTypeHint(), variableExpression.getReturnTypeHint(), variableExpression.getIsFunctionHint(), variableExpression.getIsAssignableHint());
-          for (Member m : memberSet)
+          Set<MemberReference<?>> memberSet = new NamedType(false, false, false, enclosingDefinition).getMembers(name, !isSuperAccess, isSuperAccess);
+          memberSet = memberSet != null ? memberSet : new HashSet<MemberReference<?>>();
+          Set<MemberReference<?>> hintedMemberSet = applyTypeHints(memberSet, variableExpression.getTypeHint(), variableExpression.getReturnTypeHint(), variableExpression.getIsFunctionHint(), variableExpression.getIsAssignableHint());
+          for (MemberReference<?> m : memberSet)
           {
-            if (m instanceof Method)
+            if (m instanceof MethodReference)
             {
-              Method method = (Method) m;
-              Parameter[] params = method.getParameters();
-              paramLists.put(params, method);
-              if (hintedMemberSet.contains(method))
+              MethodReference methodReference = (MethodReference) m;
+              Type[] parameterTypes = methodReference.getParameterTypes();
+              paramTypeLists.put(parameterTypes, methodReference);
+              if (hintedMemberSet.contains(methodReference))
               {
-                hintedParamLists.put(params, method);
+                hintedParamLists.put(parameterTypes, methodReference);
               }
               // leave methodBaseExpressions with a null value for this method, as we have no base expression
             }
@@ -2117,17 +2280,18 @@ public class Resolver
           boolean baseIsStatic;
           if (baseExpression != null)
           {
-            resolve(baseExpression, block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+            resolve(baseExpression, block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
 
             // find the type of the sub-expression, by calling the type checker
             // this is fine as long as we resolve all of the sub-expression first
-            baseType = TypeChecker.checkTypes(baseExpression);
+            baseType = TypeChecker.checkTypes(baseExpression, enclosingDefinition, inStaticContext);
             baseIsStatic = false;
           }
           else if (fieldAccessExpression.getBaseType() != null)
           {
             baseType = fieldAccessExpression.getBaseType();
-            resolve(baseType, compilationUnit);
+            resolve(baseType, enclosingDefinition, compilationUnit);
+            TypeChecker.checkType(baseType, true, enclosingDefinition, inStaticContext);
             baseIsStatic = true;
           }
           else
@@ -2135,21 +2299,21 @@ public class Resolver
             throw new IllegalStateException("Unknown base type for a field access: " + fieldAccessExpression);
           }
 
-          Set<Member> memberSet = baseType.getMembers(name);
-          memberSet = memberSet != null ? memberSet : new HashSet<Member>();
-          Set<Member> hintedMemberSet = applyTypeHints(memberSet, fieldAccessExpression.getTypeHint(), fieldAccessExpression.getReturnTypeHint(), fieldAccessExpression.getIsFunctionHint(), fieldAccessExpression.getIsAssignableHint());
-          for (Member member : memberSet)
+          Set<MemberReference<?>> memberSet = baseType.getMembers(name);
+          memberSet = memberSet != null ? memberSet : new HashSet<MemberReference<?>>();
+          Set<MemberReference<?>> hintedMemberSet = applyTypeHints(memberSet, fieldAccessExpression.getTypeHint(), fieldAccessExpression.getReturnTypeHint(), fieldAccessExpression.getIsFunctionHint(), fieldAccessExpression.getIsAssignableHint());
+          for (MemberReference<?> member : memberSet)
           {
             // only allow access to this method if it is called in the right way, depending on whether or not it is static
-            if (member instanceof Method && ((Method) member).isStatic() == baseIsStatic)
+            if (member instanceof MethodReference && ((MethodReference) member).getReferencedMember().isStatic() == baseIsStatic)
             {
-              Method method = (Method) member;
-              paramLists.put(method.getParameters(), method);
-              if (hintedMemberSet.contains(method))
+              MethodReference methodReference = (MethodReference) member;
+              paramTypeLists.put(methodReference.getParameterTypes(), methodReference);
+              if (hintedMemberSet.contains(methodReference))
               {
-                hintedParamLists.put(method.getParameters(), method);
+                hintedParamLists.put(methodReference.getParameterTypes(), methodReference);
               }
-              methodBaseExpressions.put(method, baseExpression);
+              methodBaseExpressions.put(methodReference, baseExpression);
             }
           }
         }
@@ -2168,7 +2332,7 @@ public class Resolver
       // if there are multiple parameter lists, try to narrow it down to one that is equivalent to the argument list
       if (hintedParamLists.size() > 1)
       {
-        Map<Parameter[], Method> backupHintedParamLists = new HashMap<Parameter[], Method>(hintedParamLists);
+        Map<Type[], MethodReference> backupHintedParamLists = new HashMap<Type[], MethodReference>(hintedParamLists);
         filterParameterLists(hintedParamLists.entrySet(), expr.getArguments(), true, false);
         // if we have filtered out all of the parameter lists, try to narrow it down again, but this time allow nullable versions of argument types for parameters
         if (hintedParamLists.isEmpty())
@@ -2180,29 +2344,29 @@ public class Resolver
       }
       if (hintedParamLists.size() == 1)
       {
-        paramLists = hintedParamLists;
+        paramTypeLists = hintedParamLists;
       }
       else
       {
         // try the same thing without using hintedParamLists
-        filterParameterLists(paramLists.entrySet(), expr.getArguments(), false, false);
-        if (paramLists.size() > 1)
+        filterParameterLists(paramTypeLists.entrySet(), expr.getArguments(), false, false);
+        if (paramTypeLists.size() > 1)
         {
-          Map<Parameter[], Method> backupParamLists = new HashMap<Parameter[], Method>(paramLists);
-          filterParameterLists(paramLists.entrySet(), expr.getArguments(), true, false);
-          if (paramLists.isEmpty())
+          Map<Type[], MethodReference> backupParamLists = new HashMap<Type[], MethodReference>(paramTypeLists);
+          filterParameterLists(paramTypeLists.entrySet(), expr.getArguments(), true, false);
+          if (paramTypeLists.isEmpty())
           {
-            paramLists = backupParamLists;
-            filterParameterLists(paramLists.entrySet(), expr.getArguments(), true, true);
+            paramTypeLists = backupParamLists;
+            filterParameterLists(paramTypeLists.entrySet(), expr.getArguments(), true, true);
           }
         }
       }
 
-      if (paramLists.size() > 1)
+      if (paramTypeLists.size() > 1)
       {
         throw new ConceptualException("Ambiguous method call, there are at least two applicable methods which take these arguments", expr.getLexicalPhrase());
       }
-      if (paramLists.isEmpty())
+      if (paramTypeLists.isEmpty())
       {
         // we didn't find anything, so rethrow the exception from earlier
         if (cachedException instanceof NameNotResolvedException)
@@ -2212,8 +2376,8 @@ public class Resolver
         throw (ConceptualException) cachedException;
       }
 
-      Entry<Parameter[], Method> entry = paramLists.entrySet().iterator().next();
-      expr.setResolvedMethod(entry.getValue());
+      Entry<Type[], MethodReference> entry = paramTypeLists.entrySet().iterator().next();
+      expr.setResolvedMethodReference(entry.getValue());
       // if the method call had no base expression, e.g. it was a VariableExpression being called, this will just set it to null
       expr.setResolvedBaseExpression(methodBaseExpressions.get(entry.getValue()));
       if (isSuperAccess)
@@ -2228,7 +2392,7 @@ public class Resolver
       CoalescedConceptualException coalescedException = null;
       try
       {
-        resolve(inlineIfExpression.getCondition(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(inlineIfExpression.getCondition(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -2236,7 +2400,7 @@ public class Resolver
       }
       try
       {
-        resolve(inlineIfExpression.getThenExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(inlineIfExpression.getThenExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -2244,7 +2408,7 @@ public class Resolver
       }
       try
       {
-        resolve(inlineIfExpression.getElseExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(inlineIfExpression.getElseExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -2261,7 +2425,7 @@ public class Resolver
       CoalescedConceptualException coalescedException = null;
       try
       {
-        resolve(instanceOfExpression.getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(instanceOfExpression.getExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -2269,7 +2433,7 @@ public class Resolver
       }
       try
       {
-        resolve(instanceOfExpression.getInstanceOfType(), compilationUnit);
+        resolve(instanceOfExpression.getInstanceOfType(), enclosingDefinition, compilationUnit);
       }
       catch (ConceptualException e)
       {
@@ -2289,7 +2453,7 @@ public class Resolver
       CoalescedConceptualException coalescedException = null;
       try
       {
-        resolve(((LogicalExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(((LogicalExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -2297,7 +2461,7 @@ public class Resolver
       }
       try
       {
-        resolve(((LogicalExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(((LogicalExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -2310,14 +2474,14 @@ public class Resolver
     }
     else if (expression instanceof MinusExpression)
     {
-      resolve(((MinusExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+      resolve(((MinusExpression) expression).getExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
     }
     else if (expression instanceof NullCoalescingExpression)
     {
       CoalescedConceptualException coalescedException = null;
       try
       {
-        resolve(((NullCoalescingExpression) expression).getNullableExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(((NullCoalescingExpression) expression).getNullableExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -2325,7 +2489,7 @@ public class Resolver
       }
       try
       {
-        resolve(((NullCoalescingExpression) expression).getAlternativeExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(((NullCoalescingExpression) expression).getAlternativeExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -2349,7 +2513,7 @@ public class Resolver
       CoalescedConceptualException coalescedException = null;
       try
       {
-        resolve(((RelationalExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(((RelationalExpression) expression).getLeftSubExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -2357,7 +2521,7 @@ public class Resolver
       }
       try
       {
-        resolve(((RelationalExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(((RelationalExpression) expression).getRightSubExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -2373,7 +2537,7 @@ public class Resolver
       CoalescedConceptualException coalescedException = null;
       try
       {
-        resolve(((ShiftExpression) expression).getLeftExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(((ShiftExpression) expression).getLeftExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -2381,7 +2545,7 @@ public class Resolver
       }
       try
       {
-        resolve(((ShiftExpression) expression).getRightExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+        resolve(((ShiftExpression) expression).getRightExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
       }
       catch (ConceptualException e)
       {
@@ -2415,7 +2579,7 @@ public class Resolver
       {
         try
         {
-          resolve(subExpressions[i], block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+          resolve(subExpressions[i], block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
         }
         catch (ConceptualException e)
         {
@@ -2430,7 +2594,7 @@ public class Resolver
     else if (expression instanceof TupleIndexExpression)
     {
       TupleIndexExpression indexExpression = (TupleIndexExpression) expression;
-      resolve(indexExpression.getExpression(), block, enclosingDefinition, compilationUnit, inImmutableContext, enclosingProperty);
+      resolve(indexExpression.getExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
     }
     else if (expression instanceof VariableExpression)
     {
@@ -2445,17 +2609,17 @@ public class Resolver
       }
       if (enclosingDefinition != null)
       {
-        Set<Member> members = new NamedType(false, false, enclosingDefinition).getMembers(expr.getName(), !isSuperAccess, isSuperAccess);
-        members = members != null ? members : new HashSet<Member>();
+        Set<MemberReference<?>> members = new NamedType(false, false, enclosingDefinition, null).getMembers(expr.getName(), !isSuperAccess, isSuperAccess);
+        members = members != null ? members : new HashSet<MemberReference<?>>();
 
-        Member resolved = null;
+        MemberReference<?> resolved = null;
         if (members.size() == 1)
         {
           resolved = members.iterator().next();
         }
         else
         {
-          Set<Member> filteredMembers = applyTypeHints(members, expr.getTypeHint(), expr.getReturnTypeHint(), expr.getIsFunctionHint(), expr.getIsAssignableHint());
+          Set<MemberReference<?>> filteredMembers = applyTypeHints(members, expr.getTypeHint(), expr.getReturnTypeHint(), expr.getIsFunctionHint(), expr.getIsAssignableHint());
           if (filteredMembers.size() == 1)
           {
             resolved = filteredMembers.iterator().next();
@@ -2468,23 +2632,25 @@ public class Resolver
 
         if (resolved != null)
         {
-          if (resolved instanceof Field)
+          if (resolved instanceof FieldReference)
           {
-            Field field = (Field) resolved;
-            if (field.isStatic())
+            FieldReference fieldReference = (FieldReference) resolved;
+            if (fieldReference.getReferencedMember().isStatic())
             {
-              var = field.getGlobalVariable();
+              var = fieldReference.getReferencedMember().getGlobalVariable();
             }
             else
             {
-              var = field.getMemberVariable();
+              var = fieldReference.getReferencedMember().getMemberVariable();
             }
             expr.setResolvedVariable(var);
+            expr.setResolvedMemberReference(fieldReference);
             return;
           }
-          else if (resolved instanceof Property)
+          else if (resolved instanceof PropertyReference)
           {
-            Property property = (Property) resolved;
+            PropertyReference propertyReference = (PropertyReference) resolved;
+            Property property = propertyReference.getReferencedMember();
             if (property == enclosingProperty)
             {
               if (property.isStatic())
@@ -2501,11 +2667,12 @@ public class Resolver
               var = property.getPseudoVariable();
             }
             expr.setResolvedVariable(var);
+            expr.setResolvedMemberReference(propertyReference);
             return;
           }
-          else if (resolved instanceof Method)
+          else if (resolved instanceof MethodReference)
           {
-            expr.setResolvedMethod((Method) resolved);
+            expr.setResolvedMemberReference(resolved);
             return;
           }
           throw new IllegalStateException("Unknown member type: " + resolved);
@@ -2528,33 +2695,33 @@ public class Resolver
    * @param isAssignableHint - true to hint that the result should be an assignable member, false to not hint anything
    * @return a set of only the Members which match the given hints
    */
-  private Set<Member> applyTypeHints(Set<Member> members, Type typeHint, Type returnTypeHint, boolean isFunctionHint, boolean isAssignableHint)
+  private Set<MemberReference<?>> applyTypeHints(Set<MemberReference<?>> members, Type typeHint, Type returnTypeHint, boolean isFunctionHint, boolean isAssignableHint)
   {
     // TODO: allow members which only match the typeHints and returnTypeHints if the result is being casted (i.e. check canAssign() in reverse, but perform the same checks as the TypeChecker)
     //       (this works, since typeHints and returnTypeHints are only added by casting)
-    Set<Member> filtered = new HashSet<Member>(members);
-    Iterator<Member> it = filtered.iterator();
+    Set<MemberReference<?>> filtered = new HashSet<MemberReference<?>>(members);
+    Iterator<MemberReference<?>> it = filtered.iterator();
     while (it.hasNext())
     {
-      Member member = it.next();
-      if (isAssignableHint && member instanceof Method)
+      MemberReference<?> member = it.next();
+      if (isAssignableHint && member instanceof MethodReference)
       {
         it.remove();
         continue;
       }
       if (isFunctionHint)
       {
-        if (member instanceof Field && !(((Field) member).getType() instanceof FunctionType))
+        if (member instanceof FieldReference && !(((FieldReference) member).getType() instanceof FunctionType))
         {
           it.remove();
           continue;
         }
-        if (member instanceof Property && !(((Property) member).getType() instanceof FunctionType))
+        if (member instanceof PropertyReference && !(((PropertyReference) member).getType() instanceof FunctionType))
         {
           it.remove();
           continue;
         }
-        if (returnTypeHint != null && member instanceof Method && !returnTypeHint.canAssign(((Method) member).getReturnType()))
+        if (returnTypeHint != null && member instanceof MethodReference && !returnTypeHint.canAssign(((MethodReference) member).getReturnType()))
         {
           it.remove();
           continue;
@@ -2562,26 +2729,20 @@ public class Resolver
       }
       if (typeHint != null)
       {
-        if (member instanceof Field && !typeHint.canAssign(((Field) member).getType()))
+        if (member instanceof FieldReference && !typeHint.canAssign(((FieldReference) member).getType()))
         {
           it.remove();
           continue;
         }
-        if (member instanceof Property && !typeHint.canAssign(((Property) member).getType()))
+        if (member instanceof PropertyReference && !typeHint.canAssign(((PropertyReference) member).getType()))
         {
           it.remove();
           continue;
         }
-        if (member instanceof Method)
+        if (member instanceof MethodReference)
         {
-          Method method = (Method) member;
-          Parameter[] parameters = method.getParameters();
-          Type[] parameterTypes = new Type[parameters.length];
-          for (int i = 0; i < parameters.length; ++i)
-          {
-            parameterTypes[i] = parameters[i].getType();
-          }
-          FunctionType functionType = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, method.getCheckedThrownTypes(), null);
+          MethodReference methodReference = (MethodReference) member;
+          FunctionType functionType = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), methodReference.getCheckedThrownTypes(), null);
           if (!typeHint.canAssign(functionType))
           {
             it.remove();
@@ -2594,28 +2755,28 @@ public class Resolver
   }
 
   /**
-   * Filters a set of parameter lists based on which lists can be assigned from the specified arguments.
-   * If ensureEquivalent is true, then this method will also remove all parameter lists which do not have types equivalent to the argument types.
+   * Filters a set of parameter type lists based on which lists can be assigned from the specified arguments.
+   * If ensureEquivalent is true, then this method will also remove all parameter type lists which are not equivalent to the argument types.
    * If allowNullable is true, then the equivalency check ignores the nullability of the parameter types.
-   * @param paramLists - the set of parameter lists to filter
-   * @param arguments - the arguments to filter the parameter lists based on
-   * @param ensureEquivalent - true to filter out parameter lists which do not have equivalent types to the arguments, false to just check whether they are assign-compatible
-   * @param allowNullable - true to ignore the nullability of the parameter types in the equivalence check, false to check for strict equivalence.
+   * @param paramTypeLists - the set of parameter type lists to filter
+   * @param arguments - the arguments to filter the parameter type lists based on
+   * @param ensureEquivalent - true to filter out parameter type lists which do not have equivalent types to the arguments, false to just check whether they are assign-compatible
+   * @param allowNullable - true to ignore the nullability of the parameter types in the equivalence check, false to check for strict equivalence
    * @param M - the Member type for the set of entries (this is never actually used)
    */
-  private <M extends Member> void filterParameterLists(Set<Entry<Parameter[], M>> paramLists, Expression[] arguments, boolean ensureEquivalent, boolean allowNullable)
+  private <M extends MemberReference<?>> void filterParameterLists(Set<Entry<Type[], M>> paramTypeLists, Expression[] arguments, boolean ensureEquivalent, boolean allowNullable)
   {
-    Iterator<Entry<Parameter[], M>> it = paramLists.iterator();
+    Iterator<Entry<Type[], M>> it = paramTypeLists.iterator();
     while (it.hasNext())
     {
-      Entry<Parameter[], M> entry = it.next();
-      Parameter[] parameters = entry.getKey();
-      boolean typesMatch = parameters.length == arguments.length;
+      Entry<Type[], M> entry = it.next();
+      Type[] parameterTypes = entry.getKey();
+      boolean typesMatch = parameterTypes.length == arguments.length;
       if (typesMatch)
       {
-        for (int i = 0; i < parameters.length; i++)
+        for (int i = 0; i < parameterTypes.length; i++)
         {
-          Type parameterType = parameters[i].getType();
+          Type parameterType = parameterTypes[i];
           Type argumentType = arguments[i].getType();
           if (!parameterType.canAssign(argumentType))
           {
@@ -2624,7 +2785,7 @@ public class Resolver
           }
           if (ensureEquivalent && !(parameterType.isEquivalent(argumentType) ||
                                     (argumentType instanceof NullType && parameterType.isNullable()) ||
-                                    (allowNullable && parameterType.isEquivalent(TypeChecker.findTypeWithNullability(argumentType, true)))))
+                                    (allowNullable && parameterType.isEquivalent(Type.findTypeWithNullability(argumentType, true)))))
           {
             typesMatch = false;
             break;
@@ -2640,68 +2801,76 @@ public class Resolver
 
   /**
    * Resolves a constructor call from the specified target type and argument list.
-   * This method runs the type checker on each of the arguments in order to determine their types.
-   * @param typeDefinition - the type which contains the constructor being called
+   * This method runs the type checker on each of the arguments in order to determine their types, so it needs to know the enclosing TypeDefinition and whether or not we are in a static context.
+   * @param creationType - the type which contains the constructor being called
    * @param arguments - the arguments being passed to the constructor
    * @param callerLexicalPhrase - the LexicalPhrase of the caller, to be used in any errors generated
-   * @return the Constructor resolved
+   * @param enclosingDefinition - the TypeDefinition which encloses the call to the constructor
+   * @param inStaticContext - true if the constructor call is in a static context, false otherwise
+   * @return the ConstructorReference resolved
    * @throws ConceptualException - if there was a conceptual problem resolving the Constructor
    */
-  private Constructor resolveConstructor(TypeDefinition typeDefinition, Expression[] arguments, LexicalPhrase callerLexicalPhrase) throws ConceptualException
+  private ConstructorReference resolveConstructor(final NamedType creationType, Expression[] arguments, LexicalPhrase callerLexicalPhrase, TypeDefinition enclosingDefinition, boolean inStaticContext) throws ConceptualException
   {
     Type[] argumentTypes = new Type[arguments.length];
     for (int i = 0; i < arguments.length; ++i)
     {
-      argumentTypes[i] = TypeChecker.checkTypes(arguments[i]);
+      argumentTypes[i] = TypeChecker.checkTypes(arguments[i], enclosingDefinition, inStaticContext);
     }
+    GenericTypeSpecialiser genericTypeSpecialiser = new GenericTypeSpecialiser(creationType);
     // resolve the constructor being called
+    TypeDefinition typeDefinition = creationType.getResolvedTypeDefinition();
     Collection<Constructor> constructors = typeDefinition.getUniqueConstructors();
-    Map<Parameter[], Constructor> parameterLists = new HashMap<Parameter[], Constructor>();
+    ConstructorReference[] constructorReferences = new ConstructorReference[constructors.size()];
+    Map<Type[], ConstructorReference> parameterTypeLists = new HashMap<Type[], ConstructorReference>();
+    int index = 0;
     for (Constructor constructor : constructors)
     {
-      parameterLists.put(constructor.getParameters(), constructor);
+      constructorReferences[index] = new ConstructorReference(constructor, genericTypeSpecialiser);
+      parameterTypeLists.put(constructorReferences[index].getParameterTypes(), constructorReferences[index]);
+      index++;
     }
-    filterParameterLists(parameterLists.entrySet(), arguments, false, false);
+    filterParameterLists(parameterTypeLists.entrySet(), arguments, false, false);
 
     // if there are multiple parameter lists, try to narrow it down to one that is equivalent to the argument list
-    if (parameterLists.size() > 1)
+    if (parameterTypeLists.size() > 1)
     {
-      Map<Parameter[], Constructor> backupParamLists = new HashMap<Parameter[], Constructor>(parameterLists);
+      Map<Type[], ConstructorReference> backupParamTypeLists = new HashMap<Type[], ConstructorReference>(parameterTypeLists);
 
-      filterParameterLists(parameterLists.entrySet(), arguments, true, false);
+      filterParameterLists(parameterTypeLists.entrySet(), arguments, true, false);
 
       // if we have filtered out all of the parameter lists, try to narrow it down again, but this time allow nullable versions of argument types for parameters
-      if (parameterLists.isEmpty())
+      if (parameterTypeLists.isEmpty())
       {
         // revert back to the unfiltered one, and refilter with a broader condition
-        parameterLists = backupParamLists;
-        filterParameterLists(parameterLists.entrySet(), arguments, true, true);
+        parameterTypeLists = backupParamTypeLists;
+        filterParameterLists(parameterTypeLists.entrySet(), arguments, true, true);
       }
     }
 
-    if (parameterLists.size() > 1)
+    if (parameterTypeLists.size() > 1)
     {
       throw new ConceptualException("Ambiguous constructor call, there are at least two applicable constructors which take these arguments", callerLexicalPhrase);
     }
-    if (!parameterLists.isEmpty())
+    if (!parameterTypeLists.isEmpty())
     {
-      return parameterLists.entrySet().iterator().next().getValue();
+      return parameterTypeLists.entrySet().iterator().next().getValue();
     }
     // since we failed to resolve the constructor, pick the most relevant one so that the type checker can point out exactly why it failed to match
-    Constructor mostRelevantConstructor = null;
+    ConstructorReference mostRelevantConstructorReference = null;
     int mostRelevantArgCount = -1;
-    for (Constructor constructor : constructors)
+    for (ConstructorReference constructorReference : constructorReferences)
     {
-      Parameter[] parameters = constructor.getParameters();
-      if (parameters.length == arguments.length)
+      Type[] parameterTypes = constructorReference.getParameterTypes();
+      if (parameterTypes.length == arguments.length)
       {
-        for (int i = 0; i < parameters.length; ++i)
+        for (int i = 0; i < parameterTypes.length; ++i)
         {
-          if (!parameters[i].getType().canAssign(argumentTypes[i]))
+          if (!parameterTypes[i].canAssign(argumentTypes[i]))
           {
             if (i + 1 > mostRelevantArgCount)
             {
-              mostRelevantConstructor = constructor;
+              mostRelevantConstructorReference = constructorReference;
               mostRelevantArgCount = i + 1;
             }
             break;
@@ -2709,13 +2878,13 @@ public class Resolver
         }
       }
     }
-    if (mostRelevantConstructor != null)
+    if (mostRelevantConstructorReference != null)
     {
-      return mostRelevantConstructor;
+      return mostRelevantConstructorReference;
     }
-    if (constructors.size() >= 1)
+    if (constructorReferences.length >= 1)
     {
-      return constructors.iterator().next();
+      return constructorReferences[0];
     }
     throw new ConceptualException("Cannot create a '" + typeDefinition.getQualifiedName() + "' - it has no constructors", callerLexicalPhrase);
   }

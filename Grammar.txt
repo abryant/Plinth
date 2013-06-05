@@ -1,17 +1,27 @@
+=============
+  Top Level
+=============
+
 CompilationUnit = Imports | PackageKeyword QName Semicolon Imports | CompilationUnit CompoundTypeDef | CompilationUnit ClassTypeDef | CompilationUnit InterfaceTypeDef
 
 Imports = epsilon | Imports ImportKeyword QName Semicolon | Imports ImportKeyword QName Dot Star Semicolon
 
-QName = Name | QName Dot Name
+====================
+  Type Definitions
+====================
 
-ClassTypeDef = OptionalModifiers ClassKeyword Name ImplementsClause LBrace MemberList RBrace |
-               OptionalModifiers ClassKeyword Name ExtendsKeyword QName ImplementsClause LBrace MemberList RBrace
-CompoundTypeDef = OptionalModifiers CompoundKeyword Name LBrace MemberList RBrace
-InterfaceTypeDef = OptionalModifiers InterfaceKeyword                              Name LBrace MemberList RBrace |
-                   OptionalModifiers InterfaceKeyword ExtendsKeyword InterfaceList Name LBrace MemberList RBrace
+ClassTypeDef = OptionalModifiers ClassKeyword Name OptionalTypeParameters                                     ImplementsClause LBrace MemberList RBrace
+             | OptionalModifiers ClassKeyword Name OptionalTypeParameters ExtendsKeyword NamedTypeNoModifiers ImplementsClause LBrace MemberList RBrace
+CompoundTypeDef = OptionalModifiers CompoundKeyword Name OptionalTypeParameters LBrace MemberList RBrace
+InterfaceTypeDef = OptionalModifiers InterfaceKeyword Name OptionalTypeParameters                              LBrace MemberList RBrace
+                 | OptionalModifiers InterfaceKeyword Name OptionalTypeParameters ExtendsKeyword InterfaceList LBrace MemberList RBrace
 
 ImplementsClause = epsilon | ImplementsKeyword InterfaceList
-InterfaceList = QName | InterfaceList Comma QName
+InterfaceList = NamedTypeNoModifiers | InterfaceList Comma NamedTypeNoModifiers
+
+===========
+  Members
+===========
 
 MemberList = epsilon |
              MemberList Initialiser |
@@ -61,8 +71,12 @@ ParameterList = LParen Parameters RParen | LParen RParen
 Parameters = OptionalModifiers Type Name | Parameters Comma OptionalModifiers Type Name
 
 ThrowsClause = epsilon | ThrowsKeyword ThrowsList
-ThrowsList = QName | UncheckedKeyword QName |
-             ThrowsList Comma QName | ThrowsList Comma UncheckedKeyword QName
+ThrowsList = NamedTypeNoModifiers | UncheckedKeyword NamedTypeNoModifiers |
+             ThrowsList Comma NamedTypeNoModifiers | ThrowsList Comma UncheckedKeyword NamedTypeNoModifiers
+
+==============
+  Statements
+==============
 
 Block = LBrace Statements RBrace | LBrace RBrace
 
@@ -71,7 +85,7 @@ Statement = Assignment | Block | BreakStatement | ContinueStatement | ForStateme
             ShorthandAssignment Semicolon |
             FunctionCallExpression Semicolon |
             CastKeyword LAngle Type RAngle FunctionCallExpression Semicolon |
-            ClassCreationExpression Semicolon |
+            CreationExpression Semicolon |
             ThisKeyword Arguments Semicolon | SuperKeyword Arguments Semicolon |
             ThrowKeyword Expression Semicolon
 
@@ -79,8 +93,8 @@ Assignee = AssigneeNoQName | QName
 AssigneeNoQName = Primary         LSquare Expression RSquare |
                   QName           LSquare Expression RSquare |
                   NestedQNameList LSquare Expression RSquare |
-                  PrimaryNoTrailingType Dot Name |
-                  Type DoubleColon Name |
+                  Primary Dot Name |
+                  TypeNoSimpleArguments DoubleColon Name |
                   Underscore
 AssigneeList = QName           Comma AssigneeList |
                AssigneeNoQName Comma AssigneeList |
@@ -89,8 +103,8 @@ AssigneeList = QName           Comma AssigneeList |
 DeclarationAssigneeList = Name | Underscore | DeclarationAssigneeList Comma Name | DeclarationAssigneeList Comma Underscore
 
 
-Assignment = Modifiers TypeNoQName     DeclarationAssigneeList Semicolon | Modifiers TypeNoQName     DeclarationAssigneeList Equals Expression Semicolon |
-                       TypeNoQName     DeclarationAssigneeList Semicolon |           TypeNoQName     DeclarationAssigneeList Equals Expression Semicolon |
+Assignment = Modifiers TypeNotQName    DeclarationAssigneeList Semicolon | Modifiers TypeNotQName    DeclarationAssigneeList Equals Expression Semicolon |
+                       TypeNotQName    DeclarationAssigneeList Semicolon |           TypeNotQName    DeclarationAssigneeList Equals Expression Semicolon |
              Modifiers QName           DeclarationAssigneeList Semicolon | Modifiers QName           DeclarationAssigneeList Equals Expression Semicolon |
                        QName           DeclarationAssigneeList Semicolon |           QName           DeclarationAssigneeList Equals Expression Semicolon |
              Modifiers NestedQNameList DeclarationAssigneeList Semicolon | Modifiers NestedQNameList DeclarationAssigneeList Equals Expression Semicolon |
@@ -126,102 +140,235 @@ ForUpdate = DoublePlus Assignee | DoubleMinus Assignee | AssigneeList Equals Exp
 ForStatement = ForKeyword LParen ForInit Expression Semicolon ForUpdate RParen Block
              | ForKeyword LParen ForInit            Semicolon ForUpdate RParen Block
 
-TypeNoQName = BooleanKeyword |                 QuestionMark BooleanKeyword |
-              DoubleKeyword  | FloatKeyword  | QuestionMark DoubleKeyword  | QuestionMark FloatKeyword  |
-              ULongKeyword   | LongKeyword   | QuestionMark ULongKeyword   | QuestionMark LongKeyword   |
-              UIntKeyword    | IntKeyword    | QuestionMark UIntKeyword    | QuestionMark IntKeyword    |
-              UShortKeyword  | ShortKeyword  | QuestionMark UShortKeyword  | QuestionMark ShortKeyword  |
-              UByteKeyword   | ByteKeyword   | QuestionMark UByteKeyword   | QuestionMark ByteKeyword   |
-              QuestionMark QName | QuestionMark Hash QName | Hash QName |
-              LSquare RSquare Type   | QuestionMark LSquare RSquare Type | Hash LSquare RSquare Type   | QuestionMark Hash LSquare RSquare Type |
-              LParen TypeListNoQName RParen | QuestionMark LParen TypeListNoQName RParen | QuestionMark NestedQNameList |
-              LBrace TypeList      Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace TypeList      Arrow ReturnType ThrowsClause RBrace |
-              LBrace TypeList Hash Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace TypeList Hash Arrow ReturnType ThrowsClause RBrace |
-              LBrace               Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace               Arrow ReturnType ThrowsClause RBrace |
-              LBrace          Hash Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace          Hash Arrow ReturnType ThrowsClause RBrace |
-              ObjectKeyword | QuestionMark ObjectKeyword | Hash ObjectKeyword | QuestionMark Hash ObjectKeyword
-TypeList = TypeListNoQName | QNameList
-Type = TypeNoQName | QName | NestedQNameList
-ReturnType = Type | VoidKeyword
-TypeListNoQName = QName           Comma TypeListNoQName |
-                  NestedQNameList Comma TypeListNoQName |
-                  TypeNoQName     Comma TypeListNoQName |
-                  TypeNoQName     Comma QNameList       |
-                  TypeNoQName
+=========
+  Types
+=========
 
+ReturnType = Type | VoidKeyword
+Type = TypeNotQName | QName | NestedQNameList
+TypeRAngle = TypeNotQName RAngle
+           | TypeTrailingArgsRAngle
+           | QName RAngle
+           | NestedQNameList RAngle
+TypeDoubleRAngle = TypeNotQName DoubleRAngle
+                 | QName DoubleRAngle
+                 | NestedQNameList DoubleRAngle
+
+TypeNotQName = BasicType | TypeTrailingArgs
+TypeNoSimpleArguments = BasicType | QName | NestedQNameList | ArrayTypeTrailingArgs
+
+TypeNoTrailingArgs = BasicType | QName | NestedQNameList
+
+// all types except:
+// * Pure QName Named types (i.e. just a QName without type modifiers or type arguments)
+// * Named types with type arguments
+// * NestedQNameList
+BasicType = BooleanKeyword |                 QuestionMark BooleanKeyword
+          | DoubleKeyword  | FloatKeyword  | QuestionMark DoubleKeyword  | QuestionMark FloatKeyword
+          | ULongKeyword   | LongKeyword   | QuestionMark ULongKeyword   | QuestionMark LongKeyword
+          | UIntKeyword    | IntKeyword    | QuestionMark UIntKeyword    | QuestionMark IntKeyword
+          | UShortKeyword  | ShortKeyword  | QuestionMark UShortKeyword  | QuestionMark ShortKeyword
+          | UByteKeyword   | ByteKeyword   | QuestionMark UByteKeyword   | QuestionMark ByteKeyword
+          |                   LSquare RSquare TypeNoTrailingArgs
+          | QuestionMark      LSquare RSquare TypeNoTrailingArgs
+          |              Hash LSquare RSquare TypeNoTrailingArgs
+          | QuestionMark Hash LSquare RSquare TypeNoTrailingArgs
+          | LBrace TypeList      Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace TypeList      Arrow ReturnType ThrowsClause RBrace
+          | LBrace TypeList Hash Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace TypeList Hash Arrow ReturnType ThrowsClause RBrace
+          | LBrace               Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace               Arrow ReturnType ThrowsClause RBrace
+          | LBrace          Hash Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace          Hash Arrow ReturnType ThrowsClause RBrace
+          |                   ObjectKeyword
+          | QuestionMark      ObjectKeyword
+          |              Hash ObjectKeyword
+          | QuestionMark Hash ObjectKeyword
+          |              LParen TypeListNotQName RParen
+          | QuestionMark LParen TypeListNotQName RParen
+          | QuestionMark NestedQNameList
+          | QuestionMark      QName
+          |              Hash QName
+          | QuestionMark Hash QName
+
+TypeList = TypeListNotQName | QNameList
+TypeListNotQName = QName           Comma TypeListNotQName
+                 | NestedQNameList Comma TypeListNotQName
+                 | TypeNotQName    Comma TypeListNotQName
+                 | TypeNotQName    Comma QNameList
+                 | TypeNotQName
+
+NamedTypeNoModifiers = QName | QName LAngle TypeArgumentListRAngle
+
+TypeTrailingArgs =                   QName LAngle TypeArgumentListRAngle
+                 | QuestionMark      QName LAngle TypeArgumentListRAngle
+                 |              Hash QName LAngle TypeArgumentListRAngle
+                 | QuestionMark Hash QName LAngle TypeArgumentListRAngle
+                 | ArrayTypeTrailingArgs
+TypeTrailingArgsRAngle =                   QName LAngle TypeArgumentListDoubleRAngle
+                       | QuestionMark      QName LAngle TypeArgumentListDoubleRAngle
+                       |              Hash QName LAngle TypeArgumentListDoubleRAngle
+                       | QuestionMark Hash QName LAngle TypeArgumentListDoubleRAngle
+                       | ArrayTypeTrailingArgsRAngle
+
+ArrayTypeTrailingArgs =                   LSquare RSquare TypeTrailingArgs
+                      | QuestionMark      LSquare RSquare TypeTrailingArgs
+                      |              Hash LSquare RSquare TypeTrailingArgs
+                      | QuestionMark Hash LSquare RSquare TypeTrailingArgs
+ArrayTypeTrailingArgsRAngle =                   LSquare RSquare TypeTrailingArgsRAngle
+                            | QuestionMark      LSquare RSquare TypeTrailingArgsRAngle
+                            |              Hash LSquare RSquare TypeTrailingArgsRAngle
+                            | QuestionMark Hash LSquare RSquare TypeTrailingArgsRAngle
+
+TypeArgumentListRAngle = TypeArgumentRAngle
+                       | TypeArgumentNotQName Comma TypeArgumentListRAngle
+                       | QName                Comma TypeArgumentListRAngle
+                       | NestedQNameList      Comma TypeArgumentListRAngle
+TypeArgumentListDoubleRAngle = TypeArgumentDoubleRAngle
+                             | TypeArgumentNotQName Comma TypeArgumentListDoubleRAngle
+                             | QName                Comma TypeArgumentListDoubleRAngle
+                             | NestedQNameList      Comma TypeArgumentListDoubleRAngle
+
+TypeArgumentNotQName = TypeNotQName | WildcardTypeArgument
+TypeArgumentRAngle = TypeRAngle | WildcardTypeArgumentRAngle
+TypeArgumentDoubleRAngle = TypeDoubleRAngle | WildcardTypeArgumentDoubleRAngle
+
+WildcardTypeArgument = QuestionMark
+                     | QuestionMark ExtendsKeyword TypeBoundList
+                     | QuestionMark SuperKeyword   TypeBoundList
+                     | QuestionMark ExtendsKeyword TypeBoundList SuperKeyword   TypeBoundList
+                     | QuestionMark SuperKeyword   TypeBoundList ExtendsKeyword TypeBoundList
+WildcardTypeArgumentRAngle = QuestionMark RAngle
+                           | QuestionMark ExtendsKeyword TypeBoundListRAngle
+                           | QuestionMark SuperKeyword   TypeBoundListRAngle
+                           | QuestionMark ExtendsKeyword TypeBoundList SuperKeyword   TypeBoundListRAngle
+                           | QuestionMark SuperKeyword   TypeBoundList ExtendsKeyword TypeBoundListRAngle
+WildcardTypeArgumentDoubleRAngle = QuestionMark DoubleRAngle
+                                 | QuestionMark ExtendsKeyword TypeBoundListDoubleRAngle
+                                 | QuestionMark SuperKeyword   TypeBoundListDoubleRAngle
+                                 | QuestionMark ExtendsKeyword TypeBoundList SuperKeyword   TypeBoundListDoubleRAngle
+                                 | QuestionMark SuperKeyword   TypeBoundList ExtendsKeyword TypeBoundListDoubleRAngle 
+
+TypeBoundList = Type | TypeBoundList Ampersand Type
+TypeBoundListRAngle = TypeRAngle | TypeBoundList Ampersand TypeRAngle
+TypeBoundListDoubleRAngle = TypeDoubleRAngle | TypeBoundList Ampersand TypeDoubleRAngle
+
+TypeParameter = Name
+              | Name ExtendsKeyword TypeBoundList
+              | Name SuperKeyword   TypeBoundList
+              | Name ExtendsKeyword TypeBoundList SuperKeyword   TypeBoundList
+              | Name SuperKeyword   TypeBoundList ExtendsKeyword TypeBoundList
+TypeParameterRAngle = Name RAngle
+                    | Name ExtendsKeyword TypeBoundListRAngle
+                    | Name SuperKeyword   TypeBoundListRAngle
+                    | Name ExtendsKeyword TypeBoundList SuperKeyword   TypeBoundListRAngle
+                    | Name SuperKeyword   TypeBoundList ExtendsKeyword TypeBoundListRAngle
+
+TypeParameterList = TypeParameter | TypeParameterList Comma TypeParameter
+TypeParameterListRAngle = TypeParameterRAngle | TypeParameterList Comma TypeParameterRAngle
+OptionalTypeParameters = LAngle TypeParameterListRAngle | epsilon
+
+===============
+  Expressions
+===============
 
 Expression = TupleExpression | QNameList
-TupleExpression = QName             Comma TupleExpression |
-                  NestedQNameList   Comma TupleExpression |
-                  ExpressionNoTuple Comma TupleExpression |
-                  ExpressionNoTuple Comma QNameList       |
-                  ExpressionNoTuple
-ExpressionNoTuple = LogicalExpression |
-                    LogicalExpression QuestionMark Expression Colon ExpressionNoTuple | QNameExpression QuestionMark Expression Colon ExpressionNoTuple |
-                    LogicalExpression QuestionMark Expression Colon QNameExpression   | QNameExpression QuestionMark Expression Colon QNameExpression   |
-                    LogicalExpression QuestionMarkColon ExpressionNoTuple | QNameExpression QuestionMarkColon ExpressionNoTuple | LogicalExpression QuestionMarkColon QNameExpression | QNameExpression QuestionMarkColon QNameExpression
-LogicalExpression = ComparisonExpression |
-                    LogicalExpression Ampersand       ComparisonExpression | QNameExpression Ampersand       ComparisonExpression | LogicalExpression Ampersand       QNameExpression | QNameExpression Ampersand       QNameExpression |
-                    LogicalExpression Pipe            ComparisonExpression | QNameExpression Pipe            ComparisonExpression | LogicalExpression Pipe            QNameExpression | QNameExpression Pipe            QNameExpression |
-                    LogicalExpression Caret           ComparisonExpression | QNameExpression Caret           ComparisonExpression | LogicalExpression Caret           QNameExpression | QNameExpression Caret           QNameExpression |
-                    LogicalExpression DoubleAmpersand ComparisonExpression | QNameExpression DoubleAmpersand ComparisonExpression | LogicalExpression DoubleAmpersand QNameExpression | QNameExpression DoubleAmpersand QNameExpression |
-                    LogicalExpression DoublePipe      ComparisonExpression | QNameExpression DoublePipe      ComparisonExpression | LogicalExpression DoublePipe      QNameExpression | QNameExpression DoublePipe      QNameExpression
-ComparisonExpression = InstanceOfExpression |
-                       InstanceOfExpression DoubleEquals          InstanceOfExpression | QNameExpression DoubleEquals          InstanceOfExpression | InstanceOfExpression DoubleEquals          QNameExpression | QNameExpression DoubleEquals          QNameExpression |
-                       InstanceOfExpression ExclamationMarkEquals InstanceOfExpression | QNameExpression ExclamationMarkEquals InstanceOfExpression | InstanceOfExpression ExclamationMarkEquals QNameExpression | QNameExpression ExclamationMarkEquals QNameExpression |
-                       InstanceOfExpression LAngle                InstanceOfExpression | QNameExpression LAngle                InstanceOfExpression | InstanceOfExpression LAngle                QNameExpression | QNameExpression LAngle                QNameExpression |
-                       InstanceOfExpression LAngleEquals          InstanceOfExpression | QNameExpression LAngleEquals          InstanceOfExpression | InstanceOfExpression LAngleEquals          QNameExpression | QNameExpression LAngleEquals          QNameExpression |
-                       InstanceOfExpression RAngle                InstanceOfExpression | QNameExpression RAngle                InstanceOfExpression | InstanceOfExpression RAngle                QNameExpression | QNameExpression RAngle                QNameExpression |
-                       InstanceOfExpression RAngleEquals          InstanceOfExpression | QNameExpression RAngleEquals          InstanceOfExpression | InstanceOfExpression RAngleEquals          QNameExpression | QNameExpression RAngleEquals          QNameExpression
-InstanceOfExpression = AdditiveExpression |
-                       InstanceOfExpression InstanceOfKeyword Type |
-                       QNameExpression instanceof Type
-AdditiveExpression = MultiplicativeExpression |
-                     AdditiveExpression Plus  MultiplicativeExpression | QNameExpression Plus  MultiplicativeExpression | AdditiveExpression Plus  QNameExpression | QNameExpression Plus  QNameExpression |
-                     AdditiveExpression Minus MultiplicativeExpression | QNameExpression Minus MultiplicativeExpression | AdditiveExpression Minus QNameExpression | QNameExpression Minus QNameExpression
-MultiplicativeExpression = ShiftExpression |
-                           MultiplicativeExpression Star          ShiftExpression | QNameExpression Star          ShiftExpression | MultiplicativeExpression Star          QNameExpression | QNameExpression Star          QNameExpression |
-                           MultiplicativeExpression ForwardSlash  ShiftExpression | QNameExpression ForwardSlash  ShiftExpression | MultiplicativeExpression ForwardSlash  QNameExpression | QNameExpression ForwardSlash  QNameExpression |
-                           MultiplicativeExpression Percent       ShiftExpression | QNameExpression Percent       ShiftExpression | MultiplicativeExpression Percent       QNameExpression | QNameExpression Percent       QNameExpression |
-                           MultiplicativeExpression DoublePercent ShiftExpression | QNameExpression DoublePercent ShiftExpression | MultiplicativeExpression DoublePercent QNameExpression | QNameExpression DoublePercent QNameExpression
-ShiftExpression = TupleIndexExpression |
-                  ShiftExpression DoubleLAngle TupleIndexExpression | ShiftExpression DoubleLAngle QNameExpression | QNameExpression DoubleLAngle ShiftExpression | QNameExpression DoubleLAngle QNameExpression |
-                  ShiftExpression DoubleRAngle TupleIndexExpression | ShiftExpression DoubleRAngle QNameExpression | QNameExpression DoubleRAngle ShiftExpression | QNameExpression DoubleRAngle QNameExpression
-TupleIndexExpression = UnaryExpression | TupleIndexExpression ExclaimationMark IntegerLiteral | QNameExpression ExclaimationMark IntegerLiteral
-UnaryExpression = Primary |
-                  CastKeyword LAngle Type RAngle UnaryExpression | CastKeyword LAngle Type RAngle QNameExpression |
-                  Minus UnaryExpression | Minus QNameExpression |
-                  Tilde UnaryExpression | Tilde QNameExpression |
-                  ExclaimationMark UnaryExpression | ExclaimationMark QNameExpression
-Primary = PrimaryNoThis | ThisKeyword
-PrimaryNoThis = BasicPrimary | NewKeyword Dimensions Type
-PrimaryNoTrailingType = BasicPrimary | ThisKeyword
-BasicPrimary = IntegerLiteral | FloatingLiteral |
-               TrueKeyword | FalseKeyword | ThisKeyword | NullKeyword |
-               Primary         LSquare Expression RSquare |
-               QName           LSquare Expression RSquare |
-               NestedQNameList LSquare Expression RSquare |
-               NewKeyword LSquare RSquare Type LBrace RBrace |
-               NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace |
-               SuperKeyword Dot Name |
-               PrimaryNoTrailingType Dot Name |
-               NestedQNameList Dot Name |
-               PrimaryNoTrailingType QuestionMarkDot Name |
-               QNameExpression QuestionMarkDot Name |
-               Type DoubleColon Name |
-               FunctionCallExpression |
-               LParen TupleExpression RParen |
-               ClassCreationExpression |
-               NewKeyword ObjectKeyword Arguments |
-               StringLiteral
-CreationExpression = NewKeyword QName Arguments | CreateKeyword QName Arguments
-FunctionCallExpression = PrimaryNoThis Arguments | QNameExpression Arguments
+TupleExpression = QName                                  Comma TupleExpression
+                | NestedQNameList                        Comma TupleExpression
+                | QName LAngle QName                     Comma TupleExpression
+                | QName LAngle NestedQNameList           Comma TupleExpression
+                | NestedQNameList LAngle QName           Comma TupleExpression
+                | NestedQNameList LAngle NestedQNameList Comma TupleExpression
+                | ConditionalExpression                  Comma TupleExpression
+                | ConditionalExpression                  Comma QNameList
+                | ConditionalExpression
+                | ComparisonExpressionLessThanQName
 
-ExpressionList = QNameExpression | ExpressionNoTuple | ExpressionList Comma QNameExpression | ExpressionList Comma ExpressionNoTuple
+ConditionalExpression = LogicalExpression
+                      | LogicalExpression QuestionMark Expression Colon ConditionalExpression     | QNameOrLessThanExpression QuestionMark Expression Colon ConditionalExpression
+                      | LogicalExpression QuestionMark Expression Colon QNameOrLessThanExpression | QNameOrLessThanExpression QuestionMark Expression Colon QNameOrLessThanExpression
+                      | LogicalExpression QuestionMarkColon ConditionalExpression | QNameOrLessThanExpression QuestionMarkColon ConditionalExpression | LogicalExpression QuestionMarkColon QNameOrLessThanExpression | QNameOrLessThanExpression QuestionMarkColon QNameOrLessThanExpression
+LogicalExpression = EqualityExpression
+                  | LogicalExpression Ampersand       EqualityExpression | QNameOrLessThanExpression Ampersand       EqualityExpression | LogicalExpression Ampersand       QNameOrLessThanExpression | QNameOrLessThanExpression Ampersand       QNameOrLessThanExpression
+                  | LogicalExpression Pipe            EqualityExpression | QNameOrLessThanExpression Pipe            EqualityExpression | LogicalExpression Pipe            QNameOrLessThanExpression | QNameOrLessThanExpression Pipe            QNameOrLessThanExpression
+                  | LogicalExpression Caret           EqualityExpression | QNameOrLessThanExpression Caret           EqualityExpression | LogicalExpression Caret           QNameOrLessThanExpression | QNameOrLessThanExpression Caret           QNameOrLessThanExpression
+                  | LogicalExpression DoubleAmpersand EqualityExpression | QNameOrLessThanExpression DoubleAmpersand EqualityExpression | LogicalExpression DoubleAmpersand QNameOrLessThanExpression | QNameOrLessThanExpression DoubleAmpersand QNameOrLessThanExpression
+                  | LogicalExpression DoublePipe      EqualityExpression | QNameOrLessThanExpression DoublePipe      EqualityExpression | LogicalExpression DoublePipe      QNameOrLessThanExpression | QNameOrLessThanExpression DoublePipe      QNameOrLessThanExpression
+EqualityExpression = ExpressionNotLessThanQName
+                   | ExpressionNotLessThanQName DoubleEquals          ExpressionNotLessThanQName | QNameOrLessThanExpression DoubleEquals          ExpressionNotLessThanQName
+                   | ExpressionNotLessThanQName DoubleEquals          QNameOrLessThanExpression  | QNameOrLessThanExpression DoubleEquals          QNameOrLessThanExpression
+                   | ExpressionNotLessThanQName ExclamationMarkEquals ExpressionNotLessThanQName | QNameOrLessThanExpression ExclamationMarkEquals ExpressionNotLessThanQName
+                   | ExpressionNotLessThanQName ExclamationMarkEquals QNameOrLessThanExpression  | QNameOrLessThanExpression ExclamationMarkEquals QNameOrLessThanExpression
+QNameOrLessThanExpression = QNameExpression | ComparisonExpressionLessThanQName
+ComparisonExpressionLessThanQName = QName LAngle QName
+                                  | QName LAngle NestedQNameList
+                                  | NestedQNameList LAngle QName
+                                  | NestedQNameList LAngle NestedQNameList
+ExpressionNotLessThanQName = AdditiveExpression
+                           | AdditiveExpression LAngle       AdditiveExpression | QNameExpression LAngle       AdditiveExpression | AdditiveExpression LAngle       QNameExpression
+                           | AdditiveExpression LAngleEquals AdditiveExpression | QNameExpression LAngleEquals AdditiveExpression | AdditiveExpression LAngleEquals QNameExpression | QNameExpression LAngleEquals QNameExpression
+                           | AdditiveExpression RAngle       AdditiveExpression | QNameExpression RAngle       AdditiveExpression | AdditiveExpression RAngle       QNameExpression | QNameExpression RAngle       QNameExpression
+                           | AdditiveExpression RAngleEquals AdditiveExpression | QNameExpression RAngleEquals AdditiveExpression | AdditiveExpression RAngleEquals QNameExpression | QNameExpression RAngleEquals QNameExpression
+                           | AdditiveExpression InstanceOfKeyword Type | QNameExpression InstanceOfKeyword Type
+                           | NewKeyword Dimensions Type
+AdditiveExpression = MultiplicativeExpression
+                   | AdditiveExpression Plus  MultiplicativeExpression | QNameExpression Plus  MultiplicativeExpression | AdditiveExpression Plus  QNameExpression | QNameExpression Plus  QNameExpression
+                   | AdditiveExpression Minus MultiplicativeExpression | QNameExpression Minus MultiplicativeExpression | AdditiveExpression Minus QNameExpression | QNameExpression Minus QNameExpression
+MultiplicativeExpression = ShiftExpression
+                         | MultiplicativeExpression Star          ShiftExpression | QNameExpression Star          ShiftExpression | MultiplicativeExpression Star          QNameExpression | QNameExpression Star          QNameExpression
+                         | MultiplicativeExpression ForwardSlash  ShiftExpression | QNameExpression ForwardSlash  ShiftExpression | MultiplicativeExpression ForwardSlash  QNameExpression | QNameExpression ForwardSlash  QNameExpression
+                         | MultiplicativeExpression Percent       ShiftExpression | QNameExpression Percent       ShiftExpression | MultiplicativeExpression Percent       QNameExpression | QNameExpression Percent       QNameExpression
+                         | MultiplicativeExpression DoublePercent ShiftExpression | QNameExpression DoublePercent ShiftExpression | MultiplicativeExpression DoublePercent QNameExpression | QNameExpression DoublePercent QNameExpression
+ShiftExpression = TupleIndexExpression
+                | ShiftExpression DoubleLAngle TupleIndexExpression | ShiftExpression DoubleLAngle QNameExpression
+                | QNameExpression DoubleLAngle TupleIndexExpression | QNameExpression DoubleLAngle QNameExpression
+                | ShiftExpression DoubleRAngle TupleIndexExpression | ShiftExpression DoubleRAngle QNameExpression
+                | QName           DoubleRAngle TupleIndexExpression | QName           DoubleRAngle QNameExpression
+                | NestedQNameList DoubleRAngle TupleIndexExpression | NestedQNameList DoubleRAngle QNameExpression
+TupleIndexExpression = UnaryExpression | TupleIndexExpression ExclaimationMark IntegerLiteral | QNameExpression ExclaimationMark IntegerLiteral
+UnaryExpression = Primary
+                | CastKeyword LAngle TypeRAngle UnaryExpression | CastKeyword LAngle TypeRAngle QNameExpression
+                | Minus UnaryExpression | Minus QNameExpression
+                | Tilde UnaryExpression | Tilde QNameExpression
+                | ExclaimationMark UnaryExpression | ExclaimationMark QNameExpression
+Primary = PrimaryNotThis | ThisKeyword
+PrimaryNotThis = IntegerLiteral | FloatingLiteral
+               | TrueKeyword | FalseKeyword | ThisKeyword | NullKeyword
+               | Primary         LSquare Expression RSquare
+               | QName           LSquare Expression RSquare
+               | NestedQNameList LSquare Expression RSquare
+               | NewKeyword LSquare RSquare Type LBrace RBrace
+               | NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace
+               | SuperKeyword Dot Name
+               | Primary Dot Name
+               | NestedQNameList Dot Name
+               | Primary QuestionMarkDot Name
+               | QNameExpression QuestionMarkDot Name
+               | TypeNoSimpleArguments DoubleColon Name
+               | FunctionCallExpression
+               | LParen TupleExpression RParen
+               | CreationExpression
+               | NewKeyword ObjectKeyword Arguments
+               | StringLiteral
+CreationExpression = NewKeyword NamedTypeNoModifiers Arguments | CreateKeyword NamedTypeNoModifiers Arguments
+FunctionCallExpression = PrimaryNotThis Arguments | QNameExpression Arguments
+
+// ================================================================================================== TRY SIMPLIFYING THIS:
+ExpressionList = ConditionalExpression                  Comma ExpressionList
+               | QName                                  Comma ExpressionList
+               | NestedQNameList                        Comma ExpressionList
+               | QName LAngle QName                     Comma ExpressionList
+               | QName LAngle NestedQNameList           Comma ExpressionList
+               | NestedQNameList LAngle QName           Comma ExpressionList
+               | NestedQNameList LAngle NestedQNameList Comma ExpressionList
+               | ConditionalExpression
+               | QNameOrLessThanExpression
 Arguments = LParen ExpressionList RParen | LParen RParen
 
 Dimensions = LSquare Expression RSquare | Dimensions LSquare Expression RSquare
 
+=================
+  Miscellaneous
+=================
+
+QName = Name | QName Dot Name
 
 QNameExpression = QName | NestedQNameList
 NestedQNameList = LParen QNameList RParen

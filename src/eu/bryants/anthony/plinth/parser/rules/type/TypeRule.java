@@ -21,7 +21,7 @@ public class TypeRule extends Rule<ParseType>
 
   private static final Production<ParseType> QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME);
   private static final Production<ParseType> NESTED_QNAME_LIST_PRODUCTION = new Production<ParseType>(ParseType.NESTED_QNAME_LIST);
-  private static final Production<ParseType> TYPE_NO_QNAME_PRODUCTION = new Production<ParseType>(ParseType.TYPE_NO_QNAME);
+  private static final Production<ParseType> TYPE_NO_QNAME_PRODUCTION = new Production<ParseType>(ParseType.TYPE_NOT_QNAME);
 
   public TypeRule()
   {
@@ -37,7 +37,7 @@ public class TypeRule extends Rule<ParseType>
     if (production == QNAME_PRODUCTION)
     {
       QName qname = (QName) args[0];
-      return new NamedType(false, false, qname, qname.getLexicalPhrase());
+      return new NamedType(false, false, qname, null, qname.getLexicalPhrase());
     }
     if (production == NESTED_QNAME_LIST_PRODUCTION)
     {

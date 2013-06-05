@@ -18,7 +18,7 @@ public class PrimaryRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION      = new Production<ParseType>(ParseType.PRIMARY_NO_THIS);
+  private static final Production<ParseType> PRODUCTION      = new Production<ParseType>(ParseType.PRIMARY_NOT_THIS);
   private static final Production<ParseType> THIS_PRODUCTION = new Production<ParseType>(ParseType.THIS_KEYWORD);
 
   public PrimaryRule()

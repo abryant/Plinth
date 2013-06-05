@@ -1,6 +1,7 @@
 package eu.bryants.anthony.plinth.ast.misc;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
+import eu.bryants.anthony.plinth.ast.metadata.MemberReference;
 import eu.bryants.anthony.plinth.ast.metadata.Variable;
 
 /*
@@ -15,6 +16,7 @@ public class VariableAssignee extends Assignee
   private String variableName;
 
   private Variable resolvedVariable;
+  private MemberReference<?> resolvedMemberReference;
   private boolean isPropertyConstructorCall;
 
   public VariableAssignee(String variableName, LexicalPhrase lexicalPhrase)
@@ -45,6 +47,22 @@ public class VariableAssignee extends Assignee
   public void setResolvedVariable(Variable resolvedVariable)
   {
     this.resolvedVariable = resolvedVariable;
+  }
+
+  /**
+   * @return the resolvedMemberReference
+   */
+  public MemberReference<?> getResolvedMemberReference()
+  {
+    return resolvedMemberReference;
+  }
+
+  /**
+   * @param resolvedMemberReference - the resolvedMemberReference to set
+   */
+  public void setResolvedMemberReference(MemberReference<?> resolvedMemberReference)
+  {
+    this.resolvedMemberReference = resolvedMemberReference;
   }
 
   /**

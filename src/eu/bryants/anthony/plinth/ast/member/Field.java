@@ -1,6 +1,7 @@
 package eu.bryants.anthony.plinth.ast.member;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
+import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
@@ -27,6 +28,8 @@ public class Field extends Member
 
   private MemberVariable memberVariable;
   private GlobalVariable globalVariable;
+
+  private TypeDefinition containingTypeDefinition;
 
   public Field(Type type, String name, boolean isStatic, boolean isFinal, boolean isMutable, SinceSpecifier sinceSpecifier, Expression initialiserExpression, LexicalPhrase lexicalPhrase)
   {
@@ -126,6 +129,22 @@ public class Field extends Member
   public void setGlobalVariable(GlobalVariable globalVariable)
   {
     this.globalVariable = globalVariable;
+  }
+
+  /**
+   * @return the containingTypeDefinition
+   */
+  public TypeDefinition getContainingTypeDefinition()
+  {
+    return containingTypeDefinition;
+  }
+
+  /**
+   * @param containingTypeDefinition - the containingTypeDefinition to set
+   */
+  public void setContainingTypeDefinition(TypeDefinition containingTypeDefinition)
+  {
+    this.containingTypeDefinition = containingTypeDefinition;
   }
 
   /**

@@ -42,8 +42,8 @@ public enum ParseType
   PARAMETER_LIST,                // ParseList<Parameter>
   FOR_INIT,                      // ParseContainer<Statement> (possibly containing null)
   FOR_UPDATE,                    // Statement or null
-  IMPLEMENTS_CLAUSE,             // ParseList<QName> or null
-  INTERFACE_LIST,                // ParseList<QName>
+  IMPLEMENTS_CLAUSE,             // ParseList<NamedType> or null
+  INTERFACE_LIST,                // ParseList<NamedType>
   MODIFIERS,                     // ParseList<Modifier>
   OPTIONAL_MODIFIERS,            // ParseList<Modifier>
   QNAME,                         // QName
@@ -69,28 +69,54 @@ public enum ParseType
   WHILE_STATEMENT,               // WhileStatement
 
   // Types
-  RETURN_TYPE,                   // Type
-  TYPE,                          // Type
-  TYPE_NO_QNAME,                 // Type
-  TYPE_LIST_NO_QNAME,            // ParseList<Type>
-  TYPE_LIST,                     // ParseList<Type>
+  RETURN_TYPE,                          // Type
+  TYPE,                                 // Type
+  TYPE_RANGLE,                          // ParseContainer<Type>
+  TYPE_DOUBLE_RANGLE,                   // ParseContainer<ParseContainer<Type>>
+  TYPE_NOT_QNAME,                       // Type
+  TYPE_NO_SIMPLE_ARGUMENTS,             // Type
+  TYPE_NO_TRAILING_ARGUMENTS,           // Type
+  BASIC_TYPE,                           // Type
+  TYPE_LIST,                            // ParseList<Type>
+  TYPE_LIST_NOT_QNAME,                  // ParseList<Type>
+  NAMED_TYPE_NO_MODIFIERS,              // NamedType
+  TYPE_TRAILING_ARGS,                   // Type
+  TYPE_TRAILING_ARGS_RANGLE,            // ParseContainer<Type>
+  ARRAY_TYPE_TRAILING_ARGS,             // ArrayType
+  ARRAY_TYPE_TRAILING_ARGS_RANGLE,      // ParseContainer<Type>
+  TYPE_ARGUMENT_LIST_RANGLE,            // ParseContainer<ParseList<Type>>
+  TYPE_ARGUMENT_LIST_DOUBLE_RANGLE,     // ParseContainer<ParseContainer<ParseList<Type>>>
+  TYPE_ARGUMENT_NOT_QNAME,              // Type
+  TYPE_ARGUMENT_RANGLE,                 // ParseContainer<Type>
+  TYPE_ARGUMENT_DOUBLE_RANGLE,          // ParseContainer<ParseContainer<Type>>
+  WILDCARD_TYPE_ARGUMENT,               // WildcardType
+  WILDCARD_TYPE_ARGUMENT_RANGLE,        // ParseContainer<Type>
+  WILDCARD_TYPE_ARGUMENT_DOUBLE_RANGLE, // ParseContainer<ParseContainer<Type>>
+  TYPE_BOUND_LIST,                      // ParseList<Type>
+  TYPE_BOUND_LIST_RANGLE,               // ParseContainer<ParseList<Type>>
+  TYPE_BOUND_LIST_DOUBLE_RANGLE,        // ParseContainer<ParseContainer<ParseList<Type>>>
+  TYPE_PARAMETER,                       // TypeParameter
+  TYPE_PARAMETER_RANGLE,                // ParseContainer<TypeParameter>
+  TYPE_PARAMETER_LIST,                  // ParseList<TypeParameter>
+  TYPE_PARAMETER_LIST_RANGLE,           // ParseContainer<ParseList<TypeParameter>>
+  OPTIONAL_TYPE_PARAMETERS,             // ParseList<TypeParameter>
 
   // Expressions
   EXPRESSION,                    // Expression
   TUPLE_EXPRESSION,              // Expression
-  EXPRESSION_NO_TUPLE,           // Expression
+  CONDITIONAL_EXPRESSION,        // Expression
   LOGICAL_EXPRESSION,            // Expression
-  COMPARISON_EXPRESSION,         // Expression
-  INSTANCEOF_EXPRESSION,         // Expression
+  EQUALITY_EXPRESSION,           // Expression
+  QNAME_OR_LESS_THAN_EXPRESSION, // Expression
+  COMPARISON_EXPRESSION_LESS_THAN_QNAME, // Expression
+  EXPRESSION_NOT_LESS_THAN_QNAME, // Expression
   ADDITIVE_EXPRESSION,           // Expression
   MULTIPLICATIVE_EXPRESSION,     // Expression
   SHIFT_EXPRESSION,              // Expression
   TUPLE_INDEX_EXPRESSION,        // Expression
   UNARY_EXPRESSION,              // Expression
   PRIMARY,                       // Expression
-  PRIMARY_NO_THIS,               // Expression
-  PRIMARY_NO_TRAILING_TYPE,      // Expression
-  BASIC_PRIMARY,                 // Expression
+  PRIMARY_NOT_THIS,              // Expression
   CREATION_EXPRESSION,           // CreationExpression
   FUNCTION_CALL_EXPRESSION,      // FunctionCallExpression
   EXPRESSION_LIST,               // ParseList<Expression>

@@ -3,50 +3,71 @@
 %opaque = type opaque
 %VFT = type [0 x %opaque*]
 
-%RawString = type { %opaque*, %opaque*, i32, [0 x i8]}
-%VFTSearchList = type {i32, [0 x {%RawString*, %VFT*}]}
+%RawString = type {%opaque*, %opaque*, i32, i8(%RawString*, i32)*, void (%RawString*, i32, i8)*, [0 x i8]}
+%String    = type {%opaque*, %opaque*, i32, i8(%String*,    i32)*, void (%String*,    i32, i8)*}
+
+%RTTI = type {i8, i32}
+%TypeArgumentMapper = type {i32, [0 x %RTTI*]}
+%VFTSearchList = type {i32, [0 x {%RTTI*, %VFT*}]}
 
 %ExcludeList = type [0 x i1]
-%Descriptor = type { i32, [0 x %RawString*] }
-%FunctionSearchList = type {i32, [0 x {%Descriptor*, %VFT*, %ExcludeList*}]}
+%Descriptor = type { i32, [0 x {%RawString*, %RTTI*}] }
+%FunctionSearchList = type {i32, [0 x {%RTTI*, %Descriptor*, %VFT*, %ExcludeList*}]}
 
-
-@OutOfMemoryErrorMessage = private hidden unnamed_addr constant { %opaque*, %opaque*, i32, [73 x i8] } {%opaque* null, %opaque* null, i32 73, [73 x i8] c"Failed to allocate memory to set up virtual function tables! Aborting...\0A"}
+@OutOfMemoryErrorMessage = private unnamed_addr constant
+                           {%opaque*, %opaque*, i32, i8(%RawString*, i32)*, void (%RawString*, i32, i8)*, [73 x i8]}
+                           {
+                             %opaque* null,
+                             %opaque* null,
+                             i32 73,
+                             i8(%RawString*, i32)* @OutOfMemoryError_string_array_getter,
+                             void (%RawString*, i32, i8)* @OutOfMemoryError_string_array_setter,
+                             [73 x i8] c"Failed to allocate memory to set up virtual function tables! Aborting...\0A"
+                           }
+define private protected i8 @OutOfMemoryError_string_array_getter(%RawString* %array, i32 %index) {
+entry:
+  %pointer = getelementptr %RawString* %array, i32 0, i32 5, i32 %index
+  %value = load i8* %pointer
+  ret i8 %value
+}
+define private protected void @OutOfMemoryError_string_array_setter(%RawString* %array, i32 %index, i8 %value) {
+entry:
+  %pointer = getelementptr %RawString* %array, i32 0, i32 5, i32 %index
+  store i8 %value, i8* %pointer
+  ret void
+}
 
 declare i8* @calloc(i32, i32)
 declare void @free(i8*)
 declare i32 @strncmp(i8* %str1, i8* %str2, i32 %len)
 declare void @abort() noreturn
 
-declare void @plinth_stderr_write({ %opaque*, %opaque*, i32, [0 x i8] }* %array)
+declare protected i1 @plinth_is_type_equivalent(%RTTI* %typeA, %RTTI* %typeB, %TypeArgumentMapper* %mapperA, %TypeArgumentMapper* %mapperB, i1 %ignoreTypeModifiers)
 
-define protected %VFT* @plinth_core_find_vft(%VFTSearchList* %interfaceVFTList, %RawString* %searchName) {
+declare void @plinth_stderr_write(%String* %array)
+
+define protected %VFT* @plinth_core_find_vft(%VFTSearchList* %vftSearchList, %RTTI* %thisRTTI, %RTTI* %searchRTTI, %TypeArgumentMapper* %searchTypeMapper) {
 entry:
-  %searchNameLengthPtr = getelementptr %RawString* %searchName, i32 0, i32 2
-  %searchNameLength = load i32* %searchNameLengthPtr
-  %searchNameBytes = getelementptr %RawString* %searchName, i32 0, i32 3, i32 0
-  %numSearchPtr = getelementptr %VFTSearchList* %interfaceVFTList, i32 0, i32 0
+  ; extract a pointer to the TypeArgumentMapper from this object's RTTI
+  ; note: this object isn't necessarily a NamedType, so this bitcast and GEP might return something which cannot be used without causing undefined behaviour
+  ;       however, it will only be used by 'plinth_is_type_equivalent' if the search list contains type parameters, and since type parameters only occur in named types,
+  ;       we can be sure that no errors will occur
+  %thisNamedRTTI = bitcast %RTTI* %thisRTTI to {i8, i32, i1, i1, %RawString*, %TypeArgumentMapper}*
+  %thisTypeArgumentMapper = getelementptr {i8, i32, i1, i1, %RawString*, %TypeArgumentMapper}* %thisNamedRTTI, i32 0, i32 5
+  %numSearchPtr = getelementptr %VFTSearchList* %vftSearchList, i32 0, i32 0
   %numSearch = load i32* %numSearchPtr
   %continueLoop = icmp ult i32 0, %numSearch
   br i1 %continueLoop, label %searchLoop, label %exit
 
 searchLoop:
   %i = phi i32 [0, %entry], [%nexti, %endSearchLoop]
-  %namePtr = getelementptr %VFTSearchList* %interfaceVFTList, i32 0, i32 1, i32 %i, i32 0
-  %name = load %RawString** %namePtr
-  %nameLengthPtr = getelementptr %RawString* %name, i32 0, i32 2
-  %nameLength = load i32* %nameLengthPtr
-  %check = icmp eq i32 %searchNameLength, %nameLength
-  br i1 %check, label %compareNames, label %endSearchLoop
-
-compareNames:
-  %nameBytes = getelementptr %RawString* %name, i32 0, i32 3, i32 0
-  %comparison = call i32 @strncmp(i8* %nameBytes, i8* %searchNameBytes, i32 %searchNameLength)
-  %match = icmp eq i32 %comparison, 0
+  %rttiPtr = getelementptr %VFTSearchList* %vftSearchList, i32 0, i32 1, i32 %i, i32 0
+  %rtti = load %RTTI** %rttiPtr
+  %match = call i1 @plinth_is_type_equivalent(%RTTI* %rtti, %RTTI* %searchRTTI, %TypeArgumentMapper* %thisTypeArgumentMapper, %TypeArgumentMapper* %searchTypeMapper, i1 1)
   br i1 %match, label %returnVFT, label %endSearchLoop
 
 returnVFT:
-  %vftPtr = getelementptr %VFTSearchList* %interfaceVFTList, i32 0, i32 1, i32 %i, i32 1
+  %vftPtr = getelementptr %VFTSearchList* %vftSearchList, i32 0, i32 1, i32 %i, i32 1
   %vft = load %VFT** %vftPtr
   ret %VFT* %vft
 
@@ -59,8 +80,14 @@ exit:
   ret %VFT* null
 }
 
-define protected %VFT* @plinth_core_generate_supertype_vft(%Descriptor* %thisDescriptor, %VFT* %thisVFT, %FunctionSearchList* %searchDescriptors) {
+define protected %VFT* @plinth_core_generate_supertype_vft(%FunctionSearchList* %searchDescriptors, i32 %index) {
 entry:
+  %thisRTTIPtr = getelementptr %FunctionSearchList* %searchDescriptors, i32 0, i32 1, i32 %index, i32 0
+  %thisRTTI = load %RTTI** %thisRTTIPtr
+  %thisDescriptorPtr = getelementptr %FunctionSearchList* %searchDescriptors, i32 0, i32 1, i32 %index, i32 1
+  %thisDescriptor = load %Descriptor** %thisDescriptorPtr
+  %thisVFTPtr = getelementptr %FunctionSearchList* %searchDescriptors, i32 0, i32 1, i32 %index, i32 2
+  %thisVFT = load %VFT** %thisVFTPtr
   %vftLengthPtr = getelementptr %Descriptor* %thisDescriptor, i32 0, i32 0
   %vftLength = load i32* %vftLengthPtr
   %vftAlloc = call i8* @calloc(i32 ptrtoint (%opaque** getelementptr (%opaque** null, i32 1) to i32), i32 %vftLength)
@@ -68,8 +95,8 @@ entry:
   br i1 %outOfMemory, label %error, label %startLoop
 
 error:
-  %errorMessage = bitcast { %opaque*, %opaque*, i32, [73 x i8] }* @OutOfMemoryErrorMessage to { %opaque*, %opaque*, i32, [0 x i8] }*
-  call void @plinth_stderr_write({ %opaque*, %opaque*, i32, [0 x i8] }* %errorMessage)
+  %errorMessage = bitcast { %opaque*, %opaque*, i32, i8(%RawString*, i32)*, void (%RawString*, i32, i8)*, [73 x i8] }* @OutOfMemoryErrorMessage to %String*
+  call void @plinth_stderr_write(%String* %errorMessage)
   call void @abort() noreturn
   unreachable
 
@@ -80,11 +107,11 @@ startLoop:
 
 loop:
   %i = phi i32 [0, %startLoop], [%nexti, %loop]
-  %disambiguatorPtr = getelementptr %Descriptor* %thisDescriptor, i32 0, i32 1, i32 %i
+  %disambiguatorPtr = getelementptr %Descriptor* %thisDescriptor, i32 0, i32 1, i32 %i, i32 0
   %disambiguator = load %RawString** %disambiguatorPtr
   %defaultPtr = getelementptr %VFT* %thisVFT, i32 0, i32 %i
   %default = load %opaque** %defaultPtr
-  %func = call %opaque* @plinth_find_vft_function(%RawString* %disambiguator, %opaque* %default, %FunctionSearchList* %searchDescriptors)
+  %func = call %opaque* @plinth_find_vft_function(%RTTI* %thisRTTI, %RawString* %disambiguator, %opaque* %default, %FunctionSearchList* %searchDescriptors)
   %element = getelementptr %VFT* %vft, i32 0, i32 %i
   store %opaque* %func, %opaque** %element
   %nexti = add i32 %i, 1
@@ -95,7 +122,7 @@ exit:
   ret %VFT* %vft
 }
 
-define private hidden %opaque* @plinth_find_vft_function(%RawString* %disambiguator, %opaque* %default, %FunctionSearchList* %searchDescriptors) {
+define private hidden %opaque* @plinth_find_vft_function(%RTTI* %thisRTTI, %RawString* %disambiguator, %opaque* %default, %FunctionSearchList* %searchDescriptors) {
 entry:
   %disambiguatorLengthPtr = getelementptr %RawString* %disambiguator, i32 0, i32 2
   %disambiguatorLength = load i32* %disambiguatorLengthPtr
@@ -108,8 +135,8 @@ entry:
   br i1 %outOfMemory, label %error, label %beforeLoop
 
 error:
-  %errorMessage = bitcast { %opaque*, %opaque*, i32, [73 x i8] }* @OutOfMemoryErrorMessage to { %opaque*, %opaque*, i32, [0 x i8] }*
-  call void @plinth_stderr_write({ %opaque*, %opaque*, i32, [0 x i8] }* %errorMessage)
+  %errorMessage = bitcast { %opaque*, %opaque*, i32, i8(%RawString*, i32)*, void (%RawString*, i32, i8)*, [73 x i8] }* @OutOfMemoryErrorMessage to %String*
+  call void @plinth_stderr_write(%String* %errorMessage)
   call void @abort() noreturn
   unreachable
 
@@ -120,9 +147,9 @@ beforeLoop:
 
 searchLoop:
   %i = phi i32 [0, %beforeLoop], [%nexti, %endSearchLoop]
-  %descriptorPtr = getelementptr %FunctionSearchList* %searchDescriptors, i32 0, i32 1, i32 %i, i32 0
+  %descriptorPtr = getelementptr %FunctionSearchList* %searchDescriptors, i32 0, i32 1, i32 %i, i32 1
   %descriptor = load %Descriptor** %descriptorPtr
-  %vftPtr = getelementptr %FunctionSearchList* %searchDescriptors, i32 0, i32 1, i32 %i, i32 1
+  %vftPtr = getelementptr %FunctionSearchList* %searchDescriptors, i32 0, i32 1, i32 %i, i32 2
   %vft = load %VFT** %vftPtr
   %numFunctionsPtr = getelementptr %Descriptor* %descriptor, i32 0, i32 0
   %numFunctions = load i32* %numFunctionsPtr
@@ -135,7 +162,7 @@ searchLoop:
 
 functionLoop:
   %j = phi i32 [0, %searchLoop], [%nextj, %endFunctionLoop]
-  %currentDisambiguatorPtr = getelementptr %Descriptor* %descriptor, i32 0, i32 1, i32 %j
+  %currentDisambiguatorPtr = getelementptr %Descriptor* %descriptor, i32 0, i32 1, i32 %j, i32 0
   %currentDisambiguator = load %RawString** %currentDisambiguatorPtr
   %currentDisambiguatorLengthPtr = getelementptr %RawString* %currentDisambiguator, i32 0, i32 2
   %currentDisambiguatorLength = load i32* %currentDisambiguatorLengthPtr
@@ -143,11 +170,27 @@ functionLoop:
   br i1 %check, label %checkDisambiguator, label %endFunctionLoop
 
 checkDisambiguator:
-  %disambiguatorStr = getelementptr %RawString* %disambiguator, i32 0, i32 3, i32 0
-  %currentDisambiguatorStr = getelementptr %RawString* %currentDisambiguator, i32 0, i32 3, i32 0
+  %disambiguatorStr = getelementptr %RawString* %disambiguator, i32 0, i32 5, i32 0
+  %currentDisambiguatorStr = getelementptr %RawString* %currentDisambiguator, i32 0, i32 5, i32 0
   %comparison = call i32 @strncmp(i8* %disambiguatorStr, i8* %currentDisambiguatorStr, i32 %disambiguatorLength)
   %match = icmp eq i32 %comparison, 0
-  br i1 %match, label %foundFunction, label %endFunctionLoop
+  br i1 %match, label %checkOverrideRTTI, label %endFunctionLoop
+
+checkOverrideRTTI:
+  %overrideRTTIPtr = getelementptr %Descriptor* %descriptor, i32 0, i32 1, i32 %j, i32 1
+  %overrideRTTI = load %RTTI** %overrideRTTIPtr
+  %overrideRTTIIsNull = icmp eq %RTTI* %overrideRTTI, null
+  br i1 %overrideRTTIIsNull, label %foundFunction, label %checkNotNullOverrideRTTI
+
+checkNotNullOverrideRTTI:
+  %overrideMapperPtr = getelementptr %FunctionSearchList* %searchDescriptors, i32 0, i32 1, i32 %i, i32 0
+  %overrideMapper = load %RTTI** %overrideMapperPtr
+  ; Note: the following bitcast and GEP will result in the wrong type if it is actually an object's RTTI, but in that case
+  ; %overrideRTTI won't have any type parameters, so the %overrideMapper won't be accessed anyway, and we'll be fine
+  %castedOverrideMapper = bitcast %RTTI* %overrideMapper to {i8, i32, i1, i1, %RawString*, %TypeArgumentMapper}*
+  %overrideTypeArgumentMapper = getelementptr {i8, i32, i1, i1, %RawString*, %TypeArgumentMapper}* %castedOverrideMapper, i32 0, i32 5
+  %overrideRTTIMatches = call i1 @plinth_is_type_equivalent(%RTTI* %overrideRTTI, %RTTI* %thisRTTI, %TypeArgumentMapper* %overrideTypeArgumentMapper, %TypeArgumentMapper* null, i1 1)
+  br i1 %overrideRTTIMatches, label %foundFunction, label %endFunctionLoop
 
 foundFunction:
   %currentFunctionPtr = getelementptr %VFT* %vft, i32 0, i32 %j
@@ -160,7 +203,7 @@ returnFunction:
   ret %opaque* %currentFunction
 
 updateExcludeList:
-  %combiningExcludeListPtr = getelementptr %FunctionSearchList* %searchDescriptors, i32 0, i32 1, i32 %i, i32 2
+  %combiningExcludeListPtr = getelementptr %FunctionSearchList* %searchDescriptors, i32 0, i32 1, i32 %i, i32 3
   %combiningExcludeList = load %ExcludeList** %combiningExcludeListPtr
   %startExcludeListLoop = icmp ult i32 0, %numSearch
   br i1 %startExcludeListLoop, label %excludeListUpdateLoop, label %endSearchLoop

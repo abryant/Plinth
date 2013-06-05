@@ -24,7 +24,7 @@ import eu.bryants.anthony.plinth.compiler.ConceptualException;
  */
 public class SpecialTypeHandler
 {
-  public static final NamedType STRING_TYPE = new NamedType(false, false, new QName("string", null), null);
+  public static final NamedType STRING_TYPE = new NamedType(false, false, new QName("string", null), null, null);
   private static final String STRING_VALUEOF_NAME = "valueOf";
   public static Constructor stringArrayConstructor;
   public static Constructor stringConcatenationConstructor;
@@ -37,9 +37,9 @@ public class SpecialTypeHandler
   public static Method stringValueOfFloat;
   public static Method stringValueOfDouble;
 
-  public static final NamedType THROWABLE_TYPE = new NamedType(false, false, new QName("Throwable", null), null);
+  public static final NamedType THROWABLE_TYPE = new NamedType(false, false, new QName("Throwable", null), null, null);
 
-  public static final NamedType CAST_ERROR_TYPE = new NamedType(false, false, new QName("CastError", null), null);
+  public static final NamedType CAST_ERROR_TYPE = new NamedType(false, false, new QName("CastError", null), null, null);
   public static Constructor castErrorTypesReasonConstructor;
 
   public static final String MAIN_METHOD_NAME = "main";
@@ -53,8 +53,13 @@ public class SpecialTypeHandler
    */
   public static void verifySpecialTypes() throws ConceptualException
   {
+    TypeChecker.checkType(STRING_TYPE, null, true);
     verifyStringType();
+
+    TypeChecker.checkType(THROWABLE_TYPE, null, true);
     verifyThrowableType();
+
+    TypeChecker.checkType(CAST_ERROR_TYPE, null, true);
     verifyCastErrorType();
   }
 
@@ -165,9 +170,9 @@ public class SpecialTypeHandler
     }
 
     boolean isThrowable = false;
-    for (TypeDefinition t : typeDefinition.getInheritanceLinearisation())
+    for (NamedType t : typeDefinition.getInheritanceLinearisation())
     {
-      if (t == THROWABLE_TYPE.getResolvedTypeDefinition())
+      if (t.isEquivalent(THROWABLE_TYPE))
       {
         isThrowable = true;
         break;
@@ -178,7 +183,7 @@ public class SpecialTypeHandler
       throw new ConceptualException("The CastError type must inherit from Throwable", null);
     }
 
-    Type nullableStringType = TypeChecker.findTypeWithNullability(STRING_TYPE, true);
+    Type nullableStringType = Type.findTypeWithNullability(STRING_TYPE, true);
     for (Constructor constructor : typeDefinition.getUniqueConstructors())
     {
       Parameter[] parameters = constructor.getParameters();

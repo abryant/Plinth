@@ -1,10 +1,13 @@
 package eu.bryants.anthony.plinth.compiler.passes.llvm;
 
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Map;
 
 import nativelib.c.C;
 import nativelib.llvm.LLVM;
+import nativelib.llvm.LLVM.LLVMBasicBlockRef;
 import nativelib.llvm.LLVM.LLVMBuilderRef;
 import nativelib.llvm.LLVM.LLVMModuleRef;
 import nativelib.llvm.LLVM.LLVMTypeRef;
@@ -15,11 +18,19 @@ import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.member.Property;
+import eu.bryants.anthony.plinth.ast.metadata.GenericTypeSpecialiser;
 import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunctionType;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
+import eu.bryants.anthony.plinth.ast.metadata.OverrideFunction;
+import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
+import eu.bryants.anthony.plinth.ast.metadata.VirtualFunction;
+import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.Type;
+import eu.bryants.anthony.plinth.ast.type.VoidType;
 
 /*
  * Created on 4 Dec 2012
@@ -37,6 +48,7 @@ public class VirtualFunctionHandler
   private static final String VFT_INIT_FUNCTION_PREFIX = "_SUPER_VFT_INIT_";
   private static final String BASE_CHANGE_OBJECT_VFT_PREFIX = "_base_change_o_VFT_";
   private static final String VFT_SEARCH_LIST_PREFIX = "_VFT_SEARCH_LIST_";
+  private static final String PROXY_OVERRIDE_FUNCTION_PREFIX = "_PROXY_OVERRIDE_";
 
   private CodeGenerator codeGenerator;
   private TypeHelper typeHelper;
@@ -48,7 +60,7 @@ public class VirtualFunctionHandler
   private LLVMTypeRef vftDescriptorType;
   private LLVMTypeRef vftType;
   private LLVMTypeRef functionSearchListType;
-  private LLVMTypeRef interfaceSearchListType;
+  private LLVMTypeRef vftSearchListType;
 
   private LLVMTypeRef objectVirtualTableType;
   private Map<TypeDefinition, LLVMTypeRef> nativeVirtualTableTypes = new HashMap<TypeDefinition, LLVMTypeRef>();
@@ -126,7 +138,8 @@ public class VirtualFunctionHandler
     LLVMValueRef[] llvmMethods = new LLVMValueRef[methods.length];
     for (int i = 0; i < methods.length; ++i)
     {
-      Method actualMethod = baseType.getMethod(methods[i].getDisambiguator());
+      MethodReference actualMethodReference = baseType.getMethod(new MethodReference(methods[i], GenericTypeSpecialiser.IDENTITY_SPECIALISER).getDisambiguator());
+      Method actualMethod = actualMethodReference.getReferencedMember();
       llvmMethods[i] = typeHelper.getBaseChangeFunction(actualMethod);
     }
 
@@ -167,18 +180,25 @@ public class VirtualFunctionHandler
     }
 
     BuiltinMethod[] methods = ObjectType.OBJECT_METHODS;
-    LLVMValueRef[] llvmStrings = new LLVMValueRef[methods.length];
+    LLVMValueRef[] llvmEntries = new LLVMValueRef[methods.length];
 
     LLVMTypeRef stringType = typeHelper.findRawStringType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericPureRTTIType();
+    LLVMTypeRef[] entrySubTypes = new LLVMTypeRef[] {stringType, rttiType};
+    LLVMTypeRef entryType = LLVM.LLVMStructType(C.toNativePointerArray(entrySubTypes, false, true), entrySubTypes.length, false);
 
     for (int i = 0; i < methods.length; ++i)
     {
-      String disambiguator = methods[i].getDisambiguator().toString();
-      LLVMValueRef stringConstant = codeGenerator.addStringConstant(disambiguator);
-      llvmStrings[i] = LLVM.LLVMConstBitCast(stringConstant, stringType);
+      String descriptorString = methods[i].getDescriptorString();
+      LLVMValueRef stringConstant = codeGenerator.addStringConstant(descriptorString);
+      LLVMValueRef convertedString = LLVM.LLVMConstBitCast(stringConstant, stringType);
+      LLVMValueRef nullRTTIPointer = LLVM.LLVMConstNull(rttiType);
+      LLVMValueRef[] entryValues = new LLVMValueRef[] {convertedString, nullRTTIPointer};
+      llvmEntries[i] = LLVM.LLVMConstStruct(C.toNativePointerArray(entryValues, false, true), entryValues.length, false);
     }
-    LLVMValueRef disambiguatorArray = LLVM.LLVMConstArray(stringType, C.toNativePointerArray(llvmStrings, false, true), llvmStrings.length);
-    LLVMValueRef[] descriptorSubValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), llvmStrings.length, false),
+
+    LLVMValueRef disambiguatorArray = LLVM.LLVMConstArray(entryType, C.toNativePointerArray(llvmEntries, false, true), llvmEntries.length);
+    LLVMValueRef[] descriptorSubValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), llvmEntries.length, false),
                                                              disambiguatorArray};
     LLVMValueRef descriptorValue = LLVM.LLVMConstStruct(C.toNativePointerArray(descriptorSubValues, false, true), descriptorSubValues.length, false);
 
@@ -203,7 +223,20 @@ public class VirtualFunctionHandler
     {
       return existingDesc;
     }
-    LLVMValueRef result = LLVM.LLVMAddGlobal(module, getDescriptorType(typeDefinition.getMemberFunctions().length), mangledName);
+    int numFunctions;
+    if (typeDefinition instanceof ClassDefinition)
+    {
+      numFunctions = ((ClassDefinition) typeDefinition).getVirtualFunctions().length;
+    }
+    else if (typeDefinition instanceof InterfaceDefinition)
+    {
+      numFunctions = ((InterfaceDefinition) typeDefinition).getVirtualFunctions().length;
+    }
+    else
+    {
+      throw new IllegalArgumentException("Cannot get a VFT descriptor pointer - unknown TypeDefinition: " + typeDefinition);
+    }
+    LLVMValueRef result = LLVM.LLVMAddGlobal(module, getDescriptorType(numFunctions), mangledName);
     return result;
   }
 
@@ -217,54 +250,95 @@ public class VirtualFunctionHandler
       throw new IllegalStateException("Cannot add a virtual function table for types which are neither a ClassDefinition nor an InterfaceDefinition");
     }
     LLVMValueRef vftGlobal = getVFTGlobal(typeDefinition);
-    MemberFunction[] memberFunctions = typeDefinition.getMemberFunctions();
-    LLVMValueRef[] llvmMethods = new LLVMValueRef[memberFunctions.length];
-    for (int i = 0; i < memberFunctions.length; ++i)
+
+    VirtualFunction[] virtualFunctions;
+    if (typeDefinition instanceof ClassDefinition)
     {
-      switch (memberFunctions[i].getMemberFunctionType())
+      virtualFunctions = ((ClassDefinition) typeDefinition).getVirtualFunctions();
+    }
+    else if (typeDefinition instanceof InterfaceDefinition)
+    {
+      virtualFunctions = ((InterfaceDefinition) typeDefinition).getVirtualFunctions();
+    }
+    else
+    {
+      throw new IllegalStateException("Cannot generate a VFT for a type which doesn't have any virtual functions: " + typeDefinition);
+    }
+
+    LLVMValueRef[] llvmMethods = new LLVMValueRef[virtualFunctions.length];
+    for (int i = 0; i < virtualFunctions.length; ++i)
+    {
+      if (virtualFunctions[i] instanceof MemberFunction)
       {
-      case METHOD:
-        if (memberFunctions[i].getMethod().isAbstract())
+        MemberFunction memberFunction = (MemberFunction) virtualFunctions[i];
+        switch (memberFunction.getMemberFunctionType())
         {
-          llvmMethods[i] = LLVM.LLVMConstNull(LLVM.LLVMPointerType(typeHelper.findMethodType(memberFunctions[i].getMethod()), 0));
+        case METHOD:
+          if (memberFunction.getMethod().isAbstract())
+          {
+            llvmMethods[i] = LLVM.LLVMConstNull(LLVM.LLVMPointerType(typeHelper.findMethodType(memberFunction.getMethod()), 0));
+          }
+          else
+          {
+            llvmMethods[i] = codeGenerator.getMethodFunction(memberFunction.getMethod());
+          }
+          break;
+        case PROPERTY_GETTER:
+          if (memberFunction.getProperty().isAbstract())
+          {
+            llvmMethods[i] = LLVM.LLVMConstNull(LLVM.LLVMPointerType(typeHelper.findPropertyGetterType(memberFunction.getProperty()), 0));
+          }
+          else
+          {
+            llvmMethods[i] = codeGenerator.getPropertyGetterFunction(memberFunction.getProperty());
+          }
+          break;
+        case PROPERTY_SETTER:
+          if (memberFunction.getProperty().isAbstract())
+          {
+            llvmMethods[i] = LLVM.LLVMConstNull(LLVM.LLVMPointerType(typeHelper.findPropertySetterConstructorType(memberFunction.getProperty()), 0));
+          }
+          else
+          {
+            llvmMethods[i] = codeGenerator.getPropertySetterFunction(memberFunction.getProperty());
+          }
+          break;
+        case PROPERTY_CONSTRUCTOR:
+          if (memberFunction.getProperty().isAbstract())
+          {
+            llvmMethods[i] = LLVM.LLVMConstNull(LLVM.LLVMPointerType(typeHelper.findPropertySetterConstructorType(memberFunction.getProperty()), 0));
+          }
+          else
+          {
+            llvmMethods[i] = codeGenerator.getPropertyConstructorFunction(memberFunction.getProperty());
+          }
+          break;
+        default:
+          throw new IllegalStateException("Unknown member function type: " + memberFunction.getMemberFunctionType());
         }
-        else
+      }
+      else if (virtualFunctions[i] instanceof OverrideFunction)
+      {
+        OverrideFunction overrideFunction = (OverrideFunction) virtualFunctions[i];
+        switch (overrideFunction.getMemberFunctionType())
         {
-          llvmMethods[i] = codeGenerator.getMethodFunction(memberFunctions[i].getMethod());
+        case METHOD:
+          llvmMethods[i] = buildOverrideProxyMethod(overrideFunction.getInheritedMethodReference(), overrideFunction.getImplementationMethodReference());
+          break;
+        case PROPERTY_GETTER:
+          llvmMethods[i] = buildOverrideProxyPropertyGetter(overrideFunction.getInheritedPropertyReference(), overrideFunction.getImplementationPropertyReference());
+          break;
+        case PROPERTY_SETTER:
+        case PROPERTY_CONSTRUCTOR:
+          llvmMethods[i] = buildOverrideProxyPropertySetterConstructor(overrideFunction.getInheritedPropertyReference(), overrideFunction.getImplementationPropertyReference(), overrideFunction.getMemberFunctionType());
+          break;
+        default:
+          throw new IllegalStateException("Unknown member function type in an override function: " + overrideFunction.getMemberFunctionType());
         }
-        break;
-      case PROPERTY_GETTER:
-        if (memberFunctions[i].getProperty().isAbstract())
-        {
-          llvmMethods[i] = LLVM.LLVMConstNull(LLVM.LLVMPointerType(typeHelper.findPropertyGetterType(memberFunctions[i].getProperty()), 0));
-        }
-        else
-        {
-          llvmMethods[i] = codeGenerator.getPropertyGetterFunction(memberFunctions[i].getProperty());
-        }
-        break;
-      case PROPERTY_SETTER:
-        if (memberFunctions[i].getProperty().isAbstract())
-        {
-          llvmMethods[i] = LLVM.LLVMConstNull(LLVM.LLVMPointerType(typeHelper.findPropertySetterConstructorType(memberFunctions[i].getProperty()), 0));
-        }
-        else
-        {
-          llvmMethods[i] = codeGenerator.getPropertySetterFunction(memberFunctions[i].getProperty());
-        }
-        break;
-      case PROPERTY_CONSTRUCTOR:
-        if (memberFunctions[i].getProperty().isAbstract())
-        {
-          llvmMethods[i] = LLVM.LLVMConstNull(LLVM.LLVMPointerType(typeHelper.findPropertySetterConstructorType(memberFunctions[i].getProperty()), 0));
-        }
-        else
-        {
-          llvmMethods[i] = codeGenerator.getPropertyConstructorFunction(memberFunctions[i].getProperty());
-        }
-        break;
-      default:
-        throw new IllegalStateException("Unknown member function type: " + memberFunctions[i].getMemberFunctionType());
+      }
+      else
+      {
+        throw new IllegalStateException("Unknown virtual function type: " + virtualFunctions[i]);
       }
     }
     LLVMTypeRef vftType = getVFTType(typeDefinition);
@@ -281,39 +355,376 @@ public class VirtualFunctionHandler
       throw new IllegalStateException("Cannot add a virtual function table descriptor for a type which is neither a ClassDefinition nor an InterfaceDefinition");
     }
     LLVMValueRef vftDescriptorGlobalVar = getVFTDescriptorPointer(typeDefinition);
-    MemberFunction[] memberFunctions = typeDefinition.getMemberFunctions();
-    LLVMValueRef[] llvmStrings = new LLVMValueRef[memberFunctions.length];
 
     LLVMTypeRef stringType = typeHelper.findRawStringType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericPureRTTIType();
+    LLVMTypeRef[] entrySubTypes = new LLVMTypeRef[] {stringType, rttiType};
+    LLVMTypeRef entryType = LLVM.LLVMStructType(C.toNativePointerArray(entrySubTypes, false, true), entrySubTypes.length, false);
 
-    for (int i = 0; i < memberFunctions.length; ++i)
+    VirtualFunction[] virtualFunctions;
+    if (typeDefinition instanceof ClassDefinition)
     {
-      String disambiguator;
-      switch (memberFunctions[i].getMemberFunctionType())
-      {
-      case METHOD:
-        disambiguator = memberFunctions[i].getMethod().getDisambiguator().toString();
-        break;
-      case PROPERTY_GETTER:
-        disambiguator = memberFunctions[i].getProperty().getGetterDisambiguator();
-        break;
-      case PROPERTY_SETTER:
-        disambiguator = memberFunctions[i].getProperty().getSetterDisambiguator();
-        break;
-      case PROPERTY_CONSTRUCTOR:
-        disambiguator = memberFunctions[i].getProperty().getConstructorDisambiguator();
-        break;
-      default:
-        throw new IllegalStateException("Unknown member function type: " + memberFunctions[i].getMemberFunctionType());
-      }
-      LLVMValueRef stringConstant = codeGenerator.addStringConstant(disambiguator);
-      llvmStrings[i] = LLVM.LLVMConstBitCast(stringConstant, stringType);
+      virtualFunctions = ((ClassDefinition) typeDefinition).getVirtualFunctions();
     }
-    LLVMValueRef disambiguatorArray = LLVM.LLVMConstArray(stringType, C.toNativePointerArray(llvmStrings, false, true), llvmStrings.length);
-    LLVMValueRef[] descriptorSubValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), llvmStrings.length, false),
+    else if (typeDefinition instanceof InterfaceDefinition)
+    {
+      virtualFunctions = ((InterfaceDefinition) typeDefinition).getVirtualFunctions();
+    }
+    else
+    {
+      throw new IllegalStateException("Cannot generate a VFT descriptor for a type which doesn't have any virtual functions: " + typeDefinition);
+    }
+
+    LLVMValueRef[] llvmEntries = new LLVMValueRef[virtualFunctions.length];
+    for (int i = 0; i < virtualFunctions.length; ++i)
+    {
+      String functionDescriptorString;
+      NamedType overrideType;
+      if (virtualFunctions[i] instanceof MemberFunction)
+      {
+        MemberFunction memberFunction = (MemberFunction) virtualFunctions[i];
+        switch (memberFunction.getMemberFunctionType())
+        {
+        case METHOD:
+          functionDescriptorString = memberFunction.getMethod().getDescriptorString();
+          break;
+        case PROPERTY_GETTER:
+          functionDescriptorString = memberFunction.getProperty().getGetterDescriptor();
+          break;
+        case PROPERTY_SETTER:
+          functionDescriptorString = memberFunction.getProperty().getSetterDescriptor();
+          break;
+        case PROPERTY_CONSTRUCTOR:
+          functionDescriptorString = memberFunction.getProperty().getConstructorDescriptor();
+          break;
+        default:
+          throw new IllegalStateException("Unknown member function type: " + memberFunction.getMemberFunctionType());
+        }
+        overrideType = null;
+      }
+      else if (virtualFunctions[i] instanceof OverrideFunction)
+      {
+        OverrideFunction overrideFunction = (OverrideFunction) virtualFunctions[i];
+        switch (overrideFunction.getMemberFunctionType())
+        {
+        case METHOD:
+          MethodReference inheritedMethod = overrideFunction.getInheritedMethodReference();
+          functionDescriptorString = inheritedMethod.getReferencedMember().getDescriptorString();
+          overrideType = inheritedMethod.getContainingType();
+          break;
+        case PROPERTY_GETTER:
+          PropertyReference getterInheritedProperty = overrideFunction.getInheritedPropertyReference();
+          functionDescriptorString = getterInheritedProperty.getReferencedMember().getGetterDescriptor();
+          overrideType = getterInheritedProperty.getContainingType();
+          break;
+        case PROPERTY_SETTER:
+          PropertyReference setterInheritedProperty = overrideFunction.getInheritedPropertyReference();
+          functionDescriptorString = setterInheritedProperty.getReferencedMember().getSetterDescriptor();
+          overrideType = setterInheritedProperty.getContainingType();
+          break;
+        case PROPERTY_CONSTRUCTOR:
+          PropertyReference constructorInheritedProperty = overrideFunction.getInheritedPropertyReference();
+          functionDescriptorString = constructorInheritedProperty.getReferencedMember().getConstructorDescriptor();
+          overrideType = constructorInheritedProperty.getContainingType();
+          break;
+        default:
+          throw new IllegalStateException("Unknown member function type in override function: " + overrideFunction.getMemberFunctionType());
+        }
+      }
+      else
+      {
+        throw new IllegalStateException("Unknown type of virtual function: " + virtualFunctions[i]);
+      }
+      LLVMValueRef llvmDescriptorString = codeGenerator.addStringConstant(functionDescriptorString);
+      llvmDescriptorString = LLVM.LLVMConstBitCast(llvmDescriptorString, stringType);
+      LLVMValueRef overrideTypeRTTI;
+      if (overrideType == null)
+      {
+        overrideTypeRTTI = LLVM.LLVMConstNull(rttiType);
+      }
+      else
+      {
+        overrideTypeRTTI = rttiHelper.getPureRTTI(overrideType);
+      }
+      LLVMValueRef[] entryValues = new LLVMValueRef[] {llvmDescriptorString, overrideTypeRTTI};
+      llvmEntries[i] = LLVM.LLVMConstStruct(C.toNativePointerArray(entryValues, false, true), entryValues.length, false);
+    }
+    LLVMValueRef disambiguatorArray = LLVM.LLVMConstArray(entryType, C.toNativePointerArray(llvmEntries, false, true), llvmEntries.length);
+    LLVMValueRef[] descriptorSubValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), llvmEntries.length, false),
                                                              disambiguatorArray};
     LLVMValueRef descriptorValue = LLVM.LLVMConstStruct(C.toNativePointerArray(descriptorSubValues, false, true), descriptorSubValues.length, false);
     LLVM.LLVMSetInitializer(vftDescriptorGlobalVar, descriptorValue);
+  }
+
+  /**
+   * Builds a proxy method which can override the specified inherited method, and calls the specified implementation method.
+   * Both the inherited and the implementation references must be specialised to the current TypeDefinition, which must be a ClassDefinition.
+   * @param inheritedReference - the MethodReference being overridden, which this proxy function will conform to the signature of
+   * @param implementationReference - the MethodReference of the implementation to call
+   * @return the proxy function generated
+   */
+  private LLVMValueRef buildOverrideProxyMethod(MethodReference inheritedReference, MethodReference implementationReference)
+  {
+    if (inheritedReference.getReferencedMember().isStatic())
+    {
+      throw new IllegalArgumentException("Cannot generate an override proxy for a static method");
+    }
+    if (!(typeDefinition instanceof ClassDefinition))
+    {
+      throw new IllegalArgumentException("Cannot generate an override proxy as part of any type but a class");
+    }
+
+    final String mangledName = PROXY_OVERRIDE_FUNCTION_PREFIX + "METHOD_" + typeDefinition.getQualifiedName().getMangledName() + "_" + inheritedReference.getReferencedMember().getDescriptorString() + "_" + implementationReference.getReferencedMember().getDescriptorString();
+    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunction != null)
+    {
+      return existingFunction;
+    }
+
+    Method inheritedMethod = inheritedReference.getReferencedMember();
+    LLVMTypeRef functionType = typeHelper.findMethodType(inheritedMethod);
+    LLVMValueRef proxyFunction = LLVM.LLVMAddFunction(module, mangledName, functionType);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(proxyFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+
+    // this method is definitely not static, so there is a 'this' value
+    // so we can extract it and convert it to our class's type
+    Type currentType = inheritedReference.getContainingType();
+    if (currentType == null)
+    {
+      // the inherited member must be a built-in
+      currentType = new ObjectType(false, false, null);
+    }
+    NamedType thisType = new NamedType(false, false, false, typeDefinition);
+
+    LLVMValueRef thisValue = LLVM.LLVMGetParam(proxyFunction, 0);
+    thisValue = typeHelper.convertTemporary(builder, landingPadContainer, thisValue, currentType, thisType, true, null);
+
+    TypeParameterAccessor typeParameterAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, typeDefinition, thisValue);
+
+    int parameterOffset = 1;
+    if (inheritedMethod.getContainingTypeDefinition() instanceof InterfaceDefinition)
+    {
+      // this proxy function is overridden from an interface, so we must add the number of type parameters to the parameter offset
+      parameterOffset += inheritedMethod.getContainingTypeDefinition().getTypeParameters().length;
+    }
+
+    Parameter[] inheritedParameters = inheritedMethod.getParameters();
+    GenericTypeSpecialiser inheritedSpecialiser = new GenericTypeSpecialiser(inheritedReference.getContainingType());
+    Type[] implementationParameterTypes = implementationReference.getParameterTypes();
+    LLVMValueRef[] arguments = new LLVMValueRef[implementationParameterTypes.length];
+    for (int i = 0; i < implementationParameterTypes.length; ++i)
+    {
+      // find the type of this parameter
+      // currently, it may contain type parameters, so we must specialise them away without altering the native type
+      Type parameterType = inheritedParameters[i].getType();
+      // strip away any type parameters that are not part of a type argument inside parameterType
+      parameterType = typeHelper.stripTypeParameters(parameterType);
+      // specialise any type parameters that we missed (i.e. those which were part of a type argument)
+      parameterType = inheritedSpecialiser.getSpecialisedType(parameterType);
+
+      // convert from this parameter's type to the reference's type
+      LLVMValueRef parameter = LLVM.LLVMGetParam(proxyFunction, parameterOffset + i);
+      arguments[i] = typeHelper.convertStandardToTemporary(builder, landingPadContainer, parameter, parameterType, implementationParameterTypes[i], typeParameterAccessor);
+    }
+
+    LLVMValueRef result = typeHelper.buildMethodCall(builder, landingPadContainer, thisValue, thisType, implementationReference, arguments, typeParameterAccessor);
+
+    Type returnType = inheritedMethod.getReturnType();
+    if (returnType instanceof VoidType)
+    {
+      LLVM.LLVMBuildRetVoid(builder);
+    }
+    else
+    {
+      // find the type of the return value, the same way as we did for the parameters above
+      Type specialisedReturnType = typeHelper.stripTypeParameters(returnType);
+      specialisedReturnType = inheritedSpecialiser.getSpecialisedType(specialisedReturnType);
+      // convert the return value to the specialised type
+      result = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, result, implementationReference.getReturnType(), specialisedReturnType, typeParameterAccessor);
+      LLVM.LLVMBuildRet(builder, result);
+    }
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return proxyFunction;
+  }
+
+  /**
+   * Builds a proxy property getter which can override the specified inherited property's getter, and calls the specified implementation property's getter.
+   * Both the inherited and the implementation references must be specialised to the current TypeDefinition, which must be a ClassDefinition.
+   * @param inheritedReference - the PropertyReference being overridden, which this proxy function will conform to the signature of
+   * @param implementationReference - the PropertyReference of the implementation to call the getter of
+   * @return the proxy function generated
+   */
+  private LLVMValueRef buildOverrideProxyPropertyGetter(PropertyReference inheritedReference, PropertyReference implementationReference)
+  {
+    if (inheritedReference.getReferencedMember().isStatic())
+    {
+      throw new IllegalArgumentException("Cannot generate an override getter proxy for a static property");
+    }
+    if (!(typeDefinition instanceof ClassDefinition))
+    {
+      throw new IllegalArgumentException("Cannot generate an override proxy as part of any type but a class");
+    }
+
+    final String mangledName = PROXY_OVERRIDE_FUNCTION_PREFIX + "PROPERTY_GETTER_" + typeDefinition.getQualifiedName().getMangledName() + "_" + inheritedReference.getReferencedMember().getGetterDescriptor() + "_" + implementationReference.getReferencedMember().getGetterDescriptor();
+    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunction != null)
+    {
+      return existingFunction;
+    }
+
+    Property inheritedProperty = inheritedReference.getReferencedMember();
+    LLVMTypeRef functionType = typeHelper.findPropertyGetterType(inheritedProperty);
+    LLVMValueRef proxyFunction = LLVM.LLVMAddFunction(module, mangledName, functionType);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(proxyFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+
+    // this method is definitely not static, so there is a 'this' value
+    // so we can extract it and convert it to our class's type
+    Type currentType = inheritedReference.getContainingType();
+    if (currentType == null)
+    {
+      // the inherited member must be a built-in
+      currentType = new ObjectType(false, false, null);
+    }
+    NamedType thisType = new NamedType(false, false, false, typeDefinition);
+
+    LLVMValueRef thisValue = LLVM.LLVMGetParam(proxyFunction, 0);
+    thisValue = typeHelper.convertTemporary(builder, landingPadContainer, thisValue, currentType, thisType, true, null);
+
+    TypeParameterAccessor typeParameterAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, typeDefinition, thisValue);
+
+    LLVMValueRef result = typeHelper.buildPropertyGetterFunctionCall(builder, landingPadContainer, thisValue, thisType, implementationReference, typeParameterAccessor);
+
+    GenericTypeSpecialiser inheritedSpecialiser = new GenericTypeSpecialiser(inheritedReference.getContainingType());
+
+    // find the return type from this proxy function
+    // currently, it may contain type parameters, so we must specialise them away without altering the native type
+    Type returnType = inheritedProperty.getType();
+    // strip away any type parameters that are not part of a type argument inside parameterType
+    returnType = typeHelper.stripTypeParameters(returnType);
+    // specialise any type parameters that we missed (i.e. those which were part of a type argument)
+    returnType = inheritedSpecialiser.getSpecialisedType(returnType);
+
+    // convert the return value to the specialised type
+    result = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, result, implementationReference.getType(), returnType, typeParameterAccessor);
+    LLVM.LLVMBuildRet(builder, result);
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return proxyFunction;
+  }
+
+  /**
+   * Builds a proxy property setter/constructor which can override the specified inherited property's setter/constructor, and calls the specified implementation property's setter/constructor.
+   * Both the inherited and the implementation references must be specialised to the current TypeDefinition, which must be a ClassDefinition.
+   * @param inheritedReference - the PropertyReference being overridden, which this proxy function will conform to the signature of
+   * @param implementationReference - the PropertyReference of the implementation to call the getter of
+   * @param memberFunctionType - the type of member function to override, this should be either PROPERTY_SETTER or PROPERTY_CONSTRUCTOR
+   * @return the proxy function generated
+   */
+  private LLVMValueRef buildOverrideProxyPropertySetterConstructor(PropertyReference inheritedReference, PropertyReference implementationReference, MemberFunctionType memberFunctionType)
+  {
+    if (inheritedReference.getReferencedMember().isStatic())
+    {
+      throw new IllegalArgumentException("Cannot generate an override setter/constructor proxy for a static property");
+    }
+    if (!(typeDefinition instanceof ClassDefinition))
+    {
+      throw new IllegalArgumentException("Cannot generate an override proxy as part of any type but a class");
+    }
+
+    Property inheritedProperty = inheritedReference.getReferencedMember();
+
+    String functionTypeString = memberFunctionType == MemberFunctionType.PROPERTY_CONSTRUCTOR ? "PROPERTY_CONSTRUCTOR_" : "PROPERTY_SETTER_";
+    String inheritedDescriptor = memberFunctionType == MemberFunctionType.PROPERTY_CONSTRUCTOR ? inheritedProperty.getConstructorDescriptor() : inheritedProperty.getSetterDescriptor();
+    String implementationDescriptor = memberFunctionType == MemberFunctionType.PROPERTY_CONSTRUCTOR ? implementationReference.getReferencedMember().getConstructorDescriptor() : implementationReference.getReferencedMember().getSetterDescriptor();
+    final String mangledName = PROXY_OVERRIDE_FUNCTION_PREFIX + functionTypeString + typeDefinition.getQualifiedName().getMangledName() + "_" + inheritedDescriptor + "_" + implementationDescriptor;
+    LLVMValueRef existingFunction = LLVM.LLVMGetNamedFunction(module, mangledName);
+    if (existingFunction != null)
+    {
+      return existingFunction;
+    }
+
+    LLVMTypeRef functionType = typeHelper.findPropertySetterConstructorType(inheritedProperty);
+    LLVMValueRef proxyFunction = LLVM.LLVMAddFunction(module, mangledName, functionType);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(proxyFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+
+    // this method is definitely not static, so there is a 'this' value
+    // so we can extract it and convert it to our class's type
+    Type currentType = inheritedReference.getContainingType();
+    if (currentType == null)
+    {
+      // the inherited member must be a built-in
+      currentType = new ObjectType(false, false, null);
+    }
+    NamedType thisType = new NamedType(false, false, false, typeDefinition);
+
+    LLVMValueRef thisValue = LLVM.LLVMGetParam(proxyFunction, 0);
+    thisValue = typeHelper.convertTemporary(builder, landingPadContainer, thisValue, currentType, thisType, true, null);
+
+    TypeParameterAccessor typeParameterAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, typeDefinition, thisValue);
+
+    int parameterOffset = 1;
+    if (inheritedProperty.getContainingTypeDefinition() instanceof InterfaceDefinition)
+    {
+      // this proxy function is overridden from an interface, so we must add the number of type parameters to the parameter offset
+      parameterOffset += inheritedProperty.getContainingTypeDefinition().getTypeParameters().length;
+    }
+
+    GenericTypeSpecialiser inheritedSpecialiser = new GenericTypeSpecialiser(inheritedReference.getContainingType());
+    // find the type of the parameter to the proxy function
+    // currently, it may contain type parameters, so we must specialise them away without altering the native type
+    Type parameterType = inheritedProperty.getType();
+    // strip away any type parameters that are not part of a type argument inside parameterType
+    parameterType = typeHelper.stripTypeParameters(parameterType);
+    // specialise any type parameters that we missed (i.e. those which were part of a type argument)
+    parameterType = inheritedSpecialiser.getSpecialisedType(parameterType);
+
+    // convert from the parameter's type to the reference's type
+    LLVMValueRef parameter = LLVM.LLVMGetParam(proxyFunction, parameterOffset);
+    LLVMValueRef argument = typeHelper.convertStandardToTemporary(builder, landingPadContainer, parameter, parameterType, implementationReference.getType(), typeParameterAccessor);
+
+    typeHelper.buildPropertySetterConstructorFunctionCall(builder, landingPadContainer, thisValue, thisType, argument, implementationReference, memberFunctionType, typeParameterAccessor);
+
+    LLVM.LLVMBuildRetVoid(builder);
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return proxyFunction;
   }
 
   /**
@@ -334,12 +745,12 @@ public class VirtualFunctionHandler
       return existingValue;
     }
 
-    TypeDefinition[] inheritanceLinearisation = typeDefinition.getInheritanceLinearisation();
+    NamedType[] inheritanceLinearisation = typeDefinition.getInheritanceLinearisation();
     LLVMValueRef[] elements = new LLVMValueRef[inheritanceLinearisation.length + 1];
 
-    LLVMTypeRef stringType = typeHelper.findRawStringType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericPureRTTIType();
     LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
-    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {stringType, vftPointerType};
+    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {rttiType, vftPointerType};
     LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
     LLVMTypeRef arrayType = LLVM.LLVMArrayType(elementType, elements.length);
     LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), arrayType};
@@ -353,25 +764,24 @@ public class VirtualFunctionHandler
     {
       for (int i = 0; i < inheritanceLinearisation.length; ++i)
       {
-        LLVMValueRef stringValue = codeGenerator.addStringConstant(inheritanceLinearisation[i].getQualifiedName().toString());
-        LLVMValueRef convertedString = LLVM.LLVMConstBitCast(stringValue, stringType);
+        LLVMValueRef rttiValue = rttiHelper.getPureRTTI(inheritanceLinearisation[i]);
         LLVMValueRef vftValue;
-        if (inheritanceLinearisation[i] == typeDefinition)
+        if (inheritanceLinearisation[i].getResolvedTypeDefinition() == typeDefinition)
         {
           vftValue = getVFTGlobal(typeDefinition);
-          vftValue = LLVM.LLVMConstBitCast(vftValue, LLVM.LLVMPointerType(getGenericVFTType(), 0));
+          vftValue = LLVM.LLVMConstBitCast(vftValue, vftPointerType);
         }
         else
         {
+          // leave it as null, to be filled in at runtime before anything else is executed
           vftValue = LLVM.LLVMConstNull(vftPointerType);
         }
-        LLVMValueRef[] elementSubValues = new LLVMValueRef[] {convertedString, vftValue};
+        LLVMValueRef[] elementSubValues = new LLVMValueRef[] {rttiValue, vftValue};
         elements[i] = LLVM.LLVMConstStruct(C.toNativePointerArray(elementSubValues, false, true), elementSubValues.length, false);
       }
-      LLVMValueRef stringValue = codeGenerator.addStringConstant("object");
-      LLVMValueRef convertedString = LLVM.LLVMConstBitCast(stringValue, stringType);
+      LLVMValueRef objectRTTIValue = rttiHelper.getPureRTTI(new ObjectType(false, false, null));
       LLVMValueRef nullVFTValue = LLVM.LLVMConstNull(vftPointerType);
-      LLVMValueRef[] elementSubValues = new LLVMValueRef[] {convertedString, nullVFTValue};
+      LLVMValueRef[] elementSubValues = new LLVMValueRef[] {objectRTTIValue, nullVFTValue};
       elements[inheritanceLinearisation.length] = LLVM.LLVMConstStruct(C.toNativePointerArray(elementSubValues, false, true), elementSubValues.length, false);
 
       LLVMValueRef array = LLVM.LLVMConstArray(elementType, C.toNativePointerArray(elements, false, true), elements.length);
@@ -399,17 +809,16 @@ public class VirtualFunctionHandler
       return existingValue;
     }
 
-    LLVMTypeRef stringType = typeHelper.findRawStringType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericPureRTTIType();
     LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
-    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {stringType, vftPointerType};
+    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {rttiType, vftPointerType};
     LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
 
     LLVMValueRef[] elements = new LLVMValueRef[1];
 
-    LLVMValueRef stringValue = codeGenerator.addStringConstant("object");
-    LLVMValueRef convertedString = LLVM.LLVMConstBitCast(stringValue, stringType);
+    LLVMValueRef objectRTTIValue = rttiHelper.getPureRTTI(new ObjectType(false, false, null));
     LLVMValueRef nullVFTValue = LLVM.LLVMConstBitCast(objectVFT, vftPointerType);
-    LLVMValueRef[] elementSubValues = new LLVMValueRef[] {convertedString, nullVFTValue};
+    LLVMValueRef[] elementSubValues = new LLVMValueRef[] {objectRTTIValue, nullVFTValue};
     elements[0] = LLVM.LLVMConstStruct(C.toNativePointerArray(elementSubValues, false, true), elementSubValues.length, false);
 
     LLVMValueRef array = LLVM.LLVMConstArray(elementType, C.toNativePointerArray(elements, false, true), elements.length);
@@ -444,29 +853,47 @@ public class VirtualFunctionHandler
 
   /**
    * Finds a pointer to a virtual function table pointer inside the specified base value.
+   * The base type should be a class, and should never be nullable.
    * @param builder - the LLVMBuilderRef to build instructions with
    * @param baseValue - the base value to find the virtual function table pointer inside
-   * @param subclassDefinition - the ClassDefinition to find the virtual function table inside, can be equal to searchTypeDefinition if it is not an interface
-   * @param searchTypeDefinition - the TypeDefinition to find the virtual function table of
+   * @param baseType - the type of baseValue, which we should find the virtual function table inside
+   * @param searchType - the NamedType to find the virtual function table of.
+   *                     This must resolve to a ClassDefinition or an InterfaceDefinition,
+   *                     and must be a super-type of (or equivalent to) baseType,
+   *                     with any type arguments specialised to the level of baseType.
    * @return a pointer to the virtual function table pointer inside the specified base value
    */
-  public LLVMValueRef getVirtualFunctionTablePointer(LLVMBuilderRef builder, LLVMValueRef baseValue, ClassDefinition subclassDefinition, TypeDefinition searchTypeDefinition)
+  public LLVMValueRef getVirtualFunctionTablePointer(LLVMBuilderRef builder, LLVMValueRef baseValue, NamedType baseType, NamedType searchType)
   {
-    ClassDefinition encapsulatingClassDefinition = null;
-    if (searchTypeDefinition instanceof ClassDefinition)
+    if (!(baseType.getResolvedTypeDefinition() instanceof ClassDefinition))
     {
-      encapsulatingClassDefinition = (ClassDefinition) searchTypeDefinition;
+      throw new IllegalArgumentException("Cannot find a VFT pointer on something of type: " + baseType);
+    }
+
+    ClassDefinition encapsulatingClassDefinition = null;
+    // maintain a stack of specialisers that allow us to work our way down the type hierarchy to the subclassDefinition
+    Deque<GenericTypeSpecialiser> specialisers = new LinkedList<GenericTypeSpecialiser>();
+    if (searchType.getResolvedTypeDefinition() instanceof ClassDefinition)
+    {
+      encapsulatingClassDefinition = (ClassDefinition) searchType.getResolvedTypeDefinition();
     }
     else
     {
-      ClassDefinition current = subclassDefinition;
+      // we are searching for an interface, so find the highest up class in baseType's linearisation which implements this interface
+      ClassDefinition current = (ClassDefinition) baseType.getResolvedTypeDefinition();
+      specialisers.addFirst(new GenericTypeSpecialiser(baseType));
       while (current != null)
       {
         boolean inLinearisation = false;
-        TypeDefinition[] linearisation = current.getInheritanceLinearisation();
-        for (TypeDefinition t : linearisation)
+        for (NamedType t : current.getInheritanceLinearisation())
         {
-          if (t == searchTypeDefinition)
+          NamedType specialised = t;
+          for (GenericTypeSpecialiser specialiser : specialisers)
+          {
+            // casting to NamedType is safe here, as the type was part of an inheritance linearisation, so it cannot be a type parameter
+            specialised = (NamedType) specialiser.getSpecialisedType(specialised);
+          }
+          if (specialised.isRuntimeEquivalent(searchType))
           {
             inLinearisation = true;
             break;
@@ -477,27 +904,45 @@ public class VirtualFunctionHandler
           encapsulatingClassDefinition = current;
           // keep going, so that we find the highest-up class with this interface in its linearisation
         }
-        current = current.getSuperClassDefinition();
+        NamedType superType = current.getSuperType();
+        if (superType != null && superType.getResolvedTypeDefinition() instanceof ClassDefinition)
+        {
+          current = (ClassDefinition) superType.getResolvedTypeDefinition();
+          specialisers.addFirst(new GenericTypeSpecialiser(superType));
+        }
+        else
+        {
+          current = null;
+        }
       }
       if (encapsulatingClassDefinition == null)
       {
-        throw new IllegalArgumentException("Cannot find a VFT pointer for " + searchTypeDefinition.getQualifiedName() + " inside " + subclassDefinition.getQualifiedName());
+        throw new IllegalArgumentException("Cannot find a VFT pointer for " + searchType + " inside " + baseType);
       }
     }
+    // calculate the VFT's index
     // start at 2 to skip the VFT search list and the object VFT
     int index = 2;
-    ClassDefinition superClassDefinition = encapsulatingClassDefinition.getSuperClassDefinition();
-    while (superClassDefinition != null)
+    NamedType superType = encapsulatingClassDefinition.getSuperType();
+    while (superType != null && superType.getResolvedTypeDefinition() instanceof ClassDefinition)
     {
-      index += 1 + typeHelper.findSubClassInterfaces(superClassDefinition).length + superClassDefinition.getMemberVariables().length;
-      superClassDefinition = superClassDefinition.getSuperClassDefinition();
+      ClassDefinition superClassDefinition = (ClassDefinition) superType.getResolvedTypeDefinition();
+      index += 1 + typeHelper.findSubClassInterfaces(superClassDefinition).length + superClassDefinition.getTypeParameters().length + superClassDefinition.getMemberVariables().length;
+      superType = superClassDefinition.getSuperType();
     }
-    if (searchTypeDefinition instanceof InterfaceDefinition)
+    if (searchType.getResolvedTypeDefinition() instanceof InterfaceDefinition)
     {
-      InterfaceDefinition[] subClassInterfaces = typeHelper.findSubClassInterfaces(encapsulatingClassDefinition);
+      // add on the offset to the interface's VFT
+      NamedType[] subClassInterfaces = typeHelper.findSubClassInterfaces(encapsulatingClassDefinition);
       for (int i = 0; i < subClassInterfaces.length; ++i)
       {
-        if (subClassInterfaces[i] == searchTypeDefinition)
+        NamedType specialisedSubClassInterface = subClassInterfaces[i];
+        for (GenericTypeSpecialiser specialiser : specialisers)
+        {
+          // casting to NamedType is safe here, as specialisedSubClassInterface is always an interface and never a TypeParameter
+          specialisedSubClassInterface = (NamedType) specialiser.getSpecialisedType(specialisedSubClassInterface);
+        }
+        if (specialisedSubClassInterface.isRuntimeEquivalent(searchType))
         {
           // skip the class's VFT, and all of the interfaces before this one
           index += 1 + i;
@@ -511,63 +956,79 @@ public class VirtualFunctionHandler
   }
 
   /**
+   * Finds a virtual function table pointer inside the specified baseValue, which corresponds to the specified searchType.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
+   * @param baseValue - the base value to find the virtual function table inside
+   * @param baseType - the type of baseValue, which we should find the virtual function table inside
+   * @param searchType - the NamedType to find the virtual function table of.
+   *                     This must resolve to a ClassDefinition or an InterfaceDefinition,
+   *                     and must be a super-type of (or equivalent to) baseType,
+   *                     with any type arguments specialised to the level of baseType.
+   * @param typeParameterAccessor - the TypeParameterAccessor that contains the RTTI for any type parameters accessible in this context
+   * @return the requested virtual function table pointer inside the specified baseValue
+   */
+  public LLVMValueRef getVirtualFunctionTable(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef baseValue, NamedType baseType, NamedType searchType, TypeParameterAccessor typeParameterAccessor)
+  {
+    if (baseType.getResolvedTypeParameter() != null)
+    {
+      LLVMValueRef convertedBaseValue = typeHelper.convertTemporary(builder, landingPadContainer, baseValue, baseType, searchType, false, typeParameterAccessor);
+      // recurse to get the VFT for whichever sort of type searchType is
+      return getVirtualFunctionTable(builder, landingPadContainer, convertedBaseValue, searchType, searchType, typeParameterAccessor);
+    }
+
+    if (baseType.getResolvedTypeDefinition() instanceof InterfaceDefinition)
+    {
+      if (!(searchType.getResolvedTypeDefinition() instanceof InterfaceDefinition))
+      {
+        throw new IllegalArgumentException("Cannot find the VFT pointer for " + searchType + " on " + baseType + ", searchType should be an interface in order to be a super-type of baseType");
+      }
+      LLVMValueRef convertedBaseValue = typeHelper.convertTemporary(builder, landingPadContainer, baseValue, baseType, searchType, false, typeParameterAccessor);
+      // extract the VFT from the interface's type representation
+      return LLVM.LLVMBuildExtractValue(builder, convertedBaseValue, 0, "");
+    }
+
+    // we are looking up a VFT on a class/object base type, so find the pointer to it inside this object and load the result
+    LLVMValueRef vftPointer = getVirtualFunctionTablePointer(builder, baseValue, baseType, searchType);
+    return LLVM.LLVMBuildLoad(builder, vftPointer, "");
+  }
+
+  /**
    * Finds the pointer to the specified Method inside the specified base value
    * @param builder - the LLVMBuilderRef to build instructions with
    * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
    * @param baseValue - the base value to look up the method in one of the virtual function tables of
    * @param baseType - the Type of the base value
-   * @param method - the Method to look up in a virtual function table
+   * @param methodReference - the MethodReference to look up in a virtual function table, which has been specialised to baseType
+   * @param typeParameterAccessor - the TypeParameterAccessor that contains the RTTI for any type parameters accessible in this context
    * @return a pointer to the native function representing the specified method
    */
-  public LLVMValueRef getMethodPointer(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef baseValue, Type baseType, Method method)
+  public LLVMValueRef getMethodPointer(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef baseValue, Type baseType, MethodReference methodReference, TypeParameterAccessor typeParameterAccessor)
   {
-    if (method.isStatic())
+    if (methodReference.getReferencedMember().isStatic())
     {
       throw new IllegalArgumentException("Cannot get a method pointer for a static method");
     }
     LLVMValueRef vft = null;
-    TypeDefinition methodTypeDefinition = method.getContainingTypeDefinition();
-    if (methodTypeDefinition != null)
+    NamedType methodContainingType = methodReference.getContainingType();
+    if (methodContainingType != null)
     {
       if (!(baseType instanceof NamedType))
       {
         throw new IllegalArgumentException("Cannot get a method pointer for non-built-in method on anything other than a NamedType");
       }
-      TypeDefinition baseTypeDefinition = ((NamedType) baseType).getResolvedTypeDefinition();
-      if (baseTypeDefinition instanceof ClassDefinition)
-      {
-        LLVMValueRef vftPointer = getVirtualFunctionTablePointer(builder, baseValue, (ClassDefinition) baseTypeDefinition, methodTypeDefinition);
-        vft = LLVM.LLVMBuildLoad(builder, vftPointer, "");
-      }
-      else if (baseTypeDefinition instanceof InterfaceDefinition)
-      {
-        boolean inLinearisation = false;
-        for (TypeDefinition t : baseTypeDefinition.getInheritanceLinearisation())
-        {
-          if (t == methodTypeDefinition)
-          {
-            inLinearisation = true;
-            break;
-          }
-        }
-        if (!inLinearisation)
-        {
-          throw new IllegalArgumentException("Cannot get a method pointer for '" + method.getName() + "', it is not part of the base value's type: " + baseType);
-        }
-        LLVMValueRef convertedBaseValue = typeHelper.convertTemporary(builder, landingPadContainer, baseValue, baseType, new NamedType(false, false, methodTypeDefinition));
-        // extract the VFT from the interface's type representation
-        vft = LLVM.LLVMBuildExtractValue(builder, convertedBaseValue, 0, "");
-      }
+      vft = getVirtualFunctionTable(builder, landingPadContainer, baseValue, (NamedType) baseType, methodContainingType, typeParameterAccessor);
     }
-    else if (method instanceof BuiltinMethod)
+    else if (methodReference.getReferencedMember() instanceof BuiltinMethod)
     {
       if (baseType instanceof NamedType && ((NamedType) baseType).getResolvedTypeDefinition() instanceof InterfaceDefinition)
       {
         ObjectType objectType = new ObjectType(false, false, null);
-        baseValue = typeHelper.convertTemporary(builder, landingPadContainer, baseValue, baseType, objectType);
+        baseValue = typeHelper.convertTemporary(builder, landingPadContainer, baseValue, baseType, objectType, false, typeParameterAccessor);
         baseType = objectType;
       }
       if (baseType instanceof ObjectType ||
+          (baseType instanceof NamedType && ((NamedType) baseType).getResolvedTypeParameter() != null) ||
           (baseType instanceof NamedType && ((NamedType) baseType).getResolvedTypeDefinition() instanceof ClassDefinition))
       {
         LLVMValueRef vftPointer = getFirstVirtualFunctionTablePointer(builder, baseValue);
@@ -578,7 +1039,7 @@ public class VirtualFunctionHandler
     {
       throw new IllegalArgumentException("Cannot get a method pointer for a method from anything but an object, a ClassDefinition, or an InterfaceDefinition");
     }
-    int index = method.getMemberFunction().getMemberIndex();
+    int index = methodReference.getReferencedMember().getMemberFunction().getIndex();
     LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                  LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), index, false)};
     LLVMValueRef vftElement = LLVM.LLVMBuildGEP(builder, vft, C.toNativePointerArray(indices, false, true), indices.length, "");
@@ -591,48 +1052,28 @@ public class VirtualFunctionHandler
    * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
    * @param baseValue - the base value to look up the property function in one of the virtual function tables of
    * @param baseType - the Type of the base value
+   * @param propertyReference - the PropertyReference which has been specialised to baseType
    * @param propertyFunction - the function to look up in a virtual function table
+   * @param typeParameterAccessor - the TypeParameterAccessor that contains the RTTI for any type parameters accessible in this context
    * @return a pointer to the native function representing the specified property function
    */
-  public LLVMValueRef getPropertyFuntionPointer(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef baseValue, Type baseType, MemberFunction propertyFunction)
+  public LLVMValueRef getPropertyFuntionPointer(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef baseValue, Type baseType, PropertyReference propertyReference, MemberFunction propertyFunction, TypeParameterAccessor typeParameterAccessor)
   {
-    Property property = propertyFunction.getProperty();
-    TypeDefinition propertyTypeDefinition = property.getContainingTypeDefinition();
     if (!(baseType instanceof NamedType))
     {
       throw new IllegalArgumentException("Cannot get a property function pointer for a property on anything other than a NamedType");
     }
     LLVMValueRef vft;
-    TypeDefinition baseTypeDefinition = ((NamedType) baseType).getResolvedTypeDefinition();
-    if (baseTypeDefinition instanceof ClassDefinition)
+    NamedType propertyContainingType = propertyReference.getContainingType();
+    if (propertyContainingType != null)
     {
-      LLVMValueRef vftPointer = getVirtualFunctionTablePointer(builder, baseValue, (ClassDefinition) baseTypeDefinition, propertyTypeDefinition);
-      vft = LLVM.LLVMBuildLoad(builder, vftPointer, "");
-    }
-    else if (baseTypeDefinition instanceof InterfaceDefinition)
-    {
-      boolean inLinearisation = false;
-      for (TypeDefinition t : baseTypeDefinition.getInheritanceLinearisation())
-      {
-        if (t == propertyTypeDefinition)
-        {
-          inLinearisation = true;
-          break;
-        }
-      }
-      if (!inLinearisation)
-      {
-        throw new IllegalArgumentException("Cannot get a property funtion pointer for '" + property.getName() + "', it is not part of the base value's type: " + baseType);
-      }
-      LLVMValueRef convertedBaseValue = typeHelper.convertTemporary(builder, landingPadContainer, baseValue, baseType, new NamedType(false, false, propertyTypeDefinition));
-      // extract the VFT from the interface's type representation
-      vft = LLVM.LLVMBuildExtractValue(builder, convertedBaseValue, 0, "");
+      vft = getVirtualFunctionTable(builder, landingPadContainer, baseValue, (NamedType) baseType, propertyContainingType, typeParameterAccessor);
     }
     else
     {
-      throw new IllegalArgumentException("Cannot get a property function pointer for a property from anything but a ClassDefinition or an InterfaceDefinition (accessing property: '" + property.getName() + "')");
+      throw new IllegalArgumentException("Cannot get a property function pointer for a property from anything but a ClassDefinition or an InterfaceDefinition (accessing property: '" + propertyReference.getReferencedMember().getName() + "')");
     }
-    int index = propertyFunction.getMemberIndex();
+    int index = propertyFunction.getIndex();
     LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
                                                  LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), index, false)};
     LLVMValueRef vftElement = LLVM.LLVMBuildGEP(builder, vft, C.toNativePointerArray(indices, false, true), indices.length, "");
@@ -647,7 +1088,11 @@ public class VirtualFunctionHandler
   private LLVMTypeRef getDescriptorType(int numMethods)
   {
     LLVMTypeRef stringType = typeHelper.findRawStringType();
-    LLVMTypeRef arrayType = LLVM.LLVMArrayType(stringType, numMethods);
+    LLVMTypeRef rttiType = rttiHelper.getGenericPureRTTIType();
+    LLVMTypeRef[] entrySubTypes = new LLVMTypeRef[] {stringType, rttiType};
+    LLVMTypeRef entryType = LLVM.LLVMStructType(C.toNativePointerArray(entrySubTypes, false, true), entrySubTypes.length, false);
+
+    LLVMTypeRef arrayType = LLVM.LLVMArrayType(entryType, numMethods);
     LLVMTypeRef[] descriptorSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), arrayType};
     return LLVM.LLVMStructType(C.toNativePointerArray(descriptorSubTypes, false, true), descriptorSubTypes.length, false);
   }
@@ -663,8 +1108,12 @@ public class VirtualFunctionHandler
       return vftDescriptorType;
     }
     LLVMTypeRef stringType = typeHelper.findRawStringType();
-    LLVMTypeRef stringArrayType = LLVM.LLVMArrayType(stringType, 0);
-    LLVMTypeRef[] vftDescriptorSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), stringArrayType};
+    LLVMTypeRef rttiType = rttiHelper.getGenericPureRTTIType();
+    LLVMTypeRef[] entrySubTypes = new LLVMTypeRef[] {stringType, rttiType};
+    LLVMTypeRef entryType = LLVM.LLVMStructType(C.toNativePointerArray(entrySubTypes, false, true), entrySubTypes.length, false);
+
+    LLVMTypeRef arrayType = LLVM.LLVMArrayType(entryType, 0);
+    LLVMTypeRef[] vftDescriptorSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), arrayType};
     vftDescriptorType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "VFT_Descriptor");
     LLVM.LLVMStructSetBody(vftDescriptorType, C.toNativePointerArray(vftDescriptorSubTypes, false, true), vftDescriptorSubTypes.length, false);
     return vftDescriptorType;
@@ -687,26 +1136,67 @@ public class VirtualFunctionHandler
     // later on, we add the fields using LLVMStructSetBody
     nativeVirtualTableTypes.put(typeDefinition, result);
 
-    MemberFunction[] memberFunctions = typeDefinition.getMemberFunctions();
-    LLVMTypeRef[] functionTypes = new LLVMTypeRef[memberFunctions.length];
-    for (int i = 0; i < memberFunctions.length; ++i)
+    VirtualFunction[] virtualFunctions;
+    if (typeDefinition instanceof ClassDefinition)
     {
-      switch (memberFunctions[i].getMemberFunctionType())
+      virtualFunctions = ((ClassDefinition) typeDefinition).getVirtualFunctions();
+    }
+    else if (typeDefinition instanceof InterfaceDefinition)
+    {
+      virtualFunctions = ((InterfaceDefinition) typeDefinition).getVirtualFunctions();
+    }
+    else
+    {
+      throw new IllegalArgumentException("Cannot find the VFT type for a type without a VFT: " + typeDefinition);
+    }
+
+    LLVMTypeRef[] functionTypes = new LLVMTypeRef[virtualFunctions.length];
+    for (int i = 0; i < virtualFunctions.length; ++i)
+    {
+      if (virtualFunctions[i] instanceof MemberFunction)
       {
-      case METHOD:
-        functionTypes[i] = LLVM.LLVMPointerType(typeHelper.findMethodType(memberFunctions[i].getMethod()), 0);
-        break;
-      case PROPERTY_GETTER:
-        functionTypes[i] = LLVM.LLVMPointerType(typeHelper.findPropertyGetterType(memberFunctions[i].getProperty()), 0);
-        break;
-      case PROPERTY_SETTER:
-        functionTypes[i] = LLVM.LLVMPointerType(typeHelper.findPropertySetterConstructorType(memberFunctions[i].getProperty()), 0);
-        break;
-      case PROPERTY_CONSTRUCTOR:
-        functionTypes[i] = LLVM.LLVMPointerType(typeHelper.findPropertySetterConstructorType(memberFunctions[i].getProperty()), 0);
-        break;
-      default:
-        throw new IllegalStateException("Unknown member function type: " + memberFunctions[i].getMemberFunctionType());
+        MemberFunction memberFunction = (MemberFunction) virtualFunctions[i];
+        switch (memberFunction.getMemberFunctionType())
+        {
+        case METHOD:
+          functionTypes[i] = LLVM.LLVMPointerType(typeHelper.findMethodType(memberFunction.getMethod()), 0);
+          break;
+        case PROPERTY_GETTER:
+          functionTypes[i] = LLVM.LLVMPointerType(typeHelper.findPropertyGetterType(memberFunction.getProperty()), 0);
+          break;
+        case PROPERTY_SETTER:
+        case PROPERTY_CONSTRUCTOR:
+          functionTypes[i] = LLVM.LLVMPointerType(typeHelper.findPropertySetterConstructorType(memberFunction.getProperty()), 0);
+          break;
+        default:
+          throw new IllegalStateException("Unknown member function type: " + memberFunction.getMemberFunctionType());
+        }
+      }
+      else if (virtualFunctions[i] instanceof OverrideFunction)
+      {
+        OverrideFunction overrideFunction = (OverrideFunction) virtualFunctions[i];
+        switch (overrideFunction.getMemberFunctionType())
+        {
+        case METHOD:
+          Method inheritedMethod = overrideFunction.getInheritedMethodReference().getReferencedMember();
+          functionTypes[i] = LLVM.LLVMPointerType(typeHelper.findMethodType(inheritedMethod), 0);
+          break;
+        case PROPERTY_GETTER:
+          Property inheritedGetterProperty = overrideFunction.getInheritedPropertyReference().getReferencedMember();
+          functionTypes[i] = LLVM.LLVMPointerType(typeHelper.findPropertyGetterType(inheritedGetterProperty), 0);
+          break;
+        case PROPERTY_SETTER:
+        case PROPERTY_CONSTRUCTOR:
+          Property inheritedSetterConstructorProperty = overrideFunction.getInheritedPropertyReference().getReferencedMember();
+          functionTypes[i] = LLVM.LLVMPointerType(typeHelper.findPropertySetterConstructorType(inheritedSetterConstructorProperty), 0);
+          break;
+        default:
+          throw new IllegalStateException("Unknown member function type in override function: " + overrideFunction.getMemberFunctionType());
+        }
+      }
+      else
+      {
+        throw new IllegalArgumentException("Unknown virtual function type: " + virtualFunctions[i]);
       }
     }
     LLVM.LLVMStructSetBody(result, C.toNativePointerArray(functionTypes, false, true), functionTypes.length, false);
@@ -762,25 +1252,25 @@ public class VirtualFunctionHandler
   }
 
   /**
-   * Finds the type of a VFT search list, a named struct type representing: {i32, [0 x {%RawString*, %VFT*}]}
+   * Finds the type of a VFT search list, a named struct type representing: {i32, [0 x {%RTTI*, %VFT*}]}
    * @return the LLVM type of the an VFT search list
    */
   public LLVMTypeRef getVFTSearchListType()
   {
-    if (interfaceSearchListType != null)
+    if (vftSearchListType != null)
     {
-      return interfaceSearchListType;
+      return vftSearchListType;
     }
-    // store the named struct in interfaceSearchListType first, so that when we get the raw string type we don't infinitely recurse
-    interfaceSearchListType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "VFTSearchList");
-    LLVMTypeRef stringType = typeHelper.findRawStringType();
+    // store the named struct in vftSearchListType first, so that when we get the raw string type we don't infinitely recurse
+    vftSearchListType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "VFTSearchList");
+    LLVMTypeRef rttiType = rttiHelper.getGenericPureRTTIType();
     LLVMTypeRef vftType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
-    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {stringType, vftType};
+    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {rttiType, vftType};
     LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
     LLVMTypeRef arrayType = LLVM.LLVMArrayType(elementType, 0);
     LLVMTypeRef[] searchListSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), arrayType};
-    LLVM.LLVMStructSetBody(interfaceSearchListType, C.toNativePointerArray(searchListSubTypes, false, true), searchListSubTypes.length, false);
-    return interfaceSearchListType;
+    LLVM.LLVMStructSetBody(vftSearchListType, C.toNativePointerArray(searchListSubTypes, false, true), searchListSubTypes.length, false);
+    return vftSearchListType;
   }
 
   /**
@@ -792,10 +1282,11 @@ public class VirtualFunctionHandler
     {
       return functionSearchListType;
     }
+    LLVMTypeRef rttiPointer = rttiHelper.getGenericPureRTTIType();
     LLVMTypeRef descriptorPointer = LLVM.LLVMPointerType(getGenericDescriptorType(), 0);
     LLVMTypeRef vftPointer = LLVM.LLVMPointerType(getGenericVFTType(), 0);
     LLVMTypeRef excludeListPointer = LLVM.LLVMPointerType(getExcludeListType(0), 0);
-    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {descriptorPointer, vftPointer, excludeListPointer};
+    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {rttiPointer, descriptorPointer, vftPointer, excludeListPointer};
     LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
     LLVMTypeRef arrayType = LLVM.LLVMArrayType(elementType, 0);
     LLVMTypeRef[] searchListSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), arrayType};
@@ -805,7 +1296,7 @@ public class VirtualFunctionHandler
   }
 
   /**
-   * @return the superclass VFT generator function
+   * @return the superclass VFT generator function (see the core runtime's 'vft.ll' file)
    */
   private LLVMValueRef getSuperTypeVFTGeneratorFunction()
   {
@@ -814,9 +1305,8 @@ public class VirtualFunctionHandler
     {
       return existingFunction;
     }
-    LLVMTypeRef[] parameterTypes = new LLVMTypeRef[] {LLVM.LLVMPointerType(getGenericDescriptorType(), 0),
-                                                      LLVM.LLVMPointerType(getGenericVFTType(), 0),
-                                                      LLVM.LLVMPointerType(getFunctionSearchListType(), 0)};
+    LLVMTypeRef[] parameterTypes = new LLVMTypeRef[] {LLVM.LLVMPointerType(getFunctionSearchListType(), 0),
+                                                      LLVM.LLVMInt32Type()};
     LLVMTypeRef resultType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
     LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, C.toNativePointerArray(parameterTypes, false, true), parameterTypes.length, false);
     LLVMValueRef function = LLVM.LLVMAddFunction(module, SUPERTYPE_VFT_GENERATOR_FUNCTION_NAME, functionType);
@@ -824,7 +1314,7 @@ public class VirtualFunctionHandler
   }
 
   /**
-   * @return the VFT lookup function
+   * @return the VFT lookup function (see the core runtime's 'vft.ll' file)
    */
   private LLVMValueRef getVFTLookupFunction()
   {
@@ -833,8 +1323,9 @@ public class VirtualFunctionHandler
     {
       return existingFunction;
     }
-    LLVMTypeRef stringType = typeHelper.findRawStringType();
-    LLVMTypeRef[] parameterTypes = new LLVMTypeRef[] {LLVM.LLVMPointerType(getVFTSearchListType(), 0), stringType};
+    LLVMTypeRef rttiType = rttiHelper.getGenericPureRTTIType();
+    LLVMTypeRef typeArgumentMapperType = rttiHelper.getGenericTypeArgumentMapperType();
+    LLVMTypeRef[] parameterTypes = new LLVMTypeRef[] {LLVM.LLVMPointerType(getVFTSearchListType(), 0), rttiType, rttiType, typeArgumentMapperType};
     LLVMTypeRef resultType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
     LLVMTypeRef functionType = LLVM.LLVMFunctionType(resultType, C.toNativePointerArray(parameterTypes, false, true), parameterTypes.length, false);
     LLVMValueRef function = LLVM.LLVMAddFunction(module, VFT_LOOKUP_FUNCTION_NAME, functionType);
@@ -844,20 +1335,39 @@ public class VirtualFunctionHandler
   /**
    * Builds code to lookup the specified type's VFT inside the specified object's VFT search list.
    * @param builder - the builder to build code with
-   * @param objectValue - the object to look up the specified search type's VFT inside
-   * @param searchTypeDefinition - the type definition to search for
+   * @param objectValue - the object to look up the specified search type's VFT inside, must not be null
+   * @param searchType - the type to search for
+   * @param typeParameterAccessor - the TypeParameterAccessor that provides a way of getting at all possible TypeParameters at this location
    * @return an LLVMValueRef representing a pointer to the resulting VFT, or a null pointer if this object does not implement the specified search type
    */
-  public LLVMValueRef lookupInstanceVFT(LLVMBuilderRef builder, LLVMValueRef objectValue, TypeDefinition searchTypeDefinition)
+  public LLVMValueRef lookupInstanceVFT(LLVMBuilderRef builder, LLVMValueRef objectValue, NamedType searchType, TypeParameterAccessor typeParameterAccessor)
   {
+    LLVMValueRef thisPureRTTI = rttiHelper.lookupPureRTTI(builder, objectValue);
     LLVMValueRef vftSearchList = rttiHelper.lookupVFTSearchList(builder, objectValue);
 
-    String interfaceName = searchTypeDefinition.getQualifiedName().toString();
-    LLVMValueRef interfaceRawString = codeGenerator.addStringConstant(interfaceName);
-    LLVMTypeRef stringType = typeHelper.findRawStringType();
-    interfaceRawString = LLVM.LLVMBuildBitCast(builder, interfaceRawString, stringType, "");
+    LLVMValueRef searchTypeRTTI = rttiHelper.getPureRTTI(searchType);
+    LLVMValueRef searchTypeMapper = typeParameterAccessor.getTypeArgumentMapper();
 
-    LLVMValueRef[] arguments = new LLVMValueRef[] {vftSearchList, interfaceRawString};
+    LLVMValueRef[] arguments = new LLVMValueRef[] {vftSearchList, thisPureRTTI, searchTypeRTTI, searchTypeMapper};
+    LLVMValueRef interfaceVFTLookupFunction = getVFTLookupFunction();
+    LLVMValueRef result = LLVM.LLVMBuildCall(builder, interfaceVFTLookupFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
+    return result;
+  }
+
+  /**
+   * Builds code to look up the specified RTTI inside the object's VFT search list.
+   * @param builder - the builder to build code with
+   * @param objectValue - the object to look up the RTTI inside, must not be null
+   * @param searchRTTI - the RTTI to search for inside the object's VFT search list
+   * @return an LLVMValueRef representing a pointer to the resulting VFT, or a null pointer if this object does not contain the specified RTTI
+   */
+  public LLVMValueRef lookupInstanceVFT(LLVMBuilderRef builder, LLVMValueRef objectValue, LLVMValueRef searchRTTI)
+  {
+    LLVMValueRef thisPureRTTI = rttiHelper.lookupPureRTTI(builder, objectValue);
+    LLVMValueRef vftSearchList = rttiHelper.lookupVFTSearchList(builder, objectValue);
+    LLVMValueRef nullTypeMapper = LLVM.LLVMConstNull(rttiHelper.getGenericTypeArgumentMapperType());
+
+    LLVMValueRef[] arguments = new LLVMValueRef[] {vftSearchList, thisPureRTTI, searchRTTI, nullTypeMapper};
     LLVMValueRef interfaceVFTLookupFunction = getVFTLookupFunction();
     LLVMValueRef result = LLVM.LLVMBuildCall(builder, interfaceVFTLookupFunction, C.toNativePointerArray(arguments, false, true), arguments.length, "");
     return result;
@@ -868,17 +1378,18 @@ public class VirtualFunctionHandler
    * @param superType - the super-type to find the exclude list for, or null to find the exclude list for the object type
    * @return the exclude list for the specified super-type of the current type definition
    */
-  private LLVMValueRef getExcludeList(TypeDefinition superType)
+  private LLVMValueRef getExcludeList(NamedType superType)
   {
-    String mangledName = "ExcludeList_" + typeDefinition.getQualifiedName().getMangledName() + "_" + (superType == null ? ObjectType.MANGLED_NAME : superType.getQualifiedName().getMangledName());
+    String mangledName = "ExcludeList_" + typeDefinition.getQualifiedName().getMangledName() + "_" + (superType == null ? ObjectType.MANGLED_NAME : superType.getMangledName());
     LLVMValueRef existingGlobal = LLVM.LLVMGetNamedGlobal(module, mangledName);
     if (existingGlobal != null)
     {
       return existingGlobal;
     }
 
-    TypeDefinition[] linearisation = typeDefinition.getInheritanceLinearisation();
+    GenericTypeSpecialiser superTypeSpecialiser = superType == null ? GenericTypeSpecialiser.IDENTITY_SPECIALISER : new GenericTypeSpecialiser(superType);
 
+    NamedType[] linearisation = typeDefinition.getInheritanceLinearisation();
     // build the exclude list's values, which are only true for super-types of the given superType
     LLVMValueRef[] excludeListValues = new LLVMValueRef[linearisation.length + 1];
     for (int i = 0; i < linearisation.length; ++i)
@@ -886,9 +1397,10 @@ public class VirtualFunctionHandler
       boolean inSuperType = false;
       if (superType != null)
       {
-        for (TypeDefinition test : superType.getInheritanceLinearisation())
+        // if this type is a super-type of superType, then exclude it
+        for (NamedType test : superType.getResolvedTypeDefinition().getInheritanceLinearisation())
         {
-          if (test == linearisation[i])
+          if (superTypeSpecialiser.getSpecialisedType(test).isRuntimeEquivalent(linearisation[i]))
           {
             inSuperType = true;
             break;
@@ -922,20 +1434,23 @@ public class VirtualFunctionHandler
       return existingGlobal;
     }
 
-    TypeDefinition[] searchTypes = typeDefinition.getInheritanceLinearisation();
+    NamedType[] searchTypes = typeDefinition.getInheritanceLinearisation();
 
+    LLVMValueRef[] searchRTTIs = new LLVMValueRef[searchTypes.length + 1];
     LLVMValueRef[] searchDescriptors = new LLVMValueRef[searchTypes.length + 1];
     LLVMValueRef[] searchVFTs = new LLVMValueRef[searchTypes.length + 1];
     LLVMValueRef[] searchExcludeLists = new LLVMValueRef[searchTypes.length + 1];
     for (int i = 0; i < searchTypes.length; ++i)
     {
-      LLVMValueRef descriptor = getVFTDescriptorPointer(searchTypes[i]);
+      searchRTTIs[i] = rttiHelper.getPureRTTI(searchTypes[i]);
+      LLVMValueRef descriptor = getVFTDescriptorPointer(searchTypes[i].getResolvedTypeDefinition());
       searchDescriptors[i] = LLVM.LLVMConstBitCast(descriptor, LLVM.LLVMPointerType(getGenericDescriptorType(), 0));
-      LLVMValueRef vft = getVFTGlobal(searchTypes[i]);
+      LLVMValueRef vft = getVFTGlobal(searchTypes[i].getResolvedTypeDefinition());
       searchVFTs[i] = LLVM.LLVMConstBitCast(vft, LLVM.LLVMPointerType(getGenericVFTType(), 0));
       LLVMValueRef excludeList = getExcludeList(searchTypes[i]);
       searchExcludeLists[i] = LLVM.LLVMConstBitCast(excludeList, LLVM.LLVMPointerType(getExcludeListType(0), 0));
     }
+    searchRTTIs[searchTypes.length] = rttiHelper.getPureRTTI(new ObjectType(false, false, null));
     LLVMValueRef objectDescriptor = getObjectVFTDescriptorPointer();
     searchDescriptors[searchTypes.length] = LLVM.LLVMConstBitCast(objectDescriptor, LLVM.LLVMPointerType(getGenericDescriptorType(), 0));
     LLVMValueRef objectVFT = getObjectVFTGlobal();
@@ -944,13 +1459,14 @@ public class VirtualFunctionHandler
     searchExcludeLists[searchTypes.length] = LLVM.LLVMConstBitCast(objectExcludeList, LLVM.LLVMPointerType(getExcludeListType(0), 0));
 
     LLVMValueRef[] elements = new LLVMValueRef[searchTypes.length + 1];
-    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {LLVM.LLVMPointerType(getGenericDescriptorType(), 0),
+    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {rttiHelper.getGenericPureRTTIType(),
+                                                       LLVM.LLVMPointerType(getGenericDescriptorType(), 0),
                                                        LLVM.LLVMPointerType(getGenericVFTType(), 0),
                                                        LLVM.LLVMPointerType(getExcludeListType(0), 0)};
     LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
     for (int i = 0; i < elements.length; ++i)
     {
-      LLVMValueRef[] structElements = new LLVMValueRef[] {searchDescriptors[i], searchVFTs[i], searchExcludeLists[i]};
+      LLVMValueRef[] structElements = new LLVMValueRef[] {searchRTTIs[i], searchDescriptors[i], searchVFTs[i], searchExcludeLists[i]};
       elements[i] = LLVM.LLVMConstStruct(C.toNativePointerArray(structElements, false, true), structElements.length, false);
     }
     LLVMValueRef array = LLVM.LLVMConstArray(elementType, C.toNativePointerArray(elements, false, true), elements.length);
@@ -973,36 +1489,17 @@ public class VirtualFunctionHandler
   /**
    * Generates code to generate a super-type's virtual function table, by searching through the function search list.
    * @param builder - the LLVMBuilderRef to build instructions with
-   * @param superType - the super-type that the VFT will be based on
+   * @param searchListIndex - the index of the super-type to build the VFT for in the function search list (which is in the same order as the inheritance linearisation, but with 'object' added to the end)
    * @return the VFT generated
    */
-  private LLVMValueRef buildSuperTypeVFTGeneration(LLVMBuilderRef builder, TypeDefinition superType)
+  private LLVMValueRef buildSuperTypeVFTGeneration(LLVMBuilderRef builder, int searchListIndex)
   {
-    LLVMValueRef descriptor = getVFTDescriptorPointer(superType);
-    descriptor = LLVM.LLVMConstBitCast(descriptor, LLVM.LLVMPointerType(getGenericDescriptorType(), 0));
-    LLVMValueRef vft = getVFTGlobal(superType);
-    vft = LLVM.LLVMConstBitCast(vft, LLVM.LLVMPointerType(getGenericVFTType(), 0));
-
     LLVMValueRef functionSearchList = getFunctionSearchList();
     functionSearchList = LLVM.LLVMBuildBitCast(builder, functionSearchList, LLVM.LLVMPointerType(getFunctionSearchListType(), 0), "");
+    LLVMValueRef indexValue = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), searchListIndex, false);
 
     LLVMValueRef function = getSuperTypeVFTGeneratorFunction();
-    LLVMValueRef[] arguments = new LLVMValueRef[] {descriptor, vft, functionSearchList};
-    return LLVM.LLVMBuildCall(builder, function, C.toNativePointerArray(arguments, false, true), arguments.length, "");
-  }
-
-  private LLVMValueRef buildObjectSuperTypeVFTGeneration(LLVMBuilderRef builder)
-  {
-    LLVMValueRef descriptor = getObjectVFTDescriptorPointer();
-    descriptor = LLVM.LLVMConstBitCast(descriptor, LLVM.LLVMPointerType(getGenericDescriptorType(), 0));
-    LLVMValueRef vft = getObjectVFTGlobal();
-    vft = LLVM.LLVMConstBitCast(vft, LLVM.LLVMPointerType(getGenericVFTType(), 0));
-
-    LLVMValueRef functionSearchList = getFunctionSearchList();
-    functionSearchList = LLVM.LLVMBuildBitCast(builder, functionSearchList, LLVM.LLVMPointerType(getFunctionSearchListType(), 0), "");
-
-    LLVMValueRef function = getSuperTypeVFTGeneratorFunction();
-    LLVMValueRef[] arguments = new LLVMValueRef[] {descriptor, vft, functionSearchList};
+    LLVMValueRef[] arguments = new LLVMValueRef[] {functionSearchList, indexValue};
     return LLVM.LLVMBuildCall(builder, function, C.toNativePointerArray(arguments, false, true), arguments.length, "");
   }
 
@@ -1039,48 +1536,40 @@ public class VirtualFunctionHandler
   }
 
   /**
-   * Gets the global variable that will be used to store a pointer to the virtual function table for the specified super-type of the current type definition.
-   * @param superType - the super-type to generate the VFT pointer for
-   * @return the super-type VFT global variable for the specified super-type of the current type definition
+   * Gets the storage location for a super-type VFT.
+   * The super-type to get the storage location for is determined using the specified search list index, which is both:
+   * (a) the index into the VFT search list for the current type definition, and
+   * (b) the index into the type linearisation for the current type definition (or equal to the length of the linearisation for the object super-type)
+   * @param searchListIndex - the index into the VFT search list to get
+   * @return the super-type VFT memory location for the specified super-type of the current type definition, as a pointer to the correct type of VFT
    */
-  public LLVMValueRef getSuperTypeVFTGlobal(TypeDefinition superType)
+  public LLVMValueRef getSuperTypeVFTStorage(int searchListIndex)
   {
     if (!(typeDefinition instanceof ClassDefinition))
     {
       throw new IllegalStateException("Cannot get a superclass's VFT global variable for a non-class type");
     }
-
-    // super-type VFTs are stored inside the VFT search list, so find the index and return the pointer
-    TypeDefinition[] inheritanceLinearisation = typeDefinition.getInheritanceLinearisation();
-
-    int index = -1;
-    if (superType == null)
+    if (typeDefinition.isAbstract())
     {
-      // the object VFT is at the end of the VFT search list
-      index = inheritanceLinearisation.length;
+      throw new IllegalStateException("Cannot get a superclass's VFT global variable for an abstract type");
+    }
+
+    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), searchListIndex, false),
+                                                 LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false)};
+    LLVMValueRef value = LLVM.LLVMConstGEP(getVFTSearchList(typeDefinition), C.toNativePointerArray(indices, false, true), indices.length);
+
+    NamedType[] linearisation = typeDefinition.getInheritanceLinearisation();
+    LLVMTypeRef vftType;
+    if (searchListIndex == linearisation.length)
+    {
+      vftType = getObjectVFTType();
     }
     else
     {
-      for (int i = 0; i < inheritanceLinearisation.length; ++i)
-      {
-        if (inheritanceLinearisation[i] == superType)
-        {
-          index = i;
-          break;
-        }
-      }
-      if (index == -1)
-      {
-        // the super-type was not in the linearisation
-        throw new IllegalStateException("Cannot find the super-type VFT for something which is not a super-type of the current TypeDefinition");
-      }
+      vftType = getVFTType(linearisation[searchListIndex].getResolvedTypeDefinition());
     }
-    LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
-                                                 LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false),
-                                                 LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), index, false),
-                                                 LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false)};
-    LLVMValueRef value = LLVM.LLVMConstGEP(getVFTSearchList(typeDefinition), C.toNativePointerArray(indices, false, true), indices.length);
-    LLVMTypeRef vftType = superType == null ? getObjectVFTType() : getVFTType(superType);
     LLVMTypeRef type = LLVM.LLVMPointerType(LLVM.LLVMPointerType(vftType, 0), 0);
     return LLVM.LLVMConstBitCast(value, type);
   }
@@ -1097,20 +1586,21 @@ public class VirtualFunctionHandler
     LLVMValueRef function = getClassVFTInitialisationFunction();
     LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(function);
 
-    for (TypeDefinition superType : typeDefinition.getInheritanceLinearisation())
+    NamedType[] superTypes = typeDefinition.getInheritanceLinearisation();
+    for (int i = 0; i < superTypes.length; ++i)
     {
-      if (superType == typeDefinition)
+      if (superTypes[i].getResolvedTypeDefinition() == typeDefinition)
       {
         continue;
       }
-      LLVMValueRef vft = buildSuperTypeVFTGeneration(builder, superType);
-      vft = LLVM.LLVMBuildBitCast(builder, vft, LLVM.LLVMPointerType(getVFTType(superType), 0), "");
-      LLVMValueRef vftGlobal = getSuperTypeVFTGlobal(superType);
+      LLVMValueRef vft = buildSuperTypeVFTGeneration(builder, i);
+      vft = LLVM.LLVMBuildBitCast(builder, vft, LLVM.LLVMPointerType(getVFTType(superTypes[i].getResolvedTypeDefinition()), 0), "");
+      LLVMValueRef vftGlobal = getSuperTypeVFTStorage(i);
       LLVM.LLVMBuildStore(builder, vft, vftGlobal);
     }
-    LLVMValueRef objectVFT = buildObjectSuperTypeVFTGeneration(builder);
+    LLVMValueRef objectVFT = buildSuperTypeVFTGeneration(builder, superTypes.length);
     objectVFT = LLVM.LLVMBuildBitCast(builder, objectVFT, LLVM.LLVMPointerType(getObjectVFTType(), 0), "");
-    LLVMValueRef objectVFTGlobal = getSuperTypeVFTGlobal(null);
+    LLVMValueRef objectVFTGlobal = getSuperTypeVFTStorage(superTypes.length);
     LLVM.LLVMBuildStore(builder, objectVFT, objectVFTGlobal);
 
     LLVM.LLVMBuildRetVoid(builder);

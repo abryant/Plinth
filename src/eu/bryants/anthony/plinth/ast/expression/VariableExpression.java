@@ -1,7 +1,7 @@
 package eu.bryants.anthony.plinth.ast.expression;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
-import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.metadata.MemberReference;
 import eu.bryants.anthony.plinth.ast.metadata.Variable;
 import eu.bryants.anthony.plinth.ast.type.Type;
 
@@ -24,7 +24,7 @@ public class VariableExpression extends Expression
 
 
   private Variable resolvedVariable;
-  private Method resolvedMethod;
+  private MemberReference<?> resolvedMemberReference;
   // whether or not this expression is in an immutable context
   // this is used by the TypeChecker to make variables implicitly immutable when in an immutable context
   private boolean resolvedContextImmutability;
@@ -124,19 +124,19 @@ public class VariableExpression extends Expression
   }
 
   /**
-   * @return the resolvedMethod
+   * @return the resolvedMemberReference
    */
-  public Method getResolvedMethod()
+  public MemberReference<?> getResolvedMemberReference()
   {
-    return resolvedMethod;
+    return resolvedMemberReference;
   }
 
   /**
-   * @param resolvedMethod - the resolvedMethod to set
+   * @param resolvedMemberReference - the resolvedMemberReference to set
    */
-  public void setResolvedMethod(Method resolvedMethod)
+  public void setResolvedMemberReference(MemberReference<?> resolvedMemberReference)
   {
-    this.resolvedMethod = resolvedMethod;
+    this.resolvedMemberReference = resolvedMemberReference;
   }
 
   /**

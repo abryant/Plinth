@@ -1,7 +1,7 @@
 package eu.bryants.anthony.plinth.ast.expression;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
-import eu.bryants.anthony.plinth.ast.member.Member;
+import eu.bryants.anthony.plinth.ast.metadata.MemberReference;
 import eu.bryants.anthony.plinth.ast.type.Type;
 
 /*
@@ -24,7 +24,7 @@ public class FieldAccessExpression extends Expression
   private boolean isFunctionHint; // if true, hints that the variable should be a function
   private boolean isAssignableHint; // if true, hints that the variable can be assigned to
 
-  private Member resolvedMember;
+  private MemberReference<?> resolvedMemberReference;
   // whether or not this expression is in an immutable context
   // this is used by the TypeChecker to make static variables implicitly immutable when in an immutable context
   private boolean resolvedContextImmutability;
@@ -154,19 +154,19 @@ public class FieldAccessExpression extends Expression
   }
 
   /**
-   * @return the resolvedMember
+   * @return the resolvedMemberReference
    */
-  public Member getResolvedMember()
+  public MemberReference<?> getResolvedMemberReference()
   {
-    return resolvedMember;
+    return resolvedMemberReference;
   }
 
   /**
-   * @param resolvedMember - the resolvedMember to set
+   * @param resolvedMemberReference - the resolvedMemberReference to set
    */
-  public void setResolvedMember(Member resolvedMember)
+  public void setResolvedMemberReference(MemberReference<?> resolvedMemberReference)
   {
-    this.resolvedMember = resolvedMember;
+    this.resolvedMemberReference = resolvedMemberReference;
   }
 
   /**

@@ -11,7 +11,10 @@ interface Throwable
   /**
    * Prints the contents of this Throwable to the stderr stream.
    */
-  void print();
+  void print()
+  {
+    stderr::println(getMessage());
+  }
 
   /**
    * Prints the specified uncaught exception.

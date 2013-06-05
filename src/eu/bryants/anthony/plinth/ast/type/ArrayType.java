@@ -7,7 +7,9 @@ import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
-import eu.bryants.anthony.plinth.ast.member.Member;
+import eu.bryants.anthony.plinth.ast.metadata.GenericTypeSpecialiser;
+import eu.bryants.anthony.plinth.ast.metadata.MemberReference;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
 
 /*
  * Created on 3 May 2012
@@ -18,9 +20,6 @@ import eu.bryants.anthony.plinth.ast.member.Member;
  */
 public class ArrayType extends Type
 {
-
-  private static final String LENGTH_FIELD_NAME = "length";
-  private static final ArrayLengthMember LENGTH_MEMBER = new ArrayLengthMember();
 
   // a type is explicitly immutable if it has been declared as immutable explicitly,
   // whereas a type is contextually immutable if it is just accessed in an immutable context
@@ -73,7 +72,7 @@ public class ArrayType extends Type
       return false;
     }
     // a nullable type cannot be assigned to a non-nullable type
-    if (!isNullable() && type.isNullable())
+    if (!isNullable() && type.canBeNullable())
     {
       return false;
     }
@@ -146,17 +145,17 @@ public class ArrayType extends Type
    * {@inheritDoc}
    */
   @Override
-  public Set<Member> getMembers(String name)
+  public Set<MemberReference<?>> getMembers(String name)
   {
-    HashSet<Member> set = new HashSet<Member>();
-    if (name.equals(LENGTH_FIELD_NAME))
+    HashSet<MemberReference<?>> set = new HashSet<MemberReference<?>>();
+    if (name.equals(ArrayLengthMember.LENGTH_FIELD_NAME))
     {
-      set.add(LENGTH_MEMBER);
+      set.add(ArrayLengthMember.LENGTH_MEMBER_REFERENCE);
     }
     if (name.equals(BuiltinMethodType.TO_STRING.methodName))
     {
       ArrayType notNullThis = new ArrayType(false, explicitlyImmutable, contextuallyImmutable, baseType, null);
-      set.add(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING));
+      set.add(new MethodReference(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING), GenericTypeSpecialiser.IDENTITY_SPECIALISER));
     }
     return set;
   }

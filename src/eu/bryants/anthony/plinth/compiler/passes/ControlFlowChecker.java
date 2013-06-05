@@ -47,14 +47,18 @@ import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
-import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.member.Property;
+import eu.bryants.anthony.plinth.ast.metadata.ConstructorReference;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
+import eu.bryants.anthony.plinth.ast.metadata.FieldReference;
 import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
+import eu.bryants.anthony.plinth.ast.metadata.MemberReference;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyPseudoVariable;
+import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
 import eu.bryants.anthony.plinth.ast.metadata.Variable;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
@@ -117,22 +121,23 @@ public class ControlFlowChecker
 
     // build the set of variables from superclasses
     Set<Variable> superClassVariables = new HashSet<Variable>();
-    for (TypeDefinition t : typeDefinition.getInheritanceLinearisation())
+    for (NamedType superType : typeDefinition.getInheritanceLinearisation())
     {
-      if (t == typeDefinition)
+      TypeDefinition superTypeDefinition = superType.getResolvedTypeDefinition();
+      if (superTypeDefinition == typeDefinition)
       {
         continue;
       }
-      if (t instanceof ClassDefinition)
+      if (superTypeDefinition instanceof ClassDefinition)
       {
-        for (Field field : t.getFields())
+        for (Field field : superTypeDefinition.getFields())
         {
           if (!field.isStatic())
           {
             superClassVariables.add(field.getMemberVariable());
           }
         }
-        for (Property property : t.getProperties())
+        for (Property property : superTypeDefinition.getProperties())
         {
           // all class properties must be initialised by the super-class
           if (!property.isStatic())
@@ -148,9 +153,9 @@ public class ControlFlowChecker
           }
         }
       }
-      else if (t instanceof InterfaceDefinition)
+      else if (superTypeDefinition instanceof InterfaceDefinition)
       {
-        for (Property property : t.getProperties())
+        for (Property property : superTypeDefinition.getProperties())
         {
           // interface properties are only already-initialised if they do not have a constructor (and therefore do not need to be initialised)
           if (!property.isStatic())
@@ -171,7 +176,7 @@ public class ControlFlowChecker
       }
       else
       {
-        throw new IllegalArgumentException("Unknown super-type: " + t);
+        throw new IllegalArgumentException("Unknown superTypeDefinition: " + superTypeDefinition);
       }
     }
 
@@ -465,16 +470,17 @@ public class ControlFlowChecker
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Constructor does not always initialise the non-static property '" + property.getName() + "'", constructor.getLexicalPhrase()));
       }
     }
-    for (TypeDefinition t : constructor.getContainingTypeDefinition().getInheritanceLinearisation())
+    for (NamedType superType : constructor.getContainingTypeDefinition().getInheritanceLinearisation())
     {
-      if (t instanceof InterfaceDefinition)
+      TypeDefinition superTypeDefinition = superType.getResolvedTypeDefinition();
+      if (superTypeDefinition instanceof InterfaceDefinition)
       {
-        for (Property property : t.getProperties())
+        for (Property property : superTypeDefinition.getProperties())
         {
           if (!property.isStatic() && property.hasConstructor() && !state.variables.initialised.contains(nonStaticPropertyPseudoVariables.get(property.getName())))
           {
             // inherited interface properties which have constructors must always be initialised by a constructor
-            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Constructor does not always initialise the non-static property '" + property.getName() + "' (inherited from the interface: " + t.getQualifiedName() + ")", constructor.getLexicalPhrase()));
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Constructor does not always initialise the non-static property '" + property.getName() + "' (inherited from the interface: " + superTypeDefinition.getQualifiedName() + ")", constructor.getLexicalPhrase()));
           }
         }
       }
@@ -601,26 +607,21 @@ public class ControlFlowChecker
           {
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("An unbacked final property must define a custom constructor", property.getLexicalPhrase()));
           }
-          if (property.isConstructorImmutable() && !property.isMutable())
-          {
-            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Making a property's default constructor immutable can only work if the backing variable is mutable", property.getLexicalPhrase()));
-          }
         }
         else
         {
-          // this is a non-static, non-final property which declares a constructor without giving it an implementation, so the constructor defaults to being the setter
-          if (property.isConstructorImmutable() != property.isSetterImmutable())
-          {
-            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A default property constructor must have the same immutability as its setter", property.getLexicalPhrase()));
-          }
-          if (property.isSetterImmutable() && !property.isMutable())
-          {
-            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Making a property's default constructor (in this case the setter) immutable can only work if the backing variable is mutable", property.getLexicalPhrase()));
-          }
-          // the default constructor is the setter, so check the setter as a constructor
+          // this is a non-static, non-final property which declares a constructor without giving it an implementation,
+          // so the constructor defaults to being the setter, so check the setter as a constructor
           setterIsConstructor = true;
           constructorParameter = property.getSetterParameter();
           constructorBlock = property.getSetterBlock();
+
+          // we've already checked the setter once, so before we check it again as a constructor, check whether the first pass produced any errors
+          // only if there were no errors the first time should we check it again as a constructor
+          if (coalescedException != null)
+          {
+            throw coalescedException;
+          }
         }
       }
 
@@ -687,6 +688,11 @@ public class ControlFlowChecker
         }
         catch (ConceptualException e)
         {
+          if (setterIsConstructor)
+          {
+            // modify the exception before coalescing it, to point out why we encountered this error in the constructor but not the setter
+            e = new ConceptualException("Encountered an error while checking a property's constructor (which in this case defaults to its setter)...", property.getLexicalPhrase(), e);
+          }
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
@@ -896,7 +902,7 @@ public class ControlFlowChecker
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignees[i];
           FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
-          Member resolvedMember = fieldAccessExpression.getResolvedMember();
+          MemberReference<?> resolvedMemberReference = fieldAccessExpression.getResolvedMemberReference();
 
           // check whether this assignee is for an instance field/property on 'this'
           boolean isOnThis = false;
@@ -924,9 +930,10 @@ public class ControlFlowChecker
             }
           }
 
-          if (resolvedMember instanceof Field)
+          if (resolvedMemberReference instanceof FieldReference)
           {
-            Field field = (Field) resolvedMember;
+            FieldReference fieldReference = (FieldReference) resolvedMemberReference;
+            Field field = fieldReference.getReferencedMember();
             Variable var = field.isStatic() ? field.getGlobalVariable() : field.getMemberVariable();
             boolean isInitialisation = field.isStatic() ?
                                        (inStaticContext && (inInitialiser || inConstructor) && field.getGlobalVariable().getEnclosingTypeDefinition() == enclosingTypeDefinition) :
@@ -958,16 +965,17 @@ public class ControlFlowChecker
             }
             else
             {
-              boolean isBaseImmutable = TypeChecker.isContextuallyDataImmutable(fieldAccessExpression.getBaseExpression().getType());
+              boolean isBaseImmutable = Type.isContextuallyDataImmutable(fieldAccessExpression.getBaseExpression().getType());
               if (isBaseImmutable && !isInitialisation && !field.isMutable())
               {
                 coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the field '" + var.getName() + "' through an immutable object", assignees[i].getLexicalPhrase()));
               }
             }
           }
-          else if (resolvedMember instanceof Property)
+          else if (resolvedMemberReference instanceof PropertyReference)
           {
-            Property property = (Property) resolvedMember;
+            PropertyReference propertyReference = (PropertyReference) resolvedMemberReference;
+            Property property = propertyReference.getReferencedMember();
             PropertyPseudoVariable var = property.getPseudoVariable();
             boolean isInitialisation = property.isStatic() ?
                                        (property.isFinal() && inStaticContext && (inInitialiser || inConstructor) && property.getContainingTypeDefinition() == enclosingTypeDefinition) :
@@ -986,7 +994,7 @@ public class ControlFlowChecker
               }
               else if (!property.isStatic())
               {
-                boolean isBaseImmutable = TypeChecker.isContextuallyDataImmutable(fieldAccessExpression.getBaseExpression().getType());
+                boolean isBaseImmutable = Type.isContextuallyDataImmutable(fieldAccessExpression.getBaseExpression().getType());
                 if (isBaseImmutable && !isInitialisation && !property.isSetterImmutable())
                 {
                   coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the property '" + var.getName() + "' through an immutable object: its setter is not immutable", assignees[i].getLexicalPhrase()));
@@ -1021,7 +1029,7 @@ public class ControlFlowChecker
                 }
                 if (!property.isStatic())
                 {
-                  boolean isBaseImmutable = TypeChecker.isContextuallyDataImmutable(fieldAccessExpression.getBaseExpression().getType());
+                  boolean isBaseImmutable = Type.isContextuallyDataImmutable(fieldAccessExpression.getBaseExpression().getType());
                   if (isBaseImmutable && !isInitialisation && !property.isConstructorImmutable())
                   {
                     coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the property '" + var.getName() + "' through an immutable object: its constructor is not immutable", assignees[i].getLexicalPhrase()));
@@ -1292,7 +1300,8 @@ public class ControlFlowChecker
     {
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
       CoalescedConceptualException coalescedException = null;
-      Constructor constructor = delegateConstructorStatement.getResolvedConstructor();
+      ConstructorReference constructorReference = delegateConstructorStatement.getResolvedConstructorReference();
+      Constructor constructor = constructorReference.getReferencedMember();
       boolean isConstructorImmutable = constructor == null ? true : constructor.isImmutable();
       boolean isConstructorSelfish = constructor == null ? false : constructor.isSelfish();
       if (!inConstructor | inStaticContext | inInitialiser)
@@ -1830,7 +1839,7 @@ public class ControlFlowChecker
       {
         FieldAssignee fieldAssignee = (FieldAssignee) assignee;
         FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
-        Member resolvedMember = fieldAccessExpression.getResolvedMember();
+        MemberReference<?> resolvedMemberReference = fieldAccessExpression.getResolvedMemberReference();
 
         // check whether this assignee is for an instance field/property on 'this'
         boolean isOnThis = false;
@@ -1855,9 +1864,10 @@ public class ControlFlowChecker
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
 
-        if (resolvedMember instanceof Field)
+        if (resolvedMemberReference instanceof FieldReference)
         {
-          Field field = (Field) resolvedMember;
+          FieldReference fieldReference = (FieldReference) resolvedMemberReference;
+          Field field = fieldReference.getReferencedMember();
           Variable var = field.isStatic() ? field.getGlobalVariable() : field.getMemberVariable();
           boolean isInitialisation = field.isStatic() && field.isFinal() && inStaticContext && inInitialiser && field.getGlobalVariable().getEnclosingTypeDefinition() == enclosingTypeDefinition;
           if (isInitialisation)
@@ -1881,16 +1891,17 @@ public class ControlFlowChecker
           }
           else
           {
-            boolean isBaseImmutable = TypeChecker.isContextuallyDataImmutable(fieldAccessExpression.getBaseExpression().getType());
+            boolean isBaseImmutable = Type.isContextuallyDataImmutable(fieldAccessExpression.getBaseExpression().getType());
             if (isBaseImmutable && !isInitialisation && !field.isMutable())
             {
               coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot modify the field '" + var.getName() + "' through an immutable object", assignee.getLexicalPhrase()));
             }
           }
         }
-        else if (resolvedMember instanceof Property)
+        else if (resolvedMemberReference instanceof PropertyReference)
         {
-          Property property = (Property) resolvedMember;
+          PropertyReference propertyReference = (PropertyReference) resolvedMemberReference;
+          Property property = propertyReference.getReferencedMember();
           PropertyPseudoVariable var = property.getPseudoVariable();
           boolean isInitialisation = property.isStatic() && property.isFinal() && inStaticContext && (inInitialiser || inConstructor) && property.getContainingTypeDefinition() == enclosingTypeDefinition;
           if (!isInitialisation || state.variables.initialised.contains(var))
@@ -1907,7 +1918,7 @@ public class ControlFlowChecker
             }
             else if (!property.isStatic())
             {
-              boolean isBaseImmutable = TypeChecker.isContextuallyDataImmutable(fieldAccessExpression.getBaseExpression().getType());
+              boolean isBaseImmutable = Type.isContextuallyDataImmutable(fieldAccessExpression.getBaseExpression().getType());
               if (isBaseImmutable && !isInitialisation && !property.isSetterImmutable())
               {
                 coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot modify the property '" + var.getName() + "' through an immutable object: its setter is not immutable", assignee.getLexicalPhrase()));
@@ -2173,7 +2184,7 @@ public class ControlFlowChecker
         {
           FieldAssignee fieldAssignee = (FieldAssignee) assignee;
           FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
-          Member resolvedMember = fieldAccessExpression.getResolvedMember();
+          MemberReference<?> resolvedMemberReference = fieldAccessExpression.getResolvedMemberReference();
 
           // check whether this assignee is for an instance field/property on 'this'
           boolean isOnThis = false;
@@ -2198,9 +2209,10 @@ public class ControlFlowChecker
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
 
-          if (resolvedMember instanceof Field)
+          if (resolvedMemberReference instanceof FieldReference)
           {
-            Field field = (Field) resolvedMember;
+            FieldReference fieldReference = (FieldReference) resolvedMemberReference;
+            Field field = fieldReference.getReferencedMember();
             Variable var = field.isStatic() ? field.getGlobalVariable() : field.getMemberVariable();
             boolean isInitialisation = field.isStatic() && field.isFinal() && inStaticContext && (inInitialiser || inConstructor) && field.getGlobalVariable().getEnclosingTypeDefinition() == enclosingTypeDefinition;
             if (isInitialisation)
@@ -2224,16 +2236,17 @@ public class ControlFlowChecker
             }
             else
             {
-              boolean isBaseImmutable = TypeChecker.isContextuallyDataImmutable(fieldAccessExpression.getBaseExpression().getType());
+              boolean isBaseImmutable = Type.isContextuallyDataImmutable(fieldAccessExpression.getBaseExpression().getType());
               if (isBaseImmutable && !isInitialisation && !field.isMutable())
               {
                 coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot modify the field '" + var.getName() + "' through an immutable object", assignee.getLexicalPhrase()));
               }
             }
           }
-          else if (resolvedMember instanceof Property)
+          else if (resolvedMemberReference instanceof PropertyReference)
           {
-            Property property = (Property) resolvedMember;
+            PropertyReference propertyReference = (PropertyReference) resolvedMemberReference;
+            Property property = propertyReference.getReferencedMember();
             PropertyPseudoVariable var = property.getPseudoVariable();
             boolean isInitialisation = property.isStatic() && property.isFinal() && inStaticContext && inInitialiser && property.getContainingTypeDefinition() == enclosingTypeDefinition;
             if (!isInitialisation || state.variables.initialised.contains(var))
@@ -2250,7 +2263,7 @@ public class ControlFlowChecker
               }
               else if (!property.isStatic())
               {
-                boolean isBaseImmutable = TypeChecker.isContextuallyDataImmutable(fieldAccessExpression.getBaseExpression().getType());
+                boolean isBaseImmutable = Type.isContextuallyDataImmutable(fieldAccessExpression.getBaseExpression().getType());
                 if (isBaseImmutable && !isInitialisation && !property.isSetterImmutable())
                 {
                   coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot modify the property '" + var.getName() + "' through an immutable object: its setter is not immutable", assignee.getLexicalPhrase()));
@@ -2665,7 +2678,7 @@ public class ControlFlowChecker
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
-      if (inImmutableContext && !creationExpression.getResolvedConstructor().isImmutable())
+      if (inImmutableContext && !creationExpression.getResolvedConstructorReference().getReferencedMember().isImmutable())
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a non-immutable constructor from an immutable context (it may alter global variables)", creationExpression.getLexicalPhrase()));
       }
@@ -2730,18 +2743,20 @@ public class ControlFlowChecker
         }
       }
 
-      Member resolvedMember = fieldAccessExpression.getResolvedMember();
-      if (resolvedMember instanceof Field)
+      MemberReference<?> resolvedMemberReference = fieldAccessExpression.getResolvedMemberReference();
+      if (resolvedMemberReference instanceof FieldReference)
       {
-        Field field = (Field) resolvedMember;
+        FieldReference fieldReference = (FieldReference) resolvedMemberReference;
+        Field field = fieldReference.getReferencedMember();
         if (!field.isStatic() && isOnThis && !initialisedVariables.contains(field.getMemberVariable()))
         {
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The field '" + field.getName() + "' may not have been initialised", fieldAccessExpression.getLexicalPhrase()));
         }
       }
-      else if (resolvedMember instanceof Property)
+      else if (resolvedMemberReference instanceof PropertyReference)
       {
-        Property property = (Property) resolvedMember;
+        PropertyReference propertyReference = (PropertyReference) resolvedMemberReference;
+        Property property = propertyReference.getReferencedMember();
         if (inImmutableContext && !property.isGetterImmutable())
         {
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot read from the property '" + property.getName() + "' in an immutable context: its getter is not immutable", fieldAccessExpression.getLexicalPhrase()));
@@ -2762,7 +2777,7 @@ public class ControlFlowChecker
           }
         }
       }
-      else if (resolvedMember instanceof Method)
+      else if (resolvedMemberReference instanceof MethodReference)
       {
         // non-static methods cannot be accessed as fields before 'this' has been initialised
         if (isOnThis)
@@ -2783,16 +2798,16 @@ public class ControlFlowChecker
     {
       FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
       CoalescedConceptualException coalescedException = null;
-      if (functionCallExpression.getResolvedMethod() != null)
+      if (functionCallExpression.getResolvedMethodReference() != null)
       {
-        if (inImmutableContext && !functionCallExpression.getResolvedMethod().isImmutable())
+        if (inImmutableContext && !functionCallExpression.getResolvedMethodReference().getReferencedMember().isImmutable())
         {
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a non-immutable method from an immutable context", functionCallExpression.getLexicalPhrase()));
         }
         Expression resolvedBaseExpression = functionCallExpression.getResolvedBaseExpression();
         if (resolvedBaseExpression == null)
         {
-          Method resolvedMethod = functionCallExpression.getResolvedMethod();
+          Method resolvedMethod = functionCallExpression.getResolvedMethodReference().getReferencedMember();
           if (inStaticContext && !resolvedMethod.isStatic())
           {
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call the instance method '" + resolvedMethod.getName() + "' from a static context", functionCallExpression.getLexicalPhrase()));
@@ -2819,7 +2834,7 @@ public class ControlFlowChecker
               (baseType instanceof NamedType && ((NamedType) baseType).isContextuallyImmutable()) ||
               (baseType instanceof ObjectType && ((ObjectType) baseType).isContextuallyImmutable()))
           {
-            if (!functionCallExpression.getResolvedMethod().isImmutable())
+            if (!functionCallExpression.getResolvedMethodReference().getReferencedMember().isImmutable())
             {
               coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a non-immutable method on an immutable object", functionCallExpression.getLexicalPhrase()));
             }
@@ -3055,7 +3070,7 @@ public class ControlFlowChecker
       CoalescedConceptualException coalescedException = null;
       VariableExpression variableExpression = (VariableExpression) expression;
       Variable var = variableExpression.getResolvedVariable();
-      Method method = variableExpression.getResolvedMethod();
+      MemberReference<?> memberReference = variableExpression.getResolvedMemberReference();
       if (var != null)
       {
         if (var instanceof MemberVariable)
@@ -3115,8 +3130,10 @@ public class ControlFlowChecker
           }
         }
       }
-      else if (method != null)
+      else if (memberReference != null && memberReference instanceof MethodReference)
       {
+        MethodReference methodReference = (MethodReference) memberReference;
+        Method method = methodReference.getReferencedMember();
         if (inStaticContext && !method.isStatic())
         {
           throw new ConceptualException("Cannot access the non-static method '" + method.getName() + "' from a static context", expression.getLexicalPhrase());
@@ -3161,14 +3178,14 @@ public class ControlFlowChecker
     }
     if (initialiserState != InitialiserState.DEFINITELY_RUN)
     {
-      throw new ConceptualException("Cannot " + failedAccessDescription + " 'this' here. The initialiser of this '" + new NamedType(false, false, containingTypeDefinition) + "' may not have been run yet", lexicalPhrase);
+      throw new ConceptualException("Cannot " + failedAccessDescription + " 'this' here. The initialiser of this " + containingTypeDefinition.getQualifiedName() + " may not have been run yet", lexicalPhrase);
     }
     for (Field field : containingTypeDefinition.getFields())
     {
       if (!field.isStatic() && !initialisedVariables.contains(field.getMemberVariable()))
       {
         throw new ConceptualException("Cannot " + failedAccessDescription + " 'this' here.\n" +
-                                      "Not all of the non-static fields of this '" + new NamedType(false, false, containingTypeDefinition) + "' have been initialised " +
+                                      "Not all of the non-static fields of this " + containingTypeDefinition.getQualifiedName() + " have been initialised " +
                                       "(specifically: '" + field.getName() + "'), and I cannot work out whether or not you are going to initialise them before they are used", lexicalPhrase);
       }
     }
@@ -3177,7 +3194,7 @@ public class ControlFlowChecker
       if (!property.isStatic() && !initialisedVariables.contains(property.getPseudoVariable()))
       {
         throw new ConceptualException("Cannot " + failedAccessDescription + " 'this' here.\n" +
-                                      "Not all of the non-static properties of this '" + new NamedType(false, false, containingTypeDefinition) + "' have been initialised " +
+                                      "Not all of the non-static properties of this " + containingTypeDefinition.getQualifiedName() + " have been initialised " +
                                       "(specifically: '" + property.getName() + "'), and I cannot work out whether or not you are going to initialise them before they are used", lexicalPhrase);
       }
     }

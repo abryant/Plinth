@@ -4,7 +4,7 @@ import parser.ParseException;
 import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
-import eu.bryants.anthony.plinth.ast.misc.QName;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 
@@ -40,7 +40,7 @@ public class ImplementsClauseRule extends Rule<ParseType>
     if (production == PRODUCTION)
     {
       @SuppressWarnings("unchecked")
-      ParseList<QName> list = (ParseList<QName>) args[1];
+      ParseList<NamedType> list = (ParseList<NamedType>) args[1];
       list.setLexicalPhrase(LexicalPhrase.combine((LexicalPhrase) args[0], list.getLexicalPhrase()));
       return list;
     }

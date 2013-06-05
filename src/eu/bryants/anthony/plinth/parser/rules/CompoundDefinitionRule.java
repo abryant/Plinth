@@ -7,6 +7,7 @@ import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
+import eu.bryants.anthony.plinth.ast.type.TypeParameter;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.Modifier;
@@ -23,7 +24,7 @@ public class CompoundDefinitionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.COMPOUND_KEYWORD, ParseType.NAME, ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
+  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.COMPOUND_KEYWORD, ParseType.NAME, ParseType.OPTIONAL_TYPE_PARAMETERS, ParseType.LBRACE, ParseType.MEMBER_LIST, ParseType.RBRACE);
 
   public CompoundDefinitionRule()
   {
@@ -42,14 +43,17 @@ public class CompoundDefinitionRule extends Rule<ParseType>
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
       Name name = (Name) args[2];
       @SuppressWarnings("unchecked")
-      ParseList<Member> members = (ParseList<Member>) args[4];
-      return processModifiers(modifiers, name.getName(), members.toArray(new Member[members.size()]),
-                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), (LexicalPhrase) args[3], members.getLexicalPhrase(), (LexicalPhrase) args[5]));
+      ParseList<TypeParameter> typeParameterList = (ParseList<TypeParameter>) args[3];
+      TypeParameter[] typeParameters = typeParameterList.toArray(new TypeParameter[typeParameterList.size()]);
+      @SuppressWarnings("unchecked")
+      ParseList<Member> members = (ParseList<Member>) args[5];
+      return processModifiers(modifiers, name.getName(), typeParameters, members.toArray(new Member[members.size()]),
+                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], name.getLexicalPhrase(), typeParameterList.getLexicalPhrase(), (LexicalPhrase) args[4], members.getLexicalPhrase(), (LexicalPhrase) args[6]));
     }
     throw badTypeList();
   }
 
-  private CompoundDefinition processModifiers(ParseList<Modifier> modifiers, String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  private CompoundDefinition processModifiers(ParseList<Modifier> modifiers, String name, TypeParameter[] typeParameters, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     boolean isImmutable = false;
     boolean hasSince = false;
@@ -90,6 +94,6 @@ public class CompoundDefinitionRule extends Rule<ParseType>
         throw new IllegalStateException("Unknown modifier: " + modifier);
       }
     }
-    return new CompoundDefinition(isImmutable, name, members, lexicalPhrase);
+    return new CompoundDefinition(isImmutable, name, typeParameters, members, lexicalPhrase);
   }
 }

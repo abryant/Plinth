@@ -18,19 +18,19 @@ import eu.bryants.anthony.plinth.parser.parseAST.QNameElement;
 /**
  * @author Anthony Bryant
  */
-public class TypeListNoQNameRule extends Rule<ParseType>
+public class TypeListNotQNameRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> QNAME_PRODUCTION                 = new Production<ParseType>(ParseType.QNAME,             ParseType.COMMA, ParseType.TYPE_LIST_NO_QNAME);
-  private static final Production<ParseType> NESTED_QNAME_LIST_PRODUCTION     = new Production<ParseType>(ParseType.NESTED_QNAME_LIST, ParseType.COMMA, ParseType.TYPE_LIST_NO_QNAME);
-  private static final Production<ParseType> TYPE_NO_QNAME_PRODUCTION         = new Production<ParseType>(ParseType.TYPE_NO_QNAME,     ParseType.COMMA, ParseType.TYPE_LIST_NO_QNAME);
-  private static final Production<ParseType> END_QNAME_LIST_PRODUCTION        = new Production<ParseType>(ParseType.TYPE_NO_QNAME,     ParseType.COMMA, ParseType.QNAME_LIST);
-  private static final Production<ParseType> END_PRODUCTION                   = new Production<ParseType>(ParseType.TYPE_NO_QNAME);
+  private static final Production<ParseType> QNAME_PRODUCTION                 = new Production<ParseType>(ParseType.QNAME,             ParseType.COMMA, ParseType.TYPE_LIST_NOT_QNAME);
+  private static final Production<ParseType> NESTED_QNAME_LIST_PRODUCTION     = new Production<ParseType>(ParseType.NESTED_QNAME_LIST, ParseType.COMMA, ParseType.TYPE_LIST_NOT_QNAME);
+  private static final Production<ParseType> TYPE_NOT_QNAME_PRODUCTION        = new Production<ParseType>(ParseType.TYPE_NOT_QNAME,    ParseType.COMMA, ParseType.TYPE_LIST_NOT_QNAME);
+  private static final Production<ParseType> END_QNAME_LIST_PRODUCTION        = new Production<ParseType>(ParseType.TYPE_NOT_QNAME,    ParseType.COMMA, ParseType.QNAME_LIST);
+  private static final Production<ParseType> END_PRODUCTION                   = new Production<ParseType>(ParseType.TYPE_NOT_QNAME);
 
-  public TypeListNoQNameRule()
+  public TypeListNotQNameRule()
   {
-    super(ParseType.TYPE_LIST_NO_QNAME, QNAME_PRODUCTION, NESTED_QNAME_LIST_PRODUCTION, TYPE_NO_QNAME_PRODUCTION, END_QNAME_LIST_PRODUCTION, END_PRODUCTION);
+    super(ParseType.TYPE_LIST_NOT_QNAME, QNAME_PRODUCTION, NESTED_QNAME_LIST_PRODUCTION, TYPE_NOT_QNAME_PRODUCTION, END_QNAME_LIST_PRODUCTION, END_PRODUCTION);
   }
 
   /**
@@ -44,7 +44,7 @@ public class TypeListNoQNameRule extends Rule<ParseType>
       QName qname = (QName) args[0];
       @SuppressWarnings("unchecked")
       ParseList<Type> list = (ParseList<Type>) args[2];
-      list.addFirst(new NamedType(false, false, qname, qname.getLexicalPhrase()), LexicalPhrase.combine(qname.getLexicalPhrase(), (LexicalPhrase) args[1], list.getLexicalPhrase()));
+      list.addFirst(new NamedType(false, false, qname, null, qname.getLexicalPhrase()), LexicalPhrase.combine(qname.getLexicalPhrase(), (LexicalPhrase) args[1], list.getLexicalPhrase()));
       return list;
     }
     if (production == NESTED_QNAME_LIST_PRODUCTION)
@@ -56,7 +56,7 @@ public class TypeListNoQNameRule extends Rule<ParseType>
       list.addFirst(type, LexicalPhrase.combine(type.getLexicalPhrase(), (LexicalPhrase) args[1], list.getLexicalPhrase()));
       return list;
     }
-    if (production == TYPE_NO_QNAME_PRODUCTION)
+    if (production == TYPE_NOT_QNAME_PRODUCTION)
     {
       Type type = (Type) args[0];
       @SuppressWarnings("unchecked")

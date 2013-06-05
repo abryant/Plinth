@@ -34,7 +34,7 @@ import eu.bryants.anthony.plinth.parser.parseAST.QNameElement;
 /**
  * @author Anthony Bryant
  */
-public class BasicPrimaryRule extends Rule<ParseType>
+public class PrimaryNotThisRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
@@ -49,31 +49,31 @@ public class BasicPrimaryRule extends Rule<ParseType>
   private static Production<ParseType> ARRAY_CREATION_EMPTY_LIST_PRODUCTION = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE, ParseType.LBRACE, ParseType.RBRACE);
   private static Production<ParseType> ARRAY_CREATION_LIST_PRODUCTION       = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE, ParseType.LBRACE, ParseType.EXPRESSION_LIST, ParseType.RBRACE);
   private static Production<ParseType> SUPER_ACCESS_PRODUCTION                       = new Production<ParseType>(ParseType.SUPER_KEYWORD,            ParseType.DOT,               ParseType.NAME);
-  private static Production<ParseType> FIELD_ACCESS_PRODUCTION                       = new Production<ParseType>(ParseType.PRIMARY_NO_TRAILING_TYPE, ParseType.DOT,               ParseType.NAME);
+  private static Production<ParseType> FIELD_ACCESS_PRODUCTION                       = new Production<ParseType>(ParseType.PRIMARY,                  ParseType.DOT,               ParseType.NAME);
   private static Production<ParseType> NESTED_QNAME_LIST_FIELD_ACCESS_PRODUCTION     = new Production<ParseType>(ParseType.NESTED_QNAME_LIST,        ParseType.DOT,               ParseType.NAME);
-  private static Production<ParseType> NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION       = new Production<ParseType>(ParseType.PRIMARY_NO_TRAILING_TYPE, ParseType.QUESTION_MARK_DOT, ParseType.NAME);
+  private static Production<ParseType> NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION       = new Production<ParseType>(ParseType.PRIMARY,                  ParseType.QUESTION_MARK_DOT, ParseType.NAME);
   private static Production<ParseType> QNAME_NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION = new Production<ParseType>(ParseType.QNAME_EXPRESSION,         ParseType.QUESTION_MARK_DOT, ParseType.NAME);
-  private static Production<ParseType> TYPE_FIELD_ACCESS_PRODUCTION                  = new Production<ParseType>(ParseType.TYPE,                     ParseType.DOUBLE_COLON,      ParseType.NAME);
+  private static Production<ParseType> TYPE_FIELD_ACCESS_PRODUCTION                  = new Production<ParseType>(ParseType.TYPE_NO_SIMPLE_ARGUMENTS, ParseType.DOUBLE_COLON,      ParseType.NAME);
   private static Production<ParseType> FUNCTION_CALL_PRODUCTION = new Production<ParseType>(ParseType.FUNCTION_CALL_EXPRESSION);
   private static Production<ParseType> BRACKETS_PRODUCTION = new Production<ParseType>(ParseType.LPAREN, ParseType.TUPLE_EXPRESSION, ParseType.RPAREN);
   private static Production<ParseType> CREATION_PRODUCTION = new Production<ParseType>(ParseType.CREATION_EXPRESSION);
   private static Production<ParseType> OBJECT_CREATION_PRODUCTION = new Production<ParseType>(ParseType.NEW_KEYWORD, ParseType.OBJECT_KEYWORD, ParseType.ARGUMENTS);
   private static Production<ParseType> STRING_LITERAL_PRODUCTION = new Production<ParseType>(ParseType.STRING_LITERAL);
 
-  public BasicPrimaryRule()
+  public PrimaryNotThisRule()
   {
-    super(ParseType.BASIC_PRIMARY, INTEGER_PRODUCTION, FLOATING_PRODUCTION,
-                                   TRUE_PRODUCTION, FALSE_PRODUCTION,
-                                   NULL_PRODUCTION,
-                                   ARRAY_ACCESS_PRODUCTION, QNAME_ARRAY_ACCESS_PRODUCTION, NESTED_QNAME_LIST_ARRAY_ACCESS_PRODUCTION,
-                                   ARRAY_CREATION_EMPTY_LIST_PRODUCTION, ARRAY_CREATION_LIST_PRODUCTION,
-                                   SUPER_ACCESS_PRODUCTION,
-                                   FIELD_ACCESS_PRODUCTION, NESTED_QNAME_LIST_FIELD_ACCESS_PRODUCTION, NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION, QNAME_NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION, TYPE_FIELD_ACCESS_PRODUCTION,
-                                   FUNCTION_CALL_PRODUCTION,
-                                   BRACKETS_PRODUCTION,
-                                   CREATION_PRODUCTION,
-                                   OBJECT_CREATION_PRODUCTION,
-                                   STRING_LITERAL_PRODUCTION);
+    super(ParseType.PRIMARY_NOT_THIS, INTEGER_PRODUCTION, FLOATING_PRODUCTION,
+                                      TRUE_PRODUCTION, FALSE_PRODUCTION,
+                                      NULL_PRODUCTION,
+                                      ARRAY_ACCESS_PRODUCTION, QNAME_ARRAY_ACCESS_PRODUCTION, NESTED_QNAME_LIST_ARRAY_ACCESS_PRODUCTION,
+                                      ARRAY_CREATION_EMPTY_LIST_PRODUCTION, ARRAY_CREATION_LIST_PRODUCTION,
+                                      SUPER_ACCESS_PRODUCTION,
+                                      FIELD_ACCESS_PRODUCTION, NESTED_QNAME_LIST_FIELD_ACCESS_PRODUCTION, NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION, QNAME_NULL_TRAVERSING_FIELD_ACCESS_PRODUCTION, TYPE_FIELD_ACCESS_PRODUCTION,
+                                      FUNCTION_CALL_PRODUCTION,
+                                      BRACKETS_PRODUCTION,
+                                      CREATION_PRODUCTION,
+                                      OBJECT_CREATION_PRODUCTION,
+                                      STRING_LITERAL_PRODUCTION);
   }
 
   /**

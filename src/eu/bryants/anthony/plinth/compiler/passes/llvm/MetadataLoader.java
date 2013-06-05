@@ -26,8 +26,9 @@ import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
-import eu.bryants.anthony.plinth.ast.metadata.MemberFunction.MemberFunctionType;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunctionType;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
+import eu.bryants.anthony.plinth.ast.metadata.VirtualFunction;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
@@ -39,6 +40,7 @@ import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
+import eu.bryants.anthony.plinth.ast.type.TypeParameter;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
@@ -89,7 +91,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A class definition must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 9)
+    if (values.length != 10)
     {
       throw new MalformedMetadataException("A class definition's metadata node must have the correct number of sub-nodes");
     }
@@ -112,35 +114,32 @@ public class MetadataLoader
     boolean isAbstract = readBooleanValue(values[1], "class definition", "abstract");
     boolean isImmutable = readBooleanValue(values[2], "class definition", "immutable");
 
-    String superClassQNameStr = readMDString(values[3]);
-    if (superClassQNameStr == null)
-    {
-      throw new MalformedMetadataException("A class definition must contain the fully qualified name of its superclass (or an empty string in its place)");
-    }
-    QName superClassQName;
-    try
-    {
-      superClassQName = superClassQNameStr.equals("") ? null : new QName(superClassQNameStr);
-    }
-    catch (ConceptualException e)
-    {
-      throw new MalformedMetadataException(e.getMessage(), e);
-    }
+    TypeParameter[] typeParameters = loadTypeParameters(values[3]);
 
-    QName[] superInterfaceQNames = loadSuperInterfaces(values[4]);
+    Type superType = loadType(values[4]);
+    if (!(superType instanceof NamedType || superType instanceof ObjectType))
+    {
+      throw new MalformedMetadataException("A super-type must either be a named type or the object type");
+    }
+    NamedType superNamedType = superType instanceof NamedType ? (NamedType) superType : null;
+    NamedType[] superInterfaceTypes = loadSuperInterfaces(values[5]);
 
-    Field[] fields = loadFields(values[5]);
-    Property[] properties = loadProperties(values[6]);
-    Constructor[] constructors = loadConstructors(values[7]);
-    Method[] methods = loadMethods(values[8]);
+    Field[] fields = loadFields(values[6]);
+    Property[] properties = loadProperties(values[7]);
+    Constructor[] constructors = loadConstructors(values[8]);
+    Method[] methods = loadMethods(values[9]);
 
     MemberVariable[] memberVariables = processMemberVariables(fields, properties);
-    MemberFunction[] memberFunctions = processMemberFunctions(properties, methods);
+    VirtualFunction[] virtualFunctions = processVirtualFunctions(properties, methods);
     Collection<GlobalVariable> globalVariables = extractGlobalVariables(fields, properties);
 
     try
     {
-      ClassDefinition result = new ClassDefinition(isAbstract, isImmutable, qname, superClassQName, superInterfaceQNames, fields, properties, constructors, methods, memberVariables, memberFunctions);
+      ClassDefinition result = new ClassDefinition(isAbstract, isImmutable, qname, typeParameters, superNamedType, superInterfaceTypes, fields, properties, constructors, methods, memberVariables, virtualFunctions);
+      for (TypeParameter typeParameter : typeParameters)
+      {
+        typeParameter.setContainingTypeDefinition(result);
+      }
       for (MemberVariable memberVariable : memberVariables)
       {
         memberVariable.setEnclosingTypeDefinition(result);
@@ -165,7 +164,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("A compound type definition must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 6)
+    if (values.length != 7)
     {
       throw new MalformedMetadataException("A compound type definition's metadata node must have the correct number of sub-nodes");
     }
@@ -187,18 +186,23 @@ public class MetadataLoader
 
     boolean isImmutable = readBooleanValue(values[1], "compound type definition", "immutable");
 
-    Field[] fields = loadFields(values[2]);
-    Property[] properties = loadProperties(values[3]);
-    Constructor[] constructors = loadConstructors(values[4]);
-    Method[] methods = loadMethods(values[5]);
+    TypeParameter[] typeParameters = loadTypeParameters(values[2]);
+
+    Field[] fields = loadFields(values[3]);
+    Property[] properties = loadProperties(values[4]);
+    Constructor[] constructors = loadConstructors(values[5]);
+    Method[] methods = loadMethods(values[6]);
 
     MemberVariable[] memberVariables = processMemberVariables(fields, properties);
-    MemberFunction[] memberFunctions = processMemberFunctions(properties, methods);
     Collection<GlobalVariable> globalVariables = extractGlobalVariables(fields, properties);
 
     try
     {
-      CompoundDefinition result = new CompoundDefinition(isImmutable, qname, fields, properties, constructors, methods, memberVariables, memberFunctions);
+      CompoundDefinition result = new CompoundDefinition(isImmutable, qname, typeParameters, fields, properties, constructors, methods, memberVariables);
+      for (TypeParameter typeParameter : typeParameters)
+      {
+        typeParameter.setContainingTypeDefinition(result);
+      }
       for (MemberVariable memberVariable : memberVariables)
       {
         memberVariable.setEnclosingTypeDefinition(result);
@@ -223,7 +227,7 @@ public class MetadataLoader
       throw new MalformedMetadataException("An interface definition must be represented by a metadata node");
     }
     LLVMValueRef[] values = readOperands(metadataNode);
-    if (values.length != 6)
+    if (values.length != 7)
     {
       throw new MalformedMetadataException("An interface definition's metadata node must have the correct number of sub-nodes");
     }
@@ -245,18 +249,24 @@ public class MetadataLoader
 
     boolean isImmutable = readBooleanValue(values[1], "interface definition", "immutable");
 
-    QName[] superInterfaceQNames = loadSuperInterfaces(values[2]);
+    TypeParameter[] typeParameters = loadTypeParameters(values[2]);
 
-    Field[] fields = loadFields(values[3]);
-    Property[] properties = loadProperties(values[4]);
-    Method[] methods = loadMethods(values[5]);
+    NamedType[] superInterfaceTypes = loadSuperInterfaces(values[3]);
 
-    MemberFunction[] memberFunctions = processMemberFunctions(properties, methods);
+    Field[] fields = loadFields(values[4]);
+    Property[] properties = loadProperties(values[5]);
+    Method[] methods = loadMethods(values[6]);
+
+    VirtualFunction[] virtualFunctions = processVirtualFunctions(properties, methods);
     Collection<GlobalVariable> globalVariables = extractGlobalVariables(fields, properties);
 
     try
     {
-      InterfaceDefinition result = new InterfaceDefinition(isImmutable, qname, superInterfaceQNames, fields, properties, methods, memberFunctions);
+      InterfaceDefinition result = new InterfaceDefinition(isImmutable, qname, typeParameters, superInterfaceTypes, fields, properties, methods, virtualFunctions);
+      for (TypeParameter typeParameter : typeParameters)
+      {
+        typeParameter.setContainingTypeDefinition(result);
+      }
       for (GlobalVariable globalVariable : globalVariables)
       {
         globalVariable.setEnclosingTypeDefinition(result);
@@ -317,36 +327,94 @@ public class MetadataLoader
     return globalVariables;
   }
 
-  private static MemberFunction[] processMemberFunctions(Property[] properties, Method[] methods)
+  private static VirtualFunction[] processVirtualFunctions(Property[] properties, Method[] methods)
   {
-    List<MemberFunction> memberFunctions = new LinkedList<MemberFunction>();
+    List<VirtualFunction> virtualFunctions = new LinkedList<VirtualFunction>();
     for (Property property : properties)
     {
       if (!property.isStatic())
       {
-        memberFunctions.add(property.getGetterMemberFunction());
-        memberFunctions.add(property.getSetterMemberFunction());
+        virtualFunctions.add(property.getGetterMemberFunction());
+        virtualFunctions.add(property.getSetterMemberFunction());
       }
     }
     for (Method method : methods)
     {
       if (!method.isStatic())
       {
-        memberFunctions.add(method.getMemberFunction());
+        virtualFunctions.add(method.getMemberFunction());
       }
     }
-    Collections.sort(memberFunctions, new Comparator<MemberFunction>()
+    Collections.sort(virtualFunctions, new Comparator<VirtualFunction>()
     {
       @Override
-      public int compare(MemberFunction o1, MemberFunction o2)
+      public int compare(VirtualFunction o1, VirtualFunction o2)
       {
-        return o1.getMemberIndex() - o2.getMemberIndex();
+        return o1.getIndex() - o2.getIndex();
       }
     });
-    return memberFunctions.toArray(new MemberFunction[memberFunctions.size()]);
+    return virtualFunctions.toArray(new VirtualFunction[virtualFunctions.size()]);
   }
 
-  private static QName[] loadSuperInterfaces(LLVMValueRef metadataNode) throws MalformedMetadataException
+  private static TypeParameter[] loadTypeParameters(LLVMValueRef metadataNode) throws MalformedMetadataException
+  {
+    if (LLVM.LLVMIsAMDNode(metadataNode) == null)
+    {
+      throw new MalformedMetadataException("A type parameter list must be represented by a metadata node");
+    }
+    LLVMValueRef[] nodes = readOperands(metadataNode);
+    TypeParameter[] typeParameters = new TypeParameter[nodes.length];
+    for (int i = 0; i < nodes.length; ++i)
+    {
+      typeParameters[i] = loadTypeParameter(nodes[i]);
+    }
+    return typeParameters;
+  }
+
+  private static TypeParameter loadTypeParameter(LLVMValueRef metadataNode) throws MalformedMetadataException
+  {
+    if (LLVM.LLVMIsAMDNode(metadataNode) == null)
+    {
+      throw new MalformedMetadataException("A type parameter must be represented by a metadata node");
+    }
+    LLVMValueRef[] values = readOperands(metadataNode);
+    if (values.length != 3)
+    {
+      throw new MalformedMetadataException("A type parameter's metadata node must have the correct number of sub-nodes");
+    }
+
+    String name = readMDString(values[0]);
+    if (name == null)
+    {
+      throw new MalformedMetadataException("A type parameter must have a valid name in its metadata node");
+    }
+
+    if (LLVM.LLVMIsAMDNode(values[1]) == null)
+    {
+      throw new MalformedMetadataException("A type parameter must have a valid super-type list in its metadata node");
+    }
+    LLVMValueRef[] superTypeNodes = readOperands(values[1]);
+    Type[] superTypes = new Type[superTypeNodes.length];
+    for (int i = 0; i < superTypes.length; ++i)
+    {
+      superTypes[i] = loadType(superTypeNodes[i]);
+    }
+
+    if (LLVM.LLVMIsAMDNode(values[2]) == null)
+    {
+      throw new MalformedMetadataException("A type parameter must have a valid sub-type list in its metadata node");
+    }
+    LLVMValueRef[] subTypeNodes = readOperands(values[2]);
+    Type[] subTypes = new Type[subTypeNodes.length];
+    for (int i = 0; i < subTypes.length; ++i)
+    {
+      subTypes[i] = loadType(subTypeNodes[i]);
+    }
+
+    return new TypeParameter(name, superTypes, subTypes, null);
+  }
+
+  private static NamedType[] loadSuperInterfaces(LLVMValueRef metadataNode) throws MalformedMetadataException
   {
     if (LLVM.LLVMIsAMDNode(metadataNode) == null)
     {
@@ -357,26 +425,18 @@ public class MetadataLoader
     {
       return null;
     }
-    QName[] qnames = new QName[values.length];
-    for (int i = 0; i < qnames.length; ++i)
+    NamedType[] types = new NamedType[values.length];
+    for (int i = 0; i < types.length; ++i)
     {
-      String valueStr = readMDString(values[i]);
-      if (valueStr == null)
+      Type interfaceType = loadType(values[i]);
+      if (!(interfaceType instanceof NamedType))
       {
-        throw new MalformedMetadataException("A super-interface must be represented by a metadata string");
+        throw new MalformedMetadataException("A super-interface must be represented by a named type");
       }
-      try
-      {
-        qnames[i] = valueStr.equals("") ? null : new QName(valueStr);
-      }
-      catch (ConceptualException e)
-      {
-        throw new MalformedMetadataException(e.getMessage(), e);
-      }
+      types[i] = (NamedType) interfaceType;
     }
-    return qnames;
+    return types;
   }
-
 
   private static Field[] loadFields(LLVMValueRef metadataNode) throws MalformedMetadataException
   {
@@ -629,13 +689,13 @@ public class MetadataLoader
     if (!isStatic)
     {
       MemberFunction getterMemberFunction = new MemberFunction(property, MemberFunctionType.PROPERTY_GETTER);
-      getterMemberFunction.setMemberIndex(getterMemberFunctionIndex);
+      getterMemberFunction.setIndex(getterMemberFunctionIndex);
       property.setGetterMemberFunction(getterMemberFunction);
       MemberFunction setterMemberFunction = new MemberFunction(property, MemberFunctionType.PROPERTY_SETTER);
-      setterMemberFunction.setMemberIndex(setterMemberFunctionIndex);
+      setterMemberFunction.setIndex(setterMemberFunctionIndex);
       property.setSetterMemberFunction(setterMemberFunction);
       MemberFunction constructorMemberFunction = new MemberFunction(property, MemberFunctionType.PROPERTY_CONSTRUCTOR);
-      constructorMemberFunction.setMemberIndex(constructorMemberFunctionIndex);
+      constructorMemberFunction.setIndex(constructorMemberFunctionIndex);
       property.setConstructorMemberFunction(constructorMemberFunction);
     }
     return property;
@@ -720,7 +780,7 @@ public class MetadataLoader
     if (!isStatic)
     {
       MemberFunction memberFunction = new MemberFunction(method);
-      memberFunction.setMemberIndex(memberIndex);
+      memberFunction.setIndex(memberIndex);
       method.setMemberFunction(memberFunction);
     }
     return method;
@@ -860,7 +920,7 @@ public class MetadataLoader
     }
     if (sortOfType.equals("named"))
     {
-      if (values.length != 4)
+      if (values.length != 5)
       {
         throw new MalformedMetadataException("A named type's metadata node must have the correct number of sub-nodes");
       }
@@ -871,10 +931,24 @@ public class MetadataLoader
       {
         throw new MalformedMetadataException("A function type must have a valid qualified name in its metadata node");
       }
+      if (LLVM.LLVMIsAMDNode(values[4]) == null)
+      {
+        throw new MalformedMetadataException("A named type's type argument list must be represented by a metadata node");
+      }
+      LLVMValueRef[] typeArgumentNodes = readOperands(values[4]);
+      Type[] typeArguments = null;
+      if (typeArgumentNodes.length > 0)
+      {
+        typeArguments = new Type[typeArgumentNodes.length];
+        for (int i = 0; i < typeArguments.length; ++i)
+        {
+          typeArguments[i] = loadType(typeArgumentNodes[i]);
+        }
+      }
       try
       {
         QName qname = new QName(qualifiedNameStr);
-        return new NamedType(nullable, immutable, qname, null);
+        return new NamedType(nullable, immutable, qname, typeArguments, null);
       }
       catch (ConceptualException e)
       {

@@ -2,7 +2,7 @@ package eu.bryants.anthony.plinth.ast.statement;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
-import eu.bryants.anthony.plinth.ast.member.Constructor;
+import eu.bryants.anthony.plinth.ast.metadata.ConstructorReference;
 
 /*
  * Created on 2 Nov 2012
@@ -16,7 +16,7 @@ public class DelegateConstructorStatement extends Statement
   private boolean isSuperConstructor;
   private Expression[] arguments;
 
-  private Constructor resolvedConstructor;
+  private ConstructorReference resolvedConstructorReference;
 
   public DelegateConstructorStatement(boolean isSuperConstructor, Expression[] arguments, LexicalPhrase lexicalPhrase)
   {
@@ -42,19 +42,19 @@ public class DelegateConstructorStatement extends Statement
   }
 
   /**
-   * @return the resolvedConstructor
+   * @return the resolvedConstructorReference
    */
-  public Constructor getResolvedConstructor()
+  public ConstructorReference getResolvedConstructorReference()
   {
-    return resolvedConstructor;
+    return resolvedConstructorReference;
   }
 
   /**
-   * @param resolvedConstructor - the resolvedConstructor to set
+   * @param resolvedConstructorReference - the resolvedConstructorReference to set
    */
-  public void setResolvedConstructor(Constructor resolvedConstructor)
+  public void setResolvedConstructorReference(ConstructorReference resolvedConstructorReference)
   {
-    this.resolvedConstructor = resolvedConstructor;
+    this.resolvedConstructorReference = resolvedConstructorReference;
   }
 
   /**

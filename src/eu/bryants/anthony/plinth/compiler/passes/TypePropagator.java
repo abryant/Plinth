@@ -36,6 +36,7 @@ import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.member.Property;
+import eu.bryants.anthony.plinth.ast.metadata.ConstructorReference;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
@@ -43,7 +44,6 @@ import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
-import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
 import eu.bryants.anthony.plinth.ast.statement.AssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Block;
@@ -175,13 +175,13 @@ public class TypePropagator
     else if (statement instanceof DelegateConstructorStatement)
     {
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
-      Constructor constructor = delegateConstructorStatement.getResolvedConstructor();
-      Parameter[] parameters = constructor == null ? new Parameter[0] : constructor.getParameters();
+      ConstructorReference constructorReference = delegateConstructorStatement.getResolvedConstructorReference();
+      Type[] parameterTypes = constructorReference == null ? new Type[0] : constructorReference.getParameterTypes();
       Expression[] arguments = delegateConstructorStatement.getArguments();
       // propagate the parameter types to the arguments
-      for (int i = 0; i < parameters.length; ++i)
+      for (int i = 0; i < parameterTypes.length; ++i)
       {
-        propagateTypes(arguments[i], parameters[i].getType());
+        propagateTypes(arguments[i], parameterTypes[i]);
       }
     }
     else if (statement instanceof ExpressionStatement)
@@ -297,7 +297,7 @@ public class TypePropagator
         }
       }
       Type expressionType = shorthandAssignStatement.getExpression().getType();
-      if (expressionType instanceof TupleType && !expressionType.isNullable() && ((TupleType) expressionType).getSubTypes().length == assignees.length)
+      if (expressionType instanceof TupleType && !expressionType.canBeNullable() && ((TupleType) expressionType).getSubTypes().length == assignees.length)
       {
         // fill in any missing types from the expression type, as we have nothing else to propagate to them
         for (int i = 0; i < types.length; ++i)
@@ -430,16 +430,16 @@ public class TypePropagator
     else if (expression instanceof CreationExpression)
     {
       CreationExpression creationExpression = (CreationExpression) expression;
-      Constructor resolvedConstructor = creationExpression.getResolvedConstructor();
-      Parameter[] parameters = resolvedConstructor.getParameters();
+      ConstructorReference resolvedConstructorReference = creationExpression.getResolvedConstructorReference();
+      Type[] parameterTypes = resolvedConstructorReference.getParameterTypes();
       Expression[] arguments = creationExpression.getArguments();
-      if (parameters.length != arguments.length)
+      if (parameterTypes.length != arguments.length)
       {
-        throw new IllegalStateException("A constructor call must have the same number of arguments as the constructor has parameters (" + parameters.length + " parameters vs " + arguments.length + " arguments)");
+        throw new IllegalStateException("A constructor call must have the same number of arguments as the constructor has parameters (" + parameterTypes.length + " parameters vs " + arguments.length + " arguments)");
       }
-      for (int i = 0; i < parameters.length; ++i)
+      for (int i = 0; i < parameterTypes.length; ++i)
       {
-        propagateTypes(arguments[i], parameters[i].getType());
+        propagateTypes(arguments[i], parameterTypes[i]);
       }
     }
     else if (expression instanceof EqualityExpression)
@@ -476,16 +476,15 @@ public class TypePropagator
     {
       FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
       Expression[] arguments = functionCallExpression.getArguments();
-      Parameter[] parameters = null;
       Type[] parameterTypes = null;
-      if (functionCallExpression.getResolvedMethod() != null)
+      if (functionCallExpression.getResolvedMethodReference() != null)
       {
         if (functionCallExpression.getResolvedBaseExpression() != null)
         {
           // propagate with the expression's type here, since the TypeChecker has already made sure it has the specified field (and we have no better type to use)
           propagateTypes(functionCallExpression.getResolvedBaseExpression(), functionCallExpression.getResolvedBaseExpression().getType());
         }
-        parameters = functionCallExpression.getResolvedMethod().getParameters();
+        parameterTypes = functionCallExpression.getResolvedMethodReference().getParameterTypes();
       }
       else if (functionCallExpression.getResolvedBaseExpression() != null)
       {
@@ -499,14 +498,6 @@ public class TypePropagator
       else
       {
         throw new IllegalArgumentException("Unresolved function call: " + functionCallExpression);
-      }
-      if (parameterTypes == null)
-      {
-        parameterTypes = new Type[parameters.length];
-        for (int i = 0; i < parameters.length; i++)
-        {
-          parameterTypes[i] = parameters[i].getType();
-        }
       }
 
       // propagate each of the argument types
@@ -550,7 +541,7 @@ public class TypePropagator
       NullCoalescingExpression nullCoalescingExpression = (NullCoalescingExpression) expression;
       // propagate the parent's type down to the sub-expressions, accounting for nullability (the first sub-expression's type must be nullable)
       nullCoalescingExpression.setType(type);
-      propagateTypes(nullCoalescingExpression.getNullableExpression(), TypeChecker.findTypeWithNullability(type, true));
+      propagateTypes(nullCoalescingExpression.getNullableExpression(), Type.findTypeWithNullability(type, true));
       propagateTypes(nullCoalescingExpression.getAlternativeExpression(), type);
     }
     else if (expression instanceof NullLiteralExpression)

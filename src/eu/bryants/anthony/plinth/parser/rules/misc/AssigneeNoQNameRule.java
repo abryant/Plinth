@@ -29,8 +29,8 @@ public class AssigneeNoQNameRule extends Rule<ParseType>
   private static final Production<ParseType> ARRAY_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.LSQUARE, ParseType.EXPRESSION, ParseType.RSQUARE);
   private static final Production<ParseType> QNAME_ARRAY_PRODUCTION = new Production<ParseType>(ParseType.QNAME, ParseType.LSQUARE, ParseType.EXPRESSION, ParseType.RSQUARE);
   private static final Production<ParseType> NESTED_QNAME_LIST_ARRAY_PRODUCTION = new Production<ParseType>(ParseType.NESTED_QNAME_LIST, ParseType.LSQUARE, ParseType.EXPRESSION, ParseType.RSQUARE);
-  private static final Production<ParseType> FIELD_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY_NO_TRAILING_TYPE, ParseType.DOT, ParseType.NAME);
-  private static final Production<ParseType> TYPE_FIELD_PRODUCTION = new Production<ParseType>(ParseType.TYPE, ParseType.DOUBLE_COLON, ParseType.NAME);
+  private static final Production<ParseType> FIELD_PRODUCTION = new Production<ParseType>(ParseType.PRIMARY, ParseType.DOT, ParseType.NAME);
+  private static final Production<ParseType> TYPE_FIELD_PRODUCTION = new Production<ParseType>(ParseType.TYPE_NO_SIMPLE_ARGUMENTS, ParseType.DOUBLE_COLON, ParseType.NAME);
   private static final Production<ParseType> UNDERSCORE_PRODUCTION = new Production<ParseType>(ParseType.UNDERSCORE);
 
   public AssigneeNoQNameRule()

@@ -12,20 +12,11 @@ import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 /**
  * @author Anthony Bryant
  */
-public class MemberFunction implements Comparable<MemberFunction>
+public class MemberFunction extends VirtualFunction
 {
-  public static enum MemberFunctionType
-  {
-    METHOD,
-    PROPERTY_GETTER,
-    PROPERTY_SETTER,
-    PROPERTY_CONSTRUCTOR,
-  }
-
   private MemberFunctionType memberFunctionType;
   private Method method;
   private Property property;
-  private int memberIndex;
 
   /**
    * Creates a new MemberFunction for the specified non-static Method.
@@ -77,27 +68,22 @@ public class MemberFunction implements Comparable<MemberFunction>
   }
 
   /**
-   * @return the memberIndex
-   */
-  public int getMemberIndex()
-  {
-    return memberIndex;
-  }
-
-  /**
-   * @param memberIndex - the memberIndex to set
-   */
-  public void setMemberIndex(int memberIndex)
-  {
-    this.memberIndex = memberIndex;
-  }
-
-  /**
    * {@inheritDoc}
    */
   @Override
-  public int compareTo(MemberFunction other)
+  public int compareTo(VirtualFunction otherFunction)
   {
+    if (otherFunction instanceof OverrideFunction)
+    {
+      // member functions always come before override functions
+      return -1;
+    }
+    if (!(otherFunction instanceof MemberFunction))
+    {
+      throw new UnsupportedOperationException("Unknown virtual function type: " + otherFunction);
+    }
+    MemberFunction other = (MemberFunction) otherFunction;
+
     SinceSpecifier since1;
     String name1;
     switch (memberFunctionType)

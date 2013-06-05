@@ -11,6 +11,7 @@ import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.expression.MinusExpression;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.parser.ParseType;
+import eu.bryants.anthony.plinth.parser.parseAST.ParseContainer;
 
 /*
  * Created on 10 Apr 2012
@@ -24,8 +25,8 @@ public class UnaryExpressionRule extends Rule<ParseType>
   private static final long serialVersionUID = 1L;
 
   private static final Production<ParseType> PRIMARY_PRODUCTION           = new Production<ParseType>(ParseType.PRIMARY);
-  private static final Production<ParseType> CAST_PRODUCTION              = new Production<ParseType>(ParseType.CAST_KEYWORD, ParseType.LANGLE, ParseType.TYPE, ParseType.RANGLE, ParseType.UNARY_EXPRESSION);
-  private static final Production<ParseType> CAST_QNAME_PRODUCTION        = new Production<ParseType>(ParseType.CAST_KEYWORD, ParseType.LANGLE, ParseType.TYPE, ParseType.RANGLE, ParseType.QNAME_EXPRESSION);
+  private static final Production<ParseType> CAST_PRODUCTION              = new Production<ParseType>(ParseType.CAST_KEYWORD, ParseType.LANGLE, ParseType.TYPE_RANGLE, ParseType.UNARY_EXPRESSION);
+  private static final Production<ParseType> CAST_QNAME_PRODUCTION        = new Production<ParseType>(ParseType.CAST_KEYWORD, ParseType.LANGLE, ParseType.TYPE_RANGLE, ParseType.QNAME_EXPRESSION);
   private static final Production<ParseType> MINUS_PRODUCTION             = new Production<ParseType>(ParseType.MINUS, ParseType.UNARY_EXPRESSION);
   private static final Production<ParseType> MINUS_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.MINUS, ParseType.QNAME_EXPRESSION);
   private static final Production<ParseType> BOOLEAN_NOT_PRODUCTION       = new Production<ParseType>(ParseType.EXCLAIMATION_MARK, ParseType.UNARY_EXPRESSION);
@@ -54,9 +55,10 @@ public class UnaryExpressionRule extends Rule<ParseType>
     }
     if (production == CAST_PRODUCTION || production == CAST_QNAME_PRODUCTION)
     {
-      Type type = (Type) args[2];
-      Expression expression = (Expression) args[4];
-      return new CastExpression(type, expression, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], type.getLexicalPhrase(), (LexicalPhrase) args[3], expression.getLexicalPhrase()));
+      @SuppressWarnings("unchecked")
+      ParseContainer<Type> containedType = (ParseContainer<Type>) args[2];
+      Expression expression = (Expression) args[3];
+      return new CastExpression(containedType.getItem(), expression, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], containedType.getLexicalPhrase(), expression.getLexicalPhrase()));
     }
     if (production == MINUS_PRODUCTION || production == MINUS_QNAME_PRODUCTION)
     {

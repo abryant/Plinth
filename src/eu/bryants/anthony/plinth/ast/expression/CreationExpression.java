@@ -1,8 +1,7 @@
 package eu.bryants.anthony.plinth.ast.expression;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
-import eu.bryants.anthony.plinth.ast.member.Constructor;
-import eu.bryants.anthony.plinth.ast.misc.QName;
+import eu.bryants.anthony.plinth.ast.metadata.ConstructorReference;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 
 /*
@@ -16,17 +15,16 @@ public class CreationExpression extends Expression
 {
 
   private boolean isHeapAllocation;
-  private QName qname;
+  private NamedType createdType;
   private Expression[] arguments;
 
-  private NamedType resolvedType;
-  private Constructor resolvedConstructor;
+  private ConstructorReference resolvedConstructorReference;
 
-  public CreationExpression(boolean isHeapAllocation, QName qname, Expression[] arguments, LexicalPhrase lexicalPhrase)
+  public CreationExpression(boolean isHeapAllocation, NamedType createdType, Expression[] arguments, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.isHeapAllocation = isHeapAllocation;
-    this.qname = qname;
+    this.createdType = createdType;
     this.arguments = arguments;
   }
 
@@ -39,11 +37,11 @@ public class CreationExpression extends Expression
   }
 
   /**
-   * @return the qname
+   * @return the createdType
    */
-  public QName getQualifiedName()
+  public NamedType getCreatedType()
   {
-    return qname;
+    return createdType;
   }
 
   /**
@@ -55,35 +53,19 @@ public class CreationExpression extends Expression
   }
 
   /**
-   * @return the resolvedType
+   * @return the resolvedConstructorReference
    */
-  public NamedType getResolvedType()
+  public ConstructorReference getResolvedConstructorReference()
   {
-    return resolvedType;
+    return resolvedConstructorReference;
   }
 
   /**
-   * @param resolvedType - the resolvedType to set
+   * @param resolvedConstructorReference - the resolvedConstructorReference to set
    */
-  public void setResolvedType(NamedType resolvedType)
+  public void setResolvedConstructorReference(ConstructorReference resolvedConstructorReference)
   {
-    this.resolvedType = resolvedType;
-  }
-
-  /**
-   * @return the resolvedConstructor
-   */
-  public Constructor getResolvedConstructor()
-  {
-    return resolvedConstructor;
-  }
-
-  /**
-   * @param resolvedConstructor - the resolvedConstructor to set
-   */
-  public void setResolvedConstructor(Constructor resolvedConstructor)
-  {
-    this.resolvedConstructor = resolvedConstructor;
+    this.resolvedConstructorReference = resolvedConstructorReference;
   }
 
   /**
@@ -93,7 +75,7 @@ public class CreationExpression extends Expression
   public String toString()
   {
     StringBuffer buffer = new StringBuffer(isHeapAllocation ? "new " : "create ");
-    buffer.append(qname);
+    buffer.append(createdType);
     buffer.append('(');
     for (int i = 0; i < arguments.length; ++i)
     {

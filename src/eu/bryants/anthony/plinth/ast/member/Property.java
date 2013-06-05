@@ -1,5 +1,6 @@
 package eu.bryants.anthony.plinth.ast.member;
 
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
@@ -123,7 +124,7 @@ public class Property extends Member
     this.setterUncheckedThrownTypes = setterUncheckedThrownTypes;
     this.setterBlock = setterBlock;
     this.declaresConstructor = declaresConstructor;
-    this.constructorImmutable = constructorImmutable;
+    this.constructorImmutable = declaresConstructor ? constructorImmutable : setterImmutable;
     this.constructorParameter = constructorParameter;
     this.constructorUncheckedThrownTypes = constructorUncheckedThrownTypes;
     this.constructorBlock = constructorBlock;
@@ -484,35 +485,46 @@ public class Property extends Member
 
   /**
    * @param typeString - the mangled type of the part of this property to be represented (e.g. "G" for getter)
-   * @return the disambiguator string for the specified type of property function
+   * @return the descriptor string for the specified type of property function, which should be used in the virtual function table descriptor for this property's class
    */
-  private String getDisambiguatorString(String typeString)
+  private String getDescriptorString(String typeString)
   {
-    return (isStatic ? "SP" : "P") + typeString + '_' + name;
+    StringBuffer buffer = new StringBuffer();
+    if (!isStatic && containingTypeDefinition instanceof InterfaceDefinition)
+    {
+      // non-static interface functions must have a unique disambiguator, since their calling convention depends on which interface they are part of
+      buffer.append('I');
+      buffer.append(containingTypeDefinition.getQualifiedName().getMangledName());
+    }
+    buffer.append(isStatic ? "SP" : "P");
+    buffer.append(typeString);
+    buffer.append('_');
+    buffer.append(name);
+    return buffer.toString();
   }
 
   /**
-   * @return the disambiguator for the getter of this property
+   * @return the descriptor for the getter of this property, which should be used in the virtual function table descriptor for this property's class
    */
-  public String getGetterDisambiguator()
+  public String getGetterDescriptor()
   {
-    return getDisambiguatorString("G");
+    return getDescriptorString("G");
   }
 
   /**
-   * @return the disambiguator for the setter of this property
+   * @return the descriptor for the setter of this property, which should be used in the virtual function table descriptor for this property's class
    */
-  public String getSetterDisambiguator()
+  public String getSetterDescriptor()
   {
-    return getDisambiguatorString("S");
+    return getDescriptorString("S");
   }
 
   /**
-   * @return the disambiguator for the constructor of this property
+   * @return the descriptor for the constructor of this property, which should be used in the virtual function table descriptor for this property's class
    */
-  public String getConstructorDisambiguator()
+  public String getConstructorDescriptor()
   {
-    return getDisambiguatorString("C");
+    return getDescriptorString("C");
   }
 
   /**

@@ -7,21 +7,21 @@ import eu.bryants.anthony.plinth.parser.rules.CompilationUnitRule;
 import eu.bryants.anthony.plinth.parser.rules.CompoundDefinitionRule;
 import eu.bryants.anthony.plinth.parser.rules.InterfaceDefinitionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.AdditiveExpressionRule;
-import eu.bryants.anthony.plinth.parser.rules.expression.BasicPrimaryRule;
-import eu.bryants.anthony.plinth.parser.rules.expression.ComparisonExpressionRule;
+import eu.bryants.anthony.plinth.parser.rules.expression.ComparisonExpressionLessThanQNameRule;
+import eu.bryants.anthony.plinth.parser.rules.expression.ConditionalExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.CreationExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.DimensionsRule;
+import eu.bryants.anthony.plinth.parser.rules.expression.EqualityExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.ExpressionListRule;
-import eu.bryants.anthony.plinth.parser.rules.expression.ExpressionNoTupleRule;
+import eu.bryants.anthony.plinth.parser.rules.expression.ExpressionNotLessThanQNameRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.ExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.FunctionCallExpressionRule;
-import eu.bryants.anthony.plinth.parser.rules.expression.InstanceOfExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.LogicalExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.MultiplicativeExpressionRule;
-import eu.bryants.anthony.plinth.parser.rules.expression.PrimaryNoThisRule;
-import eu.bryants.anthony.plinth.parser.rules.expression.PrimaryNoTrailingTypeRule;
+import eu.bryants.anthony.plinth.parser.rules.expression.PrimaryNotThisRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.PrimaryRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.QNameExpressionRule;
+import eu.bryants.anthony.plinth.parser.rules.expression.QNameOrLessThanExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.ShiftExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.TupleExpressionRule;
 import eu.bryants.anthony.plinth.parser.rules.expression.TupleIndexExpressionRule;
@@ -68,11 +68,37 @@ import eu.bryants.anthony.plinth.parser.rules.statement.StatementsRule;
 import eu.bryants.anthony.plinth.parser.rules.statement.TryCatchStatementRule;
 import eu.bryants.anthony.plinth.parser.rules.statement.TryFinallyStatementRule;
 import eu.bryants.anthony.plinth.parser.rules.statement.WhileStatementRule;
+import eu.bryants.anthony.plinth.parser.rules.type.ArrayTypeTrailingArgsRAngleRule;
+import eu.bryants.anthony.plinth.parser.rules.type.ArrayTypeTrailingArgsRule;
+import eu.bryants.anthony.plinth.parser.rules.type.BasicTypeRule;
+import eu.bryants.anthony.plinth.parser.rules.type.NamedTypeNoModifiersRule;
+import eu.bryants.anthony.plinth.parser.rules.type.OptionalTypeParametersRule;
 import eu.bryants.anthony.plinth.parser.rules.type.ReturnTypeRule;
-import eu.bryants.anthony.plinth.parser.rules.type.TypeListNoQNameRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeArgumentDoubleRAngleRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeArgumentListDoubleRAngleRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeArgumentListRAngleRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeArgumentNotQNameRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeArgumentRAngleRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeBoundListDoubleRAngleRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeBoundListRAngleRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeBoundListRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeDoubleRAngleRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeListNotQNameRule;
 import eu.bryants.anthony.plinth.parser.rules.type.TypeListRule;
-import eu.bryants.anthony.plinth.parser.rules.type.TypeNoQNameRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeNoSimpleArgumentsRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeNoTrailingArgumentsRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeNotQNameRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeParameterListRAngleRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeParameterListRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeParameterRAngleRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeParameterRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeRAngleRule;
 import eu.bryants.anthony.plinth.parser.rules.type.TypeRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeTrailingArgsRAngleRule;
+import eu.bryants.anthony.plinth.parser.rules.type.TypeTrailingArgsRule;
+import eu.bryants.anthony.plinth.parser.rules.type.WildcardTypeArgumentDoubleRAngleRule;
+import eu.bryants.anthony.plinth.parser.rules.type.WildcardTypeArgumentRAngleRule;
+import eu.bryants.anthony.plinth.parser.rules.type.WildcardTypeArgumentRule;
 
 /*
  * Created on 2 Apr 2012
@@ -90,21 +116,21 @@ public class PlinthParseRules
   {
     // expression
     new AdditiveExpressionRule(),
-    new BasicPrimaryRule(),
-    new ComparisonExpressionRule(),
+    new ComparisonExpressionLessThanQNameRule(),
+    new ConditionalExpressionRule(),
     new CreationExpressionRule(),
     new DimensionsRule(),
+    new EqualityExpressionRule(),
     new ExpressionListRule(),
-    new ExpressionNoTupleRule(),
+    new ExpressionNotLessThanQNameRule(),
     new ExpressionRule(),
     new FunctionCallExpressionRule(),
-    new InstanceOfExpressionRule(),
     new LogicalExpressionRule(),
     new MultiplicativeExpressionRule(),
-    new PrimaryNoThisRule(),
-    new PrimaryNoTrailingTypeRule(),
+    new PrimaryNotThisRule(),
     new PrimaryRule(),
     new QNameExpressionRule(),
+    new QNameOrLessThanExpressionRule(),
     new ShiftExpressionRule(),
     new TupleExpressionRule(),
     new TupleIndexExpressionRule(),
@@ -159,11 +185,37 @@ public class PlinthParseRules
     new WhileStatementRule(),
 
     // type
+    new ArrayTypeTrailingArgsRAngleRule(),
+    new ArrayTypeTrailingArgsRule(),
+    new BasicTypeRule(),
+    new NamedTypeNoModifiersRule(),
+    new OptionalTypeParametersRule(),
     new ReturnTypeRule(),
-    new TypeListNoQNameRule(),
+    new TypeArgumentDoubleRAngleRule(),
+    new TypeArgumentListDoubleRAngleRule(),
+    new TypeArgumentListRAngleRule(),
+    new TypeArgumentNotQNameRule(),
+    new TypeArgumentRAngleRule(),
+    new TypeBoundListDoubleRAngleRule(),
+    new TypeBoundListRAngleRule(),
+    new TypeBoundListRule(),
+    new TypeDoubleRAngleRule(),
+    new TypeListNotQNameRule(),
     new TypeListRule(),
-    new TypeNoQNameRule(),
+    new TypeNoSimpleArgumentsRule(),
+    new TypeNotQNameRule(),
+    new TypeNoTrailingArgumentsRule(),
+    new TypeParameterListRAngleRule(),
+    new TypeParameterListRule(),
+    new TypeParameterRAngleRule(),
+    new TypeParameterRule(),
+    new TypeRAngleRule(),
     new TypeRule(),
+    new TypeTrailingArgsRAngleRule(),
+    new TypeTrailingArgsRule(),
+    new WildcardTypeArgumentDoubleRAngleRule(),
+    new WildcardTypeArgumentRAngleRule(),
+    new WildcardTypeArgumentRule(),
 
     // top level
     // startRule does not need to be included here: new CompilationUnitRule(),

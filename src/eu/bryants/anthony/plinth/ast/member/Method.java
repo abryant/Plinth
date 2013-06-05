@@ -1,5 +1,6 @@
 package eu.bryants.anthony.plinth.ast.member;
 
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
@@ -35,8 +36,6 @@ public class Method extends Member
 
   private MemberFunction memberFunction;
 
-  private Disambiguator disambiguator = new Disambiguator();
-
   /**
    * Creates a new Method with the specified parameters
    * @param returnType - the return type of the method
@@ -70,14 +69,6 @@ public class Method extends Member
     this.checkedThrownTypes = checkedThrownTypes;
     this.uncheckedThrownTypes = uncheckedThrownTypes;
     this.block = block;
-  }
-
-  /**
-   * @return the disambiguator for this Method
-   */
-  public Disambiguator getDisambiguator()
-  {
-    return disambiguator;
   }
 
   /**
@@ -218,6 +209,30 @@ public class Method extends Member
   }
 
   /**
+   * @return the descriptor string for this method, which should be used in the virtual function table descriptor for this method's class
+   */
+  public String getDescriptorString()
+  {
+    StringBuffer buffer = new StringBuffer();
+    if (!isStatic && containingTypeDefinition instanceof InterfaceDefinition)
+    {
+      // non-static interface methods must have a unique descriptor, since their calling convention depends on which interface they are part of
+      buffer.append('I');
+      buffer.append(containingTypeDefinition.getQualifiedName().getMangledName());
+    }
+    buffer.append(isStatic ? "SM_" : "M_");
+    buffer.append(name);
+    buffer.append('_');
+    buffer.append(returnType.getMangledName());
+    buffer.append('_');
+    for (int i = 0; i < parameters.length; ++i)
+    {
+      buffer.append(parameters[i].getType().getMangledName());
+    }
+    return buffer.toString();
+  }
+
+  /**
    * @return the mangled name for this Method
    */
   public String getMangledName()
@@ -326,95 +341,5 @@ public class Method extends Member
       buffer.append(block);
     }
     return buffer.toString();
-  }
-
-  /**
-   * A disambiguator for method calls, which allows methods which are semantically equivalent (i.e. have the same name and types) can be easily distinguished.
-   * It also allows methods to be sorted into a predictable order, by implementing comparable.
-   * @author Anthony Bryant
-   */
-  public class Disambiguator
-  {
-
-    /**
-     * @return the name associated with this Disambiguator
-     */
-    public String getName()
-    {
-      return name;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public String toString()
-    {
-      StringBuffer buffer = new StringBuffer();
-      buffer.append(isStatic ? "SM_" : "M_");
-      buffer.append(name);
-      buffer.append('_');
-      buffer.append(returnType.getMangledName());
-      buffer.append('_');
-      for (int i = 0; i < parameters.length; ++i)
-      {
-        buffer.append(parameters[i].getType().getMangledName());
-      }
-      return buffer.toString();
-    }
-
-    /**
-     * @return the enclosing Method, for use only in equals() and compareTo()
-     */
-    private Method getMethod()
-    {
-      return Method.this;
-    }
-
-    /**
-     * Checks whether this disambiguator matches the signature of the specified other disambiguator.
-     * This checks the signature of the method, but not the since specifier.
-     * It also only tests runtime equivalence for types, not absolute equivalence.
-     * @param other - the Disambiguator to check
-     * @return true if this Disambiguator matches the specified Disambiguator, false otherwise
-     */
-    public boolean matches(Disambiguator other)
-    {
-      Method otherMethod = other.getMethod();
-      if (isStatic != otherMethod.isStatic || !returnType.isRuntimeEquivalent(otherMethod.returnType) || !name.equals(otherMethod.name) || parameters.length != otherMethod.parameters.length)
-      {
-        return false;
-      }
-      for (int i = 0; i < parameters.length; ++i)
-      {
-        if (!parameters[i].getType().isRuntimeEquivalent(otherMethod.parameters[i].getType()))
-        {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean equals(Object o)
-    {
-      if (!(o instanceof Disambiguator))
-      {
-        return false;
-      }
-      return matches((Disambiguator) o);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int hashCode()
-    {
-      return name.hashCode();
-    }
   }
 }

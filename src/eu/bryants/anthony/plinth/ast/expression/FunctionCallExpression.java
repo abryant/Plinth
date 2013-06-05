@@ -1,7 +1,7 @@
 package eu.bryants.anthony.plinth.ast.expression;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
-import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
 
 /*
  * Created on 2 Apr 2012
@@ -17,11 +17,11 @@ public class FunctionCallExpression extends Expression
 
   // when this has been resolved (assuming there were no errors) we will have one of the following situations:
   // * just a resolvedBaseExpression, which has a function type
-  // * just a resolvedMethod, and no resolvedBaseExpression, in which case the method is assumed to be called on 'this' (or on nothing, if the method is static)
-  // * a resolvedMethod and a resolvedBaseExpression, in which case the base expression has a type has the resolved method as a member
+  // * just a resolvedMethodReference, and no resolvedBaseExpression, in which case the method is assumed to be called on 'this' (or on nothing, if the method is static)
+  // * a resolvedMethodReference and a resolvedBaseExpression, in which case the base expression has a type has the resolved method as a member
   //   in this last case, a resolvedNullTraversal is specified, which specifies whether or not this expression will just return null if the base expression is null
   private Expression resolvedBaseExpression;
-  private Method resolvedMethod;
+  private MethodReference resolvedMethodReference;
   private boolean resolvedNullTraversal;
   // if there is a resolved method and no resolved base expression, the function call may be resolved as non-virtual, this represents calls of the form 'super.method()'
   private boolean resolvedIsVirtual = true;
@@ -66,19 +66,19 @@ public class FunctionCallExpression extends Expression
   }
 
   /**
-   * @return the resolvedMethod
+   * @return the resolvedMethodReference
    */
-  public Method getResolvedMethod()
+  public MethodReference getResolvedMethodReference()
   {
-    return resolvedMethod;
+    return resolvedMethodReference;
   }
 
   /**
-   * @param resolvedMethod - the resolvedMethod to set
+   * @param resolvedMethodReference - the resolvedMethodReference to set
    */
-  public void setResolvedMethod(Method resolvedMethod)
+  public void setResolvedMethodReference(MethodReference resolvedMethodReference)
   {
-    this.resolvedMethod = resolvedMethod;
+    this.resolvedMethodReference = resolvedMethodReference;
   }
 
   /**

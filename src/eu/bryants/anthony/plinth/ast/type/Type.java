@@ -3,9 +3,9 @@ package eu.bryants.anthony.plinth.ast.type;
 import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
-import eu.bryants.anthony.plinth.ast.member.Member;
-import eu.bryants.anthony.plinth.ast.member.Method;
-import eu.bryants.anthony.plinth.ast.member.Method.Disambiguator;
+import eu.bryants.anthony.plinth.ast.metadata.MemberReference;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference.Disambiguator;
 
 /*
  * Created on 8 Apr 2012
@@ -35,6 +35,15 @@ public abstract class Type
    * @return true if this Type is nullable, false otherwise
    */
   public boolean isNullable()
+  {
+    return nullable;
+  }
+
+  /**
+   * Checks whether this Type might be nullable. This is different from isNullable() in that it will return true for a possibly-nullable type parameter.
+   * @return true if this Type might be nullable, false otherwise
+   */
+  public boolean canBeNullable()
   {
     return nullable;
   }
@@ -71,24 +80,24 @@ public abstract class Type
   public abstract boolean isRuntimeEquivalent(Type type);
 
   /**
-   * Returns a set of the Members of this type with the specified name
+   * Returns a set of MemberReferences to the Members of this type with the specified name
    * @param name - the name of the Members to get
    * @return the Members with the specified name, or the empty set if none exist
    */
-  public abstract Set<Member> getMembers(String name);
+  public abstract Set<MemberReference<?>> getMembers(String name);
 
   /**
    * Finds the method in this type with the specified disambiguator.
    * @param disambiguator - the Disambiguator to search for
    * @return the Method found, or null if no method exists with the specified signature
    */
-  public Method getMethod(Disambiguator disambiguator)
+  public MethodReference getMethod(Disambiguator disambiguator)
   {
-    for (Member member : getMembers(disambiguator.getName()))
+    for (MemberReference<?> member : getMembers(disambiguator.getName()))
     {
-      if (member instanceof Method && ((Method) member).getDisambiguator().matches(disambiguator))
+      if (member instanceof MethodReference && ((MethodReference) member).getDisambiguator().matches(disambiguator))
       {
-        return (Method) member;
+        return (MethodReference) member;
       }
     }
     return null;
@@ -103,4 +112,162 @@ public abstract class Type
    * @return true if this type has a default null value (i.e. 0 for uint, null for ?[]Foo, etc.)
    */
   public abstract boolean hasDefaultValue();
+
+  /**
+   * Finds whether the specified type is explicitly immutable in terms of data. i.e. the data inside it cannot be modified.
+   * @param type - the type to check
+   * @return true if the specified type is explicitly immutable in terms of data, false if the type is not or cannot be immutable
+   */
+  public static boolean isExplicitlyDataImmutable(Type type)
+  {
+    if (type instanceof ArrayType)
+    {
+      return ((ArrayType) type).isExplicitlyImmutable();
+    }
+    if (type instanceof NamedType)
+    {
+      return ((NamedType) type).isExplicitlyImmutable();
+    }
+    if (type instanceof ObjectType)
+    {
+      return ((ObjectType) type).isExplicitlyImmutable();
+    }
+    if (type instanceof FunctionType || type instanceof NullType || type instanceof PrimitiveType || type instanceof TupleType)
+    {
+      return false;
+    }
+    throw new IllegalArgumentException("Cannot find the data explicit-immutability of an unknown type: " + type);
+  }
+
+  /**
+   * Finds whether the specified type is contextually immutable in terms of data. i.e. the data inside it cannot be modified.
+   * @param type - the type to check
+   * @return true if the specified type is contextually immutable in terms of data, false if the type is not or cannot be immutable
+   */
+  public static boolean isContextuallyDataImmutable(Type type)
+  {
+    if (type instanceof ArrayType)
+    {
+      return ((ArrayType) type).isContextuallyImmutable();
+    }
+    if (type instanceof NamedType)
+    {
+      return ((NamedType) type).isContextuallyImmutable();
+    }
+    if (type instanceof ObjectType)
+    {
+      return ((ObjectType) type).isContextuallyImmutable();
+    }
+    if (type instanceof FunctionType || type instanceof NullType || type instanceof PrimitiveType || type instanceof TupleType)
+    {
+      return false;
+    }
+    throw new IllegalArgumentException("Cannot find the data contextual-immutability of an unknown type: " + type);
+  }
+
+  /**
+   * Finds the equivalent of the specified type with the specified nullability.
+   * @param type - the type to find the version of which has the specified nullability
+   * @param nullable - true if the returned type should be nullable, false otherwise
+   * @return the version of the specified type with the specified nullability, or the original type if it already has the requested nullability
+   */
+  public static Type findTypeWithNullability(Type type, boolean nullable)
+  {
+    if (type.isNullable() == nullable)
+    {
+      return type;
+    }
+    if (type instanceof ArrayType)
+    {
+      ArrayType arrayType = (ArrayType) type;
+      return new ArrayType(nullable, arrayType.isExplicitlyImmutable(), arrayType.isContextuallyImmutable(), arrayType.getBaseType(), null);
+    }
+    if (type instanceof FunctionType)
+    {
+      FunctionType functionType = (FunctionType) type;
+      return new FunctionType(nullable, functionType.isImmutable(), functionType.getReturnType(), functionType.getParameterTypes(), functionType.getThrownTypes(), null);
+    }
+    if (type instanceof NamedType)
+    {
+      NamedType namedType = (NamedType) type;
+      if (namedType.getResolvedTypeParameter() != null)
+      {
+        return new NamedType(nullable, namedType.isExplicitlyImmutable(), namedType.isContextuallyImmutable(), namedType.getResolvedTypeParameter());
+      }
+      return new NamedType(nullable, namedType.isExplicitlyImmutable(), namedType.isContextuallyImmutable(), namedType.getResolvedTypeDefinition(), namedType.getTypeArguments());
+    }
+    if (type instanceof ObjectType)
+    {
+      ObjectType objectType = (ObjectType) type;
+      return new ObjectType(nullable, objectType.isExplicitlyImmutable(), objectType.isContextuallyImmutable(), null);
+    }
+    if (type instanceof PrimitiveType)
+    {
+      return new PrimitiveType(nullable, ((PrimitiveType) type).getPrimitiveTypeType(), null);
+    }
+    if (type instanceof TupleType)
+    {
+      return new TupleType(nullable, ((TupleType) type).getSubTypes(), null);
+    }
+    throw new IllegalArgumentException("Cannot find the " + (nullable ? "nullable" : "non-nullable") + " version of: " + type);
+  }
+
+  /**
+   * Finds the equivalent of the specified type with the specified explicit and contextual data-immutability.
+   * If the specified type does not have a concept of either explicit or contextual data-immutability, then that type of immutability is not checked in the calculation.
+   * @param type - the type to find the version of which has the specified explicit immutability
+   * @param explicitlyImmutable - true if the returned type should be explicitly data-immutable, false otherwise
+   * @param contextuallyImmutable - true if the returned type should be contextually data-immutable, false otherwise
+   * @return the version of the specified type with the specified explicit and contextual data-immutability, or the original type if it already has the requested data-immutability
+   */
+  public static Type findTypeWithDataImmutability(Type type, boolean explicitlyImmutable, boolean contextuallyImmutable)
+  {
+    if (type instanceof ArrayType)
+    {
+      ArrayType arrayType = (ArrayType) type;
+      if (arrayType.isExplicitlyImmutable() == explicitlyImmutable && arrayType.isContextuallyImmutable() == contextuallyImmutable)
+      {
+        return arrayType;
+      }
+      return new ArrayType(arrayType.isNullable(), explicitlyImmutable, contextuallyImmutable, arrayType.getBaseType(), null);
+    }
+    if (type instanceof NamedType)
+    {
+      NamedType namedType = (NamedType) type;
+      if (namedType.isExplicitlyImmutable() == explicitlyImmutable && namedType.isContextuallyImmutable() == contextuallyImmutable)
+      {
+        return namedType;
+      }
+      if (namedType.getResolvedTypeParameter() != null)
+      {
+        return new NamedType(namedType.isNullable(), explicitlyImmutable, contextuallyImmutable, namedType.getResolvedTypeParameter());
+      }
+      return new NamedType(namedType.isNullable(), explicitlyImmutable, contextuallyImmutable, namedType.getResolvedTypeDefinition(), namedType.getTypeArguments());
+    }
+    if (type instanceof ObjectType)
+    {
+      ObjectType objectType = (ObjectType) type;
+      if (objectType.isExplicitlyImmutable() == explicitlyImmutable && objectType.isContextuallyImmutable() == contextuallyImmutable)
+      {
+        return objectType;
+      }
+      return new ObjectType(objectType.isNullable(), explicitlyImmutable, contextuallyImmutable, null);
+    }
+    if (type instanceof PrimitiveType || type instanceof TupleType || type instanceof FunctionType || type instanceof NullType)
+    {
+      return type;
+    }
+    throw new IllegalArgumentException("Cannot change the immutability of an unknown type: " + type);
+  }
+
+  /**
+   * Finds a version of the specified type without any type modifiers (i.e. without nullability and immutability).
+   * @param type - the Type to find without any type modifiers
+   * @return a version of the specified type without any type modifiers
+   */
+  public static Type findTypeWithoutModifiers(Type type)
+  {
+    Type result = findTypeWithNullability(type, false);
+    return findTypeWithDataImmutability(result, false, false);
+  }
 }

@@ -1,5 +1,6 @@
 package eu.bryants.anthony.plinth.ast;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -16,20 +17,16 @@ import eu.bryants.anthony.plinth.ast.member.Initialiser;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
-import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
+import eu.bryants.anthony.plinth.ast.metadata.OverrideFunction;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
+import eu.bryants.anthony.plinth.ast.metadata.VirtualFunction;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
+import eu.bryants.anthony.plinth.ast.type.TypeParameter;
 
-/*
- * Created on 11 Sep 2012
- */
-
-/**
- * @author Anthony Bryant
- */
 public abstract class TypeDefinition
 {
   private boolean isAbstract;
@@ -41,7 +38,7 @@ public abstract class TypeDefinition
   private LexicalPhrase lexicalPhrase;
 
   // computed by the InheritanceChecker - specifies which order this type and its supertypes are inherited in
-  private TypeDefinition[] inheritanceLinearisation;
+  private NamedType[] inheritanceLinearisation;
 
   /**
    * Creates a new TypeDefinition with the specified name.
@@ -109,7 +106,7 @@ public abstract class TypeDefinition
   /**
    * @return the order in which this type and its supertypes are inherited
    */
-  public TypeDefinition[] getInheritanceLinearisation()
+  public NamedType[] getInheritanceLinearisation()
   {
     return inheritanceLinearisation;
   }
@@ -117,7 +114,7 @@ public abstract class TypeDefinition
   /**
    * @param inheritanceLinearisation - the order in which this type and its supertypes are inherited
    */
-  public void setInheritanceLinearisation(TypeDefinition[] inheritanceLinearisation)
+  public void setInheritanceLinearisation(NamedType[] inheritanceLinearisation)
   {
     this.inheritanceLinearisation = inheritanceLinearisation;
   }
@@ -194,14 +191,13 @@ public abstract class TypeDefinition
   }
 
   /**
-   * Builds the array of non-static fields and sets the fields' indices.
-   * The field order is based on the lexicographical ordering of their names.
+   * Builds the array of virtual functions, and sets their indices in the virtual function table.
    * @return the sorted array of non-static methods for this type
    */
-  protected MemberFunction[] buildMemberFunctionList(Collection<Method> allMethods, Collection<Property> allProperties)
+  protected static VirtualFunction[] buildVirtualFunctionList(Collection<Method> allMethods, Collection<Property> allProperties, List<OverrideFunction> overrideFunctions)
   {
     // filter out static methods
-    List<MemberFunction> list = new LinkedList<MemberFunction>();
+    List<VirtualFunction> list = new ArrayList<VirtualFunction>();
     for (Method method : allMethods)
     {
       if (method.isStatic())
@@ -226,25 +222,24 @@ public abstract class TypeDefinition
         list.add(property.getConstructorMemberFunction());
       }
     }
+    if (overrideFunctions != null)
+    {
+      list.addAll(overrideFunctions);
+    }
     // sort the member functions into their natural order
     Collections.sort(list);
-    MemberFunction[] memberFunctions = list.toArray(new MemberFunction[list.size()]);
-    for (int i = 0; i < memberFunctions.length; ++i)
+    VirtualFunction[] virtualFunctions = list.toArray(new VirtualFunction[list.size()]);
+    for (int i = 0; i < virtualFunctions.length; ++i)
     {
-      memberFunctions[i].setMemberIndex(i);
+      virtualFunctions[i].setIndex(i);
     }
-    return memberFunctions;
+    return virtualFunctions;
   }
 
   /**
-   * Builds the list of non-static methods, so that they can be used by the compilation passes.
+   * @return the TypeParameters of this TypeDefinition, or an empty array if there are none
    */
-  public abstract void buildMemberFunctions();
-
-  /**
-   * @return the member functions
-   */
-  public abstract MemberFunction[] getMemberFunctions();
+  public abstract TypeParameter[] getTypeParameters();
 
   /**
    * Note: the returned list should never be modified

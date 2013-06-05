@@ -2,17 +2,20 @@
 
 %opaque = type opaque
 
-define void @plinth_stdout_write({ %opaque*, %opaque*, i32, [0 x i8] }* %array) {
+%String = type { %opaque*, %opaque*, i32, i8(%String*, i32)*, void (%String*, i32, i8)* }
+
+define void @plinth_stdout_write(%String* %array) {
 entry:
-  %lenptr = getelementptr {%opaque*, %opaque*, i32, [0 x i8]}* %array, i32 0, i32 2
+  %lenptr = getelementptr %String* %array, i32 0, i32 2
   %len = load i32* %lenptr
   %check = icmp ult i32 0, %len
+  %getterPtr = getelementptr %String* %array, i32 0, i32 3
+  %getter = load i8(%String*, i32)** %getterPtr
   br i1 %check, label %loop, label %exit
 
 loop:
   %i = phi i32 [0, %entry], [%inc, %loop]
-  %data = getelementptr {%opaque*, %opaque*, i32, [0 x i8]}* %array, i32 0, i32 3, i32 %i
-  %c = load i8* %data
+  %c = call i8 %getter(%String* %array, i32 %i)
   %cext = zext i8 %c to i32
   call i32 @plinth_stdout_putc(i32 %cext)
   %inc = add i32 %i, 1
@@ -23,17 +26,18 @@ exit:
   ret void
 }
 
-define void @plinth_stderr_write({ %opaque*, %opaque*, i32, [0 x i8] }* %array) {
+define void @plinth_stderr_write(%String* %array) {
 entry:
-  %lenptr = getelementptr {%opaque*, %opaque*, i32, [0 x i8]}* %array, i32 0, i32 2
+  %lenptr = getelementptr %String* %array, i32 0, i32 2
   %len = load i32* %lenptr
   %check = icmp ult i32 0, %len
+  %getterPtr = getelementptr %String* %array, i32 0, i32 3
+  %getter = load i8(%String*, i32)** %getterPtr
   br i1 %check, label %loop, label %exit
 
 loop:
   %i = phi i32 [0, %entry], [%inc, %loop]
-  %data = getelementptr {%opaque*, %opaque*, i32, [0 x i8]}* %array, i32 0, i32 3, i32 %i
-  %c = load i8* %data
+  %c = call i8 %getter(%String* %array, i32 %i)
   %cext = zext i8 %c to i32
   call i32 @plinth_stderr_putc(i32 %cext)
   %inc = add i32 %i, 1

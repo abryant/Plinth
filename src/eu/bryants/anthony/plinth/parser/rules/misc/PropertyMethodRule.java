@@ -180,7 +180,7 @@ public class PropertyMethodRule extends Rule<ParseType>
     boolean isParameterFinal = false;
     if (parameterModifiers != null)
     {
-      for (Modifier modifier : modifiers)
+      for (Modifier modifier : parameterModifiers)
       {
         switch (modifier.getModifierType())
         {

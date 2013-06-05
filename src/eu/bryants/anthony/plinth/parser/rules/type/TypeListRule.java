@@ -19,7 +19,7 @@ public class TypeListRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.TYPE_LIST_NO_QNAME);
+  private static final Production<ParseType> PRODUCTION = new Production<ParseType>(ParseType.TYPE_LIST_NOT_QNAME);
   private static final Production<ParseType> QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_LIST);
 
   public TypeListRule()

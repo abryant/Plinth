@@ -46,7 +46,7 @@ public class BuiltinMethod extends Method
 
   /**
    * Creates a new BuiltinMethod with the specified base type and BuiltinMethodType
-   * @param baseType - the base type that this BuiltinMethod is contained in
+   * @param baseType - the base type that this BuiltinMethod is contained in, or null if it is part of a TypeDefinition
    * @param builtinType - the type of builtin method that this BuiltinMethod represents
    */
   public BuiltinMethod(Type baseType, BuiltinMethodType builtinType)
@@ -54,7 +54,7 @@ public class BuiltinMethod extends Method
     super(builtinType.returnType, builtinType.methodName, false, builtinType.isStatic, builtinType.isImmutable, builtinType.nativeName, null, builtinType.parameters, new NamedType[0], new NamedType[0], null, null);
     this.baseType = baseType;
     this.builtinType = builtinType;
-    if (baseType.isNullable())
+    if (baseType != null && baseType.isNullable())
     {
       throw new IllegalArgumentException("A builtin method cannot have a nullable base type");
     }

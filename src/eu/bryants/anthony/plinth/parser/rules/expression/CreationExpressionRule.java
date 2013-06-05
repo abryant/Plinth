@@ -6,7 +6,7 @@ import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.CreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
-import eu.bryants.anthony.plinth.ast.misc.QName;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 
@@ -21,8 +21,8 @@ public class CreationExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> NEW_PRODUCTION    = new Production<ParseType>(ParseType.NEW_KEYWORD,    ParseType.QNAME, ParseType.ARGUMENTS);
-  private static final Production<ParseType> CREATE_PRODUCTION = new Production<ParseType>(ParseType.CREATE_KEYWORD, ParseType.QNAME, ParseType.ARGUMENTS);
+  private static final Production<ParseType> NEW_PRODUCTION    = new Production<ParseType>(ParseType.NEW_KEYWORD,    ParseType.NAMED_TYPE_NO_MODIFIERS, ParseType.ARGUMENTS);
+  private static final Production<ParseType> CREATE_PRODUCTION = new Production<ParseType>(ParseType.CREATE_KEYWORD, ParseType.NAMED_TYPE_NO_MODIFIERS, ParseType.ARGUMENTS);
 
   public CreationExpressionRule()
   {
@@ -37,10 +37,10 @@ public class CreationExpressionRule extends Rule<ParseType>
   {
     if (production == NEW_PRODUCTION || production == CREATE_PRODUCTION)
     {
-      QName qname = (QName) args[1];
+      NamedType type = (NamedType) args[1];
       @SuppressWarnings("unchecked")
       ParseList<Expression> arguments = (ParseList<Expression>) args[2];
-      return new CreationExpression(production == NEW_PRODUCTION, qname, arguments.toArray(new Expression[arguments.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], qname.getLexicalPhrase(), arguments.getLexicalPhrase()));
+      return new CreationExpression(production == NEW_PRODUCTION, type, arguments.toArray(new Expression[arguments.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], type.getLexicalPhrase(), arguments.getLexicalPhrase()));
     }
     throw badTypeList();
   }

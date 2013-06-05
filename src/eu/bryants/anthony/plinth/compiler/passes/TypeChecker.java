@@ -1,8 +1,12 @@
 package eu.bryants.anthony.plinth.compiler.passes;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
@@ -45,14 +49,17 @@ import eu.bryants.anthony.plinth.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
-import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.member.Property;
+import eu.bryants.anthony.plinth.ast.metadata.ArrayLengthMemberReference;
+import eu.bryants.anthony.plinth.ast.metadata.ConstructorReference;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
-import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
-import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
+import eu.bryants.anthony.plinth.ast.metadata.FieldReference;
+import eu.bryants.anthony.plinth.ast.metadata.GenericTypeSpecialiser;
+import eu.bryants.anthony.plinth.ast.metadata.MemberReference;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
-import eu.bryants.anthony.plinth.ast.metadata.PropertyPseudoVariable;
+import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
 import eu.bryants.anthony.plinth.ast.metadata.Variable;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
@@ -87,7 +94,9 @@ import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
+import eu.bryants.anthony.plinth.ast.type.TypeParameter;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
+import eu.bryants.anthony.plinth.ast.type.WildcardType;
 import eu.bryants.anthony.plinth.compiler.CoalescedConceptualException;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
 
@@ -100,6 +109,378 @@ import eu.bryants.anthony.plinth.compiler.ConceptualException;
  */
 public class TypeChecker
 {
+
+  /**
+   * Checks that the specified NamedType is acceptable as a super-type. This checks that the type:
+   * <ul>
+   * <li>Does not refer to a type parameter.</li>
+   * <li>Has the same number of type arguments as the TypeDefinition it refers to.</li>
+   * <li>Does not have any wildcard type arguments.</li>
+   * </ul>
+   * However, it does not check that the provided type is valid (as it is expected to run before the inheritance linearisation pass),
+   * so this type should also be run through checkType() after the inheritance linearisation pass is complete.
+   * @param superType - the NamedType to check
+   * @throws ConceptualException - if there is a conceptual problem with using the specified type as a super-type
+   */
+  public static void checkSuperType(NamedType superType) throws ConceptualException
+  {
+    Type[] typeArguments = superType.getTypeArguments();
+    TypeDefinition typeDefinition = superType.getResolvedTypeDefinition();
+
+    if (typeDefinition == null)
+    {
+      if (superType.getResolvedTypeParameter() == null)
+      {
+        throw new IllegalStateException("Cannot check type arguments before the type is resolved");
+      }
+      // this is a resolved TypeParameter, not a TypeDefinition, so it does not have any parameters of its own
+      throw new ConceptualException("A type cannot extend a generic type argument", superType.getLexicalPhrase());
+    }
+
+    TypeParameter[] typeParameters;
+    if (typeDefinition instanceof ClassDefinition)
+    {
+      typeParameters = ((ClassDefinition) typeDefinition).getTypeParameters();
+    }
+    else if (typeDefinition instanceof InterfaceDefinition)
+    {
+      typeParameters = ((InterfaceDefinition) typeDefinition).getTypeParameters();
+    }
+    else if (typeDefinition instanceof CompoundDefinition)
+    {
+      typeParameters = ((CompoundDefinition) typeDefinition).getTypeParameters();
+    }
+    else
+    {
+      throw new IllegalStateException("Unknown sort of TypeDefinition: " + typeDefinition);
+    }
+
+    if (typeArguments == null || typeArguments.length == 0)
+    {
+      if (typeParameters.length > 0)
+      {
+        throw new ConceptualException(typeDefinition.getQualifiedName() + " expects " + typeParameters.length + " type arguments", superType.getLexicalPhrase());
+      }
+    }
+    else
+    {
+      if (typeArguments.length != typeParameters.length)
+      {
+        if (typeParameters.length == 0)
+        {
+          throw new ConceptualException(typeDefinition.getQualifiedName() + " does not accept any type arguments", superType.getLexicalPhrase());
+        }
+        throw new ConceptualException(typeDefinition.getQualifiedName() + " expects " + typeParameters.length + " type arguments, not " + typeArguments.length, superType.getLexicalPhrase());
+      }
+      for (int i = 0; i < typeArguments.length; ++i)
+      {
+        if (typeArguments[i] instanceof WildcardType)
+        {
+          throw new ConceptualException("A type cannot derive from a type with wildcard type arguments", superType.getLexicalPhrase());
+        }
+      }
+    }
+  }
+
+  /**
+   * Checks the types of the specified TypeDefinition which need to be known before inheritance checking. This runs after the inheritance linearisation pass, but before inheritance checking.
+   * This method checks the types of everything at the top level of the TypeDefinition, including TypeParameter bounds, super-types, and the types of all members.
+   * @param typeDefinition - the TypeDefinition to check the top level types of
+   * @throws ConceptualException - if a problem is detected with the top level types in the specified TypeDefinition
+   */
+  public static void checkTopLevelTypes(TypeDefinition typeDefinition) throws ConceptualException
+  {
+    CoalescedConceptualException coalescedException = null;
+    if (typeDefinition instanceof ClassDefinition)
+    {
+      ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
+      for (TypeParameter typeParameter : classDefinition.getTypeParameters())
+      {
+        try
+        {
+          checkTypeParameter(typeParameter, typeDefinition);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      NamedType superType = classDefinition.getSuperType();
+      if (superType != null)
+      {
+        try
+        {
+          checkType(superType, typeDefinition, false);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      NamedType[] superInterfaceTypes = classDefinition.getSuperInterfaceTypes();
+      if (superInterfaceTypes != null)
+      {
+        for (NamedType superInterfaceType : superInterfaceTypes)
+        {
+          try
+          {
+            checkType(superInterfaceType, typeDefinition, false);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+      }
+    }
+    if (typeDefinition instanceof InterfaceDefinition)
+    {
+      InterfaceDefinition interfaceDefinition = (InterfaceDefinition) typeDefinition;
+      for (TypeParameter typeParameter : interfaceDefinition.getTypeParameters())
+      {
+        try
+        {
+          checkTypeParameter(typeParameter, typeDefinition);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      NamedType[] superInterfaceTypes = interfaceDefinition.getSuperInterfaceTypes();
+      if (superInterfaceTypes != null)
+      {
+        for (NamedType superInterfaceType : superInterfaceTypes)
+        {
+          try
+          {
+            checkType(superInterfaceType, typeDefinition, false);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+      }
+    }
+    if (typeDefinition instanceof CompoundDefinition)
+    {
+      CompoundDefinition compoundDefinition = (CompoundDefinition) typeDefinition;
+      for (TypeParameter typeParameter : compoundDefinition.getTypeParameters())
+      {
+        try
+        {
+          checkTypeParameter(typeParameter, typeDefinition);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+    }
+
+    for (Field field : typeDefinition.getFields())
+    {
+      try
+      {
+        checkType(field.getType(), typeDefinition, field.isStatic());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+    }
+
+    for (Property property : typeDefinition.getProperties())
+    {
+      try
+      {
+        checkType(property.getType(), typeDefinition, property.isStatic());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+
+      if (property.getGetterUncheckedThrownTypes() != null)
+      {
+        for (NamedType thrownType : property.getGetterUncheckedThrownTypes())
+        {
+          try
+          {
+            checkType(thrownType, typeDefinition, property.isStatic());
+            if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+            {
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
+            }
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+      }
+
+      if (property.getSetterBlock() != null)
+      {
+        try
+        {
+          checkType(property.getSetterParameter().getType(), typeDefinition, property.isStatic());
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+        if (property.getSetterUncheckedThrownTypes() != null)
+        {
+          for (NamedType thrownType : property.getSetterUncheckedThrownTypes())
+          {
+            try
+            {
+              checkType(thrownType, typeDefinition, property.isStatic());
+              if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+              {
+                coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
+              }
+            }
+            catch (ConceptualException e)
+            {
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+            }
+          }
+        }
+      }
+
+      if (property.getConstructorBlock() != null)
+      {
+        try
+        {
+          checkType(property.getConstructorParameter().getType(), typeDefinition, property.isStatic());
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+        if (property.getConstructorUncheckedThrownTypes() != null)
+        {
+          for (NamedType thrownType : property.getConstructorUncheckedThrownTypes())
+          {
+            try
+            {
+              checkType(thrownType, typeDefinition, property.isStatic());
+              if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+              {
+                coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
+              }
+            }
+            catch (ConceptualException e)
+            {
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+            }
+          }
+        }
+      }
+    }
+
+    for (Constructor constructor : typeDefinition.getAllConstructors())
+    {
+      for (Parameter p : constructor.getParameters())
+      {
+        try
+        {
+          checkType(p.getType(), typeDefinition, false);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      for (NamedType thrownType : constructor.getCheckedThrownTypes())
+      {
+        try
+        {
+          checkType(thrownType, typeDefinition, false);
+          if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
+          }
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      for (NamedType uncheckedThrownType : constructor.getUncheckedThrownTypes())
+      {
+        try
+        {
+          checkType(uncheckedThrownType, typeDefinition, false);
+          if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(uncheckedThrownType))
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + uncheckedThrownType + " does not inherit from Throwable", uncheckedThrownType.getLexicalPhrase()));
+          }
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+    }
+
+    for (Method method : typeDefinition.getAllMethods())
+    {
+      try
+      {
+        checkType(method.getReturnType(), typeDefinition, method.isStatic());
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+      for (Parameter p : method.getParameters())
+      {
+        try
+        {
+          checkType(p.getType(), typeDefinition, method.isStatic());
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      for (NamedType thrownType : method.getCheckedThrownTypes())
+      {
+        try
+        {
+          checkType(thrownType, typeDefinition, method.isStatic());
+          if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
+          }
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      for (NamedType uncheckedThrownType : method.getUncheckedThrownTypes())
+      {
+        try
+        {
+          checkType(uncheckedThrownType, typeDefinition, method.isStatic());
+          if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(uncheckedThrownType))
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + uncheckedThrownType + " does not inherit from Throwable", uncheckedThrownType.getLexicalPhrase()));
+          }
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+    }
+  }
+
   public static void checkTypes(TypeDefinition typeDefinition) throws ConceptualException
   {
     CoalescedConceptualException coalescedException = null;
@@ -107,7 +488,7 @@ public class TypeChecker
     {
       try
       {
-        checkTypes(initialiser);
+        checkTypes(initialiser, typeDefinition);
       }
       catch (ConceptualException e)
       {
@@ -119,11 +500,11 @@ public class TypeChecker
       if (!constructor.getCallsDelegateConstructor() && typeDefinition instanceof ClassDefinition)
       {
         // this constructor does not call a delegate constructor, so we must make sure that if there is a superclass, it has a no-args constructor
-        ClassDefinition superClassDefinition = ((ClassDefinition) typeDefinition).getSuperClassDefinition();
-        if (superClassDefinition != null)
+        NamedType superType = ((ClassDefinition) typeDefinition).getSuperType();
+        if (superType != null)
         {
           boolean hasNoArgsSuper = false;
-          for (Constructor test : superClassDefinition.getUniqueConstructors())
+          for (Constructor test : superType.getResolvedTypeDefinition().getUniqueConstructors())
           {
             // note: only non-selfish constructors can be called as super-constructors
             if (!test.isSelfish() && test.getParameters().length == 0)
@@ -137,23 +518,9 @@ public class TypeChecker
           }
         }
       }
-      for (NamedType thrownType : constructor.getCheckedThrownTypes())
-      {
-        if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
-        {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
-        }
-      }
-      for (NamedType thrownType : constructor.getUncheckedThrownTypes())
-      {
-        if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
-        {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
-        }
-      }
       try
       {
-        checkTypes(constructor.getBlock(), VoidType.VOID_TYPE);
+        checkTypes(constructor.getBlock(), VoidType.VOID_TYPE, typeDefinition, false);
       }
       catch (ConceptualException e)
       {
@@ -175,7 +542,7 @@ public class TypeChecker
     {
       try
       {
-        checkTypes(property);
+        checkTypes(property, typeDefinition);
       }
       catch (ConceptualException e)
       {
@@ -184,25 +551,11 @@ public class TypeChecker
     }
     for (Method method : typeDefinition.getAllMethods())
     {
-      for (NamedType thrownType : method.getCheckedThrownTypes())
-      {
-        if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
-        {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
-        }
-      }
-      for (NamedType thrownType : method.getUncheckedThrownTypes())
-      {
-        if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
-        {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
-        }
-      }
       if (method.getBlock() != null)
       {
         try
         {
-          checkTypes(method.getBlock(), method.getReturnType());
+          checkTypes(method.getBlock(), method.getReturnType(), typeDefinition, method.isStatic());
         }
         catch (ConceptualException e)
         {
@@ -217,12 +570,12 @@ public class TypeChecker
     }
   }
 
-  private static void checkTypes(Initialiser initialiser) throws ConceptualException
+  private static void checkTypes(Initialiser initialiser, TypeDefinition containingDefinition) throws ConceptualException
   {
     if (initialiser instanceof FieldInitialiser)
     {
       Field field = ((FieldInitialiser) initialiser).getField();
-      Type expressionType = checkTypes(field.getInitialiserExpression());
+      Type expressionType = checkTypes(field.getInitialiserExpression(), containingDefinition, initialiser.isStatic());
       if (!field.getType().canAssign(expressionType))
       {
         throw new ConceptualException("Cannot assign an expression of type " + expressionType + " to a field of type " + field.getType(), field.getLexicalPhrase());
@@ -231,7 +584,7 @@ public class TypeChecker
     else if (initialiser instanceof PropertyInitialiser)
     {
       Property property = ((PropertyInitialiser) initialiser).getProperty();
-      Type expressionType = checkTypes(property.getInitialiserExpression());
+      Type expressionType = checkTypes(property.getInitialiserExpression(), containingDefinition, initialiser.isStatic());
       if (!property.getType().canAssign(expressionType))
       {
         throw new ConceptualException("Cannot assign an expression of type " + expressionType + " to a property of type " + property.getType(), property.getLexicalPhrase());
@@ -239,7 +592,7 @@ public class TypeChecker
     }
     else
     {
-      checkTypes(initialiser.getBlock(), VoidType.VOID_TYPE);
+      checkTypes(initialiser.getBlock(), VoidType.VOID_TYPE, containingDefinition, initialiser.isStatic());
     }
   }
 
@@ -257,7 +610,7 @@ public class TypeChecker
     }
   }
 
-  private static void checkTypes(Property property) throws ConceptualException
+  private static void checkTypes(Property property, TypeDefinition containingDefinition) throws ConceptualException
   {
     CoalescedConceptualException coalescedException = null;
     Type type = property.getType();
@@ -273,21 +626,11 @@ public class TypeChecker
     {
       try
       {
-        checkTypes(property.getGetterBlock(), type);
+        checkTypes(property.getGetterBlock(), type, containingDefinition, property.isStatic());
       }
       catch (ConceptualException e)
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
-      }
-      if (property.getGetterUncheckedThrownTypes() != null)
-      {
-        for (NamedType thrownType : property.getGetterUncheckedThrownTypes())
-        {
-          if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
-          {
-            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
-          }
-        }
       }
     }
     if (property.getSetterBlock() != null)
@@ -298,21 +641,11 @@ public class TypeChecker
       }
       try
       {
-        checkTypes(property.getSetterBlock(), VoidType.VOID_TYPE);
+        checkTypes(property.getSetterBlock(), VoidType.VOID_TYPE, containingDefinition, property.isStatic());
       }
       catch (ConceptualException e)
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
-      }
-      if (property.getSetterUncheckedThrownTypes() != null)
-      {
-        for (NamedType thrownType : property.getSetterUncheckedThrownTypes())
-        {
-          if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
-          {
-            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
-          }
-        }
       }
     }
     if (property.getConstructorBlock() != null)
@@ -323,21 +656,11 @@ public class TypeChecker
       }
       try
       {
-        checkTypes(property.getConstructorBlock(), VoidType.VOID_TYPE);
+        checkTypes(property.getConstructorBlock(), VoidType.VOID_TYPE, containingDefinition, property.isStatic());
       }
       catch (ConceptualException e)
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
-      }
-      if (property.getConstructorUncheckedThrownTypes() != null)
-      {
-        for (NamedType thrownType : property.getConstructorUncheckedThrownTypes())
-        {
-          if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
-          {
-            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
-          }
-        }
       }
     }
     if (coalescedException != null)
@@ -347,23 +670,322 @@ public class TypeChecker
   }
 
   /**
-   * Checks that the thrown types of the specified FunctionType inherit from Throwable.
-   * @param functionType - the FunctionType to check
-   * @throws CoalescedConceptualException - if there is a problem with the FunctionType
+   * Checks that the specified TypeParameter is consistent (i.e. it is possible to satisfy all of the constraints it specifies).
+   * @param typeParameter - the TypeParameter to check
+   * @param containingDefinition - the TypeDefinition which contains the specified TypeParameter
+   * @throws ConceptualException - if a problem is found while checking the TypeParameter
    */
-  public static void checkFunctionType(FunctionType functionType) throws CoalescedConceptualException
+  public static void checkTypeParameter(TypeParameter typeParameter, TypeDefinition containingDefinition) throws ConceptualException
   {
-    CoalescedConceptualException coalescedException = null;
-    for (NamedType thrownType : functionType.getThrownTypes())
+    // check that the super-types of this TypeParameter are compatible
+
+    // since type parameters can extend each other, we need to use a queue and make sure not to infinite loop
+    // with a circular super-type restriction (e.g. Foo<A extends B, B extends A>)
+    Deque<Type> typeQueue = new LinkedList<Type>();
+    Set<TypeParameter> visitedParameters = new HashSet<TypeParameter>();
+    for (Type superType : typeParameter.getSuperTypes())
     {
-      if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+      checkType(superType, containingDefinition, false);
+      typeQueue.add(superType);
+    }
+    for (Type subType : typeParameter.getSubTypes())
+    {
+      checkType(subType, containingDefinition, false);
+    }
+    List<Type> superTypes = new ArrayList<Type>(typeParameter.getSuperTypes().length);
+    while (!typeQueue.isEmpty())
+    {
+      Type superType = typeQueue.poll();
+      if (superType instanceof NamedType && ((NamedType) superType).getResolvedTypeParameter() != null)
       {
-        coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase()));
+        TypeParameter superTypeParameter = ((NamedType) superType).getResolvedTypeParameter();
+        if (visitedParameters.contains(superTypeParameter))
+        {
+          continue;
+        }
+        for (Type t : superTypeParameter.getSuperTypes())
+        {
+          typeQueue.add(t);
+        }
+      }
+      else if (superType instanceof WildcardType)
+      {
+        // a TypeParameter shouldn't really have a wildcard as a super-type, but deal with it anyway
+        for (Type wildcardSuperType : ((WildcardType) superType).getSuperTypes())
+        {
+          typeQueue.add(wildcardSuperType);
+        }
+        for (Type wildcardSubType : ((WildcardType) superType).getSubTypes())
+        {
+          typeQueue.add(wildcardSubType);
+        }
+      }
+      else
+      {
+        superTypes.add(superType);
       }
     }
-    if (coalescedException != null)
+
+    for (int i = 0; i < superTypes.size(); ++i)
     {
-      throw coalescedException;
+      for (int j = 0; j < i; ++j)
+      {
+        if (!TypeChecker.canHaveCommonSubType(superTypes.get(i), superTypes.get(j)))
+        {
+          throw new ConceptualException(typeParameter.getName() + " cannot extend both " + superTypes.get(i) + " and " + superTypes.get(j) + ", they are incompatible", typeParameter.getLexicalPhrase());
+        }
+      }
+    }
+
+    // check that all of the sub-types of this TypeParameter are compatible with the super-types
+    for (Type superType : typeParameter.getSuperTypes())
+    {
+      for (Type subType : typeParameter.getSubTypes())
+      {
+        if (!superType.canAssign(subType))
+        {
+          throw new ConceptualException(typeParameter.getName() + " is not consistent: " + superType + " is not a super-type of " + subType, typeParameter.getLexicalPhrase());
+        }
+      }
+    }
+  }
+
+  /**
+   * Checks that the specified type is well formed. This checks for things like type arguments matching up with the parameters of the resolved TypeDefinition.
+   * Some information about the context must be provided, so that we can determine whether or not certain TypeParameters are available in the current context.
+   * @param type - the Type to check
+   * @param containingDefinition - the TypeDefinition containing the reference to this type
+   * @param inStaticContext - true if this type is referenced in a static context, false otherwise
+   * @throws ConceptualException - if a problem is found while checking the type
+   */
+  public static void checkType(Type type, TypeDefinition containingDefinition, boolean inStaticContext) throws ConceptualException
+  {
+    checkType(type, false, containingDefinition, inStaticContext);
+  }
+
+  /**
+   * Checks that the specified type is well formed. This checks for things like type arguments matching up with the parameters of the resolved TypeDefinition.
+   * Some information about the context must be provided, so that we can determine whether or not certain TypeParameters are available in the current context.
+   * @param type - the Type to check
+   * @param isStaticTypeReference - true if this is a static reference to a type, which does not need to have any type arguments filled in
+   * @param containingDefinition - the TypeDefinition containing the reference to this type
+   * @param inStaticContext - true if this type is referenced in a static context, false otherwise
+   * @throws ConceptualException - if a problem is found while checking the type
+   */
+  public static void checkType(Type type, boolean isStaticTypeReference, TypeDefinition containingDefinition, boolean inStaticContext) throws ConceptualException
+  {
+    if (type instanceof ArrayType)
+    {
+      checkType(((ArrayType) type).getBaseType(), containingDefinition, inStaticContext);
+    }
+    else if (type instanceof FunctionType)
+    {
+      FunctionType functionType = (FunctionType) type;
+      for (Type t : functionType.getParameterTypes())
+      {
+        checkType(t, containingDefinition, inStaticContext);
+      }
+      checkType(functionType.getReturnType(), containingDefinition, inStaticContext);
+      if (functionType.getThrownTypes() != null)
+      {
+        for (NamedType thrownType : functionType.getThrownTypes())
+        {
+          checkType(thrownType, containingDefinition, inStaticContext);
+          if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
+          {
+            throw new ConceptualException("The declared thrown type " + thrownType + " does not inherit from Throwable", thrownType.getLexicalPhrase());
+          }
+        }
+      }
+    }
+    else if (type instanceof NamedType)
+    {
+      NamedType namedType = (NamedType) type;
+      Type[] typeArguments = namedType.getTypeArguments();
+      TypeDefinition typeDefinition = namedType.getResolvedTypeDefinition();
+
+      if (typeDefinition == null)
+      {
+        if (namedType.getResolvedTypeParameter() == null)
+        {
+          throw new IllegalStateException("Cannot check type arguments before the type is resolved");
+        }
+        // this is a resolved TypeParameter, not a TypeDefinition, so it does not have any parameters of its own
+        if (typeArguments != null && typeArguments.length > 0)
+        {
+          throw new ConceptualException("A generic type cannot have type arguments", namedType.getLexicalPhrase());
+        }
+        // make sure this TypeParameter is accessible in this context
+        boolean found = false;
+        for (TypeParameter typeParameter : containingDefinition.getTypeParameters())
+        {
+          if (typeParameter == namedType.getResolvedTypeParameter())
+          {
+            if (inStaticContext)
+            {
+              throw new ConceptualException("Cannot use the type parameter '" + typeParameter.getName() + "' in a static context", namedType.getLexicalPhrase());
+            }
+            found = true;
+            break;
+          }
+        }
+        if (!found)
+        {
+          throw new IllegalArgumentException("A type parameter should not be resolvable unless it is on the containing TypeDefinition");
+        }
+        return;
+      }
+
+      TypeParameter[] typeParameters;
+      if (typeDefinition instanceof ClassDefinition)
+      {
+        typeParameters = ((ClassDefinition) typeDefinition).getTypeParameters();
+      }
+      else if (typeDefinition instanceof InterfaceDefinition)
+      {
+        typeParameters = ((InterfaceDefinition) typeDefinition).getTypeParameters();
+      }
+      else if (typeDefinition instanceof CompoundDefinition)
+      {
+        typeParameters = ((CompoundDefinition) typeDefinition).getTypeParameters();
+      }
+      else
+      {
+        throw new IllegalStateException("Unknown sort of TypeDefinition: " + typeDefinition);
+      }
+
+      if (typeArguments == null || typeArguments.length == 0)
+      {
+        if (typeParameters.length > 0 && !isStaticTypeReference)
+        {
+          throw new ConceptualException(typeDefinition.getQualifiedName() + " expects " + typeParameters.length + " type arguments", namedType.getLexicalPhrase());
+        }
+      }
+      else
+      {
+        if (typeArguments.length != typeParameters.length)
+        {
+          if (typeParameters.length == 0)
+          {
+            throw new ConceptualException(typeDefinition.getQualifiedName() + " does not accept any type arguments", namedType.getLexicalPhrase());
+          }
+          throw new ConceptualException(typeDefinition.getQualifiedName() + " expects " + typeParameters.length + " type arguments, not " + typeArguments.length, namedType.getLexicalPhrase());
+        }
+        for (int i = 0; i < typeArguments.length; ++i)
+        {
+          checkType(typeArguments[i], containingDefinition, inStaticContext);
+          boolean compatible = true;
+          for (Type superType : typeParameters[i].getSuperTypes())
+          {
+            if (!superType.canAssign(typeArguments[i]))
+            {
+              compatible = false;
+              break;
+            }
+          }
+          if (compatible)
+          {
+            for (Type subType : typeParameters[i].getSubTypes())
+            {
+              if (!typeArguments[i].canAssign(subType))
+              {
+                compatible = false;
+                break;
+              }
+            }
+          }
+          if (!compatible)
+          {
+            throw new ConceptualException("'" + typeArguments[i] + "' is not compatible with the type parameter '" + typeParameters[i] + "'", typeArguments[i].getLexicalPhrase());
+          }
+        }
+      }
+
+      // make sure the members of the resulting type do not conflict with each other
+      InheritanceChecker.checkNamedType(namedType);
+    }
+    else if (type instanceof ObjectType)
+    {
+      // do nothing
+    }
+    else if (type instanceof PrimitiveType)
+    {
+      // do nothing
+    }
+    else if (type instanceof TupleType)
+    {
+      for (Type t : ((TupleType) type).getSubTypes())
+      {
+        checkType(t, containingDefinition, inStaticContext);
+      }
+    }
+    else if (type instanceof VoidType)
+    {
+      // do nothing
+    }
+    else if (type instanceof WildcardType)
+    {
+      WildcardType wildcardType = (WildcardType) type;
+      // since type parameters can extend each other, we need to use a queue and make sure not to infinite loop
+      // with a circular super-type restriction (e.g. Foo<A extends B, B extends A> - we need to deal with '? extends A' here)
+      Deque<Type> typeQueue = new LinkedList<Type>();
+      Set<TypeParameter> visitedParameters = new HashSet<TypeParameter>();
+      for (Type superType : wildcardType.getSuperTypes())
+      {
+        checkType(superType, containingDefinition, inStaticContext);
+        typeQueue.add(superType);
+      }
+      for (Type subType : wildcardType.getSubTypes())
+      {
+        checkType(subType, containingDefinition, inStaticContext);
+      }
+      List<Type> superTypes = new ArrayList<Type>(wildcardType.getSuperTypes().length);
+      while (!typeQueue.isEmpty())
+      {
+        Type superType = typeQueue.poll();
+        if (superType instanceof NamedType && ((NamedType) superType).getResolvedTypeParameter() != null)
+        {
+          TypeParameter typeParameter = ((NamedType) superType).getResolvedTypeParameter();
+          if (visitedParameters.contains(typeParameter))
+          {
+            continue;
+          }
+          for (Type typeParameterSuperType : typeParameter.getSuperTypes())
+          {
+            typeQueue.add(typeParameterSuperType);
+          }
+        }
+        else if (superType instanceof WildcardType)
+        {
+          // a wildcard shouldn't really have another wildcard as a super-type, but deal with it anyway
+          for (Type wildcardSuperType : ((WildcardType) superType).getSuperTypes())
+          {
+            typeQueue.add(wildcardSuperType);
+          }
+          for (Type wildcardSubType : ((WildcardType) superType).getSubTypes())
+          {
+            typeQueue.add(wildcardSubType);
+          }
+        }
+        else
+        {
+          superTypes.add(superType);
+        }
+      }
+      for (int i = 0; i < superTypes.size(); ++i)
+      {
+        for (int j = 0; j < i; ++j)
+        {
+          if (!canHaveCommonSubType(superTypes.get(i), superTypes.get(j)))
+          {
+            throw new ConceptualException("A wildcard type cannot extend both " + superTypes.get(i) + " and " + superTypes.get(j) + ", they are incompatible", wildcardType.getLexicalPhrase());
+          }
+        }
+      }
+    }
+    else
+    {
+      throw new IllegalArgumentException("Unknown Type type: " + type);
     }
   }
 
@@ -372,16 +994,22 @@ public class TypeChecker
    * This method should only be called on a Statement after the resolver has been run over that Statement
    * @param statement - the Statement to check the types on
    * @param returnType - the return type of the function containing this statement
+   * @param containingDefinition - the TypeDefinition that this statement is contained within
+   * @param inStaticContext - true if this statement is in a static context, false otherwise
    * @throws ConceptualException - if a conceptual problem is encountered while checking the types
    */
-  public static void checkTypes(Statement statement, Type returnType) throws ConceptualException
+  public static void checkTypes(Statement statement, Type returnType, TypeDefinition containingDefinition, boolean inStaticContext) throws ConceptualException
   {
     if (statement instanceof AssignStatement)
     {
       AssignStatement assignStatement = (AssignStatement) statement;
       Type declaredType = assignStatement.getType();
+      if (declaredType != null)
+      {
+        checkType(declaredType, containingDefinition, inStaticContext);
+      }
       Assignee[] assignees = assignStatement.getAssignees();
-      boolean distributedTupleType = declaredType != null && declaredType instanceof TupleType && !declaredType.isNullable() && ((TupleType) declaredType).getSubTypes().length == assignees.length;
+      boolean distributedTupleType = declaredType != null && declaredType instanceof TupleType && !declaredType.canBeNullable() && ((TupleType) declaredType).getSubTypes().length == assignees.length;
       Type[] tupledSubTypes;
       if (distributedTupleType)
       {
@@ -418,12 +1046,12 @@ public class TypeChecker
         else if (assignees[i] instanceof ArrayElementAssignee)
         {
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
-          Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression());
+          Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression(), containingDefinition, inStaticContext);
           if (!(arrayType instanceof ArrayType))
           {
             throw new ConceptualException("Array assignments are not defined for the type " + arrayType, arrayElementAssignee.getLexicalPhrase());
           }
-          Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression());
+          Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression(), containingDefinition, inStaticContext);
           if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
           {
             throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, arrayElementAssignee.getDimensionExpression().getLexicalPhrase());
@@ -453,27 +1081,27 @@ public class TypeChecker
           }
           // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
           // Type type = checkTypes(fieldAccessExpression.getBaseExpression(), compilationUnit);
-          Member member = fieldAccessExpression.getResolvedMember();
+          MemberReference<?> memberReference = fieldAccessExpression.getResolvedMemberReference();
           Type type;
-          if (member instanceof ArrayLengthMember)
+          if (memberReference instanceof ArrayLengthMemberReference)
           {
             throw new ConceptualException("Cannot assign to an array's length", fieldAssignee.getLexicalPhrase());
           }
-          else if (member instanceof Field)
+          else if (memberReference instanceof FieldReference)
           {
-            type = ((Field) member).getType();
+            type = ((FieldReference) memberReference).getType();
           }
-          else if (member instanceof Property)
+          else if (memberReference instanceof PropertyReference)
           {
-            type = ((Property) member).getType();
+            type = ((PropertyReference) memberReference).getType();
           }
-          else if (member instanceof Method)
+          else if (memberReference instanceof MethodReference)
           {
             throw new ConceptualException("Cannot assign to a method", fieldAssignee.getLexicalPhrase());
           }
           else
           {
-            throw new IllegalStateException("Unknown member type in a FieldAccessExpression: " + member);
+            throw new IllegalStateException("Unknown member type in a FieldAccessExpression: " + memberReference);
           }
           if (declaredType != null)
           {
@@ -512,7 +1140,7 @@ public class TypeChecker
       }
       else
       {
-        Type exprType = checkTypes(assignStatement.getExpression());
+        Type exprType = checkTypes(assignStatement.getExpression(), containingDefinition, inStaticContext);
         if (tupledSubTypes.length == 1)
         {
           if (tupledSubTypes[0] == null)
@@ -572,7 +1200,7 @@ public class TypeChecker
       {
         try
         {
-          checkTypes(s, returnType);
+          checkTypes(s, returnType, containingDefinition, inStaticContext);
         }
         catch (ConceptualException e)
         {
@@ -595,14 +1223,9 @@ public class TypeChecker
     else if (statement instanceof DelegateConstructorStatement)
     {
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
-      Constructor constructor = delegateConstructorStatement.getResolvedConstructor();
+      ConstructorReference constructorReference = delegateConstructorStatement.getResolvedConstructorReference();
 
-      Parameter[] parameters = constructor == null ? new Parameter[0] : constructor.getParameters();
-      Type[] parameterTypes = new Type[parameters.length];
-      for (int i = 0; i < parameters.length; ++i)
-      {
-        parameterTypes[i] = parameters[i].getType();
-      }
+      Type[] parameterTypes = constructorReference == null ? new Type[0] : constructorReference.getParameterTypes();
       Expression[] arguments = delegateConstructorStatement.getArguments();
 
       if (arguments.length != parameterTypes.length)
@@ -616,7 +1239,7 @@ public class TypeChecker
             buffer.append(", ");
           }
         }
-        String typeName = constructor == null ? "object" : constructor.getContainingTypeDefinition().getQualifiedName().toString();
+        String typeName = constructorReference == null ? "object" : constructorReference.getReferencedMember().getContainingTypeDefinition().getQualifiedName().toString();
         throw new ConceptualException("The constructor '" + typeName + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", delegateConstructorStatement.getLexicalPhrase());
       }
 
@@ -625,7 +1248,7 @@ public class TypeChecker
       {
         try
         {
-          Type type = checkTypes(arguments[i]);
+          Type type = checkTypes(arguments[i], containingDefinition, inStaticContext);
           if (!parameterTypes[i].canAssign(type))
           {
             throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", arguments[i].getLexicalPhrase());
@@ -643,7 +1266,7 @@ public class TypeChecker
     }
     else if (statement instanceof ExpressionStatement)
     {
-      checkTypes(((ExpressionStatement) statement).getExpression());
+      checkTypes(((ExpressionStatement) statement).getExpression(), containingDefinition, inStaticContext);
     }
     else if (statement instanceof ForStatement)
     {
@@ -655,7 +1278,7 @@ public class TypeChecker
       {
         try
         {
-          checkTypes(init, returnType);
+          checkTypes(init, returnType, containingDefinition, inStaticContext);
         }
         catch (ConceptualException e)
         {
@@ -667,8 +1290,8 @@ public class TypeChecker
       {
         try
         {
-          Type conditionType = checkTypes(condition);
-          if (conditionType.isNullable() || !(conditionType instanceof PrimitiveType) || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+          Type conditionType = checkTypes(condition, containingDefinition, inStaticContext);
+          if (conditionType.canBeNullable() || !(conditionType instanceof PrimitiveType) || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
           {
             throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + conditionType + "'", condition.getLexicalPhrase());
           }
@@ -683,7 +1306,7 @@ public class TypeChecker
       {
         try
         {
-          checkTypes(update, returnType);
+          checkTypes(update, returnType, containingDefinition, inStaticContext);
         }
         catch (ConceptualException e)
         {
@@ -692,7 +1315,7 @@ public class TypeChecker
       }
       try
       {
-        checkTypes(forStatement.getBlock(), returnType);
+        checkTypes(forStatement.getBlock(), returnType, containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -709,8 +1332,8 @@ public class TypeChecker
       CoalescedConceptualException coalescedException = null;
       try
       {
-        Type exprType = checkTypes(ifStatement.getExpression());
-        if (exprType.isNullable() || !(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+        Type exprType = checkTypes(ifStatement.getExpression(), containingDefinition, inStaticContext);
+        if (exprType.canBeNullable() || !(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
         {
           throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", ifStatement.getExpression().getLexicalPhrase());
         }
@@ -721,7 +1344,7 @@ public class TypeChecker
       }
       try
       {
-        checkTypes(ifStatement.getThenClause(), returnType);
+        checkTypes(ifStatement.getThenClause(), returnType, containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -731,7 +1354,7 @@ public class TypeChecker
       {
         try
         {
-          checkTypes(ifStatement.getElseClause(), returnType);
+          checkTypes(ifStatement.getElseClause(), returnType, containingDefinition, inStaticContext);
         }
         catch (ConceptualException e)
         {
@@ -756,12 +1379,12 @@ public class TypeChecker
       else if (assignee instanceof ArrayElementAssignee)
       {
         ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignee;
-        Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression());
+        Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression(), containingDefinition, inStaticContext);
         if (!(arrayType instanceof ArrayType))
         {
           throw new ConceptualException("Array accesses are not defined for the type " + arrayType, arrayElementAssignee.getLexicalPhrase());
         }
-        Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression());
+        Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression(), containingDefinition, inStaticContext);
         if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
         {
           throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, arrayElementAssignee.getDimensionExpression().getLexicalPhrase());
@@ -775,26 +1398,26 @@ public class TypeChecker
         FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
         // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
         // Type type = checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
-        Member member = fieldAccessExpression.getResolvedMember();
-        if (member instanceof ArrayLengthMember)
+        MemberReference<?> memberReference = fieldAccessExpression.getResolvedMemberReference();
+        if (memberReference instanceof ArrayLengthMemberReference)
         {
           throw new ConceptualException("Cannot increment or decrement an array's length", fieldAssignee.getLexicalPhrase());
         }
-        else if (member instanceof Field)
+        else if (memberReference instanceof FieldReference)
         {
-          assigneeType = ((Field) member).getType();
+          assigneeType = ((FieldReference) memberReference).getType();
         }
-        else if (member instanceof Property)
+        else if (memberReference instanceof PropertyReference)
         {
-          assigneeType = ((Property) member).getType();
+          assigneeType = ((PropertyReference) memberReference).getType();
         }
-        else if (member instanceof Method)
+        else if (memberReference instanceof MethodReference)
         {
           throw new ConceptualException("Cannot increment or decrement a method", fieldAssignee.getLexicalPhrase());
         }
         else
         {
-          throw new IllegalStateException("Unknown member type in a FieldAccessExpression: " + member);
+          throw new IllegalStateException("Unknown member type in a FieldAccessExpression: " + memberReference);
         }
         fieldAssignee.setResolvedType(assigneeType);
       }
@@ -803,7 +1426,7 @@ public class TypeChecker
         // ignore blank assignees, they shouldn't be able to get through variable resolution
         throw new IllegalStateException("Unknown Assignee type: " + assignee);
       }
-      if (assigneeType.isNullable() || !(assigneeType instanceof PrimitiveType) || ((PrimitiveType) assigneeType).getPrimitiveTypeType() == PrimitiveTypeType.BOOLEAN)
+      if (assigneeType.canBeNullable() || !(assigneeType instanceof PrimitiveType) || ((PrimitiveType) assigneeType).getPrimitiveTypeType() == PrimitiveTypeType.BOOLEAN)
       {
         throw new ConceptualException("Cannot " + (prefixIncDecStatement.isIncrement() ? "inc" : "dec") + "rement an assignee of type " + assigneeType, assignee.getLexicalPhrase());
       }
@@ -825,7 +1448,7 @@ public class TypeChecker
         {
           throw new ConceptualException("A void function cannot return a value", statement.getLexicalPhrase());
         }
-        Type exprType = checkTypes(returnExpression);
+        Type exprType = checkTypes(returnExpression, containingDefinition, inStaticContext);
         Type resultType = exprType;
         if (returnStatement.getCanReturnAgainstContextualImmutability() && !(resultType instanceof VoidType))
         {
@@ -854,12 +1477,12 @@ public class TypeChecker
         else if (assignees[i] instanceof ArrayElementAssignee)
         {
           ArrayElementAssignee arrayElementAssignee = (ArrayElementAssignee) assignees[i];
-          Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression());
+          Type arrayType = checkTypes(arrayElementAssignee.getArrayExpression(), containingDefinition, inStaticContext);
           if (!(arrayType instanceof ArrayType))
           {
             throw new ConceptualException("Array assignments are not defined for the type " + arrayType, arrayElementAssignee.getLexicalPhrase());
           }
-          Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression());
+          Type dimensionType = checkTypes(arrayElementAssignee.getDimensionExpression(), containingDefinition, inStaticContext);
           if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
           {
             throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, arrayElementAssignee.getDimensionExpression().getLexicalPhrase());
@@ -873,26 +1496,26 @@ public class TypeChecker
           FieldAccessExpression fieldAccessExpression = fieldAssignee.getFieldAccessExpression();
           // no need to do the following type checking here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
           // Type type = checkTypes(fieldAccessExpression.getExpression(), compilationUnit);
-          Member member = fieldAccessExpression.getResolvedMember();
-          if (member instanceof ArrayLengthMember)
+          MemberReference<?> memberReference = fieldAccessExpression.getResolvedMemberReference();
+          if (memberReference instanceof ArrayLengthMemberReference)
           {
             throw new ConceptualException("Cannot assign to an array's length", fieldAssignee.getLexicalPhrase());
           }
-          else if (member instanceof Field)
+          else if (memberReference instanceof FieldReference)
           {
-            types[i] = ((Field) member).getType();
+            types[i] = ((FieldReference) memberReference).getType();
           }
-          else if (member instanceof Property)
+          else if (memberReference instanceof PropertyReference)
           {
-            types[i] = ((Property) member).getType();
+            types[i] = ((PropertyReference) memberReference).getType();
           }
-          else if (member instanceof Method)
+          else if (memberReference instanceof MethodReference)
           {
             throw new ConceptualException("Cannot assign to a method", fieldAssignee.getLexicalPhrase());
           }
           else
           {
-            throw new IllegalStateException("Unknown member type in a FieldAccessExpression: " + member);
+            throw new IllegalStateException("Unknown member type in a FieldAccessExpression: " + memberReference);
           }
           fieldAssignee.setResolvedType(types[i]);
         }
@@ -907,9 +1530,9 @@ public class TypeChecker
           throw new IllegalStateException("Unknown Assignee type: " + assignees[i]);
         }
       }
-      Type expressionType = checkTypes(shorthandAssignStatement.getExpression());
+      Type expressionType = checkTypes(shorthandAssignStatement.getExpression(), containingDefinition, inStaticContext);
       Type[] rightTypes;
-      if (expressionType instanceof TupleType && !expressionType.isNullable() && ((TupleType) expressionType).getSubTypes().length == assignees.length)
+      if (expressionType instanceof TupleType && !expressionType.canBeNullable() && ((TupleType) expressionType).getSubTypes().length == assignees.length)
       {
         TupleType expressionTupleType = (TupleType) expressionType;
         rightTypes = expressionTupleType.getSubTypes();
@@ -939,7 +1562,7 @@ public class TypeChecker
         {
           // do nothing, this is a shorthand string concatenation, which is allowed
         }
-        else if ((left instanceof PrimitiveType) && (right instanceof PrimitiveType) && !left.isNullable() && !right.isNullable())
+        else if ((left instanceof PrimitiveType) && (right instanceof PrimitiveType) && !left.canBeNullable() && !right.canBeNullable())
         {
           PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) left).getPrimitiveTypeType();
           PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) right).getPrimitiveTypeType();
@@ -982,7 +1605,7 @@ public class TypeChecker
     else if (statement instanceof ThrowStatement)
     {
       ThrowStatement throwStatement = (ThrowStatement) statement;
-      Type thrownType = checkTypes(throwStatement.getThrownExpression());
+      Type thrownType = checkTypes(throwStatement.getThrownExpression(), containingDefinition, inStaticContext);
       if (!SpecialTypeHandler.THROWABLE_TYPE.canAssign(thrownType))
       {
         throw new ConceptualException("Cannot throw a value of type " + thrownType + " (it cannot be converted to " + SpecialTypeHandler.THROWABLE_TYPE + ")", throwStatement.getLexicalPhrase());
@@ -991,15 +1614,15 @@ public class TypeChecker
     else if (statement instanceof TryStatement)
     {
       TryStatement tryStatement = (TryStatement) statement;
-      checkTypes(tryStatement.getTryBlock(), returnType);
+      checkTypes(tryStatement.getTryBlock(), returnType, containingDefinition, inStaticContext);
       for (CatchClause catchClause : tryStatement.getCatchClauses())
       {
         // the resolver has already called checkCatchClauseTypes(), so the caught variable has already been type-checked
-        checkTypes(catchClause.getBlock(), returnType);
+        checkTypes(catchClause.getBlock(), returnType, containingDefinition, inStaticContext);
       }
       if (tryStatement.getFinallyBlock() != null)
       {
-        checkTypes(tryStatement.getFinallyBlock(), returnType);
+        checkTypes(tryStatement.getFinallyBlock(), returnType, containingDefinition, inStaticContext);
       }
     }
     else if (statement instanceof WhileStatement)
@@ -1008,8 +1631,8 @@ public class TypeChecker
       CoalescedConceptualException coalescedException = null;
       try
       {
-        Type exprType = checkTypes(whileStatement.getExpression());
-        if (exprType.isNullable() || !(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+        Type exprType = checkTypes(whileStatement.getExpression(), containingDefinition, inStaticContext);
+        if (exprType.canBeNullable() || !(exprType instanceof PrimitiveType) || ((PrimitiveType) exprType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
         {
           throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + exprType + "'", whileStatement.getExpression().getLexicalPhrase());
         }
@@ -1020,7 +1643,7 @@ public class TypeChecker
       }
       try
       {
-        checkTypes(whileStatement.getStatement(), returnType);
+        checkTypes(whileStatement.getStatement(), returnType, containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -1041,10 +1664,12 @@ public class TypeChecker
    * Checks the types on an Expression recursively.
    * This method should only be called on an Expression after the resolver has been run over that Expression
    * @param expression - the Expression to check the types on
+   * @param containingDefinition - the TypeDefinition which contains this Expression
+   * @param inStaticContext - true if this Expression is in a static context, false otherwise
    * @return the Type of the Expression
    * @throws ConceptualException - if a conceptual problem is encountered while checking the types
    */
-  public static Type checkTypes(Expression expression) throws ConceptualException
+  public static Type checkTypes(Expression expression, TypeDefinition containingDefinition, boolean inStaticContext) throws ConceptualException
   {
     if (expression instanceof ArithmeticExpression)
     {
@@ -1054,7 +1679,7 @@ public class TypeChecker
       CoalescedConceptualException coalescedException = null;
       try
       {
-        leftType = checkTypes(arithmeticExpression.getLeftSubExpression());
+        leftType = checkTypes(arithmeticExpression.getLeftSubExpression(), containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -1062,7 +1687,7 @@ public class TypeChecker
       }
       try
       {
-        rightType = checkTypes(arithmeticExpression.getRightSubExpression());
+        rightType = checkTypes(arithmeticExpression.getRightSubExpression(), containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -1072,7 +1697,7 @@ public class TypeChecker
       {
         throw coalescedException;
       }
-      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.isNullable() && !rightType.isNullable())
+      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.canBeNullable() && !rightType.canBeNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
         PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
@@ -1103,8 +1728,8 @@ public class TypeChecker
       Type type = null;
       try
       {
-        type = checkTypes(arrayAccessExpression.getArrayExpression());
-        if (!(type instanceof ArrayType) || type.isNullable())
+        type = checkTypes(arrayAccessExpression.getArrayExpression(), containingDefinition, inStaticContext);
+        if (!(type instanceof ArrayType) || type.canBeNullable())
         {
           throw new ConceptualException("Array accesses are not defined for type " + type, arrayAccessExpression.getLexicalPhrase());
         }
@@ -1115,7 +1740,7 @@ public class TypeChecker
       }
       try
       {
-        Type dimensionType = checkTypes(arrayAccessExpression.getDimensionExpression());
+        Type dimensionType = checkTypes(arrayAccessExpression.getDimensionExpression(), containingDefinition, inStaticContext);
         if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(dimensionType))
         {
           throw new ConceptualException("Cannot use an expression of type " + dimensionType + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, arrayAccessExpression.getDimensionExpression().getLexicalPhrase());
@@ -1143,7 +1768,7 @@ public class TypeChecker
         {
           try
           {
-            Type type = checkTypes(expr);
+            Type type = checkTypes(expr, containingDefinition, inStaticContext);
             if (!ArrayLengthMember.ARRAY_LENGTH_TYPE.canAssign(type))
             {
               throw new ConceptualException("Cannot use an expression of type " + type + " as an array dimension, or convert it to type " + ArrayLengthMember.ARRAY_LENGTH_TYPE, expr.getLexicalPhrase());
@@ -1156,6 +1781,14 @@ public class TypeChecker
         }
       }
       ArrayType declaredType = creationExpression.getDeclaredType();
+      try
+      {
+        checkType(declaredType, containingDefinition, inStaticContext);
+      }
+      catch (ConceptualException e)
+      {
+        throw CoalescedConceptualException.coalesce(coalescedException, e);
+      }
       Type baseType = declaredType.getBaseType();
       if (creationExpression.getValueExpressions() == null)
       {
@@ -1170,7 +1803,7 @@ public class TypeChecker
         {
           try
           {
-            Type type = checkTypes(expr);
+            Type type = checkTypes(expr, containingDefinition, inStaticContext);
             if (!baseType.canAssign(type))
             {
               throw new ConceptualException("Cannot add an expression of type " + type + " to an array of type " + baseType, expr.getLexicalPhrase());
@@ -1191,8 +1824,8 @@ public class TypeChecker
     }
     else if (expression instanceof BitwiseNotExpression)
     {
-      Type type = checkTypes(((BitwiseNotExpression) expression).getExpression());
-      if (type instanceof PrimitiveType && !type.isNullable())
+      Type type = checkTypes(((BitwiseNotExpression) expression).getExpression(), containingDefinition, inStaticContext);
+      if (type instanceof PrimitiveType && !type.canBeNullable())
       {
         PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
         if (!primitiveTypeType.isFloating())
@@ -1211,8 +1844,8 @@ public class TypeChecker
     }
     else if (expression instanceof BooleanNotExpression)
     {
-      Type type = checkTypes(((BooleanNotExpression) expression).getExpression());
-      if (type instanceof PrimitiveType && !type.isNullable() && ((PrimitiveType) type).getPrimitiveTypeType() == PrimitiveTypeType.BOOLEAN)
+      Type type = checkTypes(((BooleanNotExpression) expression).getExpression(), containingDefinition, inStaticContext);
+      if (type instanceof PrimitiveType && !type.canBeNullable() && ((PrimitiveType) type).getPrimitiveTypeType() == PrimitiveTypeType.BOOLEAN)
       {
         expression.setType(type);
         return type;
@@ -1221,7 +1854,7 @@ public class TypeChecker
     }
     else if (expression instanceof BracketedExpression)
     {
-      Type type = checkTypes(((BracketedExpression) expression).getExpression());
+      Type type = checkTypes(((BracketedExpression) expression).getExpression(), containingDefinition, inStaticContext);
       if (type instanceof VoidType)
       {
         throw new ConceptualException("Cannot enclose a void value in brackets", expression.getLexicalPhrase());
@@ -1231,12 +1864,14 @@ public class TypeChecker
     }
     else if (expression instanceof CastExpression)
     {
-      Type exprType = checkTypes(((CastExpression) expression).getExpression());
+      Type exprType = checkTypes(((CastExpression) expression).getExpression(), containingDefinition, inStaticContext);
       if (exprType instanceof VoidType)
       {
         throw new ConceptualException("Cannot perform a cast on void", expression.getLexicalPhrase());
       }
       Type castedType = expression.getType();
+      checkType(castedType, containingDefinition, inStaticContext);
+
       // forbid casting away immutability (both explicit and contextual)
       boolean fromExplicitlyImmutable = (exprType instanceof ArrayType  && ((ArrayType)  exprType).isExplicitlyImmutable()) ||
                                         (exprType instanceof NamedType  && ((NamedType)  exprType).isExplicitlyImmutable()) ||
@@ -1248,6 +1883,32 @@ public class TypeChecker
       {
         throw new ConceptualException("Cannot cast away immutability, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
       }
+
+      boolean fromCanBeExplicitlyImmutable = fromExplicitlyImmutable || (exprType instanceof NamedType && ((NamedType) exprType).canBeExplicitlyImmutable());
+      boolean toCanBeExplicitlyImmutable = toExplicitlyImmutable || (castedType instanceof NamedType && ((NamedType) castedType).canBeExplicitlyImmutable());
+      if (fromCanBeExplicitlyImmutable)
+      {
+        if (!toCanBeExplicitlyImmutable)
+        {
+          throw new ConceptualException(exprType + " can be immutable here, so it cannot be cast to not-immutable", expression.getLexicalPhrase());
+        }
+
+        // we are casting from something which can be immutable to something which can be immutable
+        // if we are casting to something which is explicitly immutable, then this is fine
+        // but if we are casting to something which isn't necessarily immutable, then the cast should only be allowed if the type we are casting from extends the type we are casting to
+        if (!toExplicitlyImmutable)
+        {
+          // castedType is a TypeParameter which can be (but isn't necessarily) immutable
+          // if it extends exprType, then everything is fine because the super-sub-type relationship guarantees that the immutability constraints are not broken
+          // but in all other cases, we must forbid this cast because of potential immutability constraints
+          if (!castedType.canAssign(exprType))
+          {
+            throw new ConceptualException(castedType + " could be not-immutable here, so we cannot cast something of the " + (fromExplicitlyImmutable ? "" : "possibly-") + "immutable type " + exprType + " to it", expression.getLexicalPhrase());
+          }
+        }
+      }
+
+
       boolean fromContextuallyImmutable = (exprType instanceof ArrayType  && ((ArrayType)  exprType).isContextuallyImmutable()) ||
                                           (exprType instanceof NamedType  && ((NamedType)  exprType).isContextuallyImmutable()) ||
                                           (exprType instanceof ObjectType && ((ObjectType) exprType).isContextuallyImmutable());
@@ -1262,7 +1923,7 @@ public class TypeChecker
 
       // we have checked the immutability constraints properly, so we can ignore them in this next check
       // we need to do this so that e.g. casts from A to #B work, if A is a supertype of B
-      Type checkExprType = findTypeWithDataImmutability(exprType, toExplicitlyImmutable, toContextuallyImmutable);
+      Type checkExprType = Type.findTypeWithDataImmutability(exprType, toExplicitlyImmutable, toContextuallyImmutable);
       if (exprType instanceof FunctionType && castedType instanceof FunctionType)
       {
         FunctionType functionExprType = (FunctionType) checkExprType;
@@ -1275,7 +1936,7 @@ public class TypeChecker
         }
       }
 
-      if (findTypeWithNullability(checkExprType, true).canAssign(castedType) || findTypeWithNullability(castedType, true).canAssign(checkExprType))
+      if (Type.findTypeWithNullability(checkExprType, true).canAssign(castedType) || Type.findTypeWithNullability(castedType, true).canAssign(checkExprType))
       {
         // if the assignment works in reverse (i.e. the casted type can be assigned to the expression) then it can be casted back
         // (also allow it if the assignment works forwards, although usually that should be a warning about an unnecessary cast, unless the cast allows access to a hidden field)
@@ -1283,7 +1944,7 @@ public class TypeChecker
         // return the type of the cast expression (it has already been set during parsing)
         return expression.getType();
       }
-      if (exprType instanceof PrimitiveType && castedType instanceof PrimitiveType && !exprType.isNullable() && !castedType.isNullable())
+      if (exprType instanceof PrimitiveType && castedType instanceof PrimitiveType && !exprType.canBeNullable() && !castedType.canBeNullable())
       {
         // allow non-floating primitive types with the same bit count to be casted to each other
         PrimitiveTypeType exprPrimitiveTypeType = ((PrimitiveType) exprType).getPrimitiveTypeType();
@@ -1316,7 +1977,10 @@ public class TypeChecker
     {
       CreationExpression creationExpression = (CreationExpression) expression;
       // the type has already been resolved by the Resolver
-      NamedType type = creationExpression.getResolvedType();
+      NamedType type = creationExpression.getCreatedType();
+      checkType(type, containingDefinition, inStaticContext);
+
+      // the Resolver has checked that this isn't a TypeParameter
       TypeDefinition resolvedTypeDefinition = type.getResolvedTypeDefinition();
       if (creationExpression.isHeapAllocation())
       {
@@ -1337,30 +2001,30 @@ public class TypeChecker
         }
       }
       Expression[] arguments = creationExpression.getArguments();
-      Constructor constructor = creationExpression.getResolvedConstructor();
-      Parameter[] parameters = constructor.getParameters();
-      if (arguments.length != parameters.length)
+      ConstructorReference constructorReference = creationExpression.getResolvedConstructorReference();
+      Type[] parameterTypes = constructorReference.getParameterTypes();
+      if (arguments.length != parameterTypes.length)
       {
         StringBuffer buffer = new StringBuffer();
-        for (int i = 0; i < parameters.length; i++)
+        for (int i = 0; i < parameterTypes.length; i++)
         {
-          buffer.append(parameters[i].getType());
-          if (i != parameters.length - 1)
+          buffer.append(parameterTypes[i]);
+          if (i != parameterTypes.length - 1)
           {
             buffer.append(", ");
           }
         }
-        throw new ConceptualException("The constructor '" + constructor.getContainingTypeDefinition().getQualifiedName() + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", creationExpression.getLexicalPhrase());
+        throw new ConceptualException("The constructor '" + constructorReference.getReferencedMember().getContainingTypeDefinition().getQualifiedName() + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", creationExpression.getLexicalPhrase());
       }
       CoalescedConceptualException coalescedException = null;
       for (int i = 0; i < arguments.length; ++i)
       {
         try
         {
-          Type argumentType = checkTypes(arguments[i]);
-          if (!parameters[i].getType().canAssign(argumentType))
+          Type argumentType = checkTypes(arguments[i], containingDefinition, inStaticContext);
+          if (!parameterTypes[i].canAssign(argumentType))
           {
-            throw new ConceptualException("Cannot pass an argument of type '" + argumentType + "' as a parameter of type '" + parameters[i].getType() + "'", arguments[i].getLexicalPhrase());
+            throw new ConceptualException("Cannot pass an argument of type '" + argumentType + "' as a parameter of type '" + parameterTypes[i] + "'", arguments[i].getLexicalPhrase());
           }
         }
         catch (ConceptualException e)
@@ -1383,7 +2047,7 @@ public class TypeChecker
       CoalescedConceptualException coalescedException = null;
       try
       {
-        leftType = checkTypes(equalityExpression.getLeftSubExpression());
+        leftType = checkTypes(equalityExpression.getLeftSubExpression(), containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -1391,7 +2055,7 @@ public class TypeChecker
       }
       try
       {
-        rightType = checkTypes(equalityExpression.getRightSubExpression());
+        rightType = checkTypes(equalityExpression.getRightSubExpression(), containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -1408,8 +2072,8 @@ public class TypeChecker
       }
 
       EqualityOperator operator = equalityExpression.getOperator();
-      if ((leftType instanceof NullType && !rightType.isNullable()) ||
-          (!leftType.isNullable() && rightType instanceof NullType))
+      if ((leftType instanceof NullType && !rightType.canBeNullable()) ||
+          (!leftType.canBeNullable() && rightType instanceof NullType))
       {
         throw new ConceptualException("Cannot perform a null check on a non-nullable type (the '" + operator + "' operator is not defined for types '" + leftType + "' and '" + rightType + "')", equalityExpression.getLexicalPhrase());
       }
@@ -1448,10 +2112,10 @@ public class TypeChecker
           // we avoid findCommonSuperType() in this case, because that would make a comparison between a long and a ulong use a float comparison, which is not what we want
           Type leftTestType = leftType;
           Type rightTestType = rightType;
-          if (leftTestType.isNullable() || rightTestType.isNullable())
+          if (leftTestType.canBeNullable() || rightTestType.canBeNullable())
           {
-            leftTestType = findTypeWithNullability(leftTestType, true);
-            rightTestType = findTypeWithNullability(rightTestType, true);
+            leftTestType = Type.findTypeWithNullability(leftTestType, true);
+            rightTestType = Type.findTypeWithNullability(rightTestType, true);
           }
           if (leftTestType.canAssign(rightTestType))
           {
@@ -1486,70 +2150,65 @@ public class TypeChecker
       FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) expression;
       boolean receiverIsExplicitlyImmutable = false;
       boolean receiverIsContextuallyImmutable = fieldAccessExpression.getResolvedContextImmutability();
+      // note: if there is a base type, it has already been checked by the resolver
       if (fieldAccessExpression.getBaseExpression() != null)
       {
         // no need to do the following type check here, it has already been done during name resolution, in order to resolve the member (as long as this field access has a base expression, and not a base type)
         // Type type = checkTypes(fieldAccessExpression.getBaseExpression(), compilationUnit);
         Type baseExpressionType = fieldAccessExpression.getBaseExpression().getType();
-        if (baseExpressionType.isNullable() && !fieldAccessExpression.isNullTraversing())
+        if (baseExpressionType.canBeNullable() && !fieldAccessExpression.isNullTraversing())
         {
           throw new ConceptualException("Cannot access the field '" + fieldAccessExpression.getFieldName() + "' on something which is nullable. Consider using the '?.' operator.", fieldAccessExpression.getLexicalPhrase());
         }
-        if (!baseExpressionType.isNullable() && fieldAccessExpression.isNullTraversing())
+        if (!baseExpressionType.canBeNullable() && fieldAccessExpression.isNullTraversing())
         {
           throw new ConceptualException("Cannot use the null traversing field access operator '?.' on a non nullable expression", fieldAccessExpression.getLexicalPhrase());
         }
-        receiverIsExplicitlyImmutable = isExplicitlyDataImmutable(baseExpressionType);
-        receiverIsContextuallyImmutable = isContextuallyDataImmutable(baseExpressionType);
+        receiverIsExplicitlyImmutable = Type.isExplicitlyDataImmutable(baseExpressionType);
+        receiverIsContextuallyImmutable = Type.isContextuallyDataImmutable(baseExpressionType);
       }
-      Member member = fieldAccessExpression.getResolvedMember();
+      MemberReference<?> memberReference = fieldAccessExpression.getResolvedMemberReference();
       Type type;
-      if (member instanceof Field)
+      if (memberReference instanceof FieldReference)
       {
-        Field field = (Field) member;
-        type = field.getType();
-        if (receiverIsContextuallyImmutable && !field.isMutable())
+        FieldReference fieldReference = (FieldReference) memberReference;
+        type = fieldReference.getType();
+        if (receiverIsContextuallyImmutable && !fieldReference.getReferencedMember().isMutable())
         {
           // note: if the receiver is explicitly immutable, we add explicit immutability as well
           type = findTypeWithDeepImmutability(type, receiverIsExplicitlyImmutable, true);
         }
       }
-      else if (member instanceof Property)
+      else if (memberReference instanceof PropertyReference)
       {
-        Property property = (Property) member;
-        type = property.getType();
-        if (receiverIsContextuallyImmutable && !property.isMutable())
+        PropertyReference propertyReference = (PropertyReference) memberReference;
+        type = propertyReference.getType();
+        if (receiverIsContextuallyImmutable && !propertyReference.getReferencedMember().isMutable())
         {
           // note: if the receiver is explicitly immutable, we add explicit immutability as well
           type = findTypeWithDeepImmutability(type, receiverIsExplicitlyImmutable, true);
         }
       }
-      else if (member instanceof ArrayLengthMember)
+      else if (memberReference instanceof ArrayLengthMemberReference)
       {
         type = ArrayLengthMember.ARRAY_LENGTH_TYPE;
         // context immutability does not apply here, since ARRAY_LENGTH_TYPE cannot be immutable (and has no subtypes which could be immutable)
       }
-      else if (member instanceof Method)
+      else if (memberReference instanceof MethodReference)
       {
         // create a function type for this method
-        Method method = (Method) member;
-        Parameter[] parameters = method.getParameters();
-        Type[] parameterTypes = new Type[parameters.length];
-        for (int i = 0; i < parameters.length; ++i)
-        {
-          parameterTypes[i] = parameters[i].getType();
-        }
-        type = new FunctionType(false, method.isImmutable(), method.getReturnType(), parameterTypes, method.getCheckedThrownTypes(), null);
+        MethodReference methodReference = (MethodReference) memberReference;
+        type = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), methodReference.getCheckedThrownTypes(), null);
       }
       else
       {
-        throw new IllegalStateException("Unknown member type in a FieldAccessExpression: " + member);
+        throw new IllegalStateException("Unknown member type in a FieldAccessExpression: " + memberReference);
       }
       if (fieldAccessExpression.getBaseExpression() != null && fieldAccessExpression.isNullTraversing())
       {
         // we checked earlier that the base expression is nullable in this case
         // so, since this is a null traversing field access, make the result type nullable
-        type = findTypeWithNullability(type, true);
+        type = Type.findTypeWithNullability(type, true);
       }
       fieldAccessExpression.setType(type);
       return type;
@@ -1573,22 +2232,21 @@ public class TypeChecker
       FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
       CoalescedConceptualException coalescedException = null;
       Expression[] arguments = functionCallExpression.getArguments();
-      Parameter[] parameters = null;
-      Type[] parameterTypes = null;
+      Type[] parameterTypes;
       String name = null;
       Type resultType;
-      if (functionCallExpression.getResolvedMethod() != null)
+      if (functionCallExpression.getResolvedMethodReference() != null)
       {
         if (functionCallExpression.getResolvedBaseExpression() != null)
         {
           try
           {
-            Type type = checkTypes(functionCallExpression.getResolvedBaseExpression());
-            if (type.isNullable() && !functionCallExpression.getResolvedNullTraversal())
+            Type type = checkTypes(functionCallExpression.getResolvedBaseExpression(), containingDefinition, inStaticContext);
+            if (type.canBeNullable() && !functionCallExpression.getResolvedNullTraversal())
             {
-              throw new ConceptualException("Cannot access the method '" + functionCallExpression.getResolvedMethod().getName() + "' on something which is nullable. Consider using the '?.' operator.", functionCallExpression.getLexicalPhrase());
+              throw new ConceptualException("Cannot access the method '" + functionCallExpression.getResolvedMethodReference().getReferencedMember().getName() + "' on something which is nullable. Consider using the '?.' operator.", functionCallExpression.getLexicalPhrase());
             }
-            if (!type.isNullable() && functionCallExpression.getResolvedNullTraversal())
+            if (!type.canBeNullable() && functionCallExpression.getResolvedNullTraversal())
             {
               throw new ConceptualException("Cannot use the null traversing method call operator '?.' on a non nullable expression", functionCallExpression.getLexicalPhrase());
             }
@@ -1600,20 +2258,20 @@ public class TypeChecker
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
-        parameters = functionCallExpression.getResolvedMethod().getParameters();
-        resultType = functionCallExpression.getResolvedMethod().getReturnType();
+        parameterTypes = functionCallExpression.getResolvedMethodReference().getParameterTypes();
+        resultType = functionCallExpression.getResolvedMethodReference().getReturnType();
         if (functionCallExpression.getResolvedNullTraversal() && !(resultType instanceof VoidType))
         {
           // this is a null traversing method call, so make the result type nullable
-          resultType = findTypeWithNullability(resultType, true);
+          resultType = Type.findTypeWithNullability(resultType, true);
         }
-        name = functionCallExpression.getResolvedMethod().getName();
+        name = functionCallExpression.getResolvedMethodReference().getReferencedMember().getName();
       }
       else if (functionCallExpression.getResolvedBaseExpression() != null)
       {
         Expression baseExpression = functionCallExpression.getResolvedBaseExpression();
-        Type baseType = checkTypes(baseExpression);
-        if (baseType.isNullable())
+        Type baseType = checkTypes(baseExpression, containingDefinition, inStaticContext);
+        if (baseType.canBeNullable())
         {
           throw new ConceptualException("Cannot call a nullable function.", functionCallExpression.getLexicalPhrase());
         }
@@ -1627,14 +2285,6 @@ public class TypeChecker
       else
       {
         throw new IllegalArgumentException("Unresolved function call: " + functionCallExpression);
-      }
-      if (parameterTypes == null)
-      {
-        parameterTypes = new Type[parameters.length];
-        for (int i = 0; i < parameters.length; i++)
-        {
-          parameterTypes[i] = parameters[i].getType();
-        }
       }
 
       if (arguments.length != parameterTypes.length)
@@ -1656,7 +2306,7 @@ public class TypeChecker
       {
         try
         {
-          Type type = checkTypes(arguments[i]);
+          Type type = checkTypes(arguments[i], containingDefinition, inStaticContext);
           if (!parameterTypes[i].canAssign(type))
           {
             throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", arguments[i].getLexicalPhrase());
@@ -1680,8 +2330,8 @@ public class TypeChecker
       CoalescedConceptualException coalescedException = null;
       try
       {
-        Type conditionType = checkTypes(inlineIf.getCondition());
-        if (!(conditionType instanceof PrimitiveType) || conditionType.isNullable() || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+        Type conditionType = checkTypes(inlineIf.getCondition(), containingDefinition, inStaticContext);
+        if (!(conditionType instanceof PrimitiveType) || conditionType.canBeNullable() || ((PrimitiveType) conditionType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
         {
           throw new ConceptualException("A conditional must be of type '" + PrimitiveTypeType.BOOLEAN.name + "', not '" + conditionType + "'", inlineIf.getCondition().getLexicalPhrase());
         }
@@ -1694,7 +2344,7 @@ public class TypeChecker
       Type elseType = null;
       try
       {
-        thenType = checkTypes(inlineIf.getThenExpression());
+        thenType = checkTypes(inlineIf.getThenExpression(), containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -1702,7 +2352,7 @@ public class TypeChecker
       }
       try
       {
-        elseType = checkTypes(inlineIf.getElseExpression());
+        elseType = checkTypes(inlineIf.getElseExpression(), containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -1728,6 +2378,7 @@ public class TypeChecker
       InstanceOfExpression instanceOfExpression = (InstanceOfExpression) expression;
       CoalescedConceptualException coalescedException = null;
       Type checkType = instanceOfExpression.getInstanceOfType();
+      checkType(checkType, containingDefinition, inStaticContext);
       if (checkType.isNullable())
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot use 'instanceof' to check whether something is nullable", checkType.getLexicalPhrase()));
@@ -1741,7 +2392,7 @@ public class TypeChecker
       Type expressionType;
       try
       {
-        expressionType = checkTypes(instanceOfExpression.getExpression());
+        expressionType = checkTypes(instanceOfExpression.getExpression(), containingDefinition, inStaticContext);
         if (expressionType instanceof VoidType)
         {
           throw new ConceptualException("Cannot check whether void is an instance of " + checkType, instanceOfExpression.getLexicalPhrase());
@@ -1830,7 +2481,7 @@ public class TypeChecker
       Type rightType = null;
       try
       {
-        leftType = checkTypes(logicalExpression.getLeftSubExpression());
+        leftType = checkTypes(logicalExpression.getLeftSubExpression(), containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -1838,7 +2489,7 @@ public class TypeChecker
       }
       try
       {
-        rightType = checkTypes(logicalExpression.getRightSubExpression());
+        rightType = checkTypes(logicalExpression.getRightSubExpression(), containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -1848,7 +2499,7 @@ public class TypeChecker
       {
         throw coalescedException;
       }
-      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.isNullable() && !rightType.isNullable())
+      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.canBeNullable() && !rightType.canBeNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
         PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
@@ -1904,8 +2555,8 @@ public class TypeChecker
     }
     else if (expression instanceof MinusExpression)
     {
-      Type type = checkTypes(((MinusExpression) expression).getExpression());
-      if (type instanceof PrimitiveType && !type.isNullable())
+      Type type = checkTypes(((MinusExpression) expression).getExpression(), containingDefinition, inStaticContext);
+      if (type instanceof PrimitiveType && !type.canBeNullable())
       {
         PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
         // allow the unary minus operator to automatically convert from unsigned to signed integer values
@@ -1950,8 +2601,8 @@ public class TypeChecker
       Type alternativeType = null;
       try
       {
-        nullableType = checkTypes(nullCoalescingExpression.getNullableExpression());
-        if (!nullableType.isNullable())
+        nullableType = checkTypes(nullCoalescingExpression.getNullableExpression(), containingDefinition, inStaticContext);
+        if (!nullableType.canBeNullable())
         {
           throw new ConceptualException("The null-coalescing operator '?:' is not defined when the left hand side (here '" + nullableType + "') is not nullable", expression.getLexicalPhrase());
         }
@@ -1962,7 +2613,7 @@ public class TypeChecker
       }
       try
       {
-        alternativeType = checkTypes(nullCoalescingExpression.getAlternativeExpression());
+        alternativeType = checkTypes(nullCoalescingExpression.getAlternativeExpression(), containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -1980,7 +2631,7 @@ public class TypeChecker
           nullCoalescingExpression.setType(alternativeType);
           return alternativeType;
         }
-        Type resultType = findCommonSuperType(findTypeWithNullability(nullableType, false), alternativeType);
+        Type resultType = findCommonSuperType(Type.findTypeWithNullability(nullableType, false), alternativeType);
         if (resultType != null)
         {
           nullCoalescingExpression.setType(resultType);
@@ -2009,7 +2660,7 @@ public class TypeChecker
       Type rightType = null;
       try
       {
-        leftType = checkTypes(relationalExpression.getLeftSubExpression());
+        leftType = checkTypes(relationalExpression.getLeftSubExpression(), containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -2017,7 +2668,7 @@ public class TypeChecker
       }
       try
       {
-        rightType = checkTypes(relationalExpression.getRightSubExpression());
+        rightType = checkTypes(relationalExpression.getRightSubExpression(), containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -2029,7 +2680,7 @@ public class TypeChecker
       }
 
       RelationalOperator operator = relationalExpression.getOperator();
-      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.isNullable() && !rightType.isNullable())
+      if ((leftType instanceof PrimitiveType) && (rightType instanceof PrimitiveType) && !leftType.canBeNullable() && !rightType.canBeNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
         PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
@@ -2067,7 +2718,7 @@ public class TypeChecker
       Type rightType = null;
       try
       {
-        leftType = checkTypes(shiftExpression.getLeftExpression());
+        leftType = checkTypes(shiftExpression.getLeftExpression(), containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -2075,7 +2726,7 @@ public class TypeChecker
       }
       try
       {
-        rightType = checkTypes(shiftExpression.getRightExpression());
+        rightType = checkTypes(shiftExpression.getRightExpression(), containingDefinition, inStaticContext);
       }
       catch (ConceptualException e)
       {
@@ -2085,7 +2736,7 @@ public class TypeChecker
       {
         throw coalescedException;
       }
-      if (leftType instanceof PrimitiveType && rightType instanceof PrimitiveType && !leftType.isNullable() && !rightType.isNullable())
+      if (leftType instanceof PrimitiveType && rightType instanceof PrimitiveType && !leftType.canBeNullable() && !rightType.canBeNullable())
       {
         PrimitiveTypeType leftPrimitiveType = ((PrimitiveType) leftType).getPrimitiveTypeType();
         PrimitiveTypeType rightPrimitiveType = ((PrimitiveType) rightType).getPrimitiveTypeType();
@@ -2122,7 +2773,7 @@ public class TypeChecker
       {
         try
         {
-          subTypes[i] = checkTypes(subExpressions[i]);
+          subTypes[i] = checkTypes(subExpressions[i], containingDefinition, inStaticContext);
           if (subTypes[i] instanceof VoidType)
           {
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot create a tuple containing a void value", subExpressions[i].getLexicalPhrase()));
@@ -2144,12 +2795,12 @@ public class TypeChecker
     else if (expression instanceof TupleIndexExpression)
     {
       TupleIndexExpression indexExpression = (TupleIndexExpression) expression;
-      Type type = checkTypes(indexExpression.getExpression());
+      Type type = checkTypes(indexExpression.getExpression(), containingDefinition, inStaticContext);
       if (!(type instanceof TupleType))
       {
         throw new ConceptualException("Cannot index into the non-tuple type: " + type, indexExpression.getLexicalPhrase());
       }
-      if (type.isNullable())
+      if (type.canBeNullable())
       {
         throw new ConceptualException("Cannot index into a nullable tuple type: " + type, indexExpression.getLexicalPhrase());
       }
@@ -2169,53 +2820,55 @@ public class TypeChecker
     else if (expression instanceof VariableExpression)
     {
       VariableExpression variableExpression = (VariableExpression) expression;
+      MemberReference<?> memberReference = variableExpression.getResolvedMemberReference();
+      if (memberReference != null)
+      {
+        if (memberReference instanceof ArrayLengthMemberReference)
+        {
+          throw new IllegalStateException("Cannot access an array length member as a variable");
+        }
+        else if (memberReference instanceof FieldReference)
+        {
+          FieldReference fieldReference = (FieldReference) memberReference;
+          Type type = fieldReference.getType();
+          if (variableExpression.getResolvedContextImmutability() && !fieldReference.getReferencedMember().isMutable())
+          {
+            type = findTypeWithDeepImmutability(type, false, true);
+          }
+          expression.setType(type);
+          return type;
+        }
+        else if (memberReference instanceof PropertyReference)
+        {
+          PropertyReference propertyReference = (PropertyReference) memberReference;
+          Type type = propertyReference.getType();
+          if (variableExpression.getResolvedContextImmutability() && !propertyReference.getReferencedMember().isMutable())
+          {
+            type = findTypeWithDeepImmutability(type, false, true);
+          }
+          expression.setType(type);
+          return type;
+        }
+        else if (memberReference instanceof MethodReference)
+        {
+          MethodReference methodReference = (MethodReference) memberReference;
+          // create a function type for this method
+          FunctionType type = new FunctionType(false, methodReference.getReferencedMember().isImmutable(),
+                                               methodReference.getReturnType(), methodReference.getParameterTypes(),
+                                               methodReference.getCheckedThrownTypes(),
+                                               null);
+          expression.setType(type);
+          return type;
+        }
+        else
+        {
+          throw new IllegalStateException("Unknown type of member in a VariableExpression: " + memberReference);
+        }
+      }
       Variable resolvedVariable = variableExpression.getResolvedVariable();
       if (resolvedVariable != null)
       {
         Type type = resolvedVariable.getType();
-
-        if (variableExpression.getResolvedContextImmutability())
-        {
-          // if we are in an immutable context, and we have been resolved to a field/property which is not mutable, then the resulting type should be contextually immutable
-          boolean shouldBeContextuallyImmutable = false;
-          if (resolvedVariable instanceof GlobalVariable)
-          {
-            GlobalVariable globalVariable = (GlobalVariable) resolvedVariable;
-            shouldBeContextuallyImmutable = !(globalVariable.getField() != null ? globalVariable.getField().isMutable() : globalVariable.getProperty().isMutable());
-          }
-          else if (resolvedVariable instanceof MemberVariable)
-          {
-            MemberVariable memberVariable = (MemberVariable) resolvedVariable;
-            shouldBeContextuallyImmutable = !(memberVariable.getField() != null ? memberVariable.getField().isMutable() : memberVariable.getProperty().isMutable());
-          }
-          else if (resolvedVariable instanceof PropertyPseudoVariable)
-          {
-            shouldBeContextuallyImmutable = !((PropertyPseudoVariable) resolvedVariable).getProperty().isMutable();
-          }
-          if (shouldBeContextuallyImmutable)
-          {
-            type = findTypeWithDeepImmutability(type, false, true);
-          }
-        }
-        expression.setType(type);
-        return type;
-      }
-      Method resolvedMethod = variableExpression.getResolvedMethod();
-      if (resolvedMethod != null)
-      {
-        // create a function type for this method
-        if (!resolvedMethod.isStatic() && resolvedMethod.getContainingTypeDefinition() instanceof CompoundDefinition)
-        {
-          // TODO: remove this restriction
-          throw new ConceptualException("Cannot convert a non-static method on a compound type to a function type, as there is nowhere to store the compound value of 'this' to call the method on", expression.getLexicalPhrase());
-        }
-        Parameter[] parameters = resolvedMethod.getParameters();
-        Type[] parameterTypes = new Type[parameters.length];
-        for (int i = 0; i < parameters.length; ++i)
-        {
-          parameterTypes[i] = parameters[i].getType();
-        }
-        FunctionType type = new FunctionType(false, resolvedMethod.isImmutable(), resolvedMethod.getReturnType(), parameterTypes, resolvedMethod.getCheckedThrownTypes(), null);
         expression.setType(type);
         return type;
       }
@@ -2279,22 +2932,121 @@ public class TypeChecker
     {
       if (expressionType instanceof NamedType)
       {
-        NamedType checkNamedType = (NamedType) checkType;
-        NamedType expressionNamedType = (NamedType) expressionType;
+        NamedType checkNamedType = (NamedType) Type.findTypeWithNullability(checkType, false);
+        checkNamedType = (NamedType) Type.findTypeWithDataImmutability(checkNamedType, false, false);
+        GenericTypeSpecialiser checkTypeSpecialiser = new GenericTypeSpecialiser(checkNamedType);
+
+        NamedType expressionNamedType = (NamedType) Type.findTypeWithNullability(expressionType, false);
+        expressionNamedType = (NamedType) Type.findTypeWithDataImmutability(expressionNamedType, false, false);
+        GenericTypeSpecialiser expressionTypeSpecialiser = new GenericTypeSpecialiser(expressionNamedType);
+
+        // if we are checking against a TypeParameter, just make sure the expression type is compatible with each of the TypeParameter's parent types
+        if (checkNamedType.getResolvedTypeParameter() != null)
+        {
+          Set<TypeParameter> typeParameters = new HashSet<TypeParameter>();
+          Set<Type> checkSuperTypes = new HashSet<Type>();
+          Deque<Type> typeQueue = new LinkedList<Type>();
+          typeQueue.add(checkNamedType);
+          while (!typeQueue.isEmpty())
+          {
+            Type superType = typeQueue.poll();
+            if (superType instanceof NamedType && ((NamedType) superType).getResolvedTypeParameter() != null)
+            {
+              TypeParameter typeParameter = ((NamedType) superType).getResolvedTypeParameter();
+              if (typeParameters.contains(typeParameter))
+              {
+                // since type parameters can extend each other, we need to continue here to make sure we don't infinite loop
+                // with a circular super-type restriction (e.g. Foo<A extends B, B extends A>)
+                continue;
+              }
+              typeParameters.add(typeParameter);
+              // we can ignore the TypeParameter's nullability and immutability, as we have already checked that those properties do not conflict above
+              for (Type parameterSuperType : typeParameter.getSuperTypes())
+              {
+                typeQueue.add(parameterSuperType);
+              }
+            }
+            else
+            {
+              checkSuperTypes.add(superType);
+            }
+          }
+          if (checkSuperTypes.isEmpty())
+          {
+            // there is no upper bound for this type, so just use ?#object
+            checkSuperTypes.add(new ObjectType(true, true, null));
+          }
+          for (Type t : checkSuperTypes)
+          {
+            if (!isInstanceOfCompatible(expressionNamedType, t))
+            {
+              return false;
+            }
+          }
+          return true;
+        }
+
+        // if we are checking something which has a TypeParameter type, make sure that each of its super-types is compatible with the check type
+        if (expressionNamedType.getResolvedTypeParameter() != null)
+        {
+          Set<TypeParameter> typeParameters = new HashSet<TypeParameter>();
+          Set<Type> expressionSuperTypes = new HashSet<Type>();
+          Deque<Type> typeQueue = new LinkedList<Type>();
+          typeQueue.add(expressionNamedType);
+          while (!typeQueue.isEmpty())
+          {
+            Type superType = typeQueue.poll();
+            if (superType instanceof NamedType && ((NamedType) superType).getResolvedTypeParameter() != null)
+            {
+              TypeParameter typeParameter = ((NamedType) superType).getResolvedTypeParameter();
+              if (typeParameters.contains(typeParameter))
+              {
+                // since type parameters can extend each other, we need to continue here to make sure we don't infinite loop
+                // with a circular super-type restriction (e.g. Foo<A extends B, B extends A>)
+                continue;
+              }
+              typeParameters.add(typeParameter);
+              // we can ignore the TypeParameter's nullability and immutability, as we have already checked that those properties do not conflict above
+              for (Type parameterSuperType : typeParameter.getSuperTypes())
+              {
+                typeQueue.add(parameterSuperType);
+              }
+            }
+            else
+            {
+              expressionSuperTypes.add(superType);
+            }
+          }
+          if (expressionSuperTypes.isEmpty())
+          {
+            // there is no upper bound for this type, so just use ?#object
+            expressionSuperTypes.add(new ObjectType(true, true, null));
+          }
+          for (Type t : expressionSuperTypes)
+          {
+            if (!isInstanceOfCompatible(t, checkNamedType))
+            {
+              return false;
+            }
+          }
+          return true;
+        }
+
+        // for normal (non-TypeParameter) types, compare their inheritance hierarchies
         if (checkNamedType.getResolvedTypeDefinition() instanceof ClassDefinition)
         {
           if (expressionNamedType.getResolvedTypeDefinition() instanceof ClassDefinition)
           {
-            for (TypeDefinition t : checkNamedType.getResolvedTypeDefinition().getInheritanceLinearisation())
+            for (NamedType t : checkNamedType.getResolvedTypeDefinition().getInheritanceLinearisation())
             {
-              if (t == expressionNamedType.getResolvedTypeDefinition())
+              if (checkTypeSpecialiser.getSpecialisedType(t).isEquivalent(expressionNamedType))
               {
                 return true;
               }
             }
-            for (TypeDefinition t : expressionNamedType.getResolvedTypeDefinition().getInheritanceLinearisation())
+            for (NamedType t : expressionNamedType.getResolvedTypeDefinition().getInheritanceLinearisation())
             {
-              if (t == checkNamedType.getResolvedTypeDefinition())
+              if (expressionTypeSpecialiser.getSpecialisedType(t).isEquivalent(checkNamedType))
               {
                 return true;
               }
@@ -2362,14 +3114,25 @@ public class TypeChecker
    * Checks that the specified types are valid for a catch clause, and finds the common super-type that the caught variable should be.
    * This method depends on all of the types having been resolved already.
    * @param caughtTypes - the list of caught types
+   * @param containingDefinition - the TypeDefinition that this catch clause is contained inside
+   * @param inStaticContext - true if this catch clause is in a static context, false otherwise
    * @return the common super-type of the caught types
    * @throws ConceptualException - if there is a problem with any of the caught types
    */
-  public static Type checkCatchClauseTypes(Type[] caughtTypes) throws ConceptualException
+  public static Type checkCatchClauseTypes(Type[] caughtTypes, TypeDefinition containingDefinition, boolean inStaticContext) throws ConceptualException
   {
     CoalescedConceptualException coalescedException = null;
     for (int i = 0; i < caughtTypes.length; ++i)
     {
+      try
+      {
+        checkType(caughtTypes[i], containingDefinition, inStaticContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        continue;
+      }
       boolean isThrowable = false;
       if (!(caughtTypes[i] instanceof NamedType))
       {
@@ -2377,9 +3140,9 @@ public class TypeChecker
         continue;
       }
       NamedType namedType = (NamedType) caughtTypes[i];
-      for (TypeDefinition t : namedType.getResolvedTypeDefinition().getInheritanceLinearisation())
+      for (NamedType t : namedType.getResolvedTypeDefinition().getInheritanceLinearisation())
       {
-        if (t == SpecialTypeHandler.THROWABLE_TYPE.getResolvedTypeDefinition())
+        if (t.isEquivalent(SpecialTypeHandler.THROWABLE_TYPE))
         {
           isThrowable = true;
           break;
@@ -2452,11 +3215,11 @@ public class TypeChecker
         boolean nullable = false;
         if (i < aTupleArray.length)
         {
-          nullable |= aTupleArray[aTupleArray.length - 1 - i].isNullable();
+          nullable |= aTupleArray[aTupleArray.length - 1 - i].canBeNullable();
         }
         if (i < bTupleArray.length)
         {
-          nullable |= bTupleArray[bTupleArray.length - 1 - i].isNullable();
+          nullable |= bTupleArray[bTupleArray.length - 1 - i].canBeNullable();
         }
         current = new TupleType(nullable, new Type[] {current}, null);
       }
@@ -2475,19 +3238,19 @@ public class TypeChecker
     // if one of them is NullType, make the other nullable
     if (a instanceof NullType)
     {
-      return findTypeWithNullability(b, true);
+      return Type.findTypeWithNullability(b, true);
     }
     if (b instanceof NullType)
     {
-      return findTypeWithNullability(a, true);
+      return Type.findTypeWithNullability(a, true);
     }
     // if a nullable version of either can assign the other one, then return that nullable version
-    Type nullA = findTypeWithNullability(a, true);
+    Type nullA = Type.findTypeWithNullability(a, true);
     if (nullA.canAssign(b))
     {
       return nullA;
     }
-    Type nullB = findTypeWithNullability(b, true);
+    Type nullB = Type.findTypeWithNullability(b, true);
     if (nullB.canAssign(a))
     {
       return nullB;
@@ -2518,7 +3281,7 @@ public class TypeChecker
         {
           currentBest = PrimitiveTypeType.FLOAT;
         }
-        boolean nullable = a.isNullable() | b.isNullable();
+        boolean nullable = a.canBeNullable() | b.canBeNullable();
         return new PrimitiveType(nullable, currentBest, null);
       }
     }
@@ -2526,14 +3289,14 @@ public class TypeChecker
     {
       ArrayType arrayA = (ArrayType) a;
       ArrayType arrayB = (ArrayType) b;
-      boolean nullability = a.isNullable() || b.isNullable();
+      boolean nullability = a.canBeNullable() || b.canBeNullable();
       boolean explicitImmutability   = arrayA.isExplicitlyImmutable()   || arrayB.isExplicitlyImmutable();
       boolean contextualImmutability = arrayA.isContextuallyImmutable() || arrayB.isContextuallyImmutable();
       // alter one of the types to have the minimum nullability, explicit immutability, and contextual immutability that we need
       // if the altered type cannot assign the other one, then altering the other type would not help,
       // since the only other variable in array.canAssign() is the base type, and the checking for it is symmetric
-      Type alteredA = findTypeWithNullability(arrayA, nullability);
-      alteredA = findTypeWithDataImmutability(alteredA, explicitImmutability, contextualImmutability);
+      Type alteredA = Type.findTypeWithNullability(arrayA, nullability);
+      alteredA = Type.findTypeWithDataImmutability(alteredA, explicitImmutability, contextualImmutability);
       if (alteredA.canAssign(b))
       {
         return alteredA;
@@ -2544,7 +3307,7 @@ public class TypeChecker
       FunctionType functionA = (FunctionType) a;
       FunctionType functionB = (FunctionType) b;
       // find the combination's nullability and immutability
-      boolean nullability = a.isNullable() | b.isNullable();
+      boolean nullability = a.canBeNullable() | b.canBeNullable();
       boolean immutability = functionA.isImmutable() & functionB.isImmutable();
       // find the union of the two functions' thrown types
       List<NamedType> combinedThrown = new LinkedList<NamedType>();
@@ -2600,44 +3363,105 @@ public class TypeChecker
       // alter the types to have the minimum nullability, explicit immutability, and contextual immutability that we need
       // if neither of the altered types can assign the unaltered other type, then we cannot do anything else,
       // since either the types are the same, or one of them is a supertype of the other, because we do not yet have a concept of multiple inheritance (e.g. interfaces)
-      Type alteredA = findTypeWithNullability(namedA, nullability);
-      alteredA = findTypeWithDataImmutability(alteredA, explicitImmutability, contextualImmutability);
+      Type alteredA = Type.findTypeWithNullability(namedA, nullability);
+      alteredA = Type.findTypeWithDataImmutability(alteredA, explicitImmutability, contextualImmutability);
       if (alteredA.canAssign(b))
       {
         return alteredA;
       }
-      Type alteredB = findTypeWithNullability(namedB, nullability);
-      alteredB = findTypeWithDataImmutability(alteredB, explicitImmutability, contextualImmutability);
+      Type alteredB = Type.findTypeWithNullability(namedB, nullability);
+      alteredB = Type.findTypeWithDataImmutability(alteredB, explicitImmutability, contextualImmutability);
       if (alteredB.canAssign(a))
       {
         return alteredB;
       }
 
-      // the two types are not in a parent-child relationship, i.e. neither of the type definitions inherits from the other
+      if (namedA.getResolvedTypeParameter() != null || namedB.getResolvedTypeParameter() != null)
+      {
+        // at least one of the types is a TypeParameter, so find a common super-type of one of its super-types and the other type
+        boolean reducingA = namedA.getResolvedTypeParameter() != null;
+        Set<TypeParameter> visitedTypeParameters = new HashSet<TypeParameter>();
+        List<Type> parentTypes = new LinkedList<Type>();
+        Deque<Type> typeQueue = new LinkedList<Type>();
+        typeQueue.add(reducingA ? namedA : namedB);
+        while (!typeQueue.isEmpty())
+        {
+          Type parentType = typeQueue.poll();
+          if (parentType instanceof NamedType && ((NamedType) parentType).getResolvedTypeParameter() != null)
+          {
+            TypeParameter typeParameter = ((NamedType) parentType).getResolvedTypeParameter();
+            if (visitedTypeParameters.contains(typeParameter))
+            {
+              continue;
+            }
+            visitedTypeParameters.add(typeParameter);
+            for (Type t : typeParameter.getSuperTypes())
+            {
+              typeQueue.add(t);
+            }
+          }
+          else
+          {
+            parentTypes.add(parentType);
+          }
+        }
+        // go through each of the parent types of this TypeParameter, and find what each of the common super-types would be
+        Type otherType = reducingA ? namedB : namedA;
+        otherType = Type.findTypeWithNullability(otherType, nullability);
+        otherType = Type.findTypeWithDataImmutability(otherType, explicitImmutability, contextualImmutability);
+        for (Type parentType : parentTypes)
+        {
+          parentType = Type.findTypeWithNullability(parentType, nullability);
+          parentType = Type.findTypeWithDataImmutability(parentType, explicitImmutability, contextualImmutability);
+          Type commonSuperType = findCommonSuperType(parentType, otherType);
+          if (!(commonSuperType instanceof ObjectType))
+          {
+            return commonSuperType;
+          }
+        }
+        // we couldn't find a common super-type through the parent types of the TypeParameter, so just default to ObjectType
+        return new ObjectType(nullability, explicitImmutability, contextualImmutability, null);
+      }
+
+      // the two types are not in a parent-child relationship, i.e. neither of the types inherits from the other
       // so see if they have any super-types in common
       // if we find a class definition in common, we choose it immediately
       // if we find any interface definitions in common, we choose the one which is closest to the start of the two types' linearisations (or if two are equally close, we choose object)
       int bestCombinedIndex = Integer.MAX_VALUE;
-      TypeDefinition bestSuperType = null;
-      TypeDefinition[] linearisationA = namedA.getResolvedTypeDefinition().getInheritanceLinearisation();
-      TypeDefinition[] linearisationB = namedB.getResolvedTypeDefinition().getInheritanceLinearisation();
-      superTypeLoop:
-      for (int indexA = 0; indexA < linearisationA.length; ++indexA)
+      NamedType bestSuperType = null;
+      NamedType[] linearisationA = namedA.getResolvedTypeDefinition().getInheritanceLinearisation();
+      NamedType[] linearisationB = namedB.getResolvedTypeDefinition().getInheritanceLinearisation();
+      GenericTypeSpecialiser specialiserA = new GenericTypeSpecialiser(namedA);
+      GenericTypeSpecialiser specialiserB = new GenericTypeSpecialiser(namedB);
+      NamedType[] specialisedLinearisationA = new NamedType[linearisationA.length];
+      NamedType[] specialisedLinearisationB = new NamedType[linearisationB.length];
+      for (int i = 0; i < linearisationA.length; ++i)
       {
-        for (int indexB = 0; indexB < linearisationB.length; ++indexB)
+        // casting to NamedType is always valid, because inheritance linearisations cannot contain TypeParameters
+        specialisedLinearisationA[i] = (NamedType) specialiserA.getSpecialisedType(linearisationA[i]);
+      }
+      for (int i = 0; i < linearisationB.length; ++i)
+      {
+        // casting to NamedType is always valid, because inheritance linearisations cannot contain TypeParameters
+        specialisedLinearisationB[i] = (NamedType) specialiserB.getSpecialisedType(linearisationB[i]);
+      }
+      superTypeLoop:
+      for (int indexA = 0; indexA < specialisedLinearisationA.length; ++indexA)
+      {
+        for (int indexB = 0; indexB < specialisedLinearisationB.length; ++indexB)
         {
-          if (linearisationA[indexA] == linearisationB[indexB])
+          if (specialisedLinearisationA[indexA].isEquivalent(specialisedLinearisationB[indexB]))
           {
-            if (linearisationA[indexA] instanceof ClassDefinition)
+            if (specialisedLinearisationA[indexA].getResolvedTypeDefinition() instanceof ClassDefinition)
             {
-              bestSuperType = linearisationA[indexA];
+              bestSuperType = specialisedLinearisationA[indexA];
               break superTypeLoop;
             }
             int combinedIndex = indexA + indexB;
             if (combinedIndex < bestCombinedIndex)
             {
               bestCombinedIndex = combinedIndex;
-              bestSuperType = linearisationA[indexA];
+              bestSuperType = specialisedLinearisationA[indexA];
             }
             else if (combinedIndex == bestCombinedIndex)
             {
@@ -2651,8 +3475,9 @@ public class TypeChecker
       }
       if (bestSuperType != null)
       {
-        return new NamedType(nullability, explicitImmutability, contextualImmutability, bestSuperType);
+        return new NamedType(nullability, explicitImmutability, contextualImmutability, bestSuperType.getResolvedTypeDefinition(), bestSuperType.getTypeArguments());
       }
+      {} // TODO: try to use wildcard type arguments to find a common super-type which is more specific than object
     }
     if (a instanceof TupleType && b instanceof TupleType)
     {
@@ -2666,11 +3491,11 @@ public class TypeChecker
         {
           commonSubTypes[i] = findCommonSuperType(aSubTypes[i], bSubTypes[i]);
         }
-        return new TupleType(a.isNullable() | b.isNullable(), commonSubTypes, null);
+        return new TupleType(a.canBeNullable() | b.canBeNullable(), commonSubTypes, null);
       }
     }
     // otherwise, object is the common supertype, so find its nullability and immutability
-    boolean nullable = a.isNullable() || b.isNullable();
+    boolean nullable = a.canBeNullable() || b.canBeNullable();
     boolean explicitlyImmutable = (a instanceof ArrayType  && ((ArrayType)  a).isExplicitlyImmutable()) ||
                                   (a instanceof NamedType  && ((NamedType)  a).isExplicitlyImmutable()) ||
                                   (a instanceof ObjectType && ((ObjectType) a).isExplicitlyImmutable()) ||
@@ -2687,142 +3512,76 @@ public class TypeChecker
   }
 
   /**
-   * Finds the equivalent of the specified type with the specified nullability.
-   * @param type - the type to find the version of which has the specified nullability
-   * @param nullable - true if the returned type should be nullable, false otherwise
-   * @return the version of the specified type with the specified nullability, or the original type if it already has the requested nullability
+   * Checks whether the specified two types can possibly have a common sub-type.
+   * This is used during generics checking, for types like "T extends int & string" and "? extends []uint & []?uint"
+   * If they are incompatible and no type can be an instance of both of them, then false is returned. If they are compatible, then true is returned.
+   * NOTE: this function does not deal with TypeParameters or wildcard type arguments, they should be substituted for their super-types before being checked here
+   * @param a - the first type
+   * @param b - the second type
+   * @return true if the types can have a common sub-type, false otherwise
    */
-  public static Type findTypeWithNullability(Type type, boolean nullable)
+  public static boolean canHaveCommonSubType(Type a, Type b)
   {
-    if (type.isNullable() == nullable)
+    // remove nullability and immutability, we only care about instances of the types here
+    a = Type.findTypeWithNullability(a, false);
+    a = Type.findTypeWithDataImmutability(a, false, false);
+    b = Type.findTypeWithNullability(b, false);
+    b = Type.findTypeWithDataImmutability(b, false, false);
+    if (a instanceof ObjectType || b instanceof ObjectType)
     {
-      return type;
+      return true;
     }
-    if (type instanceof ArrayType)
+    if (a instanceof ArrayType && b instanceof ArrayType)
     {
-      ArrayType arrayType = (ArrayType) type;
-      return new ArrayType(nullable, arrayType.isExplicitlyImmutable(), arrayType.isContextuallyImmutable(), arrayType.getBaseType(), null);
+      Type aBase = ((ArrayType) a).getBaseType();
+      Type bBase = ((ArrayType) b).getBaseType();
+      return aBase.isRuntimeEquivalent(bBase);
     }
-    if (type instanceof FunctionType)
+    if (a instanceof FunctionType && b instanceof FunctionType)
     {
-      FunctionType functionType = (FunctionType) type;
-      return new FunctionType(nullable, functionType.isImmutable(), functionType.getReturnType(), functionType.getParameterTypes(), functionType.getThrownTypes(), null);
+      return a.isRuntimeEquivalent(b);
     }
-    if (type instanceof NamedType)
+    if (a instanceof NamedType && b instanceof NamedType)
     {
-      NamedType namedType = (NamedType) type;
-      return new NamedType(nullable, namedType.isExplicitlyImmutable(), namedType.isContextuallyImmutable(), namedType.getResolvedTypeDefinition());
-    }
-    if (type instanceof ObjectType)
-    {
-      ObjectType objectType = (ObjectType) type;
-      return new ObjectType(nullable, objectType.isExplicitlyImmutable(), objectType.isContextuallyImmutable(), null);
-    }
-    if (type instanceof PrimitiveType)
-    {
-      return new PrimitiveType(nullable, ((PrimitiveType) type).getPrimitiveTypeType(), null);
-    }
-    if (type instanceof TupleType)
-    {
-      return new TupleType(nullable, ((TupleType) type).getSubTypes(), null);
-    }
-    throw new IllegalArgumentException("Cannot find the " + (nullable ? "nullable" : "non-nullable") + " version of: " + type);
-  }
-
-  /**
-   * Finds whether the specified type is explicitly immutable in terms of data. i.e. the data inside it cannot be modified.
-   * @param type - the type to check
-   * @return true if the specified type is explicitly immutable in terms of data, false if the type is not or cannot be immutable
-   */
-  private static boolean isExplicitlyDataImmutable(Type type)
-  {
-    if (type instanceof ArrayType)
-    {
-      return ((ArrayType) type).isExplicitlyImmutable();
-    }
-    if (type instanceof NamedType)
-    {
-      return ((NamedType) type).isExplicitlyImmutable();
-    }
-    if (type instanceof ObjectType)
-    {
-      return ((ObjectType) type).isExplicitlyImmutable();
-    }
-    if (type instanceof FunctionType || type instanceof NullType || type instanceof PrimitiveType || type instanceof TupleType)
-    {
+      TypeDefinition aDefinition = ((NamedType) a).getResolvedTypeDefinition();
+      TypeDefinition bDefinition = ((NamedType) b).getResolvedTypeDefinition();
+      if (aDefinition instanceof CompoundDefinition || bDefinition instanceof CompoundDefinition)
+      {
+        return a.isRuntimeEquivalent(b);
+      }
+      // TODO: this method needs to be aware of sealed types
+      if (aDefinition instanceof InterfaceDefinition || bDefinition instanceof InterfaceDefinition)
+      {
+        return true;
+      }
+      // they are both classes, so check that one is in the type hierarchy of the other
+      GenericTypeSpecialiser aSpecialiser = new GenericTypeSpecialiser((NamedType) a);
+      for (NamedType aSuper : aDefinition.getInheritanceLinearisation())
+      {
+        if (b.isRuntimeEquivalent(aSpecialiser.getSpecialisedType(aSuper)))
+        {
+          return true;
+        }
+      }
+      GenericTypeSpecialiser bSpecialiser = new GenericTypeSpecialiser((NamedType) b);
+      for (NamedType bSuper : bDefinition.getInheritanceLinearisation())
+      {
+        if (a.isRuntimeEquivalent(bSpecialiser.getSpecialisedType(bSuper)))
+        {
+          return true;
+        }
+      }
       return false;
     }
-    throw new IllegalArgumentException("Cannot find the data explicit-immutability of an unknown type: " + type);
-  }
-
-  /**
-   * Finds whether the specified type is contextually immutable in terms of data. i.e. the data inside it cannot be modified.
-   * @param type - the type to check
-   * @return true if the specified type is contextually immutable in terms of data, false if the type is not or cannot be immutable
-   */
-  public static boolean isContextuallyDataImmutable(Type type)
-  {
-    if (type instanceof ArrayType)
+    if (a instanceof PrimitiveType && b instanceof PrimitiveType)
     {
-      return ((ArrayType) type).isContextuallyImmutable();
+      return a.isEquivalent(b);
     }
-    if (type instanceof NamedType)
+    if (a instanceof TupleType && b instanceof TupleType)
     {
-      return ((NamedType) type).isContextuallyImmutable();
+      return a.isEquivalent(b);
     }
-    if (type instanceof ObjectType)
-    {
-      return ((ObjectType) type).isContextuallyImmutable();
-    }
-    if (type instanceof FunctionType || type instanceof NullType || type instanceof PrimitiveType || type instanceof TupleType)
-    {
-      return false;
-    }
-    throw new IllegalArgumentException("Cannot find the data contextual-immutability of an unknown type: " + type);
-  }
-
-  /**
-   * Finds the equivalent of the specified type with the specified explicit and contextual data-immutability.
-   * If the specified type does not have a concept of either explicit or contextual data-immutability, then that type of immutability is not checked in the calculation.
-   * @param type - the type to find the version of which has the specified explicit immutability
-   * @param explicitlyImmutable - true if the returned type should be explicitly data-immutable, false otherwise
-   * @param contextuallyImmutable - true if the returned type should be contextually data-immutable, false otherwise
-   * @return the version of the specified type with the specified explicit and contextual data-immutability, or the original type if it already has the requested data-immutability
-   */
-  public static Type findTypeWithDataImmutability(Type type, boolean explicitlyImmutable, boolean contextuallyImmutable)
-  {
-    if (type instanceof ArrayType)
-    {
-      ArrayType arrayType = (ArrayType) type;
-      if (arrayType.isExplicitlyImmutable() == explicitlyImmutable && arrayType.isContextuallyImmutable() == contextuallyImmutable)
-      {
-        return arrayType;
-      }
-      return new ArrayType(arrayType.isNullable(), explicitlyImmutable, contextuallyImmutable, arrayType.getBaseType(), null);
-    }
-    if (type instanceof NamedType)
-    {
-      NamedType namedType = (NamedType) type;
-      if (namedType.isExplicitlyImmutable() == explicitlyImmutable && namedType.isContextuallyImmutable() == contextuallyImmutable)
-      {
-        return namedType;
-      }
-      return new NamedType(namedType.isNullable(), explicitlyImmutable, contextuallyImmutable, namedType.getResolvedTypeDefinition());
-    }
-    if (type instanceof ObjectType)
-    {
-      ObjectType objectType = (ObjectType) type;
-      if (objectType.isExplicitlyImmutable() == explicitlyImmutable && objectType.isContextuallyImmutable() == contextuallyImmutable)
-      {
-        return objectType;
-      }
-      return new ObjectType(objectType.isNullable(), explicitlyImmutable, contextuallyImmutable, null);
-    }
-    if (type instanceof PrimitiveType || type instanceof TupleType || type instanceof FunctionType || type instanceof NullType)
-    {
-      return type;
-    }
-    throw new IllegalArgumentException("Cannot change the immutability of an unknown type: " + type);
+    return false;
   }
 
   /**
@@ -2854,7 +3613,11 @@ public class TypeChecker
       {
         return namedType;
       }
-      return new NamedType(namedType.isNullable(), namedType.isExplicitlyImmutable() || addExplicitImmutability, contextuallyImmutable, namedType.getResolvedTypeDefinition());
+      if (namedType.getResolvedTypeParameter() != null)
+      {
+        return new NamedType(namedType.isNullable(), namedType.isExplicitlyImmutable() || addExplicitImmutability, contextuallyImmutable, namedType.getResolvedTypeParameter());
+      }
+      return new NamedType(namedType.isNullable(), namedType.isExplicitlyImmutable() || addExplicitImmutability, contextuallyImmutable, namedType.getResolvedTypeDefinition(), namedType.getTypeArguments());
     }
     if (type instanceof ObjectType)
     {
@@ -2882,16 +3645,5 @@ public class TypeChecker
       return type;
     }
     throw new IllegalArgumentException("Cannot change the immutability of: " + type);
-  }
-
-  /**
-   * Finds a version of the specified type without any type modifiers (i.e. without nullability and immutability).
-   * @param type - the Type to find without any type modifiers
-   * @return a version of the specified type without any type modifiers
-   */
-  public static Type findTypeWithoutModifiers(Type type)
-  {
-    Type result = findTypeWithNullability(type, false);
-    return findTypeWithDataImmutability(result, false, false);
   }
 }

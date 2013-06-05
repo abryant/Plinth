@@ -87,7 +87,12 @@ public class CycleChecker
         return;
       }
       visited.add(current);
-      current = current.getSuperClassDefinition();
+      NamedType superType = current.getSuperType();
+      current = null;
+      if (superType != null && superType.getResolvedTypeDefinition() instanceof ClassDefinition)
+      {
+        current = (ClassDefinition) superType.getResolvedTypeDefinition();
+      }
     }
   }
 
@@ -112,18 +117,22 @@ public class CycleChecker
         continue;
       }
       path.add(current);
-      InterfaceDefinition[] parents = current.getSuperInterfaceDefinitions();
-      if (parents != null)
+      NamedType[] parentTypes = current.getSuperInterfaceTypes();
+      if (parentTypes != null)
       {
-        for (InterfaceDefinition parent : parents)
+        for (NamedType parentType : parentTypes)
         {
-          if (!path.contains(parent))
+          if (parentType.getResolvedTypeDefinition() instanceof InterfaceDefinition)
           {
-            stack.push(parent);
-          }
-          else if (parent == interfaceDefinition)
-          {
-            throw new ConceptualException("Cyclic inheritance graph detected: " + interfaceDefinition.getQualifiedName() + " extends itself (perhaps indirectly)", interfaceDefinition.getLexicalPhrase());
+            InterfaceDefinition parent = (InterfaceDefinition) parentType.getResolvedTypeDefinition();
+            if (!path.contains(parent))
+            {
+              stack.push(parent);
+            }
+            else if (parent == interfaceDefinition)
+            {
+              throw new ConceptualException("Cyclic inheritance graph detected: " + interfaceDefinition.getQualifiedName() + " extends itself (perhaps indirectly)", interfaceDefinition.getLexicalPhrase());
+            }
           }
         }
       }
@@ -277,7 +286,7 @@ public class CycleChecker
     }
     else if (statement instanceof DelegateConstructorStatement)
     {
-      delegateConstructors.add(((DelegateConstructorStatement) statement).getResolvedConstructor());
+      delegateConstructors.add(((DelegateConstructorStatement) statement).getResolvedConstructorReference().getReferencedMember());
     }
     else if (statement instanceof ForStatement)
     {

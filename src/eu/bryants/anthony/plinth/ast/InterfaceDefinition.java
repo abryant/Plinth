@@ -18,9 +18,12 @@ import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
-import eu.bryants.anthony.plinth.ast.metadata.MemberFunction.MemberFunctionType;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunctionType;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
+import eu.bryants.anthony.plinth.ast.metadata.VirtualFunction;
 import eu.bryants.anthony.plinth.ast.misc.QName;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
+import eu.bryants.anthony.plinth.ast.type.TypeParameter;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 
 /*
@@ -32,31 +35,40 @@ import eu.bryants.anthony.plinth.parser.LanguageParseException;
  */
 public class InterfaceDefinition extends TypeDefinition
 {
-
-  private QName[] superInterfaceQNames;
+  private TypeParameter[] typeParameters;
+  private NamedType[] superInterfaceTypes;
 
   private List<Initialiser> initialisers = new LinkedList<Initialiser>();
   private Map<String, Field> fields = new HashMap<String, Field>();
   private Map<String, Property> properties = new LinkedHashMap<String, Property>();
   private Map<String, Set<Method>> methods = new HashMap<String, Set<Method>>();
 
-  private MemberFunction[] memberFunctions;
-
-  private InterfaceDefinition[] superInterfaceDefinitions;
+  private VirtualFunction[] virtualFunctions;
 
   /**
    * Creates a new InterfaceDefinition with the specified members.
    * @param isImmutable - true if this interface definition should be immutable, false otherwise
    * @param name - the name of the interface definition
-   * @param superInterfaceQNames - the qualified names of all of the super-interfaces of this interface, or null if there are no super-interfaces
+   * @param typeParameters - the TypeParameters for this type (or an empty array if there are none)
+   * @param superInterfaceTypes - the NamedTypes of all super-interfaces of this interface (and any type arguments they may have), or null if there are no super-interfaces
    * @param members - the list of Members of this InterfaceDefinition
    * @param lexicalPhrase - the LexicalPhrase of this InterfaceDefinition
    * @throws LanguageParseException - if there is a name collision between any of the Members, or a conceptual problem with any of them belonging to an interface
    */
-  public InterfaceDefinition(boolean isImmutable, String name, QName[] superInterfaceQNames, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  public InterfaceDefinition(boolean isImmutable, String name, TypeParameter[] typeParameters, NamedType[] superInterfaceTypes, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     super(true, isImmutable, name, lexicalPhrase);
-    this.superInterfaceQNames = superInterfaceQNames;
+    this.typeParameters = typeParameters;
+    Set<String> typeParameterNames = new HashSet<String>();
+    for (TypeParameter t : typeParameters)
+    {
+      t.setContainingTypeDefinition(this);
+      if (!typeParameterNames.add(t.getName()))
+      {
+        throw new LanguageParseException("Duplicate type parameter: " + t.getName(), t.getLexicalPhrase());
+      }
+    }
+    this.superInterfaceTypes = superInterfaceTypes;
     // add all of the members by name
     Set<Method> allMethods = new HashSet<Method>();
     for (Member member : members)
@@ -88,6 +100,7 @@ public class InterfaceDefinition extends TypeDefinition
         {
           throw new LanguageParseException("Interfaces cannot store (non-static) data", field.getLexicalPhrase());
         }
+        field.setContainingTypeDefinition(this);
         GlobalVariable globalVariable = new GlobalVariable(field);
         globalVariable.setEnclosingTypeDefinition(this);
         field.setGlobalVariable(globalVariable);
@@ -187,6 +200,10 @@ public class InterfaceDefinition extends TypeDefinition
             // all non-static interface methods without implementations are implicitly abstract
             method.setAbstract(true);
           }
+          if (typeParameters.length > 0 && method.getNativeName() != null && method.getBlock() != null)
+          {
+            throw new LanguageParseException("Non-static methods on generic interfaces cannot be native up-calls", method.getLexicalPhrase());
+          }
           method.setMemberFunction(new MemberFunction(method));
         }
         methodSet.add(method);
@@ -203,19 +220,21 @@ public class InterfaceDefinition extends TypeDefinition
    * Creates a new InterfaceDefinition with the specified members.
    * @param isImmutable - true if this interface definition should be immutable, false otherwise
    * @param qname - the qualified name of the interface definition
-   * @param superInterfaceQNames - the qualified names of all of the super-interfaces of this interface, or null if there are no super-interfaces
+   * @param typeParameters - the TypeParameters for this type (or an empty array if there are none)
+   * @param superInterfaceTypes - the NamedTypes of all super-interfaces of this interface (and any type arguments they may have), or null if there are no super-interfaces
    * @param newFields - the fields, with their variables already filled in
    * @param newProperties - the properties, with their backing variables and MemberFunctions already filled in
    * @param newMethods - the methods, with their MemberFunctions already filled in
-   * @param memberFunctions - the MemberFunctions for each of the non-static functions in this interface
+   * @param virtualFunctions - the VirtualFunctions for each of the non-static functions in this interface
    * @throws LanguageParseException - if there is a name collision between any of the methods
    */
-  public InterfaceDefinition(boolean isImmutable, QName qname, QName[] superInterfaceQNames, Field[] newFields, Property[] newProperties, Method[] newMethods,
-                             MemberFunction[] memberFunctions) throws LanguageParseException
+  public InterfaceDefinition(boolean isImmutable, QName qname, TypeParameter[] typeParameters, NamedType[] superInterfaceTypes, Field[] newFields, Property[] newProperties, Method[] newMethods,
+                             VirtualFunction[] virtualFunctions) throws LanguageParseException
   {
     super(true, isImmutable, qname.getLastName(), null);
     setQualifiedName(qname);
-    this.superInterfaceQNames = superInterfaceQNames;
+    this.typeParameters = typeParameters;
+    this.superInterfaceTypes = superInterfaceTypes;
     for (Field field : newFields)
     {
       if (fields.containsKey(field.getName()))
@@ -234,6 +253,7 @@ public class InterfaceDefinition extends TypeDefinition
       {
         throw new LanguageParseException("An interface cannot store (non-static) data", field.getLexicalPhrase());
       }
+      field.setContainingTypeDefinition(this);
       fields.put(field.getName(), field);
     }
     for (Property property : newProperties)
@@ -254,6 +274,7 @@ public class InterfaceDefinition extends TypeDefinition
       {
         throw new LanguageParseException("An interface cannot store (non-static) data - should this property be unbacked?", property.getLexicalPhrase());
       }
+      property.setContainingTypeDefinition(this);
       properties.put(property.getName(), property);
     }
     for (Method method : newMethods)
@@ -266,42 +287,53 @@ public class InterfaceDefinition extends TypeDefinition
       {
         throw new LanguageParseException("A property with the name '" + method.getName() + "' already exists in '" + getName() + "', so a method cannot be defined with the same name", method.getLexicalPhrase());
       }
+      method.setContainingTypeDefinition(this);
+      if (!method.isStatic() && typeParameters.length > 0 && method.getNativeName() != null && method.getBlock() != null)
+      {
+        throw new LanguageParseException("Non-static methods on generic interfaces cannot be native up-calls", method.getLexicalPhrase());
+      }
       Set<Method> methodSet = methods.get(method.getName());
       if (methodSet == null)
       {
         methodSet = new HashSet<Method>();
         methods.put(method.getName(), methodSet);
       }
-      method.setContainingTypeDefinition(this);
       methodSet.add(method);
     }
-    this.memberFunctions = memberFunctions;
+    this.virtualFunctions = virtualFunctions;
   }
 
   /**
-   * @return the superInterfaceQNames
-   */
-  public QName[] getSuperInterfaceQNames()
-  {
-    return superInterfaceQNames;
-  }
-
-  /**
-   * {@inheritDoc}
+   * @return the typeParameters
    */
   @Override
-  public void buildMemberFunctions()
+  public TypeParameter[] getTypeParameters()
   {
-    memberFunctions = buildMemberFunctionList(getAllMethods(), properties.values());
+    return typeParameters;
   }
 
   /**
-   * @return the memberFunctions
+   * @return the superInterfaceTypes
    */
-  @Override
-  public MemberFunction[] getMemberFunctions()
+  public NamedType[] getSuperInterfaceTypes()
   {
-    return memberFunctions;
+    return superInterfaceTypes;
+  }
+
+  /**
+   * Builds the virtual function table for this InterfaceDefinition.
+   */
+  public void buildVirtualFunctions()
+  {
+    virtualFunctions = buildVirtualFunctionList(getAllMethods(), properties.values(), null);
+  }
+
+  /**
+   * @return the virtual functions of this InterfaceDefinition, in order of their intended position in the VFT
+   */
+  public VirtualFunction[] getVirtualFunctions()
+  {
+    return virtualFunctions;
   }
 
   /**
@@ -388,22 +420,6 @@ public class InterfaceDefinition extends TypeDefinition
   }
 
   /**
-   * @return the superInterfaceDefinitions
-   */
-  public InterfaceDefinition[] getSuperInterfaceDefinitions()
-  {
-    return superInterfaceDefinitions;
-  }
-
-  /**
-   * @param superInterfaceDefinitions - the superInterfaceDefinitions to set
-   */
-  public void setSuperInterfaceDefinitions(InterfaceDefinition[] superInterfaceDefinitions)
-  {
-    this.superInterfaceDefinitions = superInterfaceDefinitions;
-  }
-
-  /**
    * {@inheritDoc}
    */
   @Override
@@ -416,6 +432,31 @@ public class InterfaceDefinition extends TypeDefinition
     }
     buffer.append("interface ");
     buffer.append(getName());
+    if (typeParameters.length > 0)
+    {
+      buffer.append('<');
+      for (int i = 0; i < typeParameters.length; ++i)
+      {
+        buffer.append(typeParameters[i]);
+        if (i != typeParameters.length - 1)
+        {
+          buffer.append(", ");
+        }
+      }
+      buffer.append('>');
+    }
+    if (superInterfaceTypes != null)
+    {
+      buffer.append(" extends ");
+      for (int i = 0; i < superInterfaceTypes.length; ++i)
+      {
+        buffer.append(superInterfaceTypes[i]);
+        if (i != superInterfaceTypes.length - 1)
+        {
+          buffer.append(", ");
+        }
+      }
+    }
     buffer.append('\n');
     buffer.append(getBodyString());
     buffer.append('\n');

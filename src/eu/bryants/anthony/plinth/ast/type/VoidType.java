@@ -4,7 +4,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
-import eu.bryants.anthony.plinth.ast.member.Member;
+import eu.bryants.anthony.plinth.ast.metadata.MemberReference;
 
 /*
  * Created on 7 May 2012
@@ -54,9 +54,9 @@ public class VoidType extends Type
    * {@inheritDoc}
    */
   @Override
-  public Set<Member> getMembers(String name)
+  public Set<MemberReference<?>> getMembers(String name)
   {
-    return new HashSet<Member>();
+    return new HashSet<MemberReference<?>>();
   }
 
   /**

@@ -40,8 +40,6 @@ enum
 typedef struct _Unwind_Exception _Unwind_Exception;
 typedef struct _Unwind_Context _Unwind_Context;
 
-// defined in core/exception.ll
-bool plinth_exception_instanceof(const uint8_t *plinthObject, const uint8_t *typeInfo);
 // defined in plinth-src/Throwable.pth
 void plinth_print_uncaught_exception(const uint8_t *plinthException);
 
@@ -49,9 +47,9 @@ void* plinth_create_exception(const uint8_t *plinthExceptionObject);
 void plinth_throw_failed(_Unwind_Exception *exception, _Unwind_Reason_Code reason);
 _Unwind_Reason_Code plinth_personality(int version, _Unwind_Action actions, uint64_t exceptionClass,
                                        _Unwind_Exception *exception, _Unwind_Context *context);
-const uint8_t* plinth_catch(_Unwind_Exception *exception);
-static void plinth_destroy_exception(_Unwind_Reason_Code reason, _Unwind_Exception *exception);
-static const uint8_t* extractExceptionObject(_Unwind_Exception *exception);
+const uint8_t* plinth_extract_exception_object(_Unwind_Exception *exception);
+void plinth_destroy_exception(_Unwind_Exception *exception);
+static void destroyUnwindException(_Unwind_Reason_Code reason, _Unwind_Exception *exception);
 static void setRegisters(_Unwind_Exception *exception, _Unwind_Context *context, exception_handler *handler);
 static bool findHandler(exception_handler *resultHandler, bool findCleanup, bool isForeign, _Unwind_Exception *exception, _Unwind_Context *context);
 static bool exceptionSpecificationMatches(const uint8_t *typeInfoTable, uint8_t typeInfoTableEncoding, intptr_t specIndex, _Unwind_Exception *exception);
@@ -78,7 +76,7 @@ void* plinth_create_exception(const uint8_t *plinthExceptionObject)
   }
   _Unwind_Exception *exception = (_Unwind_Exception*) memory;
   exception->exception_class = plinthExceptionClass;
-  exception->exception_cleanup = plinth_destroy_exception;
+  exception->exception_cleanup = destroyUnwindException;
 
   // store the plinth exception immediately after this exception object
   const uint8_t** dataPointer = (const uint8_t**) (exception + 1);
@@ -90,8 +88,8 @@ void plinth_throw_failed(_Unwind_Exception *exception, _Unwind_Reason_Code reaso
 {
   if (reason == _URC_END_OF_STACK)
   {
-    const uint8_t *plinthException = extractExceptionObject(exception);
-    plinth_destroy_exception(0, exception);
+    const uint8_t *plinthException = plinth_extract_exception_object(exception);
+    destroyUnwindException(0, exception);
     plinth_print_uncaught_exception(plinthException);
     fflush(stdout);
     fflush(stderr);
@@ -103,23 +101,21 @@ void plinth_throw_failed(_Unwind_Exception *exception, _Unwind_Reason_Code reaso
   debug_abort("throw-failed");
 }
 
-const uint8_t* plinth_catch(_Unwind_Exception *exception)
-{
-  const uint8_t *plinthExceptionObject = extractExceptionObject(exception);
-  plinth_destroy_exception(0, exception);
-  return plinthExceptionObject;
-}
-
-static void plinth_destroy_exception(_Unwind_Reason_Code reason, _Unwind_Exception *exception)
-{
-  (void) reason;
-  free(exception);
-}
-
-static const uint8_t* extractExceptionObject(_Unwind_Exception *exception)
+const uint8_t* plinth_extract_exception_object(_Unwind_Exception *exception)
 {
   uint8_t** dataPointer = (uint8_t**) (exception + 1);
   return *dataPointer;
+}
+
+void plinth_destroy_exception(_Unwind_Exception *exception)
+{
+  destroyUnwindException(0, exception);
+}
+
+static void destroyUnwindException(_Unwind_Reason_Code reason, _Unwind_Exception *exception)
+{
+  (void) reason;
+  free(exception);
 }
 
 _Unwind_Reason_Code plinth_personality(int version, _Unwind_Action actions, uint64_t exceptionClass,
@@ -296,13 +292,12 @@ static bool findHandler(exception_handler *resultHandler, bool findCleanup, bool
           }
           if (!isForeign)
           {
-            const uint8_t *plinthObject = extractExceptionObject(exception);
-            if (plinth_exception_instanceof(plinthObject, typeInfo))
-            {
-              resultHandler->landingPad = landingPad;
-              resultHandler->typeInfoIndex = typeInfoIndex;
-              return true;
-            }
+            // in plinth, we don't store any information relevant to type checking in the type info table,
+            // as all of the type checking needs to be done at the landing pad
+            // so since we have a valid type info pointer and this isn't a foreign exception, use this landing pad
+            resultHandler->landingPad = landingPad;
+            resultHandler->typeInfoIndex = typeInfoIndex;
+            return true;
           }
         }
         else if (typeInfoIndex < 0)
@@ -379,16 +374,20 @@ static bool exceptionSpecificationMatches(const uint8_t *typeInfoTable, uint8_t 
       // this is a catch-all, which always matches
       return true;
     }
-    const uint8_t *plinthObject = extractExceptionObject(exception);
-    if (plinth_exception_instanceof(plinthObject, specTypeInfo))
-    {
-      return true;
-    }
+    // in plinth, we don't store any information relevant to type checking in the type info table,
+    // as all of the type checking needs to be done at the landing pad
+    // so since this exception specification has a valid type info pointer, it definitely matches
+    return true;
+
+    // (Usually, we would have done a check before returning true here, and if the type info didn't match
+    //  we would let the loop continue. Obviously, the loop cannot complete because there is no such check,
+    //  but the loop is left in to make it clear that there may be multiple type info indices in this
+    //  specification, as well as to simplify any refactoring later on.)
   }
   return false;
 }
 
-// Gets the plinth RTTI pointer inside the specified index in the type info table
+// Gets the global variable pointer inside the specified index in the type info table
 static const uint8_t* getTypeInfo(const uint8_t *typeInfoTable, uint8_t typeInfoTableEncoding, uintptr_t typeInfoIndex)
 {
   if (typeInfoTable == 0)

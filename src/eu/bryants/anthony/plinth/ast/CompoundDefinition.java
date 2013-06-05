@@ -17,14 +17,16 @@ import eu.bryants.anthony.plinth.ast.member.Member;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
+import eu.bryants.anthony.plinth.ast.metadata.GenericTypeSpecialiser;
 import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
-import eu.bryants.anthony.plinth.ast.metadata.MemberFunction.MemberFunctionType;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunctionType;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
 import eu.bryants.anthony.plinth.ast.misc.QName;
-import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
+import eu.bryants.anthony.plinth.ast.type.TypeParameter;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 
 /*
@@ -37,6 +39,8 @@ import eu.bryants.anthony.plinth.parser.LanguageParseException;
 public class CompoundDefinition extends TypeDefinition
 {
 
+  private TypeParameter[] typeParameters;
+
   private List<Initialiser> initialisers = new LinkedList<Initialiser>();
   // fields need a guaranteed order, so use a LinkedHashMap to store them
   private Map<String, Field> fields = new LinkedHashMap<String, Field>();
@@ -45,19 +49,29 @@ public class CompoundDefinition extends TypeDefinition
   private Map<String, Set<Method>> methods = new HashMap<String, Set<Method>>();
 
   private MemberVariable[] memberVariables;
-  private MemberFunction[] memberFunctions;
 
   /**
    * Creates a new CompoundDefinition with the specified members.
    * @param isImmutable - true if this CompoundDefinition should be immutable, false otherwise
    * @param name - the name of the CompoundDefinition
+   * @param typeParameters - the TypeParameters for this type (or an empty array if there are none)
    * @param members - the array of all of the members
    * @param lexicalPhrase - the LexicalPhrase of this CompoundDefinition
    * @throws LanguageParseException - if there is a name collision between any of the methods, or a Constructor's name is wrong
    */
-  public CompoundDefinition(boolean isImmutable, String name, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  public CompoundDefinition(boolean isImmutable, String name, TypeParameter[] typeParameters, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     super(false, isImmutable, name, lexicalPhrase);
+    this.typeParameters = typeParameters;
+    Set<String> typeParameterNames = new HashSet<String>();
+    for (TypeParameter t : typeParameters)
+    {
+      t.setContainingTypeDefinition(this);
+      if (!typeParameterNames.add(t.getName()))
+      {
+        throw new LanguageParseException("Duplicate type parameter: " + t.getName(), t.getLexicalPhrase());
+      }
+    }
     // add all of the members by name
     Set<Method> allMethods = new HashSet<Method>();
     for (Member member : members)
@@ -93,6 +107,7 @@ public class CompoundDefinition extends TypeDefinition
           memberVariable.setEnclosingTypeDefinition(this);
           field.setMemberVariable(memberVariable);
         }
+        field.setContainingTypeDefinition(this);
         fields.put(field.getName(), field);
         if (field.getInitialiserExpression() != null)
         {
@@ -202,19 +217,20 @@ public class CompoundDefinition extends TypeDefinition
    * Creates a new CompoundDefinition with the specified members.
    * @param isImmutable - true if this CompoundDefinition should be immutable, false otherwise
    * @param qname - the qualified name of the compound definition
+   * @param typeParameters - the TypeParameters for this type (or an empty array if there are none)
    * @param newFields - the fields, with their variables already filled in
    * @param newProperties - the properties, with their backing variables and MemberFunctions already filled in
    * @param newConstructors - the constructors
    * @param newMethods - the methods, with their MemberFunctions already filled in
    * @param memberVariables - the MemberVariables for each of the non-static variables in this compound type
-   * @param memberFunctions - the MemberFunctions for each of the non-static functions in this compound type
    * @throws LanguageParseException - if there is a name collision between any of the methods, or a Constructor's name is wrong
    */
-  public CompoundDefinition(boolean isImmutable, QName qname, Field[] newFields, Property[] newProperties, Constructor[] newConstructors, Method[] newMethods,
-                            MemberVariable[] memberVariables, MemberFunction[] memberFunctions) throws LanguageParseException
+  public CompoundDefinition(boolean isImmutable, QName qname, TypeParameter[] typeParameters, Field[] newFields, Property[] newProperties, Constructor[] newConstructors, Method[] newMethods,
+                            MemberVariable[] memberVariables) throws LanguageParseException
   {
     super(false, isImmutable, qname.getLastName(), null);
     setQualifiedName(qname);
+    this.typeParameters = typeParameters;
     for (Field field : newFields)
     {
       if (fields.containsKey(field.getName()))
@@ -229,6 +245,7 @@ public class CompoundDefinition extends TypeDefinition
       {
         throw new LanguageParseException("A method with the name '" + field.getName() + "' already exists in '" + getName() + "', so a field cannot be defined with the same name", field.getLexicalPhrase());
       }
+      field.setContainingTypeDefinition(this);
       // we assume that the fields' indices have already been filled in
       fields.put(field.getName(), field);
     }
@@ -246,6 +263,7 @@ public class CompoundDefinition extends TypeDefinition
       {
         throw new LanguageParseException("A method with the name '" + property.getName() + "' already exists in '" + getName() + "', so a property cannot be defined with the same name", property.getLexicalPhrase());
       }
+      property.setContainingTypeDefinition(this);
       properties.put(property.getName(), property);
     }
     for (Constructor constructor : newConstructors)
@@ -263,26 +281,27 @@ public class CompoundDefinition extends TypeDefinition
       {
         throw new LanguageParseException("A property with the name '" + method.getName() + "' already exists in '" + getName() + "', so a method cannot be defined with the same name", method.getLexicalPhrase());
       }
+      method.setContainingTypeDefinition(this);
       Set<Method> methodSet = methods.get(method.getName());
       if (methodSet == null)
       {
         methodSet = new HashSet<Method>();
         methods.put(method.getName(), methodSet);
       }
-      method.setContainingTypeDefinition(this);
       methodSet.add(method);
     }
     this.memberVariables = memberVariables;
-    this.memberFunctions = memberFunctions;
   }
 
   /**
    * Adds all of the builtin methods which are not explicitly implemented.
+   * This must be called before trying to resolve any methods on this type.
    */
-  private void addBuiltinMethods()
+  public void addBuiltinMethods()
   {
     for (BuiltinMethod builtinMethod : ObjectType.OBJECT_METHODS)
     {
+      MethodReference builtinMethodReference = new MethodReference(builtinMethod, GenericTypeSpecialiser.IDENTITY_SPECIALISER);
       Set<Method> methodSet = methods.get(builtinMethod.getName());
       if (methodSet == null)
       {
@@ -292,7 +311,8 @@ public class CompoundDefinition extends TypeDefinition
       boolean found = false;
       for (Method m : methodSet)
       {
-        if (m.getDisambiguator().matches(builtinMethod.getDisambiguator()))
+        MethodReference mReference = new MethodReference(m, GenericTypeSpecialiser.IDENTITY_SPECIALISER);
+        if (mReference.getDisambiguator().matches(builtinMethodReference.getDisambiguator()))
         {
           found = true;
           break;
@@ -300,7 +320,7 @@ public class CompoundDefinition extends TypeDefinition
       }
       if (!found)
       {
-        BuiltinMethod customBuiltin = new BuiltinMethod(new NamedType(false, isImmutable(), this), builtinMethod.getBuiltinType());
+        BuiltinMethod customBuiltin = new BuiltinMethod(null, builtinMethod.getBuiltinType());
         customBuiltin.setContainingTypeDefinition(this);
         if (!customBuiltin.isStatic())
         {
@@ -312,14 +332,12 @@ public class CompoundDefinition extends TypeDefinition
   }
 
   /**
-   * {@inheritDoc}
+   * @return the typeParameters
    */
   @Override
-  public void buildMemberFunctions()
+  public TypeParameter[] getTypeParameters()
   {
-    // add any builtin methods which were not overridden by the user
-    addBuiltinMethods();
-    memberFunctions = buildMemberFunctionList(getAllMethods(), properties.values());
+    return typeParameters;
   }
 
   /**
@@ -328,15 +346,6 @@ public class CompoundDefinition extends TypeDefinition
   public MemberVariable[] getMemberVariables()
   {
     return memberVariables;
-  }
-
-  /**
-   * @return the memberFunctions
-   */
-  @Override
-  public MemberFunction[] getMemberFunctions()
-  {
-    return memberFunctions;
   }
 
   /**
@@ -429,6 +438,29 @@ public class CompoundDefinition extends TypeDefinition
   @Override
   public String toString()
   {
-    return (isImmutable() ? "immutable " : "") + "compound " + getName() + "\n" + getBodyString() + "\n";
+    StringBuffer buffer = new StringBuffer();
+    if (isImmutable())
+    {
+      buffer.append("immutable ");
+    }
+    buffer.append("compound ");
+    buffer.append(getName());
+    if (typeParameters.length > 0)
+    {
+      buffer.append('<');
+      for (int i = 0; i < typeParameters.length; ++i)
+      {
+        buffer.append(typeParameters[i]);
+        if (i != typeParameters.length - 1)
+        {
+          buffer.append(", ");
+        }
+      }
+      buffer.append('>');
+    }
+    buffer.append('\n');
+    buffer.append(getBodyString());
+    buffer.append('\n');
+    return buffer.toString();
   }
 }

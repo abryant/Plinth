@@ -6,7 +6,9 @@ import java.util.Set;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
-import eu.bryants.anthony.plinth.ast.member.Member;
+import eu.bryants.anthony.plinth.ast.metadata.GenericTypeSpecialiser;
+import eu.bryants.anthony.plinth.ast.metadata.MemberReference;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
 
 /*
  * Created on 4 May 2012
@@ -56,7 +58,7 @@ public class TupleType extends Type
     }
     TupleType otherTuple = (TupleType) type;
     // a nullable type cannot be assigned to a non-nullable type
-    if (!isNullable() && otherTuple.isNullable())
+    if (!isNullable() && otherTuple.canBeNullable())
     {
       return false;
     }
@@ -136,13 +138,13 @@ public class TupleType extends Type
    * {@inheritDoc}
    */
   @Override
-  public Set<Member> getMembers(String name)
+  public Set<MemberReference<?>> getMembers(String name)
   {
-    Set<Member> memberSet = new HashSet<Member>();
+    Set<MemberReference<?>> memberSet = new HashSet<MemberReference<?>>();
     if (name.equals(BuiltinMethodType.TO_STRING.methodName))
     {
       Type notNullThis = new TupleType(false, subTypes, null);
-      memberSet.add(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING));
+      memberSet.add(new MethodReference(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING), GenericTypeSpecialiser.IDENTITY_SPECIALISER));
     }
     return memberSet;
   }

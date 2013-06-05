@@ -6,7 +6,9 @@ import java.util.Set;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
-import eu.bryants.anthony.plinth.ast.member.Member;
+import eu.bryants.anthony.plinth.ast.metadata.GenericTypeSpecialiser;
+import eu.bryants.anthony.plinth.ast.metadata.MemberReference;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
 
 /*
  * Created on 8 Apr 2012
@@ -136,7 +138,7 @@ public class PrimitiveType extends Type
     }
     PrimitiveTypeType otherType = ((PrimitiveType) type).getPrimitiveTypeType();
     // a nullable type cannot be assigned to a non-nullable type
-    if (!isNullable() && type.isNullable())
+    if (!isNullable() && type.canBeNullable())
     {
       return false;
     }
@@ -247,19 +249,19 @@ public class PrimitiveType extends Type
    * {@inheritDoc}
    */
   @Override
-  public Set<Member> getMembers(String name)
+  public Set<MemberReference<?>> getMembers(String name)
   {
     PrimitiveType notNullThis = new PrimitiveType(false, primitiveTypeType, null);
 
-    HashSet<Member> members = new HashSet<Member>();
+    HashSet<MemberReference<?>> members = new HashSet<MemberReference<?>>();
     if (name.equals(BuiltinMethodType.TO_STRING.methodName))
     {
-      members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING));
+      members.add(new MethodReference(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING), GenericTypeSpecialiser.IDENTITY_SPECIALISER));
     }
     if (name.equals(BuiltinMethodType.TO_STRING_RADIX.methodName) &&
         primitiveTypeType != PrimitiveTypeType.BOOLEAN && !primitiveTypeType.isFloating())
     {
-      members.add(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING_RADIX));
+      members.add(new MethodReference(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING_RADIX), GenericTypeSpecialiser.IDENTITY_SPECIALISER));
     }
     return members;
   }

@@ -262,9 +262,9 @@ public class ExceptionChecker
       {
         findUncaughtExceptions(argument, uncaughtExceptions);
       }
-      if (delegateConstructorStatement.getResolvedConstructor() != null)
+      if (delegateConstructorStatement.getResolvedConstructorReference() != null)
       {
-        for (NamedType thrownType : delegateConstructorStatement.getResolvedConstructor().getCheckedThrownTypes())
+        for (NamedType thrownType : delegateConstructorStatement.getResolvedConstructorReference().getCheckedThrownTypes())
         {
           addUncaughtException(thrownType, delegateConstructorStatement.getLexicalPhrase(), uncaughtExceptions);
         }
@@ -486,7 +486,7 @@ public class ExceptionChecker
       {
         findUncaughtExceptions(argument, uncaughtExceptions);
       }
-      for (NamedType thrownType : creationExpression.getResolvedConstructor().getCheckedThrownTypes())
+      for (NamedType thrownType : creationExpression.getResolvedConstructorReference().getCheckedThrownTypes())
       {
         addUncaughtException(thrownType, creationExpression.getLexicalPhrase(), uncaughtExceptions);
       }
@@ -515,13 +515,13 @@ public class ExceptionChecker
       {
         findUncaughtExceptions(argument, uncaughtExceptions);
       }
-      if (functionCallExpression.getResolvedMethod() != null)
+      if (functionCallExpression.getResolvedMethodReference() != null)
       {
         if (functionCallExpression.getResolvedBaseExpression() != null)
         {
           findUncaughtExceptions(functionCallExpression.getResolvedBaseExpression(), uncaughtExceptions);
         }
-        for (NamedType thrownType : functionCallExpression.getResolvedMethod().getCheckedThrownTypes())
+        for (NamedType thrownType : functionCallExpression.getResolvedMethodReference().getCheckedThrownTypes())
         {
           addUncaughtException(thrownType, functionCallExpression.getLexicalPhrase(), uncaughtExceptions);
         }

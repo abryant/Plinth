@@ -29,7 +29,7 @@ import eu.bryants.anthony.plinth.parser.parseAST.ThrownExceptionType;
 /**
  * @author Anthony Bryant
  */
-public class TypeNoQNameRule extends Rule<ParseType>
+public class BasicTypeRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
@@ -57,18 +57,10 @@ public class TypeNoQNameRule extends Rule<ParseType>
   private static final Production<ParseType>    NULLABLE_BYTE_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.   BYTE_KEYWORD);
   private static final Production<ParseType>   NULLABLE_UBYTE_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.  UBYTE_KEYWORD);
 
-  private static final Production<ParseType> NULLABLE_NAMED_PRODUCTION           = new Production<ParseType>(ParseType.QUESTION_MARK,                 ParseType.QNAME);
-  private static final Production<ParseType> IMMUTABLE_NAMED_PRODUCTION          = new Production<ParseType>(                         ParseType.HASH, ParseType.QNAME);
-  private static final Production<ParseType> NULLABLE_IMMUTABLE_NAMED_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.HASH, ParseType.QNAME);
-
-  private static final Production<ParseType> ARRAY_PRODUCTION                    = new Production<ParseType>(                                         ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE);
-  private static final Production<ParseType> NULLABLE_ARRAY_PRODUCTION           = new Production<ParseType>(ParseType.QUESTION_MARK,                 ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE);
-  private static final Production<ParseType> IMMUTABLE_ARRAY_PRODUCTION          = new Production<ParseType>(                         ParseType.HASH, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE);
-  private static final Production<ParseType> NULLABLE_IMMUTABLE_ARRAY_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.HASH, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE);
-
-  private static final Production<ParseType> TUPLE_PRODUCTION                = new Production<ParseType>(                         ParseType.LPAREN, ParseType.TYPE_LIST_NO_QNAME, ParseType.RPAREN);
-  private static final Production<ParseType> NULLABLE_TUPLE_PRODUCTION       = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LPAREN, ParseType.TYPE_LIST_NO_QNAME, ParseType.RPAREN);
-  private static final Production<ParseType> NULLABLE_QNAME_TUPLE_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.NESTED_QNAME_LIST);
+  private static final Production<ParseType> ARRAY_PRODUCTION                    = new Production<ParseType>(                                         ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE_NO_TRAILING_ARGUMENTS);
+  private static final Production<ParseType> NULLABLE_ARRAY_PRODUCTION           = new Production<ParseType>(ParseType.QUESTION_MARK,                 ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE_NO_TRAILING_ARGUMENTS);
+  private static final Production<ParseType> IMMUTABLE_ARRAY_PRODUCTION          = new Production<ParseType>(                         ParseType.HASH, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE_NO_TRAILING_ARGUMENTS);
+  private static final Production<ParseType> NULLABLE_IMMUTABLE_ARRAY_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.HASH, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE_NO_TRAILING_ARGUMENTS);
 
   private static final Production<ParseType> FUNCTION_PRODUCTION                              = new Production<ParseType>(                         ParseType.LBRACE, ParseType.TYPE_LIST,                 ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
   private static final Production<ParseType> NULLABLE_FUNCTION_PRODUCTION                     = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE, ParseType.TYPE_LIST,                 ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
@@ -84,20 +76,28 @@ public class TypeNoQNameRule extends Rule<ParseType>
   private static final Production<ParseType> IMMUTABLE_OBJECT_PRODUCTION = new Production<ParseType>(ParseType.HASH, ParseType.OBJECT_KEYWORD);
   private static final Production<ParseType> NULLABLE_IMMUTABLE_OBJECT_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.HASH, ParseType.OBJECT_KEYWORD);
 
-  public TypeNoQNameRule()
+  private static final Production<ParseType> TUPLE_PRODUCTION                = new Production<ParseType>(                         ParseType.LPAREN, ParseType.TYPE_LIST_NOT_QNAME, ParseType.RPAREN);
+  private static final Production<ParseType> NULLABLE_TUPLE_PRODUCTION       = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LPAREN, ParseType.TYPE_LIST_NOT_QNAME, ParseType.RPAREN);
+  private static final Production<ParseType> NULLABLE_QNAME_TUPLE_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.NESTED_QNAME_LIST);
+
+  private static final Production<ParseType> NULLABLE_NAMED_PRODUCTION           = new Production<ParseType>(ParseType.QUESTION_MARK,                 ParseType.QNAME);
+  private static final Production<ParseType> IMMUTABLE_NAMED_PRODUCTION          = new Production<ParseType>(                         ParseType.HASH, ParseType.QNAME);
+  private static final Production<ParseType> NULLABLE_IMMUTABLE_NAMED_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.HASH, ParseType.QNAME);
+
+  public BasicTypeRule()
   {
-    super(ParseType.TYPE_NO_QNAME, BOOLEAN_PRODUCTION,                    NULLABLE_BOOLEAN_PRODUCTION,
-                                   DOUBLE_PRODUCTION,  FLOAT_PRODUCTION,  NULLABLE_DOUBLE_PRODUCTION,  NULLABLE_FLOAT_PRODUCTION,
-                                     LONG_PRODUCTION,  ULONG_PRODUCTION,    NULLABLE_LONG_PRODUCTION,  NULLABLE_ULONG_PRODUCTION,
-                                      INT_PRODUCTION,   UINT_PRODUCTION,     NULLABLE_INT_PRODUCTION,   NULLABLE_UINT_PRODUCTION,
-                                    SHORT_PRODUCTION, USHORT_PRODUCTION,   NULLABLE_SHORT_PRODUCTION, NULLABLE_USHORT_PRODUCTION,
-                                     BYTE_PRODUCTION,  UBYTE_PRODUCTION,    NULLABLE_BYTE_PRODUCTION,  NULLABLE_UBYTE_PRODUCTION,
-                                   NULLABLE_NAMED_PRODUCTION, IMMUTABLE_NAMED_PRODUCTION, NULLABLE_IMMUTABLE_NAMED_PRODUCTION,
-                                   ARRAY_PRODUCTION, NULLABLE_ARRAY_PRODUCTION, IMMUTABLE_ARRAY_PRODUCTION, NULLABLE_IMMUTABLE_ARRAY_PRODUCTION,
-                                   TUPLE_PRODUCTION, NULLABLE_TUPLE_PRODUCTION, NULLABLE_QNAME_TUPLE_PRODUCTION,
-                                   FUNCTION_PRODUCTION, NULLABLE_FUNCTION_PRODUCTION, IMMUTABLE_FUNCTION_PRODUCTION, NULLABLE_IMMUTABLE_FUNCTION_PRODUCTION,
-                                   NO_PARAMS_FUNCTION_PRODUCTION, NULLABLE_NO_PARAMS_FUNCTION_PRODUCTION, IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION, NULLABLE_IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION,
-                                   OBJECT_PRODUCTION, NULLABLE_OBJECT_PRODUCTION, IMMUTABLE_OBJECT_PRODUCTION, NULLABLE_IMMUTABLE_OBJECT_PRODUCTION);
+    super(ParseType.BASIC_TYPE, BOOLEAN_PRODUCTION,                    NULLABLE_BOOLEAN_PRODUCTION,
+                                 DOUBLE_PRODUCTION,  FLOAT_PRODUCTION,  NULLABLE_DOUBLE_PRODUCTION,  NULLABLE_FLOAT_PRODUCTION,
+                                   LONG_PRODUCTION,  ULONG_PRODUCTION,    NULLABLE_LONG_PRODUCTION,  NULLABLE_ULONG_PRODUCTION,
+                                    INT_PRODUCTION,   UINT_PRODUCTION,     NULLABLE_INT_PRODUCTION,   NULLABLE_UINT_PRODUCTION,
+                                  SHORT_PRODUCTION, USHORT_PRODUCTION,   NULLABLE_SHORT_PRODUCTION, NULLABLE_USHORT_PRODUCTION,
+                                   BYTE_PRODUCTION,  UBYTE_PRODUCTION,    NULLABLE_BYTE_PRODUCTION,  NULLABLE_UBYTE_PRODUCTION,
+                                 ARRAY_PRODUCTION, NULLABLE_ARRAY_PRODUCTION, IMMUTABLE_ARRAY_PRODUCTION, NULLABLE_IMMUTABLE_ARRAY_PRODUCTION,
+                                 FUNCTION_PRODUCTION, NULLABLE_FUNCTION_PRODUCTION, IMMUTABLE_FUNCTION_PRODUCTION, NULLABLE_IMMUTABLE_FUNCTION_PRODUCTION,
+                                 NO_PARAMS_FUNCTION_PRODUCTION, NULLABLE_NO_PARAMS_FUNCTION_PRODUCTION, IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION, NULLABLE_IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION,
+                                 OBJECT_PRODUCTION, NULLABLE_OBJECT_PRODUCTION, IMMUTABLE_OBJECT_PRODUCTION, NULLABLE_IMMUTABLE_OBJECT_PRODUCTION,
+                                 TUPLE_PRODUCTION, NULLABLE_TUPLE_PRODUCTION, NULLABLE_QNAME_TUPLE_PRODUCTION,
+                                 NULLABLE_NAMED_PRODUCTION, IMMUTABLE_NAMED_PRODUCTION, NULLABLE_IMMUTABLE_NAMED_PRODUCTION);
   }
 
   /**
@@ -109,38 +109,17 @@ public class TypeNoQNameRule extends Rule<ParseType>
     if (production == NULLABLE_NAMED_PRODUCTION)
     {
       QName name = (QName) args[1];
-      return new NamedType(true, false, name, LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase()));
+      return new NamedType(true, false, name, null, LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase()));
     }
     if (production == IMMUTABLE_NAMED_PRODUCTION)
     {
       QName name = (QName) args[1];
-      return new NamedType(false, true, name, LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase()));
+      return new NamedType(false, true, name, null, LexicalPhrase.combine((LexicalPhrase) args[0], name.getLexicalPhrase()));
     }
     if (production == NULLABLE_IMMUTABLE_NAMED_PRODUCTION)
     {
       QName name = (QName) args[2];
-      return new NamedType(true, true, name, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], name.getLexicalPhrase()));
-    }
-
-    if (production == ARRAY_PRODUCTION)
-    {
-      Type baseType = (Type) args[2];
-      return new ArrayType(false, false, baseType, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], baseType.getLexicalPhrase()));
-    }
-    if (production == NULLABLE_ARRAY_PRODUCTION)
-    {
-      Type baseType = (Type) args[3];
-      return new ArrayType(true, false, baseType, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], baseType.getLexicalPhrase()));
-    }
-    if (production == IMMUTABLE_ARRAY_PRODUCTION)
-    {
-      Type baseType = (Type) args[3];
-      return new ArrayType(false, true, baseType, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], baseType.getLexicalPhrase()));
-    }
-    if (production == NULLABLE_IMMUTABLE_ARRAY_PRODUCTION)
-    {
-      Type baseType = (Type) args[4];
-      return new ArrayType(true, true, baseType, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], (LexicalPhrase) args[3], baseType.getLexicalPhrase()));
+      return new NamedType(true, true, name, null, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], name.getLexicalPhrase()));
     }
 
     if (production == TUPLE_PRODUCTION)
@@ -162,6 +141,27 @@ public class TypeNoQNameRule extends Rule<ParseType>
       QNameElement element = (QNameElement) args[1];
       TupleType notNullableType = (TupleType) element.convertToType();
       return new TupleType(true, notNullableType.getSubTypes(), LexicalPhrase.combine((LexicalPhrase) args[0], notNullableType.getLexicalPhrase()));
+    }
+
+    if (production == ARRAY_PRODUCTION)
+    {
+      Type baseType = (Type) args[2];
+      return new ArrayType(false, false, baseType, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], baseType.getLexicalPhrase()));
+    }
+    if (production == NULLABLE_ARRAY_PRODUCTION)
+    {
+      Type baseType = (Type) args[3];
+      return new ArrayType(true, false, baseType, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], baseType.getLexicalPhrase()));
+    }
+    if (production == IMMUTABLE_ARRAY_PRODUCTION)
+    {
+      Type baseType = (Type) args[3];
+      return new ArrayType(false, true, baseType, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], baseType.getLexicalPhrase()));
+    }
+    if (production == NULLABLE_IMMUTABLE_ARRAY_PRODUCTION)
+    {
+      Type baseType = (Type) args[4];
+      return new ArrayType(true, true, baseType, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], (LexicalPhrase) args[3], baseType.getLexicalPhrase()));
     }
 
     if (production == FUNCTION_PRODUCTION)

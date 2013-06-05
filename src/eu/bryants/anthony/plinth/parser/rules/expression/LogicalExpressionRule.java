@@ -20,27 +20,27 @@ public class LogicalExpressionRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> START_PRODUCTION                         = new Production<ParseType>(ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> AND_PRODUCTION                           = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.AMPERSAND,        ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> AND_QNAME_PRODUCTION                     = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.AMPERSAND,        ParseType.QNAME_EXPRESSION);
-  private static final Production<ParseType> QNAME_AND_PRODUCTION                     = new Production<ParseType>(ParseType.QNAME_EXPRESSION,   ParseType.AMPERSAND,        ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> QNAME_AND_QNAME_PRODUCTION               = new Production<ParseType>(ParseType.QNAME_EXPRESSION,   ParseType.AMPERSAND,        ParseType.QNAME_EXPRESSION);
-  private static final Production<ParseType> OR_PRODUCTION                            = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.PIPE,             ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> OR_QNAME_PRODUCTION                      = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.PIPE,             ParseType.QNAME_EXPRESSION);
-  private static final Production<ParseType> QNAME_OR_PRODUCTION                      = new Production<ParseType>(ParseType.QNAME_EXPRESSION,   ParseType.PIPE,             ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> QNAME_OR_QNAME_PRODUCTION                = new Production<ParseType>(ParseType.QNAME_EXPRESSION,   ParseType.PIPE,             ParseType.QNAME_EXPRESSION);
-  private static final Production<ParseType> XOR_PRODUCTION                           = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.CARET,            ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> XOR_QNAME_PRODUCTION                     = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.CARET,            ParseType.QNAME_EXPRESSION);
-  private static final Production<ParseType> QNAME_XOR_PRODUCTION                     = new Production<ParseType>(ParseType.QNAME_EXPRESSION,   ParseType.CARET,            ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> QNAME_XOR_QNAME_PRODUCTION               = new Production<ParseType>(ParseType.QNAME_EXPRESSION,   ParseType.CARET,            ParseType.QNAME_EXPRESSION);
-  private static final Production<ParseType> SHORT_CIRCUIT_AND_PRODUCTION             = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.DOUBLE_AMPERSAND, ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> SHORT_CIRCUIT_AND_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.DOUBLE_AMPERSAND, ParseType.QNAME_EXPRESSION);
-  private static final Production<ParseType> QNAME_SHORT_CIRCUIT_AND_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_EXPRESSION,   ParseType.DOUBLE_AMPERSAND, ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> QNAME_SHORT_CIRCUIT_AND_QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_EXPRESSION,   ParseType.DOUBLE_AMPERSAND, ParseType.QNAME_EXPRESSION);
-  private static final Production<ParseType> SHORT_CIRCUIT_OR_PRODUCTION              = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.DOUBLE_PIPE,      ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> SHORT_CIRCUIT_OR_QNAME_PRODUCTION        = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION, ParseType.DOUBLE_PIPE,      ParseType.QNAME_EXPRESSION);
-  private static final Production<ParseType> QNAME_SHORT_CIRCUIT_OR_PRODUCTION        = new Production<ParseType>(ParseType.QNAME_EXPRESSION,   ParseType.DOUBLE_PIPE,      ParseType.COMPARISON_EXPRESSION);
-  private static final Production<ParseType> QNAME_SHORT_CIRCUIT_OR_QNAME_PRODUCTION  = new Production<ParseType>(ParseType.QNAME_EXPRESSION,   ParseType.DOUBLE_PIPE,      ParseType.QNAME_EXPRESSION);
+  private static final Production<ParseType> START_PRODUCTION                         = new Production<ParseType>(ParseType.EQUALITY_EXPRESSION);
+  private static final Production<ParseType> AND_PRODUCTION                           = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION,            ParseType.AMPERSAND,        ParseType.EQUALITY_EXPRESSION);
+  private static final Production<ParseType> AND_QNAME_PRODUCTION                     = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION,            ParseType.AMPERSAND,        ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
+  private static final Production<ParseType> QNAME_AND_PRODUCTION                     = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION, ParseType.AMPERSAND,        ParseType.EQUALITY_EXPRESSION);
+  private static final Production<ParseType> QNAME_AND_QNAME_PRODUCTION               = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION, ParseType.AMPERSAND,        ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
+  private static final Production<ParseType> OR_PRODUCTION                            = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION,            ParseType.PIPE,             ParseType.EQUALITY_EXPRESSION);
+  private static final Production<ParseType> OR_QNAME_PRODUCTION                      = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION,            ParseType.PIPE,             ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
+  private static final Production<ParseType> QNAME_OR_PRODUCTION                      = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION, ParseType.PIPE,             ParseType.EQUALITY_EXPRESSION);
+  private static final Production<ParseType> QNAME_OR_QNAME_PRODUCTION                = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION, ParseType.PIPE,             ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
+  private static final Production<ParseType> XOR_PRODUCTION                           = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION,            ParseType.CARET,            ParseType.EQUALITY_EXPRESSION);
+  private static final Production<ParseType> XOR_QNAME_PRODUCTION                     = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION,            ParseType.CARET,            ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
+  private static final Production<ParseType> QNAME_XOR_PRODUCTION                     = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION, ParseType.CARET,            ParseType.EQUALITY_EXPRESSION);
+  private static final Production<ParseType> QNAME_XOR_QNAME_PRODUCTION               = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION, ParseType.CARET,            ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
+  private static final Production<ParseType> SHORT_CIRCUIT_AND_PRODUCTION             = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION,            ParseType.DOUBLE_AMPERSAND, ParseType.EQUALITY_EXPRESSION);
+  private static final Production<ParseType> SHORT_CIRCUIT_AND_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION,            ParseType.DOUBLE_AMPERSAND, ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
+  private static final Production<ParseType> QNAME_SHORT_CIRCUIT_AND_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION, ParseType.DOUBLE_AMPERSAND, ParseType.EQUALITY_EXPRESSION);
+  private static final Production<ParseType> QNAME_SHORT_CIRCUIT_AND_QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION, ParseType.DOUBLE_AMPERSAND, ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
+  private static final Production<ParseType> SHORT_CIRCUIT_OR_PRODUCTION              = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION,            ParseType.DOUBLE_PIPE,      ParseType.EQUALITY_EXPRESSION);
+  private static final Production<ParseType> SHORT_CIRCUIT_OR_QNAME_PRODUCTION        = new Production<ParseType>(ParseType.LOGICAL_EXPRESSION,            ParseType.DOUBLE_PIPE,      ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
+  private static final Production<ParseType> QNAME_SHORT_CIRCUIT_OR_PRODUCTION        = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION, ParseType.DOUBLE_PIPE,      ParseType.EQUALITY_EXPRESSION);
+  private static final Production<ParseType> QNAME_SHORT_CIRCUIT_OR_QNAME_PRODUCTION  = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION, ParseType.DOUBLE_PIPE,      ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
 
   public LogicalExpressionRule()
   {

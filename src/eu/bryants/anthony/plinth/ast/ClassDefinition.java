@@ -18,10 +18,15 @@ import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.GlobalVariable;
 import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
-import eu.bryants.anthony.plinth.ast.metadata.MemberFunction.MemberFunctionType;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunctionType;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
+import eu.bryants.anthony.plinth.ast.metadata.OverrideFunction;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
+import eu.bryants.anthony.plinth.ast.metadata.VirtualFunction;
 import eu.bryants.anthony.plinth.ast.misc.QName;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
+import eu.bryants.anthony.plinth.ast.type.TypeParameter;
+import eu.bryants.anthony.plinth.compiler.passes.InheritanceChecker;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 
 /*
@@ -34,8 +39,9 @@ import eu.bryants.anthony.plinth.parser.LanguageParseException;
 public class ClassDefinition extends TypeDefinition
 {
 
-  private QName superQName;
-  private QName[] superInterfaceQNames;
+  private TypeParameter[] typeParameters;
+  private NamedType superType;
+  private NamedType[] superInterfaceTypes;
 
   private List<Initialiser> initialisers = new LinkedList<Initialiser>();
   // fields need a guaranteed order, so use a LinkedHashMap to store them
@@ -45,27 +51,35 @@ public class ClassDefinition extends TypeDefinition
   private Map<String, Set<Method>> methods = new HashMap<String, Set<Method>>();
 
   private MemberVariable[] memberVariables;
-  private MemberFunction[] memberFunctions;
-
-  private ClassDefinition superClassDefinition;
-  private InterfaceDefinition[] superInterfaceDefinitions;
+  private VirtualFunction[] virtualFunctions;
 
   /**
    * Creates a new ClassDefinition with the specified members.
    * @param isAbstract - true if this class definition should be abstract, false otherwise
    * @param isImmutable - true if this class definition should be immutable, false otherwise
    * @param name - the name of the class definition
-   * @param superQName - the qualified name of the superclass, or null if there is no superclass
-   * @param superInterfaceQNames - the qualified names of all interfaces that this class implements, or null if it does not implement any
+   * @param typeParameters - the TypeParameters for this type (or an empty array if there are none)
+   * @param superType - the NamedType representing the superclass (and any type arguments it may have), or null if there is no superclass
+   * @param superInterfaceTypes - the NamedTypes of all interfaces that this class implements (and any type arguments they may have), or null if it does not implement any
    * @param members - the list of Members of this ClassDefinition
    * @param lexicalPhrase - the LexicalPhrase of this ClassDefinition
    * @throws LanguageParseException - if there is a name collision between any of the Members
    */
-  public ClassDefinition(boolean isAbstract, boolean isImmutable, String name, QName superQName, QName[] superInterfaceQNames, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  public ClassDefinition(boolean isAbstract, boolean isImmutable, String name, TypeParameter[] typeParameters, NamedType superType, NamedType[] superInterfaceTypes, Member[] members, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     super(isAbstract, isImmutable, name, lexicalPhrase);
-    this.superQName = superQName;
-    this.superInterfaceQNames = superInterfaceQNames;
+    this.typeParameters = typeParameters;
+    Set<String> typeParameterNames = new HashSet<String>();
+    for (TypeParameter t : typeParameters)
+    {
+      t.setContainingTypeDefinition(this);
+      if (!typeParameterNames.add(t.getName()))
+      {
+        throw new LanguageParseException("Duplicate type parameter: " + t.getName(), t.getLexicalPhrase());
+      }
+    }
+    this.superType = superType;
+    this.superInterfaceTypes = superInterfaceTypes;
     // add all of the members by name
     Set<Method> allMethods = new HashSet<Method>();
     for (Member member : members)
@@ -101,6 +115,7 @@ public class ClassDefinition extends TypeDefinition
           memberVariable.setEnclosingTypeDefinition(this);
           field.setMemberVariable(memberVariable);
         }
+        field.setContainingTypeDefinition(this);
         fields.put(field.getName(), field);
         if (field.getInitialiserExpression() != null)
         {
@@ -213,24 +228,26 @@ public class ClassDefinition extends TypeDefinition
    * @param isAbstract - true if this class definition should be abstract, false otherwise
    * @param isImmutable - true if this class definition should be immutable, false otherwise
    * @param qname - the qualified name of the class definition
-   * @param superQName - the qualified name of the superclass, or null if there is no superclass
-   * @param superInterfaceQNames - the qualified names of all interfaces that this class implements, or null if it does not implement any
+   * @param typeParameters - the TypeParameters for this type (or an empty array if there are none)
+   * @param superType - the NamedType representing the superclass (and any type arguments it may have), or null if there is no superclass
+   * @param superInterfaceTypes - the NamedTypes of all interfaces that this class implements (and any type arguments they may have), or null if it does not implement any
    * @param newFields - the fields, with their variables already filled in
    * @param newProperties - the properties, with their backing variables and MemberFunctions already filled in
    * @param newConstructors - the constructors
    * @param newMethods - the methods, with their MemberFunctions already filled in
    * @param memberVariables - the MemberVariables for each of the non-static variables in this class
-   * @param memberFunctions - the MemberFunctions for each of the non-static functions in this class
+   * @param virtualFunctions - the VirtualFunctions for each of the non-static functions in this class
    * @throws LanguageParseException - if there is a name collision between any of the methods
    */
-  public ClassDefinition(boolean isAbstract, boolean isImmutable, QName qname, QName superQName, QName[] superInterfaceQNames,
+  public ClassDefinition(boolean isAbstract, boolean isImmutable, QName qname, TypeParameter[] typeParameters, NamedType superType, NamedType[] superInterfaceTypes,
                          Field[] newFields, Property[] newProperties, Constructor[] newConstructors, Method[] newMethods,
-                         MemberVariable[] memberVariables, MemberFunction[] memberFunctions) throws LanguageParseException
+                         MemberVariable[] memberVariables, VirtualFunction[] virtualFunctions) throws LanguageParseException
   {
     super(isAbstract, isImmutable, qname.getLastName(), null);
     setQualifiedName(qname);
-    this.superQName = superQName;
-    this.superInterfaceQNames = superInterfaceQNames;
+    this.typeParameters = typeParameters;
+    this.superType = superType;
+    this.superInterfaceTypes = superInterfaceTypes;
     for (Field field : newFields)
     {
       if (fields.containsKey(field.getName()))
@@ -245,6 +262,7 @@ public class ClassDefinition extends TypeDefinition
       {
         throw new LanguageParseException("A method with the name '" + field.getName() + "' already exists in '" + getName() + "', so a field cannot be defined with the same name", field.getLexicalPhrase());
       }
+      field.setContainingTypeDefinition(this);
       // we assume that the fields' variables have already been filled in
       fields.put(field.getName(), field);
     }
@@ -262,6 +280,7 @@ public class ClassDefinition extends TypeDefinition
       {
         throw new LanguageParseException("A method with the name '" + property.getName() + "' already exists in '" + getName() + "', so a property cannot be defined with the same name", property.getLexicalPhrase());
       }
+      property.setContainingTypeDefinition(this);
       properties.put(property.getName(), property);
     }
     for (Constructor constructor : newConstructors)
@@ -279,42 +298,55 @@ public class ClassDefinition extends TypeDefinition
       {
         throw new LanguageParseException("A property with the name '" + method.getName() + "' already exists in '" + getName() + "', so a method cannot be defined with the same name", method.getLexicalPhrase());
       }
+      method.setContainingTypeDefinition(this);
       Set<Method> methodSet = methods.get(method.getName());
       if (methodSet == null)
       {
         methodSet = new HashSet<Method>();
         methods.put(method.getName(), methodSet);
       }
-      method.setContainingTypeDefinition(this);
       methodSet.add(method);
     }
     this.memberVariables = memberVariables;
-    this.memberFunctions = memberFunctions;
+    this.virtualFunctions = virtualFunctions;
   }
 
   /**
-   * @return the superQName
-   */
-  public QName getSuperClassQName()
-  {
-    return superQName;
-  }
-
-  /**
-   * @return the superInterfaceQNames
-   */
-  public QName[] getSuperInterfaceQNames()
-  {
-    return superInterfaceQNames;
-  }
-
-  /**
-   * {@inheritDoc}
+   * @return the typeParameters
    */
   @Override
-  public void buildMemberFunctions()
+  public TypeParameter[] getTypeParameters()
   {
-    memberFunctions = buildMemberFunctionList(getAllMethods(), properties.values());
+    return typeParameters;
+  }
+
+  /**
+   * @return the superType
+   */
+  public NamedType getSuperType()
+  {
+    return superType;
+  }
+
+  /**
+   * @return the superInterfaceTypes
+   */
+  public NamedType[] getSuperInterfaceTypes()
+  {
+    return superInterfaceTypes;
+  }
+
+  /**
+   * Builds the virtual function table for this ClassDefinition.
+   */
+  public void buildVirtualFunctions()
+  {
+    List<OverrideFunction> overrideFunctions = null;
+    if (!isAbstract())
+    {
+      overrideFunctions = InheritanceChecker.getOverrideVirtualFunctions(this);
+    }
+    virtualFunctions = buildVirtualFunctionList(getAllMethods(), properties.values(), overrideFunctions);
   }
 
   /**
@@ -326,12 +358,11 @@ public class ClassDefinition extends TypeDefinition
   }
 
   /**
-   * @return the memberFunctions
+   * @return the virtual functions of this ClassDefinition, in order of their intended position in the final VFT
    */
-  @Override
-  public MemberFunction[] getMemberFunctions()
+  public VirtualFunction[] getVirtualFunctions()
   {
-    return memberFunctions;
+    return virtualFunctions;
   }
 
   /**
@@ -419,38 +450,6 @@ public class ClassDefinition extends TypeDefinition
   }
 
   /**
-   * @return the superClassDefinition
-   */
-  public ClassDefinition getSuperClassDefinition()
-  {
-    return superClassDefinition;
-  }
-
-  /**
-   * @param superClassDefinition - the superClassDefinition to set
-   */
-  public void setSuperClassDefinition(ClassDefinition superClassDefinition)
-  {
-    this.superClassDefinition = superClassDefinition;
-  }
-
-  /**
-   * @return the superInterfaceDefinitions
-   */
-  public InterfaceDefinition[] getSuperInterfaceDefinitions()
-  {
-    return superInterfaceDefinitions;
-  }
-
-  /**
-   * @param superInterfaceDefinitions - the superInterfaceDefinitions to set
-   */
-  public void setSuperInterfaceDefinitions(InterfaceDefinition[] superInterfaceDefinitions)
-  {
-    this.superInterfaceDefinitions = superInterfaceDefinitions;
-  }
-
-  /**
    * @return the mangled name of the allocator of this type definition
    */
   public String getAllocatorMangledName()
@@ -475,18 +474,31 @@ public class ClassDefinition extends TypeDefinition
     }
     buffer.append("class ");
     buffer.append(getName());
-    if (superQName != null)
+    if (typeParameters.length > 0)
+    {
+      buffer.append('<');
+      for (int i = 0; i < typeParameters.length; ++i)
+      {
+        buffer.append(typeParameters[i]);
+        if (i != typeParameters.length - 1)
+        {
+          buffer.append(", ");
+        }
+      }
+      buffer.append('>');
+    }
+    if (superType != null)
     {
       buffer.append(" extends ");
-      buffer.append(superQName);
+      buffer.append(superType);
     }
-    if (superInterfaceQNames != null)
+    if (superInterfaceTypes != null)
     {
       buffer.append(" implements ");
-      for (int i = 0; i < superInterfaceQNames.length; ++i)
+      for (int i = 0; i < superInterfaceTypes.length; ++i)
       {
-        buffer.append(superInterfaceQNames[i]);
-        if (i != superInterfaceQNames.length - 1)
+        buffer.append(superInterfaceTypes[i]);
+        if (i != superInterfaceTypes.length - 1)
         {
           buffer.append(", ");
         }

@@ -36,6 +36,8 @@ public class PassManager
   {
     TOP_LEVEL_RESOLUTION,
     INHERITANCE_CYCLE_CHECKING,
+    INHERITANCE_LINEARISATION_BUILDING,
+    TOP_LEVEL_TYPE_CHECKING,
     INHERITANCE_CHECKING,
     RESOLUTION,
     CYCLE_CHECKING,
@@ -160,7 +162,7 @@ public class PassManager
         {
           try
           {
-            mainTypeDefinition = resolver.resolveTypeDefinition(new QName(mainTypeName), null);
+            mainTypeDefinition = resolver.resolveTypeDefinition(new QName(mainTypeName));
             SpecialTypeHandler.checkMainMethod(mainTypeDefinition);
           }
           catch (ConceptualException e)
@@ -222,9 +224,9 @@ public class PassManager
     {
     case TOP_LEVEL_RESOLUTION:
       resolver.resolveTypes(typeDefinition, typeCompilationUnits.get(typeDefinition));
-      if (typeCompilationUnits.containsKey(typeDefinition))
+      if (typeDefinition instanceof CompoundDefinition && typeCompilationUnits.containsKey(typeDefinition))
       {
-        typeDefinition.buildMemberFunctions();
+        ((CompoundDefinition) typeDefinition).addBuiltinMethods();
       }
       break;
     case INHERITANCE_CYCLE_CHECKING:
@@ -237,8 +239,25 @@ public class PassManager
         CycleChecker.checkInheritanceCycles((InterfaceDefinition) typeDefinition);
       }
       break;
+    case INHERITANCE_LINEARISATION_BUILDING:
+      InheritanceChecker.findInheritanceLinearisation(typeDefinition);
+      break;
+    case TOP_LEVEL_TYPE_CHECKING:
+      TypeChecker.checkTopLevelTypes(typeDefinition);
+      break;
     case INHERITANCE_CHECKING:
       InheritanceChecker.checkInheritedMembers(typeDefinition);
+      if (typeCompilationUnits.containsKey(typeDefinition))
+      {
+        if (typeDefinition instanceof ClassDefinition)
+        {
+          ((ClassDefinition) typeDefinition).buildVirtualFunctions();
+        }
+        else if (typeDefinition instanceof InterfaceDefinition)
+        {
+          ((InterfaceDefinition) typeDefinition).buildVirtualFunctions();
+        }
+      }
       break;
     case RESOLUTION:
       CompilationUnit compilationUnit = typeCompilationUnits.get(typeDefinition);

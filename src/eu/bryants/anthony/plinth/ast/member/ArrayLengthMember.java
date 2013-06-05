@@ -1,5 +1,6 @@
 package eu.bryants.anthony.plinth.ast.member;
 
+import eu.bryants.anthony.plinth.ast.metadata.ArrayLengthMemberReference;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 
@@ -18,4 +19,7 @@ public class ArrayLengthMember extends Member
   }
 
   public static final PrimitiveType ARRAY_LENGTH_TYPE = new PrimitiveType(false, PrimitiveTypeType.UINT, null);
+
+  public static final String LENGTH_FIELD_NAME = "length";
+  public static final ArrayLengthMemberReference LENGTH_MEMBER_REFERENCE = new ArrayLengthMemberReference(new ArrayLengthMember());
 }

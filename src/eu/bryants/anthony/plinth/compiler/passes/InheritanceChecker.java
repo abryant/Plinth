@@ -1,5 +1,6 @@
 package eu.bryants.anthony.plinth.compiler.passes;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -9,12 +10,21 @@ import java.util.Set;
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
+import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
-import eu.bryants.anthony.plinth.ast.member.Member;
+import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.member.Property;
-import eu.bryants.anthony.plinth.ast.misc.Parameter;
+import eu.bryants.anthony.plinth.ast.metadata.ConstructorReference;
+import eu.bryants.anthony.plinth.ast.metadata.GenericTypeSpecialiser;
+import eu.bryants.anthony.plinth.ast.metadata.MemberFunctionType;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
+import eu.bryants.anthony.plinth.ast.metadata.OverrideFunction;
+import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
+import eu.bryants.anthony.plinth.ast.type.Type;
+import eu.bryants.anthony.plinth.ast.type.TypeParameter;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
 
 /*
@@ -32,7 +42,7 @@ import eu.bryants.anthony.plinth.compiler.ConceptualException;
  * Requires that the following passes have already been run:
  * <ul>
  * <li>Resolver (top level types)</li>
- * <li>Non-static method list building</li>
+ * <li>Member Function list building</li>
  * <li>Cycle Checker (inheritance)</li>
  * </ul>
  * @author Anthony Bryant
@@ -42,63 +52,181 @@ public class InheritanceChecker
   /**
    * Finds the linearisation of the inherited classes of the specified type, and returns it after caching it in the TypeDefinition itself
    * @param typeDefinition - the TypeDefinition to get the linearisation of
-   * @throws ConceptualException - if there is no linearisation for the specified type
+   * @return the inheritance linearisation of the specified TypeDefinition
+   * @throws ConceptualException - if there is an error finding the linearisation for the specified type
    */
-  private static TypeDefinition[] findInheritanceLinearisation(TypeDefinition typeDefinition) throws ConceptualException
+  public static NamedType[] findInheritanceLinearisation(TypeDefinition typeDefinition) throws ConceptualException
   {
     if (typeDefinition.getInheritanceLinearisation() != null)
     {
       return typeDefinition.getInheritanceLinearisation();
     }
 
-    List<TypeDefinition> parents = new LinkedList<TypeDefinition>();
+    List<NamedType> parents = new LinkedList<NamedType>();
+    TypeParameter[] typeParameters;
     if (typeDefinition instanceof ClassDefinition)
     {
       ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
-      if (classDefinition.getSuperClassDefinition() != null)
+      typeParameters = classDefinition.getTypeParameters();
+      NamedType superType = classDefinition.getSuperType();
+      if (superType != null)
       {
-        parents.add(classDefinition.getSuperClassDefinition());
-      }
-      if (classDefinition.getSuperInterfaceDefinitions() != null)
-      {
-        for (InterfaceDefinition interfaceDefinition : classDefinition.getSuperInterfaceDefinitions())
+        TypeDefinition superTypeDefinition = superType.getResolvedTypeDefinition();
+        if (superTypeDefinition == null)
         {
-          parents.add(interfaceDefinition);
+          if (superType.getResolvedTypeParameter() != null)
+          {
+            throw new ConceptualException("A class cannot extend a type parameter", superType.getLexicalPhrase());
+          }
+          throw new IllegalArgumentException("Cannot check the inherited members of a type before its super-type has been resolved");
+        }
+        if (superTypeDefinition instanceof CompoundDefinition)
+        {
+          throw new ConceptualException("A class may not extend a compound type", classDefinition.getLexicalPhrase());
+        }
+        else if (superTypeDefinition instanceof InterfaceDefinition)
+        {
+          throw new ConceptualException("A class may not extend an interface", classDefinition.getLexicalPhrase());
+        }
+        else if (!(superTypeDefinition instanceof ClassDefinition))
+        {
+          throw new IllegalStateException("Unknown super-type definition: " + superTypeDefinition);
+        }
+        parents.add(superType);
+      }
+      NamedType[] superInterfaceTypes = classDefinition.getSuperInterfaceTypes();
+      if (superInterfaceTypes != null)
+      {
+        for (NamedType superInterfaceType : superInterfaceTypes)
+        {
+          TypeDefinition superInterfaceTypeDefinition = superInterfaceType.getResolvedTypeDefinition();
+          if (superInterfaceTypeDefinition == null)
+          {
+            if (superInterfaceType.getResolvedTypeParameter() != null)
+            {
+              throw new ConceptualException("A class cannot implement a type parameter", superInterfaceType.getLexicalPhrase());
+            }
+            throw new IllegalArgumentException("Cannot check the inherited members of a type before its super-interface-types have been resolved");
+          }
+          if (superInterfaceTypeDefinition instanceof ClassDefinition)
+          {
+            throw new ConceptualException("A class may not implement another class", classDefinition.getLexicalPhrase());
+          }
+          else if (superInterfaceTypeDefinition instanceof CompoundDefinition)
+          {
+            throw new ConceptualException("A class may not implement a compound type", classDefinition.getLexicalPhrase());
+          }
+          else if (!(superInterfaceTypeDefinition instanceof InterfaceDefinition))
+          {
+            throw new IllegalStateException("Unknown super-interface-type definition: " + superInterfaceTypeDefinition);
+          }
+          parents.add(superInterfaceType);
         }
       }
     }
-    if (typeDefinition instanceof InterfaceDefinition)
+    else if (typeDefinition instanceof InterfaceDefinition)
     {
       InterfaceDefinition interfaceDefinition = (InterfaceDefinition) typeDefinition;
-      if (interfaceDefinition.getSuperInterfaceDefinitions() != null)
+      typeParameters = interfaceDefinition.getTypeParameters();
+      NamedType[] superInterfaceTypes = interfaceDefinition.getSuperInterfaceTypes();
+      if (superInterfaceTypes != null)
       {
-        for (InterfaceDefinition superInterface : interfaceDefinition.getSuperInterfaceDefinitions())
+        for (NamedType superInterfaceType : superInterfaceTypes)
         {
-          parents.add(superInterface);
+          TypeDefinition superInterfaceTypeDefinition = superInterfaceType.getResolvedTypeDefinition();
+          if (superInterfaceTypeDefinition == null)
+          {
+            if (superInterfaceType.getResolvedTypeParameter() != null)
+            {
+              throw new ConceptualException("An interface cannot extend a type parameter", superInterfaceType.getLexicalPhrase());
+            }
+            throw new IllegalArgumentException("Cannot check the inherited members of a type before its super-interface-types have been resolved");
+          }
+          if (superInterfaceTypeDefinition instanceof ClassDefinition)
+          {
+            throw new ConceptualException("An interface may not extend a class", interfaceDefinition.getLexicalPhrase());
+          }
+          else if (superInterfaceTypeDefinition instanceof CompoundDefinition)
+          {
+            throw new ConceptualException("An interface may not extend a compound type", interfaceDefinition.getLexicalPhrase());
+          }
+          else if (!(superInterfaceTypeDefinition instanceof InterfaceDefinition))
+          {
+            throw new IllegalStateException("Unknown super-interface-type definition: " + superInterfaceTypeDefinition);
+          }
+          parents.add(superInterfaceType);
         }
+      }
+    }
+    else if (typeDefinition instanceof CompoundDefinition)
+    {
+      CompoundDefinition compoundDefinition = (CompoundDefinition) typeDefinition;
+      typeParameters = compoundDefinition.getTypeParameters();
+    }
+    else
+    {
+      throw new IllegalArgumentException("Unknown type of TypeDefinition: " + typeDefinition);
+    }
+
+    // filter duplicates from parents
+    Iterator<NamedType> duplicateIterator = parents.iterator();
+    while (duplicateIterator.hasNext())
+    {
+      NamedType current = duplicateIterator.next();
+      boolean duplicated = false;
+      for (NamedType t : parents)
+      {
+        if (t == current)
+        {
+          // we have got to the same position in the list as the outer loop
+          break;
+        }
+        if (t.isEquivalent(current))
+        {
+          // there is another type before current in parents which is equivalent to current, so the current type is a duplicate
+          duplicated = true;
+          break;
+        }
+      }
+      if (duplicated)
+      {
+        duplicateIterator.remove();
       }
     }
 
-    List<List<TypeDefinition>> precedenceLists = new LinkedList<List<TypeDefinition>>();
-    for (TypeDefinition parent : parents)
+    List<List<NamedType>> precedenceLists = new LinkedList<List<NamedType>>();
+    for (NamedType parent : parents)
     {
-      TypeDefinition[] linearisation = findInheritanceLinearisation(parent);
-      List<TypeDefinition> precedenceList = new LinkedList<TypeDefinition>();
-      for (TypeDefinition t : linearisation)
+      GenericTypeSpecialiser genericTypeSpecialiser = new GenericTypeSpecialiser(parent);
+
+      NamedType[] linearisation = findInheritanceLinearisation(parent.getResolvedTypeDefinition());
+      List<NamedType> precedenceList = new LinkedList<NamedType>();
+      for (NamedType t : linearisation)
       {
-        precedenceList.add(t);
+        precedenceList.add((NamedType) genericTypeSpecialiser.getSpecialisedType(t));
       }
       precedenceLists.add(precedenceList);
     }
     // add the local precedence order for this type
     precedenceLists.add(parents);
 
-    List<TypeDefinition> result = new LinkedList<TypeDefinition>();
-    result.add(typeDefinition);
+    // start the resulting linearisation, by adding this type to the list
+    // the type arguments must be specified, so we set them to just point back to the type parameters
+    List<NamedType> result = new LinkedList<NamedType>();
+    Type[] typeArguments = null;
+    if (typeParameters.length > 0)
+    {
+      typeArguments = new Type[typeParameters.length];
+      for (int i = 0; i < typeParameters.length; ++i)
+      {
+        typeArguments[i] = new NamedType(false, false, false, typeParameters[i]);
+      }
+    }
+    result.add(new NamedType(false, false, typeDefinition, typeArguments));
     while (true)
     {
       // remove empty lists
-      Iterator<List<TypeDefinition>> it = precedenceLists.iterator();
+      Iterator<List<NamedType>> it = precedenceLists.iterator();
       while (it.hasNext())
       {
         if (it.next().isEmpty())
@@ -111,16 +239,29 @@ public class InheritanceChecker
         break;
       }
 
-      TypeDefinition next = null;
-      for (List<TypeDefinition> candidateList : precedenceLists)
+      NamedType next = null;
+      for (List<NamedType> candidateList : precedenceLists)
       {
-        TypeDefinition candidate = candidateList.get(0);
-        for (List<TypeDefinition> otherList : precedenceLists)
+        NamedType candidate = candidateList.get(0);
+        for (List<NamedType> otherList : precedenceLists)
         {
-          // check the tail of this otherList (this depends on the fact that the lists have no duplicate types)
-          if (otherList.get(0) != candidate && otherList.contains(candidate))
+          // check the tail of this otherList
+          boolean skippedFirst = false;
+          for (NamedType tailElement : otherList)
           {
-            candidate = null;
+            if (!skippedFirst)
+            {
+              skippedFirst = true;
+              continue;
+            }
+            if (tailElement.isEquivalent(candidate))
+            {
+              candidate = null;
+              break;
+            }
+          }
+          if (candidate == null)
+          {
             break;
           }
         }
@@ -134,28 +275,40 @@ public class InheritanceChecker
       if (next == null)
       {
         StringBuffer buffer = new StringBuffer();
-        Set<TypeDefinition> added = new HashSet<TypeDefinition>();
-        for (List<TypeDefinition> currentList : precedenceLists)
+        Set<NamedType> added = new HashSet<NamedType>();
+        for (List<NamedType> currentList : precedenceLists)
         {
-          TypeDefinition candidate = currentList.get(0);
-          if (added.contains(candidate))
+          NamedType candidate = currentList.get(0);
+          boolean alreadyAdded = false;
+          for (NamedType t : added)
+          {
+            if (t.isEquivalent(candidate))
+            {
+              alreadyAdded = true;
+              break;
+            }
+          }
+          if (alreadyAdded)
           {
             continue;
           }
           added.add(candidate);
           buffer.append("\n");
-          buffer.append(candidate.getQualifiedName().toString());
+          buffer.append(candidate.toString());
         }
         throw new ConceptualException("Cannot find a good linearisation for the inheritance hierarchy of " + typeDefinition.getQualifiedName() + ": cannot decide which of the following super-types should be preferred:" + buffer, typeDefinition.getLexicalPhrase());
       }
       result.add(next);
-      for (List<TypeDefinition> currentList : precedenceLists)
+      for (List<NamedType> currentList : precedenceLists)
       {
-        currentList.remove(next);
+        if (currentList.get(0).isEquivalent(next))
+        {
+          currentList.remove(0);
+        }
       }
     }
 
-    TypeDefinition[] linearisation = result.toArray(new TypeDefinition[result.size()]);
+    NamedType[] linearisation = result.toArray(new NamedType[result.size()]);
     typeDefinition.setInheritanceLinearisation(linearisation);
     return linearisation;
   }
@@ -167,32 +320,25 @@ public class InheritanceChecker
    */
   public static void checkInheritedMembers(TypeDefinition typeDefinition) throws ConceptualException
   {
-    // generate the inheritance linearisation for this TypeDefinition
-    // it will be used during this pass and some others after it, all the way to code generation
-    TypeDefinition[] linearisation = findInheritanceLinearisation(typeDefinition);
-
-    Set<Member> inheritedMembers = new HashSet<Member>();
-    for (Method method : ObjectType.OBJECT_METHODS)
-    {
-      if (!method.isStatic())
-      {
-        inheritedMembers.add(method);
-      }
-    }
     if (typeDefinition instanceof ClassDefinition)
     {
       ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
-      ClassDefinition superClass = classDefinition.getSuperClassDefinition();
-
-      if (superClass != null && superClass.isImmutable() && !classDefinition.isImmutable())
+      NamedType superType = classDefinition.getSuperType();
+      if (superType != null)
       {
-        throw new ConceptualException("Cannot define a non-immutable class to be a subclass of an immutable class", classDefinition.getLexicalPhrase());
+        ClassDefinition superClass = (ClassDefinition) superType.getResolvedTypeDefinition();
+        if (superClass.isImmutable() && !classDefinition.isImmutable())
+        {
+          throw new ConceptualException("Cannot define a non-immutable class to be a subclass of an immutable class", classDefinition.getLexicalPhrase());
+        }
       }
 
-      if (classDefinition.getSuperInterfaceDefinitions() != null)
+      NamedType[] superInterfaceTypes = classDefinition.getSuperInterfaceTypes();
+      if (superInterfaceTypes != null)
       {
-        for (InterfaceDefinition superInterface : classDefinition.getSuperInterfaceDefinitions())
+        for (NamedType superInterfaceType : superInterfaceTypes)
         {
+          InterfaceDefinition superInterface = (InterfaceDefinition) superInterfaceType.getResolvedTypeDefinition();
           if (superInterface.isImmutable() && !classDefinition.isImmutable())
           {
             throw new ConceptualException("Cannot define a non-immutable class to implement an immutable interface", classDefinition.getLexicalPhrase());
@@ -203,34 +349,15 @@ public class InheritanceChecker
     else if (typeDefinition instanceof InterfaceDefinition)
     {
       InterfaceDefinition interfaceDefinition = (InterfaceDefinition) typeDefinition;
-      if (interfaceDefinition.getSuperInterfaceDefinitions() != null)
+      NamedType[] superInterfaceTypes = interfaceDefinition.getSuperInterfaceTypes();
+      if (superInterfaceTypes != null)
       {
-        for (InterfaceDefinition superInterface : interfaceDefinition.getSuperInterfaceDefinitions())
+        for (NamedType superInterfaceType : superInterfaceTypes)
         {
+          InterfaceDefinition superInterface = (InterfaceDefinition) superInterfaceType.getResolvedTypeDefinition();
           if (superInterface.isImmutable() && !interfaceDefinition.isImmutable())
           {
             throw new ConceptualException("Cannot define a non-immutable interface to implement an immutable interface", interfaceDefinition.getLexicalPhrase());
-          }
-        }
-      }
-    }
-
-    for (TypeDefinition currentType : linearisation)
-    {
-      if (currentType != typeDefinition)
-      {
-        for (Method m : currentType.getAllMethods())
-        {
-          if (!m.isStatic())
-          {
-            inheritedMembers.add(m);
-          }
-        }
-        for (Property p : currentType.getProperties())
-        {
-          if (!p.isStatic())
-          {
-            inheritedMembers.add(p);
           }
         }
       }
@@ -246,143 +373,469 @@ public class InheritanceChecker
       checkMethod(method);
     }
 
-    for (Member inheritedMember : inheritedMembers)
+    checkTypeMembers(typeDefinition.getInheritanceLinearisation()[0], false, typeDefinition.getLexicalPhrase(), typeDefinition.getInheritanceLinearisation());
+  }
+
+  /**
+   * Checks that the specified NamedType is possible from the perspective of inheritance.
+   * For example, some generic specialisations of a type are impossible because they would result in duplicated members.
+   * @param namedType - the NamedType to check
+   * @throws ConceptualException - if there is a conceptual problem with any of the type's members
+   */
+  public static void checkNamedType(NamedType namedType) throws ConceptualException
+  {
+    if (namedType.getResolvedTypeDefinition() == null)
     {
-      boolean inheritedIsAbstract;
-      TypeDefinition inheritedTypeDefinition;
-      if (inheritedMember instanceof Method)
+      throw new IllegalArgumentException("Cannot check a NamedType which hasn't been resolved to a TypeDefinition");
+    }
+    GenericTypeSpecialiser genericTypeSpecialiser = new GenericTypeSpecialiser(namedType);
+    NamedType[] originalLinearisation = namedType.getResolvedTypeDefinition().getInheritanceLinearisation();
+    NamedType[] specialisedLinearisation = new NamedType[originalLinearisation.length];
+    for (int i = 0; i < originalLinearisation.length; ++i)
+    {
+      // this cast is fine, as nothing in the linearisation can represent a TypeParameter
+      specialisedLinearisation[i] = (NamedType) genericTypeSpecialiser.getSpecialisedType(originalLinearisation[i]);
+    }
+    checkTypeMembers(namedType, true, namedType.getLexicalPhrase(), specialisedLinearisation);
+  }
+
+  /**
+   * Checks the members of a type which is a combination of the specified NamedTypes.
+   * None of the NamedTypes can represent TypeParameters.
+   * @param concreteType - the concrete type that is a sub-type of all of the combined types (this cannot represent a TypeParameter)
+   * @param concreteIsSpecialised - true iff the concrete type has been specialised and does not represent just a TypeDefinition (this suppresses certain errors that should only occur for TypeDefinitions)
+   * @param concreteTypeLexicalPhrase - the LexicalPhrase to display as the cause of any errors that occur that are the type's problem and not a member's
+   * @param linearisation - the linearisation that makes up the type to check. This can be a specialised linearisation based on a NamedType with some filled-in type arguments, or just the pure linearisation of a TypeDefinition.
+   * @throws ConceptualException - if there is a conceptual problem with any of the type's members
+   */
+  private static void checkTypeMembers(NamedType concreteType, boolean concreteIsSpecialised, LexicalPhrase concreteTypeLexicalPhrase, NamedType[] linearisation) throws ConceptualException
+  {
+    Set<MethodReference> inheritedMethodReferences = new HashSet<MethodReference>();
+    Set<PropertyReference> inheritedPropertyReferences = new HashSet<PropertyReference>();
+    for (Method method : ObjectType.OBJECT_METHODS)
+    {
+      if (!method.isStatic())
       {
-        Method inheritedMethod = (Method) inheritedMember;
-        inheritedIsAbstract = inheritedMethod.isAbstract();
-        inheritedTypeDefinition = inheritedMethod.getContainingTypeDefinition();
+        inheritedMethodReferences.add(new MethodReference(method, GenericTypeSpecialiser.IDENTITY_SPECIALISER));
       }
-      else // inheritedMember instanceof Property
+    }
+
+    for (NamedType currentType : linearisation)
+    {
+      TypeDefinition currentTypeDefinition = currentType.getResolvedTypeDefinition();
+      if (!concreteIsSpecialised && currentTypeDefinition == concreteType.getResolvedTypeDefinition())
       {
-        Property inheritedProperty = (Property) inheritedMember;
-        inheritedIsAbstract = inheritedProperty.isAbstract();
-        inheritedTypeDefinition = inheritedProperty.getContainingTypeDefinition();
+        continue;
       }
 
-      // find the implementation of this inherited member
-      Member implementation = null;
-      Set<TypeDefinition> ignoredSuperTypeDefinitions = new HashSet<TypeDefinition>();
-      if (inheritedTypeDefinition != null)
-      {
-        ignoredSuperTypeDefinitions.add(inheritedTypeDefinition);
-      }
+      checkDuplicateConstructors(currentType, concreteType, concreteTypeLexicalPhrase);
 
-      typeSearchLoop:
-      for (TypeDefinition currentType : linearisation)
+      // check the current type for any duplicated methods
+      // this can happen if filling in some generic type parameters creates a second method with the same signature as one that already exists
+      GenericTypeSpecialiser currentTypeSpecialiser = new GenericTypeSpecialiser(currentType);
+      for (Method method : currentTypeDefinition.getAllMethods())
       {
-        for (TypeDefinition ignored : ignoredSuperTypeDefinitions)
+        if (method.isStatic())
         {
-          // if the current type is a super-type of one we have already processed and ignored, then ignore it too
-          // (here, we depend on all super-types being processed after their sub-types, which is true due to the nature of the C3 linearisation)
-          // we ignore any types which declare this member as abstract
-          if (isSuperType(currentType, ignored))
+          continue;
+        }
+        Set<Method> sameNameMethods = currentTypeDefinition.getMethodsByName(method.getName());
+        if (sameNameMethods.size() <= 1)
+        {
+          continue;
+        }
+        MethodReference methodReference = new MethodReference(method, currentTypeSpecialiser);
+        for (Method m : sameNameMethods)
+        {
+          if (m == method || m.isStatic())
           {
-            continue typeSearchLoop;
+            continue;
+          }
+          MethodReference checkReference = new MethodReference(m, currentTypeSpecialiser);
+          if (methodReference.getDisambiguator().matches(checkReference.getDisambiguator()))
+          {
+            throw new ConceptualException("Two methods inside " + currentTypeDefinition.getQualifiedName() + " have the signature '" + buildMethodDisambiguatorString(methodReference) + "' after generic types are filled in for " + concreteType,
+                                          concreteTypeLexicalPhrase);
           }
         }
+      }
 
-        if (inheritedMember instanceof Method)
+      // find the inherited members to check overrides for
+      for (Method m : currentTypeDefinition.getAllMethods())
+      {
+        if (!m.isStatic())
         {
-          Method inheritedMethod = (Method) inheritedMember;
-          Set<Method> possibleMatches = currentType.getMethodsByName(inheritedMethod.getName());
-          for (Method m : possibleMatches)
-          {
-            if (m.getDisambiguator().matches(inheritedMethod.getDisambiguator()))
-            {
-              try
-              {
-                checkMethodOverride(inheritedMethod, m);
-              }
-              catch (ConceptualException e)
-              {
-                if (inheritedTypeDefinition == null || isSuperType(inheritedTypeDefinition, currentType))
-                {
-                  // the existing error message is good enough, because the current type is a sub-type of the inherited type
-                  if (currentType != typeDefinition)
-                  {
-                    // this is an error, but it does not involve the class we are checking, so wait until we check currentType to report it, or we will get duplicate errors
-                    continue typeSearchLoop;
-                  }
-                  throw e;
-                }
-                // add a new message to point out that the overriding is because this TypeDefinition inherits from two different types
-                throw new ConceptualException("Incompatible method: " + buildMethodDisambiguatorString(inheritedMethod) + " is inherited incompatibly from both " + inheritedTypeDefinition.getQualifiedName() + " and " + currentType.getQualifiedName() + " - the problem is:",
-                                              typeDefinition.getLexicalPhrase(), e);
-              }
-              // this method matches the disambiguator, so check that it is an implementation of a method (i.e. it is not abstract)
-              if (m.isAbstract())
-              {
-                // if this method is abstract, ignore this type and all of its super-types
-                ignoredSuperTypeDefinitions.add(currentType);
-                continue typeSearchLoop;
-              }
-              // this must be the most-derived implementation of this method
-              if (implementation == null)
-              {
-                implementation = m;
-                break;
-              }
-            }
-          }
+          inheritedMethodReferences.add(new MethodReference(m, currentTypeSpecialiser));
         }
-        else // inheritedMember instanceof Property
+      }
+      for (Property p : currentTypeDefinition.getProperties())
+      {
+        if (!p.isStatic())
         {
-          Property inheritedProperty = (Property) inheritedMember;
-          Property property = currentType.getProperty(inheritedProperty.getName());
-          if (property != null && !property.isStatic())
+          inheritedPropertyReferences.add(new PropertyReference(p, currentTypeSpecialiser));
+        }
+      }
+    }
+
+    // check all of the method overrides
+    for (MethodReference inheritedMethodReference : inheritedMethodReferences)
+    {
+      boolean inheritedIsAbstract = inheritedMethodReference.getReferencedMember().isAbstract();
+      boolean hasImplementation = false;
+
+      for (MethodReference override : findAllOverrides(inheritedMethodReference, linearisation, true))
+      {
+        try
+        {
+          checkMethodOverride(inheritedMethodReference.getReferencedMember(), override.getReferencedMember());
+        }
+        catch (ConceptualException e)
+        {
+          NamedType inheritedType = inheritedMethodReference.getContainingType();
+          NamedType overrideType = override.getContainingType();
+          if (inheritedType == null || inheritedType.canAssign(overrideType))
           {
-            try
+            // the existing error message is good enough, because the overriding type is a sub-type of the inherited type
+            if (concreteIsSpecialised || !overrideType.isEquivalent(concreteType))
             {
-              checkPropertyOverride(inheritedProperty, property);
-            }
-            catch (ConceptualException e)
-            {
-              if (inheritedTypeDefinition == null || isSuperType(inheritedTypeDefinition, currentType))
-              {
-                // the existing error message is good enough, because the current type is a sub-type of the inherited type
-                if (currentType != typeDefinition)
-                {
-                  // this is an error, but it does not involve the class we are checking, so wait until we check currentType to report it, or we will get duplicate errors
-                  continue;
-                }
-                throw e;
-              }
-              // add a new message to point out that the overriding is because this TypeDefinition inherits from two different types
-              throw new ConceptualException("Incompatible property: '" + inheritedProperty.getName() + "' is inherited incompatibly from both " + inheritedTypeDefinition.getQualifiedName() + " and " + currentType.getQualifiedName() + " - the problem is:",
-                                            typeDefinition.getLexicalPhrase(), e);
-            }
-            if (property.isAbstract())
-            {
-              // if this property is abstract, ignore this type and all of its super-types
-              ignoredSuperTypeDefinitions.add(currentType);
+              // this is an error, but it does not involve the class we are checking, so wait until we check currentType to report it, or we will get duplicate errors
               continue;
             }
-            if (implementation == null)
-            {
-              implementation = property;
-            }
+            throw e;
           }
+          // add a new message to point out that the overriding is because the concrete type we are checking inherits from two different types
+          throw new ConceptualException("Incompatible method: " + buildMethodDisambiguatorString(inheritedMethodReference) + " is inherited incompatibly from both " + inheritedType + " and " + overrideType + " - the problem is:",
+                                        concreteTypeLexicalPhrase, e);
+        }
+        if (!override.getReferencedMember().isAbstract())
+        {
+          hasImplementation = true;
         }
       }
 
-      if (!typeDefinition.isAbstract() && inheritedIsAbstract && implementation == null)
+      if (!concreteIsSpecialised && !concreteType.getResolvedTypeDefinition().isAbstract() && inheritedIsAbstract && !hasImplementation)
       {
-        String memberType = (inheritedMember instanceof Method) ? "method" : "property";
-        String declarationType = inheritedTypeDefinition == null ? "object" : inheritedTypeDefinition.getQualifiedName().toString();
-        String disambiguator;
-        if (inheritedMember instanceof Method)
+        String declarationType = inheritedMethodReference.getContainingType() == null ? "object" : inheritedMethodReference.getContainingType().toString();
+        String disambiguator = buildMethodDisambiguatorString(inheritedMethodReference);
+        throw new ConceptualException(concreteType.getResolvedTypeDefinition().getName() + " does not implement the abstract method: " +
+                                        disambiguator + " (from type: " + declarationType + ")",
+                                      concreteTypeLexicalPhrase);
+      }
+    }
+
+    // check all of the property overrides
+    for (PropertyReference inheritedPropertyReference : inheritedPropertyReferences)
+    {
+      boolean inheritedIsAbstract = inheritedPropertyReference.getReferencedMember().isAbstract();
+      boolean hasImplementation = false;
+
+      for (PropertyReference override : findAllOverrides(inheritedPropertyReference, linearisation, true))
+      {
+        try
         {
-          disambiguator = buildMethodDisambiguatorString((Method) inheritedMember);
+          checkPropertyOverride(inheritedPropertyReference, override);
         }
-        else
+        catch (ConceptualException e)
         {
-          disambiguator = ((Property) inheritedMember).getName();
+          NamedType inheritedType = inheritedPropertyReference.getContainingType();
+          NamedType overrideType = override.getContainingType();
+          if (inheritedType == null || inheritedType.canAssign(overrideType))
+          {
+            // the existing error message is good enough, because the current type is a sub-type of the inherited type
+            if (concreteIsSpecialised || !overrideType.isEquivalent(concreteType))
+            {
+              // this is an error, but it does not involve the class we are checking, so wait until we check currentType to report it, or we will get duplicate errors
+              continue;
+            }
+            throw e;
+          }
+          // add a new message to point out that the overriding is because this TypeDefinition inherits from two different types
+          throw new ConceptualException("Incompatible property: '" + inheritedPropertyReference.getReferencedMember().getName() + "' is inherited incompatibly from both " + inheritedType + " and " + overrideType + " - the problem is:",
+                                        concreteTypeLexicalPhrase, e);
         }
-        throw new ConceptualException(typeDefinition.getName() + " does not implement the abstract " + memberType + ": " + disambiguator + " (from type: " + declarationType + ")", typeDefinition.getLexicalPhrase());
+        if (!override.getReferencedMember().isAbstract())
+        {
+          hasImplementation = true;
+        }
+      }
+
+      if (!concreteIsSpecialised && !concreteType.getResolvedTypeDefinition().isAbstract() && inheritedIsAbstract && !hasImplementation)
+      {
+        String declarationType = inheritedPropertyReference.getContainingType() == null ? "object" : inheritedPropertyReference.getContainingType().toString();
+        throw new ConceptualException(concreteType.getResolvedTypeDefinition().getName() + " does not implement the abstract property: " +
+                                        inheritedPropertyReference.getReferencedMember().getName() + " (from type: " + declarationType + ")",
+                                      concreteTypeLexicalPhrase);
+      }
+    }
+  }
+
+
+
+  /**
+   * Finds all overrides of the specified MethodReference in the specified linearisation.
+   * @param inheritedMethodReference - the MethodReference to find the overrides of
+   * @param linearisation - the linearisation to search through
+   * @param includeAbstract - true if abstract methods should be included in the set of overrides, false otherwise
+   * @return a list of all overrides of the specified MethodReference, with the most-specific override first (i.e. if there is an implementation, it will be first)
+   */
+  private static List<MethodReference> findAllOverrides(MethodReference inheritedMethodReference, NamedType[] linearisation, boolean includeAbstract)
+  {
+    List<MethodReference> overrides = new LinkedList<MethodReference>();
+
+    Set<NamedType> ignoredSuperTypes = new HashSet<NamedType>();
+    if (inheritedMethodReference.getContainingType() != null)
+    {
+      ignoredSuperTypes.add(inheritedMethodReference.getContainingType());
+    }
+
+    String methodName = inheritedMethodReference.getReferencedMember().getName();
+
+    linearisationLoop:
+    for (NamedType currentType : linearisation)
+    {
+      for (NamedType ignored : ignoredSuperTypes)
+      {
+        // if the current type is a super-type of one we have already processed and ignored, then ignore it too
+        // (here, we depend on all super-types being processed after their sub-types, which is true due to the nature of the C3 linearisation)
+        // we ignore any types which declare this member as abstract
+        if (!currentType.isEquivalent(ignored) && currentType.canAssign(ignored))
+        {
+          continue linearisationLoop;
+        }
+      }
+
+      GenericTypeSpecialiser currentTypeSpecialiser = new GenericTypeSpecialiser(currentType);
+
+      for (Method method : currentType.getResolvedTypeDefinition().getMethodsByName(methodName))
+      {
+        MethodReference methodReference = new MethodReference(method, currentTypeSpecialiser);
+        if (methodReference.getDisambiguator().matches(inheritedMethodReference.getDisambiguator()))
+        {
+          if (includeAbstract || !method.isAbstract())
+          {
+            overrides.add(methodReference);
+          }
+          if (method.isAbstract())
+          {
+            // ignore all of this type's super-types, but still process other methods from this type
+            ignoredSuperTypes.add(currentType);
+          }
+        }
+      }
+    }
+    if (overrides.isEmpty() && !inheritedMethodReference.getReferencedMember().isAbstract())
+    {
+      // the inherited member is not abstract, so it should have gone into the overrides list
+      // the only way this could happen is if the inherited member is not part of the linearisation
+      // which means it must be a built-in method
+      // if there are no ignored super-types, then we can just add the inherited type itself to the overrides list
+      if (ignoredSuperTypes.isEmpty())
+      {
+        overrides.add(inheritedMethodReference);
+      }
+    }
+    return overrides;
+  }
+
+  /**
+   * Finds all overrides of the specified PropertyReference in the specified linearisation.
+   * @param inheritedPropertyReference - the PropertyReference to find the overrides of
+   * @param linearisation - the linearisation to search through
+   * @param includeAbstract - true if abstract properties should be included in the set of overrides, false otherwise
+   * @return a list of all overrides of the specified PropertyReference, with the most-specific override first (i.e. if there is an implementation, it will be first)
+   */
+  private static List<PropertyReference> findAllOverrides(PropertyReference inheritedPropertyReference, NamedType[] linearisation, boolean includeAbstract)
+  {
+    List<PropertyReference> overrides = new LinkedList<PropertyReference>();
+
+    Set<NamedType> ignoredSuperTypes = new HashSet<NamedType>();
+    if (inheritedPropertyReference.getContainingType() != null)
+    {
+      ignoredSuperTypes.add(inheritedPropertyReference.getContainingType());
+    }
+
+    String propertyName = inheritedPropertyReference.getReferencedMember().getName();
+
+    linearisationLoop:
+    for (NamedType currentType : linearisation)
+    {
+      for (NamedType ignored : ignoredSuperTypes)
+      {
+        // if the current type is a super-type of one we have already processed and ignored, then ignore it too
+        // (here, we depend on all super-types being processed after their sub-types, which is true due to the nature of the C3 linearisation)
+        // we ignore any types which declare this member as abstract
+        if (!currentType.isEquivalent(ignored) && currentType.canAssign(ignored))
+        {
+          continue linearisationLoop;
+        }
+      }
+
+      Property property = currentType.getResolvedTypeDefinition().getProperty(propertyName);
+      if (property != null)
+      {
+        GenericTypeSpecialiser currentTypeSpecialiser = new GenericTypeSpecialiser(currentType);
+        if (includeAbstract || !property.isAbstract())
+        {
+          overrides.add(new PropertyReference(property, currentTypeSpecialiser));
+        }
+        if (property.isAbstract())
+        {
+          // ignore all of this type's super-types, but still process other properties from this type
+          ignoredSuperTypes.add(currentType);
+        }
+      }
+    }
+    return overrides;
+  }
+
+  /**
+   * Finds a list of OverrideFunctions which need to be included in the specified ClassDefinition in order for certain functions to be overridden correctly.
+   * @param classDefinition - the ClassDefinition to find the override functions of
+   * @return the list of OverrideFunctions for the specified ClassDefinition
+   */
+  public static List<OverrideFunction> getOverrideVirtualFunctions(ClassDefinition classDefinition)
+  {
+    if (classDefinition.isAbstract())
+    {
+      throw new IllegalArgumentException("Cannot get the override virtual functions for an abstract class");
+    }
+    Set<MethodReference> inheritedMethods = new HashSet<MethodReference>();
+    Set<PropertyReference> inheritedProperties = new HashSet<PropertyReference>();
+    for (Method method : ObjectType.OBJECT_METHODS)
+    {
+      if (!method.isStatic())
+      {
+        inheritedMethods.add(new MethodReference(method, GenericTypeSpecialiser.IDENTITY_SPECIALISER));
+      }
+    }
+    for (NamedType superType : classDefinition.getInheritanceLinearisation())
+    {
+      if (superType.getResolvedTypeDefinition() == classDefinition)
+      {
+        continue;
+      }
+      GenericTypeSpecialiser genericTypeSpecialiser = new GenericTypeSpecialiser(superType);
+      TypeDefinition superTypeDefinition = superType.getResolvedTypeDefinition();
+      for (Method method : superTypeDefinition.getAllMethods())
+      {
+        if (!method.isStatic())
+        {
+          inheritedMethods.add(new MethodReference(method, genericTypeSpecialiser));
+        }
+      }
+      for (Property property : superTypeDefinition.getProperties())
+      {
+        if (!property.isStatic())
+        {
+          inheritedProperties.add(new PropertyReference(property, genericTypeSpecialiser));
+        }
+      }
+    }
+
+    List<OverrideFunction> overrideFunctions = new LinkedList<OverrideFunction>();
+
+    NamedType[] linearisation = classDefinition.getInheritanceLinearisation();
+    for (MethodReference inheritedMethod : inheritedMethods)
+    {
+      List<MethodReference> overrides = findAllOverrides(inheritedMethod, linearisation, false);
+      if (overrides.isEmpty())
+      {
+        // there is no implementation for this method, so it must be an abstract non-implemented method
+        // this shouldn't be allowed, since this class is not abstract
+        throw new IllegalStateException("Could not find the implementation of: " + buildMethodDisambiguatorString(inheritedMethod) + " in " + classDefinition.getQualifiedName());
+      }
+      // the first non-abstract override must be the implementation, and this overrides list doesn't contain any abstract overrides
+      MethodReference implementation = overrides.get(0);
+
+      // check whether we need to create an override virtual function for this
+      if (inheritedMethod.getReferencedMember() == implementation.getReferencedMember())
+      {
+        continue;
+      }
+      // check whether the VFT descriptor strings that will be used in the underlying VFT match
+      // if not, an override function is needed to make sure the override actually takes place
+      String inheritedDescriptorName = inheritedMethod.getReferencedMember().getDescriptorString();
+      String implementationDescriptorName = implementation.getReferencedMember().getDescriptorString();
+      if (!inheritedDescriptorName.equals(implementationDescriptorName))
+      {
+        // the descriptors are not equal, so generate a proxy function
+        overrideFunctions.add(new OverrideFunction(inheritedMethod, implementation));
+      }
+    }
+
+    for (PropertyReference inheritedReference : inheritedProperties)
+    {
+      List<PropertyReference> overrides = findAllOverrides(inheritedReference, linearisation, false);
+      if (overrides.isEmpty())
+      {
+        // there is no implementation for this property, so it must be an abstract non-implemented property
+        // this shouldn't be allowed, since this class is not abstract
+        throw new IllegalStateException("Could not find the implementation of: " + inheritedReference.getReferencedMember().getName() + " in " + classDefinition.getQualifiedName());
+      }
+      // the first non-abstract override must be the implementation, and this overrides list doesn't contain any abstract overrides
+      PropertyReference implementationReference = overrides.get(0);
+
+      // check whether we need to create an override virtual function for this
+      if (inheritedReference.getReferencedMember() == implementationReference.getReferencedMember())
+      {
+        continue;
+      }
+      Property inherited = inheritedReference.getReferencedMember();
+      Property implementation = implementationReference.getReferencedMember();
+      if (!inherited.getGetterDescriptor().equals(implementation.getGetterDescriptor()))
+      {
+        // the descriptors are not equal, so generate a proxy function
+        overrideFunctions.add(new OverrideFunction(inheritedReference, implementationReference, MemberFunctionType.PROPERTY_GETTER));
+      }
+      if (!inherited.isFinal() && !inherited.getSetterDescriptor().equals(implementation.getSetterDescriptor()))
+      {
+        // the descriptors are not equal, so generate a proxy function
+        overrideFunctions.add(new OverrideFunction(inheritedReference, implementationReference, MemberFunctionType.PROPERTY_SETTER));
+      }
+      if (inherited.hasConstructor() && !inherited.getConstructorDescriptor().equals(implementation.getConstructorDescriptor()))
+      {
+        // the descriptors are not equal, so generate a proxy function
+        overrideFunctions.add(new OverrideFunction(inheritedReference, implementationReference, MemberFunctionType.PROPERTY_CONSTRUCTOR));
+      }
+    }
+    return overrideFunctions;
+  }
+
+  /**
+   * Checks whether the specified NamedType has any duplicated ConstructorReferences after the type arguments have been applied.
+   * @param namedType - the NamedType to check
+   * @param concreteType - the concrete type that is being checked
+   * @param concreteTypeLexicalPhrase - the LexicalPhrase of the concrete type
+   * @throws ConceptualException - if a duplicate constructor is detected
+   */
+  private static void checkDuplicateConstructors(NamedType namedType, NamedType concreteType, LexicalPhrase concreteTypeLexicalPhrase) throws ConceptualException
+  {
+    TypeDefinition typeDefinition = namedType.getResolvedTypeDefinition();
+    GenericTypeSpecialiser genericTypeSpecialiser = new GenericTypeSpecialiser(namedType);
+    // use the unique constructor set, which doesn't include duplicate constructors which have the same pre-generic type list
+    // since we are just checking the post-generic type list, we don't want to have constructors which only differ in their since specifier or thrown types before generics
+    Collection<Constructor> constructors = typeDefinition.getUniqueConstructors();
+    ConstructorReference[] constructorReferences = new ConstructorReference[constructors.size()];
+    int index = 0;
+    for (Constructor constructor : constructors)
+    {
+      constructorReferences[index] = new ConstructorReference(constructor, genericTypeSpecialiser);
+      index++;
+    }
+    Set<String> disambiguators = new HashSet<String>();
+    for (int i = 0; i < constructorReferences.length; ++i)
+    {
+      Type[] parameterTypes = constructorReferences[i].getParameterTypes();
+      StringBuffer buffer = new StringBuffer();
+      for (Type t : parameterTypes)
+      {
+        buffer.append(t.getMangledName());
+      }
+      String disambiguator = buffer.toString();
+      boolean notKnownAlready = disambiguators.add(disambiguator);
+      if (!notKnownAlready)
+      {
+        throw new ConceptualException("Two constructors inside " + typeDefinition.getQualifiedName() + " have the same signature after generic types are filled in for " + concreteType, concreteTypeLexicalPhrase);
       }
     }
   }
@@ -437,11 +890,13 @@ public class InheritanceChecker
     }
   }
 
-  private static void checkPropertyOverride(Property overriddenProperty, Property property) throws ConceptualException
+  private static void checkPropertyOverride(PropertyReference overriddenPropertyReference, PropertyReference propertyReference) throws ConceptualException
   {
-    if (!overriddenProperty.getType().isEquivalent(property.getType()))
+    Property overriddenProperty = overriddenPropertyReference.getReferencedMember();
+    Property property = propertyReference.getReferencedMember();
+    if (!overriddenPropertyReference.getType().isEquivalent(propertyReference.getType()))
     {
-      throw new ConceptualException("A property must always have the same type as a property it overrides, in this case: " + overriddenProperty.getType(), property.getLexicalPhrase(),
+      throw new ConceptualException("A property must always have the same type as a property it overrides, in this case: " + overriddenPropertyReference.getType(), property.getLexicalPhrase(),
                                     overriddenProperty.getLexicalPhrase() != null ? new ConceptualException("Note: overridden from here", overriddenProperty.getLexicalPhrase()) : null);
     }
     if (overriddenProperty.isFinal() != property.isFinal())
@@ -485,37 +940,18 @@ public class InheritanceChecker
     }
   }
 
-  /**
-   * Checks whether parent is a super-type of child.
-   * @param parent - the parent TypeDefinition
-   * @param child - the child TypeDefinition
-   * @return true if parent is a super-type of child, false otherwise
-   * @throws ConceptualException - if the inheritance linearisation for child is not well defined
-   */
-  private static boolean isSuperType(TypeDefinition parent, TypeDefinition child) throws ConceptualException
+  private static String buildMethodDisambiguatorString(MethodReference method)
   {
-    for (TypeDefinition test : findInheritanceLinearisation(child))
-    {
-      if (test == parent)
-      {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static String buildMethodDisambiguatorString(Method method)
-  {
-    Parameter[] parameters = method.getParameters();
+    Type[] parameterTypes = method.getParameterTypes();
     StringBuffer buffer = new StringBuffer();
     buffer.append(method.getReturnType());
     buffer.append(' ');
-    buffer.append(method.getName());
+    buffer.append(method.getReferencedMember().getName());
     buffer.append('(');
-    for (int i = 0; i < parameters.length; ++i)
+    for (int i = 0; i < parameterTypes.length; ++i)
     {
-      buffer.append(parameters[i].getType());
-      if (i != parameters.length - 1)
+      buffer.append(parameterTypes[i]);
+      if (i != parameterTypes.length - 1)
       {
         buffer.append(", ");
       }

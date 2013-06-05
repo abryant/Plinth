@@ -115,22 +115,23 @@ public class LLVM
     if (nextBlock == null)
     {
       LLVMValueRef function = LLVMGetBasicBlockParent(currentBlock);
-      return LLVM.LLVMAppendBasicBlock(function, name);
+      return LLVMAppendBasicBlock(function, name);
     }
-    return LLVM.LLVMInsertBasicBlock(nextBlock, name);
+    return LLVMInsertBasicBlock(nextBlock, name);
   }
   public static native LLVMBasicBlockRef LLVMGetEntryBasicBlock(LLVMValueRef function);
   public static native LLVMBasicBlockRef LLVMGetNextBasicBlock(LLVMBasicBlockRef block);
   public static native LLVMValueRef LLVMGetBasicBlockParent(LLVMBasicBlockRef block);
   public static native LLVMValueRef LLVMGetFirstInstruction(LLVMBasicBlockRef block);
   public static native LLVMValueRef LLVMGetLastInstruction(LLVMBasicBlockRef block);
+  public static native LLVMValueRef LLVMGetNextInstruction(LLVMValueRef instruction);
 
   public static native LLVMBuilderRef LLVMCreateBuilder();
   public static LLVMBuilderRef LLVMCreateFunctionBuilder(LLVMValueRef function)
   {
     LLVMBasicBlockRef entryBlock = LLVMAppendBasicBlock(function, "entry");
     LLVMBuilderRef builder = LLVMCreateBuilder();
-    LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+    LLVMPositionBuilderAtEnd(builder, entryBlock);
     return builder;
   }
   public static native void LLVMDisposeBuilder(LLVMBuilderRef builder);
@@ -148,6 +149,24 @@ public class LLVM
     else
     {
       LLVMPositionBuilderBefore(builder, firstInstruction);
+    }
+  }
+  public static void LLVMPositionBuilderAfterEntryAllocas(LLVMBuilderRef builder)
+  {
+    LLVMValueRef function = LLVMGetBasicBlockParent(LLVMGetInsertBlock(builder));
+    LLVMBasicBlockRef entryBlock = LLVMGetEntryBasicBlock(function);
+    LLVMValueRef instruction = LLVMGetFirstInstruction(entryBlock);
+    while (LLVMIsAAllocaInst(instruction) != null)
+    {
+      instruction = LLVMGetNextInstruction(instruction);
+    }
+    if (instruction == null)
+    {
+      LLVMPositionBuilderAtEnd(builder, entryBlock);
+    }
+    else
+    {
+      LLVMPositionBuilderBefore(builder, instruction);
     }
   }
 
@@ -242,6 +261,7 @@ public class LLVM
   public static native void LLVMGetMDNodeOperands(LLVMValueRef node, Pointer dest);
   public static native Pointer LLVMGetMDString(LLVMValueRef value, IntByReference length);
 
+  public static native LLVMValueRef LLVMIsAAllocaInst(LLVMValueRef value);
   public static native LLVMValueRef LLVMIsAMDNode(LLVMValueRef value);
   public static native LLVMValueRef LLVMIsAMDString(LLVMValueRef value);
 

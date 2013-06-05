@@ -15,10 +15,12 @@ import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.metadata.GenericTypeSpecialiser;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference.Disambiguator;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
-import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.NullType;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
@@ -26,7 +28,6 @@ import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.compiler.passes.SpecialTypeHandler;
-import eu.bryants.anthony.plinth.compiler.passes.TypeChecker;
 
 /*
  * Created on 11 Oct 2012
@@ -86,7 +87,7 @@ public class BuiltinCodeGenerator
           return buildFloatingToString((PrimitiveType) baseType, method);
         }
       }
-      else if (baseType instanceof ObjectType || baseType instanceof NamedType)
+      else if (baseType instanceof ObjectType || method.getContainingTypeDefinition() instanceof CompoundDefinition)
       {
         return buildObjectToString(baseType, method);
       }
@@ -132,7 +133,7 @@ public class BuiltinCodeGenerator
     LLVMTypeRef functionType = typeHelper.findMethodType(method);
     LLVMValueRef llvmFunc = LLVM.LLVMAddFunction(module, mangledName, functionType);
     LLVM.LLVMSetFunctionCallConv(llvmFunc, LLVM.LLVMCallConv.LLVMCCallConv);
-    if (!(method.getBaseType() instanceof NamedType))
+    if (method.getContainingTypeDefinition() == null)
     {
       // use linkonce-odr linkage, so that this function does not conflict with anything
       LLVM.LLVMSetLinkage(llvmFunc, LLVM.LLVMLinkage.LLVMLinkOnceODRLinkage);
@@ -195,10 +196,11 @@ public class BuiltinCodeGenerator
 
     LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
     LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+    TypeParameterAccessor typeParameterAccessor = new TypeParameterAccessor(builder, rttiHelper);
 
     // get the parameter and convert it to a long
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
-    parameter = typeHelper.convertTemporary(builder, landingPadContainer, parameter, baseType, valueOfMethod.getParameters()[0].getType());
+    parameter = typeHelper.convertTemporary(builder, landingPadContainer, parameter, baseType, valueOfMethod.getParameters()[0].getType(), false, typeParameterAccessor);
 
     LLVMValueRef[] arguments;
     if (radix)
@@ -245,10 +247,11 @@ public class BuiltinCodeGenerator
 
     LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
     LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+    TypeParameterAccessor typeParameterAccessor = new TypeParameterAccessor(builder, rttiHelper);
 
     // get the parameter and convert it to a long
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
-    parameter = typeHelper.convertTemporary(builder, landingPadContainer, parameter, baseType, valueOfMethod.getParameters()[0].getType());
+    parameter = typeHelper.convertTemporary(builder, landingPadContainer, parameter, baseType, valueOfMethod.getParameters()[0].getType(), false, typeParameterAccessor);
 
     LLVMValueRef[] arguments;
     if (radix)
@@ -312,35 +315,37 @@ public class BuiltinCodeGenerator
 
   private LLVMValueRef buildObjectToString(Type baseType, BuiltinMethod method)
   {
-    if (!(baseType instanceof ObjectType || baseType instanceof NamedType))
+    if (!(baseType instanceof ObjectType || method.getContainingTypeDefinition() instanceof CompoundDefinition))
     {
-      throw new IllegalArgumentException("A builtin object toString function must have either an object or a named base type");
+      throw new IllegalArgumentException("A builtin object toString function must have either an object base type or be part of a compound definition");
     }
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
 
     LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
-
     LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
 
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
+
+
     LLVMValueRef integerValue = LLVM.LLVMBuildPtrToInt(builder, parameter, LLVM.LLVMInt64Type(), "");
-
     Type ulongType = new PrimitiveType(false, PrimitiveTypeType.ULONG, null);
-    Method toStringMethod = ulongType.getMethod(new BuiltinMethod(ulongType, BuiltinMethodType.TO_STRING_RADIX).getDisambiguator());
-    LLVMValueRef longToStringFunction = codeGenerator.getMethodFunction(toStringMethod);
+    MethodReference ulongToStringMethodReference = new MethodReference(new BuiltinMethod(ulongType, BuiltinMethodType.TO_STRING_RADIX), GenericTypeSpecialiser.IDENTITY_SPECIALISER);
+    Method toStringMethod = ulongType.getMethod(ulongToStringMethodReference.getDisambiguator()).getReferencedMember();
+    LLVMValueRef ulongToStringFunction = codeGenerator.getMethodFunction(toStringMethod);
 
-    LLVMValueRef[] longToStringArguments = new LLVMValueRef[] {integerValue, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 16, false)};
+    LLVMValueRef[] ulongToStringArguments = new LLVMValueRef[] {integerValue, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 16, false)};
     LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "invokeContinue");
-    LLVMValueRef pointerString = LLVM.LLVMBuildInvoke(builder, longToStringFunction, C.toNativePointerArray(longToStringArguments, false, true), longToStringArguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVMValueRef pointerString = LLVM.LLVMBuildInvoke(builder, ulongToStringFunction, C.toNativePointerArray(ulongToStringArguments, false, true), ulongToStringArguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
     LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
 
     LLVMValueRef startString;
     // for compound types, we can hard-code the start string, but for object and class types, we must extract it from the run-time type information
-    TypeDefinition resolvedDefinition = baseType instanceof NamedType ? ((NamedType) baseType).getResolvedTypeDefinition() : null;
-    if (resolvedDefinition instanceof CompoundDefinition)
+    TypeDefinition containingDefinition = method.getContainingTypeDefinition();
+    if (containingDefinition instanceof CompoundDefinition)
     {
-      String prefixString = "[" + (resolvedDefinition instanceof CompoundDefinition ? ((CompoundDefinition) resolvedDefinition).getQualifiedName() : "object") + "@";
+      // TODO: add the run-time types of the generic type arguments to the string somehow
+      String prefixString = "[" + (containingDefinition instanceof CompoundDefinition ? ((CompoundDefinition) containingDefinition).getQualifiedName() : "object") + "@";
       startString = codeGenerator.buildStringCreation(builder, landingPadContainer, prefixString);
       startString = typeHelper.convertTemporaryToStandard(builder, startString, SpecialTypeHandler.STRING_TYPE);
     }
@@ -367,14 +372,11 @@ public class BuiltinCodeGenerator
       LLVM.LLVMBuildBr(builder, continuationBlock);
 
       LLVM.LLVMPositionBuilderAtEnd(builder, isNotObjectBlock);
-      // cast the generic RTTI struct to a NamedType RTTI struct
-      // (we do not need to give the NamedType a TypeDefinition here, all pure RTTI structs for NamedTypes have the same LLVM types)
-      LLVMValueRef castedObjectRTTI = LLVM.LLVMBuildBitCast(builder, rttiPointer, LLVM.LLVMPointerType(rttiHelper.getPureRTTIStructType(new NamedType(false, false, null, null)), 0), "");
-      LLVMValueRef[] stringIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
-                                                         LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 4, false)};
-      LLVMValueRef classQualifiedNameUbyteArrayPointer = LLVM.LLVMBuildGEP(builder, castedObjectRTTI, C.toNativePointerArray(stringIndices, false, true), stringIndices.length, "");
-      LLVMValueRef classQualifiedNameUbyteArray = LLVM.LLVMBuildLoad(builder, classQualifiedNameUbyteArrayPointer, "");
 
+      // look up the name of this type inside the RTTI block
+      LLVMValueRef classQualifiedNameUbyteArray = rttiHelper.lookupNamedTypeName(builder, rttiPointer);
+
+      // TODO: add the run-time types of the generic type arguments to the string somehow
       LLVMValueRef classStringPrefix = codeGenerator.buildStringCreation(builder, landingPadContainer, "[");
       LLVMValueRef classQualifiedNameString = codeGenerator.buildStringCreation(builder, landingPadContainer, classQualifiedNameUbyteArray);
       LLVMValueRef classStringSuffix = codeGenerator.buildStringCreation(builder, landingPadContainer, "@");
@@ -423,8 +425,8 @@ public class BuiltinCodeGenerator
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
 
     LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
-
     LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+    TypeParameterAccessor typeParameterAccessor = new TypeParameterAccessor(builder, rttiHelper);
 
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
     LLVMValueRef array = typeHelper.convertStandardToTemporary(builder, parameter, arrayType);
@@ -448,17 +450,15 @@ public class BuiltinCodeGenerator
     LLVMValueRef stringPhi = LLVM.LLVMBuildPhi(builder, typeHelper.findTemporaryType(SpecialTypeHandler.STRING_TYPE), "");
     LLVMValueRef indexPhi = LLVM.LLVMBuildPhi(builder, LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), "");
 
-    LLVMValueRef elementPointer = typeHelper.getArrayElementPointer(builder, array, indexPhi);
-    LLVMValueRef element = LLVM.LLVMBuildLoad(builder, elementPointer, "");
-    element = typeHelper.convertStandardToTemporary(builder, element, baseType);
+    LLVMValueRef element = typeHelper.buildRetrieveArrayElement(builder, landingPadContainer, array, indexPhi);
 
     // build the string conversion
-    Type notNullBaseType = TypeChecker.findTypeWithNullability(baseType, false);
+    Type notNullBaseType = Type.findTypeWithNullability(baseType, false);
     LLVMValueRef elementString;
     LLVMValueRef notNullElement = element;
     LLVMBasicBlockRef nullBlock = null;
     LLVMBasicBlockRef continuationBlock = null;
-    if (baseType.isNullable())
+    if (baseType.canBeNullable())
     {
       LLVMValueRef nullCheckResult = codeGenerator.buildNullCheck(builder, element, baseType);
       continuationBlock = LLVM.LLVMAddBasicBlock(builder, "continuation");
@@ -466,18 +466,16 @@ public class BuiltinCodeGenerator
       LLVMBasicBlockRef notNullBlock = LLVM.LLVMAddBasicBlock(builder, "toStringCall");
       LLVM.LLVMBuildCondBr(builder, nullCheckResult, notNullBlock, nullBlock);
       LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
-      notNullElement = typeHelper.convertTemporary(builder, landingPadContainer, element, baseType, notNullBaseType);
+      notNullElement = typeHelper.convertTemporary(builder, landingPadContainer, element, baseType, notNullBaseType, false, typeParameterAccessor);
     }
     // we shouldn't usually create BuiltinMethods like this, as they might need to have a method index set depending on the base type
     // but it's fine in this case, because we're just using it to get a Disambiguator
-    Method toStringMethod = notNullBaseType.getMethod(new BuiltinMethod(notNullBaseType, BuiltinMethodType.TO_STRING).getDisambiguator());
-    LLVMValueRef toStringFunction = codeGenerator.lookupMethodFunction(builder, landingPadContainer, notNullElement, notNullBaseType, toStringMethod, false);
-    LLVMValueRef[] arguments = new LLVMValueRef[] {notNullElement};
-    LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "invokeContinue");
-    LLVMValueRef notNullElementString = LLVM.LLVMBuildInvoke(builder, toStringFunction, C.toNativePointerArray(arguments, false, true), arguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
-    LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
+    Disambiguator toStringMethodDisambiguator = new MethodReference(new BuiltinMethod(notNullBaseType, BuiltinMethodType.TO_STRING), GenericTypeSpecialiser.IDENTITY_SPECIALISER).getDisambiguator();
+    MethodReference toStringMethod = notNullBaseType.getMethod(toStringMethodDisambiguator);
+    LLVMValueRef notNullElementString = typeHelper.buildMethodCall(builder, landingPadContainer, notNullElement, notNullBaseType, toStringMethod, new LLVMValueRef[0], typeParameterAccessor);
+    notNullElementString = typeHelper.convertTemporaryToStandard(builder, notNullElementString, SpecialTypeHandler.STRING_TYPE);
 
-    if (baseType.isNullable())
+    if (baseType.canBeNullable())
     {
       LLVMBasicBlockRef endToStringCallBlock = LLVM.LLVMGetInsertBlock(builder);
       LLVM.LLVMBuildBr(builder, continuationBlock);
@@ -574,17 +572,18 @@ public class BuiltinCodeGenerator
     LLVMValueRef functionIntegerValue = LLVM.LLVMBuildPtrToInt(builder, functionValue, LLVM.LLVMInt64Type(), "");
 
     Type ulongType = new PrimitiveType(false, PrimitiveTypeType.ULONG, null);
-    Method toStringMethod = ulongType.getMethod(new BuiltinMethod(ulongType, BuiltinMethodType.TO_STRING_RADIX).getDisambiguator());
-    LLVMValueRef longToStringFunction = codeGenerator.getMethodFunction(toStringMethod);
+    Disambiguator toStringMethodDisambiguator = new MethodReference(new BuiltinMethod(ulongType, BuiltinMethodType.TO_STRING_RADIX), GenericTypeSpecialiser.IDENTITY_SPECIALISER).getDisambiguator();
+    Method toStringMethod = ulongType.getMethod(toStringMethodDisambiguator).getReferencedMember();
+    LLVMValueRef ulongToStringFunction = codeGenerator.getMethodFunction(toStringMethod);
 
     LLVMValueRef[] calleeToStringArguments = new LLVMValueRef[] {calleeIntegerValue, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 16, false)};
     LLVMBasicBlockRef calleeStringContinueBlock = LLVM.LLVMAddBasicBlock(builder, "calleeStringInvokeContinue");
-    LLVMValueRef calleeString = LLVM.LLVMBuildInvoke(builder, longToStringFunction, C.toNativePointerArray(calleeToStringArguments, false, true), calleeToStringArguments.length, calleeStringContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVMValueRef calleeString = LLVM.LLVMBuildInvoke(builder, ulongToStringFunction, C.toNativePointerArray(calleeToStringArguments, false, true), calleeToStringArguments.length, calleeStringContinueBlock, landingPadContainer.getLandingPadBlock(), "");
     LLVM.LLVMPositionBuilderAtEnd(builder, calleeStringContinueBlock);
 
     LLVMValueRef[] functionToStringArguments = new LLVMValueRef[] {functionIntegerValue, LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 16, false)};
     LLVMBasicBlockRef functionStringContinueBlock = LLVM.LLVMAddBasicBlock(builder, "functionStringInvokeContinue");
-    LLVMValueRef functionString = LLVM.LLVMBuildInvoke(builder, longToStringFunction, C.toNativePointerArray(functionToStringArguments, false, true), functionToStringArguments.length, functionStringContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVMValueRef functionString = LLVM.LLVMBuildInvoke(builder, ulongToStringFunction, C.toNativePointerArray(functionToStringArguments, false, true), functionToStringArguments.length, functionStringContinueBlock, landingPadContainer.getLandingPadBlock(), "");
     LLVM.LLVMPositionBuilderAtEnd(builder, functionStringContinueBlock);
 
     String startString = "[" + baseType.toString() + " function@";
@@ -626,6 +625,7 @@ public class BuiltinCodeGenerator
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
     LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
     LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+    TypeParameterAccessor typeParameterAccessor = new TypeParameterAccessor(builder, rttiHelper);
 
     LLVMValueRef tupleValue = LLVM.LLVMGetParam(builtinFunction, 0);
     List<LLVMValueRef> subStrings = new LinkedList<LLVMValueRef>();
@@ -648,7 +648,7 @@ public class BuiltinCodeGenerator
         LLVMValueRef subValue = LLVM.LLVMBuildExtractValue(builder, tupleValue, i, "");
         LLVMBasicBlockRef nullBlock = null;
         LLVMBasicBlockRef continuationBlock = null;
-        if (subTypes[i].isNullable())
+        if (subTypes[i].canBeNullable())
         {
           LLVMValueRef nullCheckResult = codeGenerator.buildNullCheck(builder, subValue, subTypes[i]);
           continuationBlock = LLVM.LLVMAddBasicBlock(builder, "continuation");
@@ -657,18 +657,16 @@ public class BuiltinCodeGenerator
           LLVM.LLVMBuildCondBr(builder, nullCheckResult, notNullBlock, nullBlock);
           LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
         }
-        Type notNullSubType = TypeChecker.findTypeWithNullability(subTypes[i], false);
-        LLVMValueRef notNullSubValue = typeHelper.convertTemporary(builder, landingPadContainer, subValue, subTypes[i], notNullSubType);
+        Type notNullSubType = Type.findTypeWithNullability(subTypes[i], false);
+        LLVMValueRef notNullSubValue = typeHelper.convertTemporary(builder, landingPadContainer, subValue, subTypes[i], notNullSubType, false, typeParameterAccessor);
         // we shouldn't usually create BuiltinMethods like this, as they might need to have a method index set depending on the base type
         // but it's fine in this case, because we're just using it to get a Disambiguator
-        Method toStringMethod = notNullSubType.getMethod(new BuiltinMethod(notNullSubType, BuiltinMethodType.TO_STRING).getDisambiguator());
-        LLVMValueRef toStringFunction = codeGenerator.lookupMethodFunction(builder, landingPadContainer, notNullSubValue, notNullSubType, toStringMethod, false);
-        LLVMValueRef[] arguments = new LLVMValueRef[] {typeHelper.convertMethodCallee(builder, landingPadContainer, notNullSubValue, notNullSubType, toStringMethod)};
-        LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "invokeContinue");
-        LLVMValueRef llvmTypeString = LLVM.LLVMBuildInvoke(builder, toStringFunction, C.toNativePointerArray(arguments, false, true), arguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
-        LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
+        Disambiguator toStringMethodDisambiguator = new MethodReference(new BuiltinMethod(notNullSubType, BuiltinMethodType.TO_STRING), GenericTypeSpecialiser.IDENTITY_SPECIALISER).getDisambiguator();
+        MethodReference toStringMethodReference = notNullSubType.getMethod(toStringMethodDisambiguator);
+        LLVMValueRef llvmTypeString = typeHelper.buildMethodCall(builder, landingPadContainer, notNullSubValue, notNullSubType, toStringMethodReference, new LLVMValueRef[0], typeParameterAccessor);
+        llvmTypeString = typeHelper.convertTemporaryToStandard(builder, llvmTypeString, SpecialTypeHandler.STRING_TYPE);
 
-        if (subTypes[i].isNullable())
+        if (subTypes[i].canBeNullable())
         {
           LLVMBasicBlockRef endToStringCallBlock = LLVM.LLVMGetInsertBlock(builder);
           LLVM.LLVMBuildBr(builder, continuationBlock);
