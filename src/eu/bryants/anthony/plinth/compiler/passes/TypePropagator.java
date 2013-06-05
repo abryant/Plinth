@@ -35,7 +35,9 @@ import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
+import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
@@ -92,6 +94,11 @@ public class TypePropagator
       {
         Field field = ((FieldInitialiser) initialiser).getField();
         propagateTypes(field.getInitialiserExpression(), field.getType());
+      }
+      else if (initialiser instanceof PropertyInitialiser)
+      {
+        Property property = ((PropertyInitialiser) initialiser).getProperty();
+        propagateTypes(property.getInitialiserExpression(), property.getType());
       }
       else
       {
