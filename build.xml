@@ -12,6 +12,9 @@
   <property name="standard-library-src" location="plinth-src"/>
   <property name="standard-library-bin" location="plinth-bin"/>
 
+  <property name="test-dir" location="test"/>
+  <property name="test-script" location="${test-dir}/runtest.py"/>
+
   <target name="init">
     <tstamp/>
     <mkdir dir="${compiler-bin}"/>
@@ -65,6 +68,14 @@
       
       <fileset dir="${standard-library-src}" includes="**/*.pth"/>
       <mergemapper to="plinth.pbc"/>
+    </apply>
+  </target>
+
+  <target name="run-tests" depends="init, build-compiler, build-runtime, build-standard-library">
+    <apply executable="${test-script}" force="true" failonerror="true">
+      <srcfile/>
+
+      <fileset dir="${test-dir}" includes="**/*.pth" excludes="*.pth"/>
     </apply>
   </target>
 
