@@ -1,0 +1,9 @@
+// Plinth Test
+// Compiler: DuplicateConstructorParameter.pth: 6:18-25: Duplicate parameter: x
+
+class Test
+{
+  create(uint x, ulong x)
+  {
+  }
+}

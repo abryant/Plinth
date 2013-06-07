@@ -1,0 +1,9 @@
+// Plinth Test
+// Compiler: MutableField.pth: 7:3-24: A final, immutably-typed field cannot be mutable
+// Compiler: MutableField.pth: 8:3-25: A final, immutably-typed field cannot be mutable
+
+class Test
+{
+  final mutable uint x;
+  final mutable #Test t;
+}

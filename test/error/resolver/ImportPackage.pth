@@ -1,0 +1,7 @@
+// Plinth Test
+// Compiler: ImportPackage.pth: 6:8-11: A non-wildcard import cannot resolve to a package
+
+package foo;
+
+import foo;
+

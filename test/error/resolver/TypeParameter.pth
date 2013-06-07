@@ -1,0 +1,20 @@
+// Plinth Test
+// Compiler: TypeParameter.pth: 9:22-25: Unable to resolve: Foo
+// Compiler: TypeParameter.pth: 9:32-35: Unable to resolve: Bar
+// Compiler: TypeParameter.pth: 17:26-29: Unable to resolve: Foo
+// Compiler: TypeParameter.pth: 17:36-39: Unable to resolve: Bar
+// Compiler: TypeParameter.pth: 13:27-30: Unable to resolve: Foo
+// Compiler: TypeParameter.pth: 13:37-40: Unable to resolve: Bar
+
+class Test<T extends Foo super Bar>
+{
+}
+
+interface Test2<T extends Foo super Bar>
+{
+}
+
+compound Test3<T extends Foo super Bar>
+{
+}
+

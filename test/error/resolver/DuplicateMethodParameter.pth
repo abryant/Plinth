@@ -1,0 +1,9 @@
+// Plinth Test
+// Compiler: DuplicateMethodParameter.pth: 6:21-27: Duplicate parameter: x
+
+class Test
+{
+  void test(uint x, Test x)
+  {
+  }
+}

@@ -1,0 +1,7 @@
+// Plinth Test
+// Compiler: ImmutableProperty.pth: 6:3-19: An instance property in an immutable type must either have an immutable setter, or be marked as final (and thus have no setter)
+
+immutable class Test
+{
+  property uint x;
+}

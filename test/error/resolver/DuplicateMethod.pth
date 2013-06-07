@@ -1,0 +1,30 @@
+// Plinth Test
+// Compiler: DuplicateMethod.pth: 11:3-24: Duplicate non-static method: test
+// Compiler: DuplicateMethod.pth: 17:3-20: Duplicate non-static method: test
+// Compiler: DuplicateMethod.pth: 26:3-20: Duplicate static method: foo
+
+class Test
+{
+  void test()
+  {
+  }
+  abstract void test();
+
+  void test(uint x)
+  {
+  }
+
+  void test(uint y)
+  {
+  }
+
+  static uint foo()
+  {
+    return 12;
+  }
+
+  static uint foo()
+  {
+    return 99;
+  }
+}

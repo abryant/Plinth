@@ -1,0 +1,5 @@
+// Plinth Test
+// Compiler: Import.pth: 4:8-11: Unable to resolve the import: foo
+
+import foo;
+

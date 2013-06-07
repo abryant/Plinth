@@ -1,0 +1,41 @@
+// Plinth Test
+// Compiler: Members.pth: 21:3-8: Unable to resolve: Alpha
+// Compiler: Members.pth: 23:12-17: Unable to resolve: Bravo
+// Compiler: Members.pth: 24:27-34: Unable to resolve: Charlie
+// Compiler: Members.pth: 27:10-15: Unable to resolve: Delta
+// Compiler: Members.pth: 27:40-44: Unable to resolve: Echo
+// Compiler: Members.pth: 30:10-17: Unable to resolve: Foxtrot
+// Compiler: Members.pth: 30:42-46: Unable to resolve: Golf
+// Compiler: Members.pth: 34:10-15: Unable to resolve: Hotel
+// Compiler: Members.pth: 34:19-24: Unable to resolve: India
+// Compiler: Members.pth: 34:35-41: Unable to resolve: Juliet
+// Compiler: Members.pth: 34:53-57: Unable to resolve: Kilo
+// Compiler: Members.pth: 38:3-7: Unable to resolve: Lima
+// Compiler: Members.pth: 38:15-19: Unable to resolve: Mike
+// Compiler: Members.pth: 38:23-31: Unable to resolve: November
+// Compiler: Members.pth: 38:42-47: Unable to resolve: Oscar
+// Compiler: Members.pth: 38:59-63: Unable to resolve: Papa
+
+class Test
+{
+  Alpha field;
+
+  property Bravo prop
+  getter throws unchecked Charlie
+  {
+  }
+  setter(Delta value) throws unchecked Echo
+  {
+  }
+  create(Foxtrot value) throws unchecked Golf
+  {
+  };
+
+  create(Hotel h, India i) throws Juliet, unchecked Kilo
+  {
+  }
+
+  Lima method(Mike m, November n) throws Oscar, unchecked Papa
+  {
+  }
+}

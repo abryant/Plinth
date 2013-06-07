@@ -1,0 +1,15 @@
+// Plinth Test
+// Compiler: InheritedTypes.pth: 8:20-23: Unable to resolve: Foo
+// Compiler: InheritedTypes.pth: 8:35-38: Unable to resolve: Bar
+// Compiler: InheritedTypes.pth: 8:40-43: Unable to resolve: Baz
+// Compiler: InheritedTypes.pth: 12:25-28: Unable to resolve: Foo
+// Compiler: InheritedTypes.pth: 12:30-33: Unable to resolve: Bar
+
+class Test extends Foo implements Bar, Baz
+{
+}
+
+interface Test2 extends Foo, Bar
+{
+}
+

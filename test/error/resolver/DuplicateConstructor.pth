@@ -1,0 +1,22 @@
+// Plinth Test
+// Compiler: DuplicateConstructor.pth: 11:3-11: Duplicate constructor
+// Compiler: DuplicateConstructor.pth: 19:3-17: Duplicate constructor
+
+class Test
+{
+  create()
+  {
+  }
+
+  create()
+  {
+  }
+
+  create(uint x)
+  {
+  }
+
+  create(uint y)
+  {
+  }
+}
