@@ -1,9 +1,9 @@
 package eu.bryants.anthony.plinth.ast;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -45,8 +45,8 @@ public class CompoundDefinition extends TypeDefinition
   // fields need a guaranteed order, so use a LinkedHashMap to store them
   private Map<String, Field> fields = new LinkedHashMap<String, Field>();
   private Map<String, Property> properties = new LinkedHashMap<String, Property>();
-  private Set<Constructor> constructors = new HashSet<Constructor>();
-  private Map<String, Set<Method>> methods = new HashMap<String, Set<Method>>();
+  private Set<Constructor> constructors = new LinkedHashSet<Constructor>();
+  private Map<String, Set<Method>> methods = new LinkedHashMap<String, Set<Method>>();
 
   private MemberVariable[] memberVariables;
 
@@ -73,7 +73,7 @@ public class CompoundDefinition extends TypeDefinition
       }
     }
     // add all of the members by name
-    Set<Method> allMethods = new HashSet<Method>();
+    Set<Method> allMethods = new LinkedHashSet<Method>();
     for (Member member : members)
     {
       if (member instanceof Initialiser)
@@ -190,7 +190,7 @@ public class CompoundDefinition extends TypeDefinition
         Set<Method> methodSet = methods.get(method.getName());
         if (methodSet == null)
         {
-          methodSet = new HashSet<Method>();
+          methodSet = new LinkedHashSet<Method>();
           methods.put(method.getName(), methodSet);
         }
         method.setContainingTypeDefinition(this);
@@ -285,7 +285,7 @@ public class CompoundDefinition extends TypeDefinition
       Set<Method> methodSet = methods.get(method.getName());
       if (methodSet == null)
       {
-        methodSet = new HashSet<Method>();
+        methodSet = new LinkedHashSet<Method>();
         methods.put(method.getName(), methodSet);
       }
       methodSet.add(method);
@@ -305,7 +305,7 @@ public class CompoundDefinition extends TypeDefinition
       Set<Method> methodSet = methods.get(builtinMethod.getName());
       if (methodSet == null)
       {
-        methodSet = new HashSet<Method>();
+        methodSet = new LinkedHashSet<Method>();
         methods.put(builtinMethod.getName(), methodSet);
       }
       boolean found = false;
@@ -409,7 +409,7 @@ public class CompoundDefinition extends TypeDefinition
   @Override
   public Collection<Method> getAllMethods()
   {
-    Set<Method> allMethods = new HashSet<Method>();
+    Set<Method> allMethods = new LinkedHashSet<Method>();
     for (Set<Method> methodSet : methods.values())
     {
       allMethods.addAll(methodSet);

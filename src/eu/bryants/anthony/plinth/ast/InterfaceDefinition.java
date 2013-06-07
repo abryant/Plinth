@@ -1,9 +1,9 @@
 package eu.bryants.anthony.plinth.ast;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -39,9 +39,9 @@ public class InterfaceDefinition extends TypeDefinition
   private NamedType[] superInterfaceTypes;
 
   private List<Initialiser> initialisers = new LinkedList<Initialiser>();
-  private Map<String, Field> fields = new HashMap<String, Field>();
+  private Map<String, Field> fields = new LinkedHashMap<String, Field>();
   private Map<String, Property> properties = new LinkedHashMap<String, Property>();
-  private Map<String, Set<Method>> methods = new HashMap<String, Set<Method>>();
+  private Map<String, Set<Method>> methods = new LinkedHashMap<String, Set<Method>>();
 
   private VirtualFunction[] virtualFunctions;
 
@@ -70,7 +70,6 @@ public class InterfaceDefinition extends TypeDefinition
     }
     this.superInterfaceTypes = superInterfaceTypes;
     // add all of the members by name
-    Set<Method> allMethods = new HashSet<Method>();
     for (Member member : members)
     {
       if (member instanceof Initialiser)
@@ -185,7 +184,7 @@ public class InterfaceDefinition extends TypeDefinition
         Set<Method> methodSet = methods.get(method.getName());
         if (methodSet == null)
         {
-          methodSet = new HashSet<Method>();
+          methodSet = new LinkedHashSet<Method>();
           methods.put(method.getName(), methodSet);
         }
         method.setContainingTypeDefinition(this);
@@ -207,7 +206,6 @@ public class InterfaceDefinition extends TypeDefinition
           method.setMemberFunction(new MemberFunction(method));
         }
         methodSet.add(method);
-        allMethods.add(method);
       }
       else
       {
@@ -295,7 +293,7 @@ public class InterfaceDefinition extends TypeDefinition
       Set<Method> methodSet = methods.get(method.getName());
       if (methodSet == null)
       {
-        methodSet = new HashSet<Method>();
+        methodSet = new LinkedHashSet<Method>();
         methods.put(method.getName(), methodSet);
       }
       methodSet.add(method);
@@ -397,7 +395,7 @@ public class InterfaceDefinition extends TypeDefinition
   @Override
   public Collection<Method> getAllMethods()
   {
-    Set<Method> allMethods = new HashSet<Method>();
+    Set<Method> allMethods = new LinkedHashSet<Method>();
     for (Set<Method> methodSet : methods.values())
     {
       allMethods.addAll(methodSet);
