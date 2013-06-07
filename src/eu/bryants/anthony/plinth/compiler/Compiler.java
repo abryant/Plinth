@@ -278,8 +278,6 @@ public class Compiler
           }
         }
       }
-      // print each compilation unit before writing their bitcode files
-      System.out.println(compilationUnit);
     }
 
     if (linker != null)
