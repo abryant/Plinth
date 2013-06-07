@@ -115,7 +115,8 @@ def run_compiler(test):
 
 
   error_lines = stderr.decode('utf-8').splitlines(True)
-  compilerLines = test.compilerLines
+  basename = os.path.basename(test.filename)
+  compilerLines = [x.replace(basename, test.filename) for x in test.compilerLines]
   for i in range(len(error_lines)):
     for j in range(len(compilerLines)):
       if error_lines[i].strip() == compilerLines[j].strip():
