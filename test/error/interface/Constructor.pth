@@ -1,0 +1,9 @@
+// Plinth Test
+// Compiler: Constructor.pth: 6:3-11: Interfaces cannot have constructors
+
+interface Test
+{
+  create()
+  {
+  }
+}

@@ -1,0 +1,9 @@
+// Plinth Test
+// Compiler: NativeUpcall.pth: 6:3-36: Non-static methods on generic interfaces cannot be native up-calls
+
+interface Test<T>
+{
+  native "test" void nativeUpcall()
+  {
+  }
+}

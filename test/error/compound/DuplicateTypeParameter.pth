@@ -1,0 +1,7 @@
+// Plinth Test
+// Compiler: DuplicateTypeParameter.pth: 4:17: Duplicate type parameter: T
+
+compound Foo<T, T>
+{
+}
+

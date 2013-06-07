@@ -1,0 +1,9 @@
+// Plinth Test
+// Compiler: NonStaticInitialiser.pth: 6:3: Interfaces cannot contain non-static initialisers
+
+interface Foo
+{
+  {
+    // this is an initialiser
+  }
+}

@@ -1,0 +1,7 @@
+// Plinth Test
+// Compiler: NonStaticField.pth: 6:3-10: Interfaces cannot store (non-static) data
+
+interface Foo
+{
+  uint x;
+}

@@ -1,0 +1,8 @@
+// Plinth Test
+// Compiler: DuplicateFieldProperty.pth: 7:3-20: A field with the name 'x' already exists in 'Foo', so a property cannot be defined with the same name
+
+class Foo
+{
+  uint x;
+  property ulong x;
+}

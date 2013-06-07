@@ -1,0 +1,11 @@
+// Plinth Test
+// Compiler: DuplicateType.pth: 8:1-15: Duplicate type name: a type named 'Test' already exists in this compilation unit
+
+class Test
+{
+}
+
+interface Test
+{
+}
+

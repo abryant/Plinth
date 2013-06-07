@@ -1,0 +1,7 @@
+// Plinth Test
+// Compiler: DuplicateTypeParameter.pth: 4:18: Duplicate type parameter: T
+
+interface Foo<T, T>
+{
+}
+

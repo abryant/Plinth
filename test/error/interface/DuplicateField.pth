@@ -1,0 +1,8 @@
+// Plinth Test
+// Compiler: DuplicateField.pth: 7:3-16: A field with the name 'x' already exists in 'Foo', so another field cannot be defined with the same name
+
+interface Foo
+{
+  static uint x;
+  static Foo x;
+}

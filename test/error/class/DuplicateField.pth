@@ -1,0 +1,8 @@
+// Plinth Test
+// Compiler: DuplicateField.pth: 7:3-9: A field with the name 'x' already exists in 'Foo', so another field cannot be defined with the same name
+
+class Foo
+{
+  uint x;
+  Foo x;
+}

@@ -1,0 +1,11 @@
+// Plinth Test
+// Compiler: NonStaticBackedProperty.pth: 6:3-18: Interfaces cannot store (non-static) data - should this property be unbacked?
+
+interface Test
+{
+  property uint x
+  getter
+  {
+    return x;
+  };
+}

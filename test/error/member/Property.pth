@@ -1,0 +1,10 @@
+// Plinth Test
+// Compiler: Property.pth: 7:17-22: A property method cannot throw checked exceptions. Consider marking them as unchecked.
+
+class Test
+{
+  property uint foo
+  getter throws Alpha
+  {
+  };
+}

@@ -1,0 +1,8 @@
+// Plinth Test
+// Compiler: DuplicateProperty.pth: 7:3-19: A property with the name 'x' already exists in 'Foo', so another property cannot be defined with the same name
+
+class Foo
+{
+  property uint x;
+  property long x;
+}
