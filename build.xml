@@ -20,7 +20,7 @@
   </target>
 
   <target name="build-compiler" depends="init">
-    <javac srcdir="${compiler-src}" destdir="${compiler-bin}" includeantruntime="false">
+    <javac srcdir="${compiler-src}" destdir="${compiler-bin}" includeantruntime="false" failonerror="true">
       <classpath>
         <fileset dir="lib" includes="*.jar"/>
       </classpath>
@@ -28,7 +28,7 @@
   </target>
 
   <target name="build-runtime" depends="init">
-    <apply executable="clang" dest="${runtime-compiled-c}">
+    <apply executable="clang" dest="${runtime-compiled-c}" failonerror="true">
       <arg value="-emit-llvm"/>
       <arg value="-c"/>
       <srcfile/>
@@ -53,7 +53,7 @@
   </target>
 
   <target name="build-standard-library" depends="build-compiler">
-    <apply executable="java" dir="${compiler-bin}" dest="${standard-library-bin}" parallel="true" force="true">
+    <apply executable="java" dir="${compiler-bin}" dest="${standard-library-bin}" parallel="true" force="true" failonerror="true">
       <arg value="-cp"/>
       <arg value="../lib/jna.jar:."/>
       <arg value="eu.bryants.anthony.plinth.compiler.Compiler"/>
