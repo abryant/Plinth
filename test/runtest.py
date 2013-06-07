@@ -127,6 +127,9 @@ def run_compiler(test):
     print("  Failed to produce the compiler output lines:")
     for i in range(len(compilerLines)):
       print("    " + compilerLines[i].strip())
+    print("  Actual compiler output was:")
+    for i in range(len(error_lines)):
+      print("  > " + error_lines[i], end="")
     shutil.rmtree(work_dir)
     sys.exit(2)
 
@@ -140,8 +143,7 @@ def run_compiler(test):
       sys.exit(2)
     else:
       # Success, since the test must have been on the compiler output rather than the runtime output
-      shutil.rmtree(work_dir)
-      sys.exit(0)
+      return
 
 
   assembly_file = test.compiled_base + ".s"
@@ -205,5 +207,6 @@ if __name__ == "__main__":
   if test.mainTypeName != None and (test.returnCode != None or test.outLines != None):
     run_program(test)
   # Success!
+  print("Passed: " + test.filename)
   shutil.rmtree(test.work_dir)
 
