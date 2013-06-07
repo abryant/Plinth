@@ -1,0 +1,14 @@
+// Plinth Test
+// Main: CommandLine
+// Args: ThisIsATest abc de f 1 23 456
+// Out: [ThisIsATest, abc, de, f, 1, 23, 456]
+
+class CommandLine
+{
+  static uint main([]string args)
+  {
+    stdout::println(args.toString());
+    return 0;
+  }
+}
+

@@ -1,0 +1,116 @@
+/**
+ * This is a test standard library for Plinth.
+ * It implements only the bare minimum features that the compiler requires in order to compile code correctly.
+ */
+
+immutable compound string
+{
+  #[]ubyte bytes;
+
+  create(#[]ubyte bytes)
+  {
+    this.bytes = bytes;
+  }
+
+  create(string a, string b)
+  {
+    #[]ubyte aBytes = a.bytes;
+    #[]ubyte bBytes = b.bytes;
+    []ubyte bytes = new [aBytes.length + bBytes.length]ubyte;
+    for (uint i = 0; i < aBytes.length; ++i)
+    {
+      bytes[i] = aBytes[i];
+    }
+    for (uint i = 0; i < bBytes.length; ++i)
+    {
+      bytes[aBytes.length + i] = bBytes[i];
+    }
+    this.bytes = bytes;
+  }
+
+  create([]string strings)
+  {
+    uint len = 0;
+    for (uint i = 0; i < strings.length; ++i)
+    {
+      len += strings[i].bytes.length;
+    }
+    []ubyte bytes = new [len]ubyte;
+    uint off = 0;
+    for (uint i = 0; i < strings.length; ++i)
+    {
+      #[]ubyte sBytes = strings[i].bytes;
+      for (uint j = 0; j < sBytes.length; ++j)
+      {
+        bytes[off + j] = sBytes[j];
+      }
+      off += sBytes.length;
+    }
+    this.bytes = bytes;
+  }
+
+  string toString()
+  {
+    return this;
+  }
+
+  static string valueOf(boolean b)
+  {
+    return "<boolean>";
+  }
+  static string valueOf(long value)
+  {
+    return "<signed-int>";
+  }
+  static string valueOf(ulong value)
+  {
+    return "<unsigned-int>";
+  }
+  static string valueOf(long value, uint radix)
+  {
+    return "<signed-int-radix>";
+  }
+  static string valueOf(ulong value, uint radix)
+  {
+    return "<unsigned-int-radix>";
+  }
+  static string valueOf(float value)
+  {
+    return "<float>";
+  }
+  static string valueOf(double value)
+  {
+    return "<double>";
+  }
+}
+
+interface Throwable
+{
+  static native "plinth_print_uncaught_exception" void printUncaughtException(object uncaught)
+  {
+    stdout::println("Aborting due to an uncaught exception...");
+  }
+}
+
+class CastError implements Throwable
+{
+  create(string fromType, string toType, ?string reason)
+  {
+  }
+}
+
+compound stdout
+{
+  static immutable native "plinth_stdout_write" void write(#[]ubyte bytes);
+
+  static immutable void print(string s)
+  {
+    write(s.bytes);
+  }
+
+  static immutable void println(string s)
+  {
+    write((s + "\n").bytes);
+  }
+}
+

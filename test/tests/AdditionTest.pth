@@ -1,0 +1,12 @@
+// Plinth Test
+// Main: AdditionTest
+// ReturnCode: 4
+
+class AdditionTest
+{
+  static uint main([]string args)
+  {
+    return 1 + 3;
+  }
+}
+
