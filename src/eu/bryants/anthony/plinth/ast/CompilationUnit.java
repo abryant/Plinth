@@ -1,7 +1,7 @@
 package eu.bryants.anthony.plinth.ast;
 
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import eu.bryants.anthony.plinth.ast.metadata.PackageNode;
@@ -21,7 +21,7 @@ public class CompilationUnit
   private QName declaredPackage;
   private Import[] imports;
 
-  private Map<String, TypeDefinition> typeDefinitions = new HashMap<String, TypeDefinition>();
+  private Map<String, TypeDefinition> typeDefinitions = new LinkedHashMap<String, TypeDefinition>();
 
   private LexicalPhrase lexicalPhrase;
 

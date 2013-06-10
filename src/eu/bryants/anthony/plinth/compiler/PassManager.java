@@ -1,8 +1,8 @@
 package eu.bryants.anthony.plinth.compiler;
 
 import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -71,7 +71,7 @@ public class PassManager
 
   private Pass currentPass;
   private Map<Pass, Set<TypeDefinition>> pendingPasses = new EnumMap<Pass, Set<TypeDefinition>>(Pass.class);
-  private Map<TypeDefinition, CompilationUnit> typeCompilationUnits = new HashMap<TypeDefinition, CompilationUnit>();
+  private Map<TypeDefinition, CompilationUnit> typeCompilationUnits = new LinkedHashMap<TypeDefinition, CompilationUnit>();
   private boolean doneSpecialTypeChecking;
 
   private TypeDefinition mainTypeDefinition;
@@ -84,7 +84,7 @@ public class PassManager
     currentPass = Pass.TOP_LEVEL_RESOLUTION;
     for (Pass pass : Pass.values())
     {
-      pendingPasses.put(pass, new HashSet<TypeDefinition>());
+      pendingPasses.put(pass, new LinkedHashSet<TypeDefinition>());
     }
   }
 
