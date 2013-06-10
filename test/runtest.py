@@ -7,6 +7,8 @@
 #     Uses the specified type name as the main type argument to the compiler.
 #   Compiler: <some text>
 #     Tests that the compiler outputs the specified text as a whole line, somewhere in its output.
+#   MustCompile
+#     Tests that the compiler succeeds for this file. Implied by options that test a run-time result.
 #   Args: <some arguments>
 #     Uses the specified argument list for running the compiled test program.
 #   ReturnCode: <number>
@@ -27,10 +29,11 @@ RUNTIME = PLINTH_DIR + '/runtime/runtime.bc'
 TEST_LIB = PLINTH_DIR + '/test/TestLib.pth'
 
 class Test:
-  def __init__(self, filename, mainTypeName, compilerLines, args, returnCode, outLines):
+  def __init__(self, filename, mainTypeName, compilerLines, mustCompile, args, returnCode, outLines):
     self.filename = filename
     self.mainTypeName = mainTypeName
     self.compilerLines = compilerLines
+    self.mustCompile = mustCompile
     self.args = args
     self.returnCode = returnCode
     self.outLines = outLines
@@ -53,6 +56,7 @@ def parse_header(filename):
     sys.exit(1)
   mainTypeName = None
   compilerLines = []
+  mustCompile = False
   args = None
   returnCode = None
   outLines = None
@@ -64,17 +68,22 @@ def parse_header(filename):
       mainTypeName = header[i][len('Main: '):].strip()
     elif header[i].startswith('Compiler: '):
       compilerLines.append(header[i][len('Compiler: '):])
+    elif header[i].startswith('MustCompile'):
+      mustCompile = True
     elif header[i].startswith('Args: '):
+      mustCompile = True
       if args != None:
         print("A test cannot declare two argument lists")
         sys.exit(1)
       args = header[i][len('Args: '):].strip().split(' ')
     elif header[i].startswith('ReturnCode: '):
+      mustCompile = True
       if returnCode != None:
         print("A test cannot declare two return codes")
         sys.exit(1)
       returnCode = int(header[i][len('ReturnCode: '):].strip())
     elif header[i].startswith('Out: '):
+      mustCompile = True
       if outLines == None:
         outLines = []
       outLines.append(header[i][len('Out: '):])
@@ -93,10 +102,10 @@ def parse_header(filename):
   if args != None and returnCode == None and outLines == None:
     print("Cannot provide arguments to a test with no expected results")
     sys.exit(1)
-  if compilerLines == [] and returnCode == None and outLines == None:
+  if compilerLines == [] and mustCompile == False:
     print("No tests specified!")
     sys.exit(1)
-  return Test(filename, mainTypeName, compilerLines, args, returnCode, outLines)
+  return Test(filename, mainTypeName, compilerLines, mustCompile, args, returnCode, outLines)
 
 def run_compiler(test):
   work_dir = test.work_dir
@@ -135,7 +144,7 @@ def run_compiler(test):
     sys.exit(2)
 
   if proc.returncode != 0:
-    if test.returnCode != None or test.outLines != None:
+    if test.mustCompile:
       print("Fail: " + test.filename)
       print("  Failed to compile! Compiler output:")
       for i in range(len(error_lines)):
@@ -155,6 +164,10 @@ def run_compiler(test):
     shutil.rmtree(work_dir)
     sys.exit(2)
 
+def run_program(test):
+  work_dir = test.work_dir
+
+  assembly_file = test.compiled_base + ".s"
   executable_file = test.compiled_base
   gccResult = call(['gcc', assembly_file, '-o', executable_file])
   if gccResult != 0:
@@ -162,10 +175,6 @@ def run_compiler(test):
     print("  Failed to generate an executable from the assembly code")
     shutil.rmtree(work_dir)
     sys.exit(2)
-
-def run_program(test):
-  work_dir = test.work_dir
-  executable_file = test.compiled_base
 
   args = test.args
   if args == None:
