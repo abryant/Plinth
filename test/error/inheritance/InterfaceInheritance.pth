@@ -1,0 +1,15 @@
+// Plinth Test
+// Compiler: InterfaceInheritance.pth: 8:1-30: An interface may not extend a class
+// Compiler: InterfaceInheritance.pth: 12:1-33: An interface may not extend a compound type
+
+class Alpha
+{
+}
+interface Bravo extends Alpha
+{
+}
+
+interface Charlie extends string
+{
+}
+

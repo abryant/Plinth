@@ -1,0 +1,28 @@
+// Plinth Test
+// Compiler: ClassInheritance.pth: 7:1-27: A class may not extend a compound type
+// Compiler: ClassInheritance.pth: 14:1-28: A class may not extend an interface
+// Compiler: ClassInheritance.pth: 21:1-28: A class may not implement another class
+// Compiler: ClassInheritance.pth: 25:1-32: A class may not implement a compound type
+
+class Alpha extends string
+{
+}
+
+interface Bravo
+{
+}
+class Charlie extends Bravo
+{
+}
+
+class Delta
+{
+}
+class Echo implements Delta
+{
+}
+
+class Foxtrot implements string
+{
+}
+

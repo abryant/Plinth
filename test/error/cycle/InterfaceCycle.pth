@@ -1,0 +1,31 @@
+// Plinth Test
+// Compiler: InterfaceCycle.pth: 8:1-30: Cyclic inheritance graph detected: Alpha extends itself (perhaps indirectly)
+// Compiler: InterfaceCycle.pth: 12:1-39: Cyclic inheritance graph detected: Bravo extends itself (perhaps indirectly)
+// Compiler: InterfaceCycle.pth: 15:1-32: Cyclic inheritance graph detected: Charlie extends itself (perhaps indirectly)
+// Compiler: InterfaceCycle.pth: 25:1-37: Cyclic inheritance graph detected: Foxtrot extends itself (perhaps indirectly)
+// Compiler: InterfaceCycle.pth: 28:1-37: Cyclic inheritance graph detected: Golf extends itself (perhaps indirectly)
+
+interface Alpha extends Alpha
+{
+}
+
+interface Bravo extends Charlie, Alpha
+{
+}
+interface Charlie extends Bravo
+{
+}
+
+interface Delta
+{
+}
+interface Echo extends Delta
+{
+}
+interface Foxtrot extends Golf, Echo
+{
+}
+interface Golf extends Echo, Foxtrot
+{
+}
+

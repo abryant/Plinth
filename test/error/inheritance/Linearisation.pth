@@ -1,0 +1,17 @@
+// Plinth Test
+// Compiler: Linearisation.pth: 14:1-38: Cannot find a good linearisation for the inheritance hierarchy of Charlie: cannot decide which of the following super-types should be preferred:
+// Compiler: Alpha
+// Compiler: Bravo
+
+interface Alpha
+{
+}
+
+interface Bravo extends Alpha
+{
+}
+
+class Charlie implements Alpha, Bravo
+{
+}
+

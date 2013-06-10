@@ -1,0 +1,29 @@
+// Plinth Test
+// Compiler: ClassCycle.pth: 9:1-26: Cyclic inheritance hierarchy detected: Alpha extends itself (perhaps indirectly).
+// Compiler: ClassCycle.pth: 13:1-28: Cyclic inheritance hierarchy detected: Bravo extends itself (perhaps indirectly).
+// Compiler: ClassCycle.pth: 16:1-28: Cyclic inheritance hierarchy detected: Charlie extends itself (perhaps indirectly).
+// Compiler: ClassCycle.pth: 20:1-28: Cyclic inheritance hierarchy detected: Delta extends itself (perhaps indirectly).
+// Compiler: ClassCycle.pth: 23:1-25: Cyclic inheritance hierarchy detected: Echo extends itself (perhaps indirectly).
+// Compiler: ClassCycle.pth: 26:1-27: Cyclic inheritance hierarchy detected: Foxtrot extends itself (perhaps indirectly).
+
+class Alpha extends Alpha
+{
+}
+
+class Bravo extends Charlie
+{
+}
+class Charlie extends Bravo
+{
+}
+
+class Delta extends Foxtrot
+{
+}
+class Echo extends Delta
+{
+}
+class Foxtrot extends Echo
+{
+}
+
