@@ -1,0 +1,29 @@
+// Plinth Test
+// MustCompile
+
+class Alpha
+{
+  create()
+  {
+  }
+  create(uint x)
+  {
+  }
+  create(uint x, uint y)
+  {
+  }
+
+  void test(uint x, Alpha y)
+  {
+  }
+  void test(uint x, uint y)
+  {
+  }
+  static void test(uint x, uint y)
+  {
+  }
+  static void test(uint x, Alpha y)
+  {
+  }
+}
+

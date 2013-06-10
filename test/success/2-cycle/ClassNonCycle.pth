@@ -1,0 +1,17 @@
+// Plinth Test
+// MustCompile
+
+interface Alpha
+{
+}
+
+class Bravo implements Alpha
+{
+}
+class Charlie extends Bravo
+{
+}
+class Delta extends Charlie implements Alpha
+{
+}
+

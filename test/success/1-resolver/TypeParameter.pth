@@ -1,0 +1,12 @@
+// Plinth Test
+// MustCompile
+
+class Alpha<T extends Alpha super Alpha>
+{
+}
+interface Bravo<T extends Bravo super Bravo>
+{
+}
+compound charlie<T extends Alpha super Alpha>
+{
+}

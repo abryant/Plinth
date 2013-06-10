@@ -1,0 +1,19 @@
+// Plinth Test
+// MustCompile
+
+interface Alpha
+{
+}
+interface Bravo extends Alpha
+{
+}
+interface Charlie extends Bravo
+{
+}
+interface Delta extends Alpha
+{
+}
+interface Echo extends Charlie, Delta
+{
+}
+

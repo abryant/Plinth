@@ -1,0 +1,27 @@
+// Plinth Test
+// MustCompile
+
+class Alpha
+{
+}
+class Bravo extends Alpha
+{
+}
+
+interface Charlie
+{
+}
+class Delta extends Bravo implements Charlie
+{
+}
+
+interface Echo
+{
+}
+interface Foxtrot
+{
+}
+class Golf implements Echo, Foxtrot
+{
+}
+

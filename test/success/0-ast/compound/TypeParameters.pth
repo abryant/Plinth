@@ -1,0 +1,13 @@
+// Plinth Test
+// MustCompile
+
+compound Alpha
+{
+}
+compound Bravo<T>
+{
+}
+compound Charlie<A, B>
+{
+}
+

@@ -1,0 +1,13 @@
+// Plinth Test
+// MustCompile
+
+// this tests the edge cases around:
+// "A final, immutably-typed field cannot be mutable"
+
+class Alpha
+{
+  mutable uint x;
+
+  final mutable Alpha a;
+  mutable #Alpha b;
+}

@@ -1,0 +1,16 @@
+// Plinth Test
+// MustCompile
+
+// this checks edge cases around the error:
+// "An instance property in an immutable type must either have an immutable setter, or be marked as final (and thus have no setter)"
+
+immutable class Alpha
+{
+  mutable property uint x
+  immutable setter;
+
+  final property uint y;
+
+  static property uint z;
+}
+

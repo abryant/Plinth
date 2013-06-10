@@ -1,0 +1,13 @@
+// Plinth Test
+// MustCompile
+
+class Alpha
+{
+}
+class Bravo<T>
+{
+}
+class Charlie<A, B>
+{
+}
+

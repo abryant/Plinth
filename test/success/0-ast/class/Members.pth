@@ -1,0 +1,19 @@
+// Plinth Test
+// MustCompile
+
+class Alpha
+{
+  uint x;
+  property ulong y;
+  Alpha z;
+  void m()
+  {
+  }
+
+  static byte a;
+  static property short b;
+  static ?Alpha c;
+  static void m()
+  {
+  }
+}

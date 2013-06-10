@@ -1,0 +1,13 @@
+// Plinth Test
+// MustCompile
+
+package foo;
+
+import foo.*;
+import foo.Alpha;
+import string;
+
+class Alpha
+{
+}
+

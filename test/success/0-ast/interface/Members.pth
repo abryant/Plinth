@@ -1,0 +1,19 @@
+// Plinth Test
+// MustCompile
+
+interface Alpha
+{
+  // defaults to abstract and unbacked
+  property ulong y;
+
+  void m()
+  {
+  }
+
+  static byte a;
+  static property short b;
+  static ?Alpha c;
+  static void m()
+  {
+  }
+}

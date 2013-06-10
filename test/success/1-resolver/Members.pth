@@ -1,0 +1,34 @@
+// Plinth Test
+// MustCompile
+
+class Test
+{
+  ?Test field;
+
+  property ?Test prop
+  getter throws unchecked Throwable
+  {
+    return prop;
+  }
+  setter(?Test value) throws unchecked Throwable
+  {
+  }
+  create(?Test value) throws unchecked Throwable
+  {
+  };
+
+  create()
+  {
+    prop = null;
+  }
+
+  create(?Test test) throws CastError, unchecked Throwable
+  {
+    prop = test;
+  }
+
+  Test method(Test t) throws CastError, unchecked Throwable
+  {
+    return t;
+  }
+}
