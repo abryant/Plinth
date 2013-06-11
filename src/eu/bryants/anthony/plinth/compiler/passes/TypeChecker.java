@@ -159,7 +159,7 @@ public class TypeChecker
     {
       if (typeParameters.length > 0)
       {
-        throw new ConceptualException(typeDefinition.getQualifiedName() + " expects " + typeParameters.length + " type arguments", superType.getLexicalPhrase());
+        throw new ConceptualException(typeDefinition.getQualifiedName() + " expects " + typeParameters.length + " type argument" + (typeParameters.length == 1 ? "" : "s"), superType.getLexicalPhrase());
       }
     }
     else
@@ -170,7 +170,7 @@ public class TypeChecker
         {
           throw new ConceptualException(typeDefinition.getQualifiedName() + " does not accept any type arguments", superType.getLexicalPhrase());
         }
-        throw new ConceptualException(typeDefinition.getQualifiedName() + " expects " + typeParameters.length + " type arguments, not " + typeArguments.length, superType.getLexicalPhrase());
+        throw new ConceptualException(typeDefinition.getQualifiedName() + " expects " + typeParameters.length + " type argument" + (typeParameters.length == 1 ? "" : "s") + ", not " + typeArguments.length, superType.getLexicalPhrase());
       }
       for (int i = 0; i < typeArguments.length; ++i)
       {
@@ -862,7 +862,7 @@ public class TypeChecker
       {
         if (typeParameters.length > 0 && !isStaticTypeReference)
         {
-          throw new ConceptualException(typeDefinition.getQualifiedName() + " expects " + typeParameters.length + " type arguments", namedType.getLexicalPhrase());
+          throw new ConceptualException(typeDefinition.getQualifiedName() + " expects " + typeParameters.length + " type argument" + (typeParameters.length == 1 ? "" : "s"), namedType.getLexicalPhrase());
         }
       }
       else
@@ -873,7 +873,7 @@ public class TypeChecker
           {
             throw new ConceptualException(typeDefinition.getQualifiedName() + " does not accept any type arguments", namedType.getLexicalPhrase());
           }
-          throw new ConceptualException(typeDefinition.getQualifiedName() + " expects " + typeParameters.length + " type arguments, not " + typeArguments.length, namedType.getLexicalPhrase());
+          throw new ConceptualException(typeDefinition.getQualifiedName() + " expects " + typeParameters.length + " type argument" + (typeParameters.length == 1 ? "" : "s") + ", not " + typeArguments.length, namedType.getLexicalPhrase());
         }
         for (int i = 0; i < typeArguments.length; ++i)
         {
