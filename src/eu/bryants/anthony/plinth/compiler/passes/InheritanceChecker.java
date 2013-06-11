@@ -25,6 +25,7 @@ import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.TypeParameter;
+import eu.bryants.anthony.plinth.compiler.CoalescedConceptualException;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
 
 /*
@@ -320,6 +321,7 @@ public class InheritanceChecker
    */
   public static void checkInheritedMembers(TypeDefinition typeDefinition) throws ConceptualException
   {
+    CoalescedConceptualException coalescedException = null;
     if (typeDefinition instanceof ClassDefinition)
     {
       ClassDefinition classDefinition = (ClassDefinition) typeDefinition;
@@ -329,7 +331,7 @@ public class InheritanceChecker
         ClassDefinition superClass = (ClassDefinition) superType.getResolvedTypeDefinition();
         if (superClass.isImmutable() && !classDefinition.isImmutable())
         {
-          throw new ConceptualException("Cannot define a non-immutable class to be a subclass of an immutable class", classDefinition.getLexicalPhrase());
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot define a non-immutable class to be a subclass of an immutable class", classDefinition.getLexicalPhrase()));
         }
       }
 
@@ -341,7 +343,7 @@ public class InheritanceChecker
           InterfaceDefinition superInterface = (InterfaceDefinition) superInterfaceType.getResolvedTypeDefinition();
           if (superInterface.isImmutable() && !classDefinition.isImmutable())
           {
-            throw new ConceptualException("Cannot define a non-immutable class to implement an immutable interface", classDefinition.getLexicalPhrase());
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot define a non-immutable class to implement an immutable interface", classDefinition.getLexicalPhrase()));
           }
         }
       }
@@ -357,7 +359,7 @@ public class InheritanceChecker
           InterfaceDefinition superInterface = (InterfaceDefinition) superInterfaceType.getResolvedTypeDefinition();
           if (superInterface.isImmutable() && !interfaceDefinition.isImmutable())
           {
-            throw new ConceptualException("Cannot define a non-immutable interface to implement an immutable interface", interfaceDefinition.getLexicalPhrase());
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot define a non-immutable interface to implement an immutable interface", interfaceDefinition.getLexicalPhrase()));
           }
         }
       }
@@ -365,12 +367,31 @@ public class InheritanceChecker
 
     for (Property property : typeDefinition.getProperties())
     {
-      checkProperty(property);
+      try
+      {
+        checkProperty(property);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
     }
 
     for (Method method : typeDefinition.getAllMethods())
     {
-      checkMethod(method);
+      try
+      {
+        checkMethod(method);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+    }
+
+    if (coalescedException != null)
+    {
+      throw coalescedException;
     }
 
     checkTypeMembers(typeDefinition.getInheritanceLinearisation()[0], false, typeDefinition.getLexicalPhrase(), typeDefinition.getInheritanceLinearisation());
