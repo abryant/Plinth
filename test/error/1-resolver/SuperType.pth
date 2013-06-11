@@ -1,0 +1,60 @@
+// Plinth Test
+// Compiler: SuperType.pth: 14:24: A type cannot extend a generic type argument
+// Compiler: SuperType.pth: 18:28: A type cannot extend a generic type argument
+// Compiler: SuperType.pth: 22:23-28: Alpha expects 1 type argument
+// Compiler: SuperType.pth: 26:21-40: Alpha expects 1 type argument, not 2
+// Compiler: SuperType.pth: 30:20-33: Charlie does not accept any type arguments
+// Compiler: SuperType.pth: 41:24-28: Golf expects 1 type argument
+// Compiler: SuperType.pth: 44:24-42: Golf expects 1 type argument, not 2
+// Compiler: SuperType.pth: 47:25-39: Foxtrot does not accept any type arguments
+// Compiler: SuperType.pth: 51:24-28: Golf expects 1 type argument
+// Compiler: SuperType.pth: 54:24-43: Golf expects 1 type argument, not 2
+// Compiler: SuperType.pth: 57:24-39: Foxtrot does not accept any type arguments
+
+class Alpha<T> extends T
+{
+}
+
+interface Bravo<T> extends T
+{
+}
+
+class Charlie extends Alpha
+{
+}
+
+class Delta extends Alpha<uint, string>
+{
+}
+
+class Echo extends Charlie<uint>
+{
+}
+
+interface Foxtrot
+{
+}
+interface Golf<T>
+{
+}
+
+class Hotel implements Golf
+{
+}
+class India implements Golf<string, uint>
+{
+}
+class Juliet implements Foxtrot<ulong>
+{
+}
+
+interface Kilo extends Golf
+{
+}
+interface Lima extends Golf<?string, byte>
+{
+}
+interface Mike extends Foxtrot<string>
+{
+}
+

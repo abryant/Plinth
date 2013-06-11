@@ -1,0 +1,28 @@
+// Plinth Test
+// MustCompile
+
+class Alpha
+{
+}
+interface Bravo
+{
+}
+
+class Charlie<T>
+{
+}
+interface Delta<S, T>
+{
+}
+
+class Echo extends Alpha implements Bravo
+{
+}
+class Foxtrot extends Charlie<uint> implements Delta<string, uint>
+{
+}
+
+interface Golf extends Bravo, Delta<[]string, { -> void}>
+{
+}
+
