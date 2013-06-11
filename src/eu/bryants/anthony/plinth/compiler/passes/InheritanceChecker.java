@@ -441,6 +441,8 @@ public class InheritanceChecker
       }
     }
 
+    CoalescedConceptualException coalescedException = null;
+
     for (NamedType currentType : linearisation)
     {
       TypeDefinition currentTypeDefinition = currentType.getResolvedTypeDefinition();
@@ -449,7 +451,14 @@ public class InheritanceChecker
         continue;
       }
 
-      checkDuplicateConstructors(currentType, concreteType, concreteTypeLexicalPhrase);
+      try
+      {
+        checkDuplicateConstructors(currentType, concreteType, concreteTypeLexicalPhrase);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
 
       // check the current type for any duplicated methods
       // this can happen if filling in some generic type parameters creates a second method with the same signature as one that already exists
@@ -475,8 +484,9 @@ public class InheritanceChecker
           MethodReference checkReference = new MethodReference(m, currentTypeSpecialiser);
           if (methodReference.getDisambiguator().matches(checkReference.getDisambiguator()))
           {
-            throw new ConceptualException("Two methods inside " + currentTypeDefinition.getQualifiedName() + " have the signature '" + buildMethodDisambiguatorString(methodReference) + "' after generic types are filled in for " + concreteType,
-                                          concreteTypeLexicalPhrase);
+            ConceptualException e = new ConceptualException("Two methods inside " + currentTypeDefinition.getQualifiedName() + " have the signature '" + buildMethodDisambiguatorString(methodReference) + "' after generic types are filled in for " + concreteType,
+                                                            concreteTypeLexicalPhrase);
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
       }
@@ -498,6 +508,11 @@ public class InheritanceChecker
       }
     }
 
+    if (coalescedException != null)
+    {
+      throw coalescedException;
+    }
+
     // check all of the method overrides
     for (MethodReference inheritedMethodReference : inheritedMethodReferences)
     {
@@ -517,16 +532,19 @@ public class InheritanceChecker
           if (inheritedType == null || inheritedType.canAssign(overrideType))
           {
             // the existing error message is good enough, because the overriding type is a sub-type of the inherited type
-            if (concreteIsSpecialised || !overrideType.isEquivalent(concreteType))
+
+            // if this error does not involve the concrete type we are checking, wait until we check check overrideType to report it, or we will get duplicate errors
+            if (!concreteIsSpecialised && overrideType.isEquivalent(concreteType))
             {
-              // this is an error, but it does not involve the class we are checking, so wait until we check currentType to report it, or we will get duplicate errors
-              continue;
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
             }
-            throw e;
+            continue;
           }
           // add a new message to point out that the overriding is because the concrete type we are checking inherits from two different types
-          throw new ConceptualException("Incompatible method: " + buildMethodDisambiguatorString(inheritedMethodReference) + " is inherited incompatibly from both " + inheritedType + " and " + overrideType + " - the problem is:",
-                                        concreteTypeLexicalPhrase, e);
+          ConceptualException modifiedException = new ConceptualException("Incompatible method: " + buildMethodDisambiguatorString(inheritedMethodReference) + " is inherited incompatibly from both " + inheritedType + " and " + overrideType + " - the problem is:",
+                                                                          concreteTypeLexicalPhrase, e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, modifiedException);
+          continue;
         }
         if (!override.getReferencedMember().isAbstract())
         {
@@ -538,9 +556,10 @@ public class InheritanceChecker
       {
         String declarationType = inheritedMethodReference.getContainingType() == null ? "object" : inheritedMethodReference.getContainingType().toString();
         String disambiguator = buildMethodDisambiguatorString(inheritedMethodReference);
-        throw new ConceptualException(concreteType.getResolvedTypeDefinition().getName() + " does not implement the abstract method: " +
-                                        disambiguator + " (from type: " + declarationType + ")",
-                                      concreteTypeLexicalPhrase);
+        ConceptualException e = new ConceptualException(concreteType.getResolvedTypeDefinition().getName() + " does not implement the abstract method: " +
+                                                          disambiguator + " (from type: " + declarationType + ")",
+                                                        concreteTypeLexicalPhrase);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
     }
 
@@ -563,16 +582,19 @@ public class InheritanceChecker
           if (inheritedType == null || inheritedType.canAssign(overrideType))
           {
             // the existing error message is good enough, because the current type is a sub-type of the inherited type
-            if (concreteIsSpecialised || !overrideType.isEquivalent(concreteType))
+
+            // if this error does not involve the concrete type we are checking, wait until we check check overrideType to report it, or we will get duplicate errors
+            if (!concreteIsSpecialised && overrideType.isEquivalent(concreteType))
             {
-              // this is an error, but it does not involve the class we are checking, so wait until we check currentType to report it, or we will get duplicate errors
-              continue;
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
             }
-            throw e;
+            continue;
           }
           // add a new message to point out that the overriding is because this TypeDefinition inherits from two different types
-          throw new ConceptualException("Incompatible property: '" + inheritedPropertyReference.getReferencedMember().getName() + "' is inherited incompatibly from both " + inheritedType + " and " + overrideType + " - the problem is:",
-                                        concreteTypeLexicalPhrase, e);
+          ConceptualException modifiedException = new ConceptualException("Incompatible property: '" + inheritedPropertyReference.getReferencedMember().getName() + "' is inherited incompatibly from both " + inheritedType + " and " + overrideType + " - the problem is:",
+                                                                          concreteTypeLexicalPhrase, e);
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, modifiedException);
+          continue;
         }
         if (!override.getReferencedMember().isAbstract())
         {
@@ -583,10 +605,16 @@ public class InheritanceChecker
       if (!concreteIsSpecialised && !concreteType.getResolvedTypeDefinition().isAbstract() && inheritedIsAbstract && !hasImplementation)
       {
         String declarationType = inheritedPropertyReference.getContainingType() == null ? "object" : inheritedPropertyReference.getContainingType().toString();
-        throw new ConceptualException(concreteType.getResolvedTypeDefinition().getName() + " does not implement the abstract property: " +
-                                        inheritedPropertyReference.getReferencedMember().getName() + " (from type: " + declarationType + ")",
-                                      concreteTypeLexicalPhrase);
+        ConceptualException e = new ConceptualException(concreteType.getResolvedTypeDefinition().getName() + " does not implement the abstract property: " +
+                                                          inheritedPropertyReference.getReferencedMember().getName() + " (from type: " + declarationType + ")",
+                                                        concreteTypeLexicalPhrase);
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
+    }
+
+    if (coalescedException != null)
+    {
+      throw coalescedException;
     }
   }
 
