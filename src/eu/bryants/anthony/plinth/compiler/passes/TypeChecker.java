@@ -479,6 +479,10 @@ public class TypeChecker
         }
       }
     }
+    if (coalescedException != null)
+    {
+      throw coalescedException;
+    }
   }
 
   public static void checkTypes(TypeDefinition typeDefinition) throws ConceptualException
