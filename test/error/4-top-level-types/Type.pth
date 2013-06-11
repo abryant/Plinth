@@ -1,0 +1,72 @@
+// Plinth Test
+// Compiler: Type.pth: 16:19-25: The declared thrown type string does not inherit from Throwable
+// Compiler: Type.pth: 21:3-12: A generic type cannot have type arguments
+// Compiler: Type.pth: 23:10: Cannot use the type parameter 'T' in a static context
+// Compiler: Type.pth: 27:3-11: Alpha does not accept any type arguments
+// Compiler: Type.pth: 29:3-22: Bravo expects 1 type argument, not 2
+// Compiler: Type.pth: 31:10-14: 'uint' is not compatible with the type parameter 'T extends Alpha'
+// Compiler: Type.pth: 25:12-17: Bravo expects 1 type argument
+// Compiler: Type.pth: 67:3-18: Two constructors inside Charlie have the same signature after generic types are filled in for Charlie<string>
+// Compiler: Type.pth: 68:3-16: Two methods inside Charlie have the signature 'void method(uint)' after generic types are filled in for Charlie<uint>
+// Compiler: Type.pth: 69:3-18: Two methods inside Charlie have the signature '?ulong f()' after generic types are filled in for Charlie<?ulong>
+// Compiler: Type.pth: 70:3-17: Two methods inside Charlie have the signature '?ulong g()' after generic types are filled in for Charlie<ulong>
+
+class Alpha
+{
+  {-> void throws string} x;
+}
+
+class Bravo<T extends Alpha>
+{
+  T<string> a;
+
+  static T b;
+
+  property Bravo c;
+
+  Alpha<T> d;
+
+  Bravo<string, uint> e;
+
+  (Bravo<uint>, string) f;
+}
+
+class Charlie<T>
+{
+  create(string s)
+  {
+  }
+  create(T t)
+  {
+  }
+
+  void method(uint x)
+  {
+  }
+  void method(T x)
+  {
+  }
+
+  T f()
+  {
+  }
+  ?ulong f()
+  {
+  }
+
+  ?T g()
+  {
+  }
+  ?ulong g()
+  {
+  }
+}
+
+class Delta
+{
+  Charlie<string> a;
+  Charlie<uint> b;
+  Charlie<?ulong> c;
+  Charlie<ulong> d;
+}
+

@@ -1,0 +1,28 @@
+// Plinth Test
+// MustCompile
+
+class Alpha<T extends uint & uint>
+{
+}
+interface Bravo<T extends Alpha<uint> & Alpha<uint>>
+{
+}
+compound charlie<P, Q extends string>
+{
+}
+
+class Delta
+{
+}
+class Echo extends Delta
+{
+}
+
+class Foxtrot<R, S extends Delta super Echo>
+{
+}
+
+class Golf<R, S extends Delta super Delta>
+{
+}
+

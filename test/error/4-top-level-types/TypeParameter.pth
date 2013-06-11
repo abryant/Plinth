@@ -1,0 +1,27 @@
+// Plinth Test
+// Compiler: TypeParameter.pth: 7:13-40: T cannot extend both []uint and []string, they are incompatible
+// Compiler: TypeParameter.pth: 10:17-62: T cannot extend both {uint -> string} and {string -> uint}, they are incompatible
+// Compiler: TypeParameter.pth: 13:21-43: S cannot extend both ulong and uint, they are incompatible
+// Compiler: TypeParameter.pth: 24:18-44: Q is not consistent: Echo is not a super-type of Delta
+
+class Alpha<T extends []string & []uint>
+{
+}
+interface Bravo<T extends {string -> uint} & {uint -> string}>
+{
+}
+compound charlie<T, S extends uint & ulong>
+{
+}
+
+class Delta
+{
+}
+class Echo extends Delta
+{
+}
+
+class Foxtrot<P, Q extends Echo super Delta>
+{
+}
+

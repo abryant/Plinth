@@ -1,0 +1,33 @@
+// Plinth Test
+// MustCompile
+
+class Alpha
+{
+  property uint x
+  getter throws unchecked Throwable, unchecked CastError
+  {
+    return x;
+  }
+  setter(value) throws unchecked Throwable, unchecked CastError
+  {
+  }
+  create(value) throws unchecked Throwable, unchecked CastError
+  {
+  };
+
+  create() throws Throwable, CastError
+  {
+    x = 0;
+  }
+  create(uint x) throws unchecked Throwable, unchecked CastError
+  {
+    this.x = x;
+  }
+
+  void method() throws Throwable, CastError
+  {
+  }
+  void method2() throws unchecked Throwable, unchecked CastError
+  {
+  }
+}

@@ -1,0 +1,69 @@
+// Plinth Test
+// MustCompile
+
+interface TestError<T> extends Throwable
+{
+}
+
+class Alpha
+{
+  { -> void throws Throwable} a;
+  { -> void throws TestError<string>} b;
+}
+
+class Bravo<T extends Alpha>
+{
+  T a;
+
+  property Bravo<Alpha> b;
+
+  Alpha c;
+
+  (Bravo<Alpha>, string) d;
+}
+
+class Charlie<T>
+{
+  T t;
+  create(string s, T t)
+  {
+    this.t = t;
+  }
+  create(T t, T u)
+  {
+    this.t = t;
+  }
+
+  void method(uint x)
+  {
+  }
+  void method(T x)
+  {
+  }
+
+  T f()
+  {
+    return t;
+  }
+  ?ulong f()
+  {
+    return 12;
+  }
+
+  ?T g()
+  {
+    return null;
+  }
+  ?long g()
+  {
+    return null;
+  }
+}
+
+class Delta
+{
+  Charlie<?string> a;
+  Charlie<?uint> b;
+  Charlie<ulong> c;
+}
+

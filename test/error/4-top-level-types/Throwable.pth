@@ -1,0 +1,32 @@
+// Plinth Test
+// Compiler: Throwable.pth: 13:27-33: The declared thrown type string does not inherit from Throwable
+// Compiler: Throwable.pth: 17:34-39: The declared thrown type Alpha does not inherit from Throwable
+// Compiler: Throwable.pth: 20:34-40: The declared thrown type stdout does not inherit from Throwable
+// Compiler: Throwable.pth: 24:19-24: The declared thrown type Alpha does not inherit from Throwable
+// Compiler: Throwable.pth: 24:36-42: The declared thrown type stdout does not inherit from Throwable
+// Compiler: Throwable.pth: 28:19-25: The declared thrown type string does not inherit from Throwable
+// Compiler: Throwable.pth: 28:37-42: The declared thrown type Alpha does not inherit from Throwable
+
+class Alpha
+{
+  property uint x
+  getter throws unchecked string
+  {
+    return x;
+  }
+  setter(value) throws unchecked Alpha
+  {
+  }
+  create(value) throws unchecked stdout
+  {
+  };
+
+  create() throws Alpha, unchecked stdout
+  {
+  }
+
+  void m() throws string, unchecked Alpha
+  {
+  }
+}
+
