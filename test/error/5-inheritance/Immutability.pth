@@ -1,0 +1,25 @@
+// Plinth Test
+// Compiler: Immutability.pth: 10:1-26: Cannot define a non-immutable class to be a subclass of an immutable class
+// Compiler: Immutability.pth: 18:1-31: Cannot define a non-immutable class to implement an immutable interface
+// Compiler: Immutability.pth: 22:1-31: Cannot define a non-immutable interface to implement an immutable interface
+
+immutable class Alpha
+{
+}
+
+class Bravo extends Alpha
+{
+}
+
+immutable interface Charlie
+{
+}
+
+class Delta implements Charlie
+{
+}
+
+interface Echo extends Charlie
+{
+}
+

@@ -1,0 +1,24 @@
+// Plinth Test
+// MustCompile
+
+abstract class Alpha
+{
+  abstract property uint a
+  getter setter create;
+}
+
+compound bravo
+{
+  property uint b
+  getter
+  {
+    return b;
+  }
+  setter(value)
+  {
+  }
+  create(value)
+  {
+  };
+}
+

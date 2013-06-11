@@ -1,0 +1,92 @@
+// Plinth Test
+// Compiler: OverrideModifiers.pth: 19:3-21: A property must always have the same type as a property it overrides, in this case: uint
+// Compiler: OverrideModifiers.pth: 24:3-25: A property must always have the same finality as a property it overrides
+// Compiler: OverrideModifiers.pth: 34:3-23: A property must always have the same finality as a property it overrides
+// Compiler: OverrideModifiers.pth: 43:3-20: An overriding property must have a constructor if the property it overrides has a constructor
+// Compiler: OverrideModifiers.pth: 52:3-27: An overriding property must not have a constructor if the property it overrides does not have a constructor
+// Compiler: OverrideModifiers.pth: 65:3-36: A non-immutable property getter cannot override an immutable property getter
+// Compiler: OverrideModifiers.pth: 69:3-20: A non-immutable property setter cannot override an immutable property setter
+// Compiler: OverrideModifiers.pth: 75:3-20: A non-immutable property constructor cannot override an immutable property constructor
+// Compiler: OverrideModifiers.pth: 88:3-13: A non-immutable method cannot override an immutable method
+
+class Alpha
+{
+  property uint x;
+}
+
+class Bravo extends Alpha
+{
+  property string x;
+}
+
+class Charlie extends Alpha
+{
+  final property uint x;
+}
+
+class Delta
+{
+  final property string str;
+}
+
+class Echo extends Delta
+{
+  property string str;
+}
+
+class Foxtrot
+{
+  property short s create;
+}
+class Golf extends Foxtrot
+{
+  property short s;
+}
+
+class Hotel
+{
+  property ubyte b;
+}
+class India extends Hotel
+{
+  property ubyte b create;
+}
+
+class Juliet
+{
+  // this property triggers a control flow error about mutability, which we ignore here
+  property stdout p
+  // use the default immutable getter
+  immutable setter
+  immutable create;
+}
+class Kilo extends Juliet
+{
+  property stdout p mutable getter;
+}
+class Lima extends Juliet
+{
+  property stdout p
+  mutable setter
+  immutable create;
+}
+class Mike extends Juliet
+{
+  property stdout p
+  immutable setter
+  mutable create;
+}
+
+class November
+{
+  immutable void foo()
+  {
+  }
+}
+class Oscar extends November
+{
+  void foo()
+  {
+  }
+}
+

@@ -1,0 +1,40 @@
+// Plinth Test
+// Compiler: IndirectOverride.pth: 21:1-45: Incompatible property: 'x' is inherited incompatibly from both Alpha and Bravo - the problem is:
+// Compiler: IndirectOverride.pth: 19:3-21: A property must always have the same type as a property it overrides, in this case: uint
+// Compiler: IndirectOverride.pth: 15:3-19: Note: overridden from here
+// Compiler: IndirectOverride.pth: 21:1-45: Incompatible property: 'x' is inherited incompatibly from both Bravo and Alpha - the problem is:
+// Compiler: IndirectOverride.pth: 15:3-19: A property must always have the same type as a property it overrides, in this case: string
+// Compiler: IndirectOverride.pth: 19:3-21: Note: overridden from here
+// Compiler: IndirectOverride.pth: 21:1-45: Charlie does not implement the abstract property: x (from type: Bravo)
+// Compiler: IndirectOverride.pth: 37:1-44: Incompatible method: void foo() is inherited incompatibly from both Delta and Echo - the problem is:
+// Compiler: IndirectOverride.pth: 33:3-13: A non-immutable method cannot override an immutable method
+// Compiler: IndirectOverride.pth: 27:3-23: Note: overridden from here
+
+class Alpha
+{
+  property uint x;
+}
+interface Bravo
+{
+  property string x;
+}
+class Charlie extends Alpha implements Bravo
+{
+}
+
+class Delta
+{
+  immutable void foo()
+  {
+  }
+}
+interface Echo
+{
+  void foo()
+  {
+  }
+}
+class Foxtrot extends Delta implements Echo
+{
+}
+

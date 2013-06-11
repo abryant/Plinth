@@ -1,0 +1,72 @@
+// Plinth Test
+// MustCompile
+
+class Alpha
+{
+  property uint x;
+
+  final property string str;
+
+  property ushort us;
+
+  property short s create;
+
+  mutable property stdout p
+  // default immutable getter
+  immutable setter
+  immutable create;
+
+  property Throwable q
+  mutable getter;
+  // default mutable setter and constructor
+}
+class Bravo extends Alpha
+{
+  property uint x
+  immutable getter
+  mutable setter;
+
+  final property string str;
+
+  property ushort us;
+
+  property short s create;
+
+  mutable property stdout p
+  immutable getter
+  immutable setter
+  immutable create;
+
+  property Throwable q
+  mutable getter
+  mutable setter
+  mutable create;
+}
+
+class Charlie
+{
+  void foo()
+  {
+  }
+
+  immutable void bar()
+  {
+  }
+}
+class Delta extends Charlie
+{
+  void foo()
+  {
+  }
+
+  immutable void bar()
+  {
+  }
+}
+class Echo extends Charlie
+{
+  immutable void foo()
+  {
+  }
+}
+

@@ -1,0 +1,55 @@
+// Plinth Test
+// MustCompile
+
+abstract class Alpha
+{
+  abstract void foo();
+  abstract property uint x;
+}
+
+abstract class Bravo extends Alpha
+{
+}
+class Charlie extends Bravo
+{
+  void foo()
+  {
+  }
+  property uint x;
+}
+interface FooImpl
+{
+  void foo()
+  {
+  }
+}
+class Delta extends Bravo implements FooImpl
+{
+  property uint x;
+}
+
+interface Echo
+{
+  void bar(uint n);
+  property string s;
+}
+
+class EchoImpl
+{
+  void bar(uint p)
+  {
+  }
+  property string s;
+}
+
+class Foxtrot extends EchoImpl implements Echo
+{
+}
+
+class Golf implements Echo
+{
+  void bar(uint q)
+  {
+  }
+  property string s;
+}

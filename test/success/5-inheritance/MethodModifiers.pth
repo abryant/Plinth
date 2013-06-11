@@ -1,0 +1,15 @@
+// Plinth Test
+// MustCompile
+
+abstract class Alpha
+{
+  abstract void a();
+}
+
+compound bravo
+{
+  void a()
+  {
+  }
+}
+

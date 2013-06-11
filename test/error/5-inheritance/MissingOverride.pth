@@ -1,0 +1,33 @@
+// Plinth Test
+// Compiler: MissingOverride.pth: 23:1-28: Delta does not implement the abstract method: void foo() (from type: Alpha)
+// Compiler: MissingOverride.pth: 23:1-28: Delta does not implement the abstract property: x (from type: Alpha)
+// Compiler: MissingOverride.pth: 30:1-27: Foxtrot does not implement the abstract method: void bar(uint) (from type: Bravo)
+// Compiler: MissingOverride.pth: 30:1-27: Foxtrot does not implement the abstract property: s (from type: Bravo)
+
+abstract class Alpha
+{
+  abstract void foo();
+
+  abstract property uint x;
+}
+
+interface Bravo
+{
+  void bar(uint n);
+  property string s;
+}
+
+abstract class Charlie extends Alpha
+{
+}
+class Delta extends Charlie
+{
+}
+
+abstract class Echo implements Bravo
+{
+}
+class Foxtrot extends Echo
+{
+}
+

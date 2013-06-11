@@ -1,0 +1,36 @@
+// Plinth Test
+// Compiler: PropertyModifiers.pth: 11:3-35: A static property cannot be abstract
+// Compiler: PropertyModifiers.pth: 12:3-27: An abstract property cannot define a getter, a setter, or a constructor
+// Compiler: PropertyModifiers.pth: 17:3-27: An abstract property cannot define a getter, a setter, or a constructor
+// Compiler: PropertyModifiers.pth: 21:3-27: An abstract property cannot define a getter, a setter, or a constructor
+// Compiler: PropertyModifiers.pth: 29:3-30: A compound type cannot contain abstract properties
+// Compiler: PropertyModifiers.pth: 34:3-28: Abstract properties can only be declared in abstract classes or interfaces
+
+abstract class Alpha
+{
+  abstract static property uint a;
+  abstract property uint b
+  getter
+  {
+    return 0;
+  };
+  abstract property uint c
+  setter(value)
+  {
+  };
+  abstract property uint d
+  create(value)
+  {
+  };
+}
+
+compound bravo
+{
+  abstract property string s;
+}
+
+class Charlie
+{
+  abstract property uint x;
+}
+

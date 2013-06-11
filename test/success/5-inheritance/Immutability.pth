@@ -1,0 +1,49 @@
+// Plinth Test
+// MustCompile
+
+immutable class Alpha
+{
+}
+immutable class Bravo extends Alpha
+{
+}
+
+class Charlie
+{
+}
+class Delta extends Charlie
+{
+}
+immutable class Echo extends Delta
+{
+}
+
+immutable interface Foxtrot
+{
+}
+
+immutable class Golf implements Foxtrot
+{
+}
+
+interface Hotel
+{
+}
+class India implements Hotel
+{
+}
+immutable class Juliet implements Hotel
+{
+}
+
+immutable interface Kilo extends Foxtrot
+{
+}
+
+interface Lima extends Hotel
+{
+}
+immutable interface Mike extends Lima
+{
+}
+
