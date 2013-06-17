@@ -5,6 +5,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -2235,8 +2236,8 @@ public class Resolver
         functionExpression = ((BracketedExpression) functionExpression).getExpression();
       }
 
-      Map<Type[], MethodReference> paramTypeLists = new HashMap<Type[], MethodReference>();
-      Map<Type[], MethodReference> hintedParamLists = new HashMap<Type[], MethodReference>();
+      Map<Type[], MethodReference> paramTypeLists = new LinkedHashMap<Type[], MethodReference>();
+      Map<Type[], MethodReference> hintedParamLists = new LinkedHashMap<Type[], MethodReference>();
       Map<MethodReference, Expression> methodBaseExpressions = new HashMap<MethodReference, Expression>();
       boolean isSuperAccess = false;
       if (functionExpression instanceof VariableExpression)
@@ -2332,14 +2333,24 @@ public class Resolver
       // if there are multiple parameter lists, try to narrow it down to one that is equivalent to the argument list
       if (hintedParamLists.size() > 1)
       {
-        Map<Type[], MethodReference> backupHintedParamLists = new HashMap<Type[], MethodReference>(hintedParamLists);
-        filterParameterLists(hintedParamLists.entrySet(), expr.getArguments(), true, false);
-        // if we have filtered out all of the parameter lists, try to narrow it down again, but this time allow nullable versions of argument types for parameters
-        if (hintedParamLists.isEmpty())
+        // first, try filtering for argument type equivalence, but ignoring nullability
+        Map<Type[], MethodReference> equivalenceFilteredHintedParamLists = new LinkedHashMap<Type[], MethodReference>(hintedParamLists);
+        filterParameterLists(equivalenceFilteredHintedParamLists.entrySet(), expr.getArguments(), true, true);
+
+        if (!equivalenceFilteredHintedParamLists.isEmpty())
         {
-          // revert back to the unfiltered one, and refilter with a broader condition
-          hintedParamLists = backupHintedParamLists;
-          filterParameterLists(hintedParamLists.entrySet(), expr.getArguments(), true, true);
+          hintedParamLists = equivalenceFilteredHintedParamLists;
+          if (hintedParamLists.size() > 1)
+          {
+            // the equivalence filter was not enough, so try a nullability filter as well
+            Map<Type[], MethodReference> nullabilityFilteredHintedParamLists = new LinkedHashMap<Type[], MethodReference>(hintedParamLists);
+            filterParameterLists(nullabilityFilteredHintedParamLists.entrySet(), expr.getArguments(), true, false);
+
+            if (!nullabilityFilteredHintedParamLists.isEmpty())
+            {
+              hintedParamLists = nullabilityFilteredHintedParamLists;
+            }
+          }
         }
       }
       if (hintedParamLists.size() == 1)
@@ -2352,12 +2363,22 @@ public class Resolver
         filterParameterLists(paramTypeLists.entrySet(), expr.getArguments(), false, false);
         if (paramTypeLists.size() > 1)
         {
-          Map<Type[], MethodReference> backupParamLists = new HashMap<Type[], MethodReference>(paramTypeLists);
-          filterParameterLists(paramTypeLists.entrySet(), expr.getArguments(), true, false);
-          if (paramTypeLists.isEmpty())
+          Map<Type[], MethodReference> equivalenceFilteredParamTypeLists = new LinkedHashMap<Type[], MethodReference>(paramTypeLists);
+          filterParameterLists(equivalenceFilteredParamTypeLists.entrySet(), expr.getArguments(), true, true);
+
+          if (!equivalenceFilteredParamTypeLists.isEmpty())
           {
-            paramTypeLists = backupParamLists;
-            filterParameterLists(paramTypeLists.entrySet(), expr.getArguments(), true, true);
+            paramTypeLists = equivalenceFilteredParamTypeLists;
+            if (paramTypeLists.size() > 1)
+            {
+              Map<Type[], MethodReference> nullabilityFilteredParamTypeLists = new LinkedHashMap<Type[], MethodReference>(paramTypeLists);
+              filterParameterLists(nullabilityFilteredParamTypeLists.entrySet(), expr.getArguments(), true, false);
+
+              if (!nullabilityFilteredParamTypeLists.isEmpty())
+              {
+                paramTypeLists = nullabilityFilteredParamTypeLists;
+              }
+            }
           }
         }
       }
@@ -2822,7 +2843,7 @@ public class Resolver
     TypeDefinition typeDefinition = creationType.getResolvedTypeDefinition();
     Collection<Constructor> constructors = typeDefinition.getUniqueConstructors();
     ConstructorReference[] constructorReferences = new ConstructorReference[constructors.size()];
-    Map<Type[], ConstructorReference> parameterTypeLists = new HashMap<Type[], ConstructorReference>();
+    Map<Type[], ConstructorReference> parameterTypeLists = new LinkedHashMap<Type[], ConstructorReference>();
     int index = 0;
     for (Constructor constructor : constructors)
     {
@@ -2830,21 +2851,30 @@ public class Resolver
       parameterTypeLists.put(constructorReferences[index].getParameterTypes(), constructorReferences[index]);
       index++;
     }
+
     filterParameterLists(parameterTypeLists.entrySet(), arguments, false, false);
 
     // if there are multiple parameter lists, try to narrow it down to one that is equivalent to the argument list
     if (parameterTypeLists.size() > 1)
     {
-      Map<Type[], ConstructorReference> backupParamTypeLists = new HashMap<Type[], ConstructorReference>(parameterTypeLists);
+      // first, try filtering for argument type equivalence, but ignoring nullability
+      Map<Type[], ConstructorReference> equivalenceFiltered = new LinkedHashMap<Type[], ConstructorReference>(parameterTypeLists);
+      filterParameterLists(equivalenceFiltered.entrySet(), arguments, true, true);
 
-      filterParameterLists(parameterTypeLists.entrySet(), arguments, true, false);
-
-      // if we have filtered out all of the parameter lists, try to narrow it down again, but this time allow nullable versions of argument types for parameters
-      if (parameterTypeLists.isEmpty())
+      if (!equivalenceFiltered.isEmpty())
       {
-        // revert back to the unfiltered one, and refilter with a broader condition
-        parameterTypeLists = backupParamTypeLists;
-        filterParameterLists(parameterTypeLists.entrySet(), arguments, true, true);
+        parameterTypeLists = equivalenceFiltered;
+        if (parameterTypeLists.size() > 1)
+        {
+          // the equivalence filter was not enough, so try a nullability filter as well
+          Map<Type[], ConstructorReference> nullabilityEquivalenceFiltered = new LinkedHashMap<Type[], ConstructorReference>(parameterTypeLists);
+          filterParameterLists(nullabilityEquivalenceFiltered.entrySet(), arguments, true, false);
+
+          if (!nullabilityEquivalenceFiltered.isEmpty())
+          {
+            parameterTypeLists = nullabilityEquivalenceFiltered;
+          }
+        }
       }
     }
 
@@ -2861,6 +2891,7 @@ public class Resolver
     int mostRelevantArgCount = -1;
     for (ConstructorReference constructorReference : constructorReferences)
     {
+      // try to maximise the index of the first parameter that doesn't match
       Type[] parameterTypes = constructorReference.getParameterTypes();
       if (parameterTypes.length == arguments.length)
       {
@@ -2886,7 +2917,7 @@ public class Resolver
     {
       return constructorReferences[0];
     }
-    throw new ConceptualException("Cannot create a '" + typeDefinition.getQualifiedName() + "' - it has no constructors", callerLexicalPhrase);
+    throw new ConceptualException("Cannot create '" + typeDefinition.getQualifiedName() + "' - it has no constructors", callerLexicalPhrase);
   }
 
   /**
