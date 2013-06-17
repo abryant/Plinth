@@ -286,7 +286,16 @@ public class CycleChecker
     }
     else if (statement instanceof DelegateConstructorStatement)
     {
-      delegateConstructors.add(((DelegateConstructorStatement) statement).getResolvedConstructorReference().getReferencedMember());
+      DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
+      if (delegateConstructorStatement.getResolvedConstructorReference() == null)
+      {
+        // a null resolved constructor reference means that the object constructor is being called
+        delegateConstructors.add(null);
+      }
+      else
+      {
+        delegateConstructors.add(delegateConstructorStatement.getResolvedConstructorReference().getReferencedMember());
+      }
     }
     else if (statement instanceof ForStatement)
     {

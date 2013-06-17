@@ -1301,9 +1301,8 @@ public class ControlFlowChecker
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
       CoalescedConceptualException coalescedException = null;
       ConstructorReference constructorReference = delegateConstructorStatement.getResolvedConstructorReference();
-      Constructor constructor = constructorReference.getReferencedMember();
-      boolean isConstructorImmutable = constructor == null ? true : constructor.isImmutable();
-      boolean isConstructorSelfish = constructor == null ? false : constructor.isSelfish();
+      boolean isConstructorImmutable = constructorReference == null ? true : constructorReference.getReferencedMember().isImmutable();
+      boolean isConstructorSelfish = constructorReference == null ? false : constructorReference.getReferencedMember().isSelfish();
       if (!inConstructor | inStaticContext | inInitialiser)
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Delegate constructors may only be called from other constructors", delegateConstructorStatement.getLexicalPhrase()));
