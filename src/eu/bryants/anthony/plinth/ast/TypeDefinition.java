@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -283,7 +283,7 @@ public abstract class TypeDefinition
    */
   public Set<Constructor> getUniqueConstructors()
   {
-    Map<String, Constructor> constructors = new HashMap<String, Constructor>();
+    Map<String, Constructor> constructors = new LinkedHashMap<String, Constructor>();
     for (Constructor constructor : getAllConstructors())
     {
       StringBuffer disambiguatorBuffer = new StringBuffer();
@@ -306,7 +306,7 @@ public abstract class TypeDefinition
         constructors.put(disambiguator, newer);
       }
     }
-    return new HashSet<Constructor>(constructors.values());
+    return new LinkedHashSet<Constructor>(constructors.values());
   }
 
   /**
