@@ -1981,7 +1981,7 @@ public class Resolver
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
-      if (type.getResolvedTypeDefinition() == null)
+      if (type.getResolvedTypeParameter() != null)
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot create an instance of a type parameter", type.getLexicalPhrase()));
       }
@@ -2222,7 +2222,7 @@ public class Resolver
           expr.setResolvedBaseExpression(functionExpression);
           return;
         }
-        throw new ConceptualException("Cannot call a function on a non-function type", functionExpression.getLexicalPhrase());
+        throw new ConceptualException("Cannot call a non-function-typed value", functionExpression.getLexicalPhrase());
       }
 
       // we failed to resolve the sub-expression into something with a function type
