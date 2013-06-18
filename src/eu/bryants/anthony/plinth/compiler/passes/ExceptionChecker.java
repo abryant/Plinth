@@ -21,6 +21,7 @@ import eu.bryants.anthony.plinth.ast.expression.FieldAccessExpression;
 import eu.bryants.anthony.plinth.ast.expression.FloatingLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.FunctionCallExpression;
 import eu.bryants.anthony.plinth.ast.expression.InlineIfExpression;
+import eu.bryants.anthony.plinth.ast.expression.InstanceOfExpression;
 import eu.bryants.anthony.plinth.ast.expression.IntegerLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.LogicalExpression;
 import eu.bryants.anthony.plinth.ast.expression.MinusExpression;
@@ -542,6 +543,11 @@ public class ExceptionChecker
       findUncaughtExceptions(inlineIfExpression.getCondition(), uncaughtExceptions);
       findUncaughtExceptions(inlineIfExpression.getThenExpression(), uncaughtExceptions);
       findUncaughtExceptions(inlineIfExpression.getElseExpression(), uncaughtExceptions);
+    }
+    else if (expression instanceof InstanceOfExpression)
+    {
+      InstanceOfExpression instanceOfExpression = (InstanceOfExpression) expression;
+      findUncaughtExceptions(instanceOfExpression.getExpression(), uncaughtExceptions);
     }
     else if (expression instanceof IntegerLiteralExpression)
     {
