@@ -103,6 +103,11 @@ public class QNameElement
     {
       expressions[i] = elementArray[i].convertToExpression();
     }
+    if (expressions.length == 1)
+    {
+      // this isn't a tuple, just a bracketed expression
+      return new BracketedExpression(expressions[0], elements.getLexicalPhrase());
+    }
     TupleExpression tupleExpression = new TupleExpression(expressions, elements.getLexicalPhrase());
     return new BracketedExpression(tupleExpression, lexicalPhrase);
   }
