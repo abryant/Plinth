@@ -1,0 +1,27 @@
+// Plinth Test
+// Compiler: PrefixIncDecStatement.pth: 17:7-12: Unable to resolve: alpha
+// Compiler: PrefixIncDecStatement.pth: 18:7-12: Unable to resolve: alpha
+// Compiler: PrefixIncDecStatement.pth: 19:7-12: Unable to resolve "bravo"
+// Compiler: PrefixIncDecStatement.pth: 19:13-20: Unable to resolve "charlie"
+// Compiler: PrefixIncDecStatement.pth: 20:7-12: Unable to resolve "bravo"
+// Compiler: PrefixIncDecStatement.pth: 20:13-20: Unable to resolve "charlie"
+// Compiler: PrefixIncDecStatement.pth: 21:7: Cannot increment a blank assignee
+// Compiler: PrefixIncDecStatement.pth: 22:7: Cannot decrement a blank assignee
+// Compiler: PrefixIncDecStatement.pth: 23:7-12: Unable to resolve "delta"
+// Compiler: PrefixIncDecStatement.pth: 24:7-12: Unable to resolve "delta"
+
+class Test
+{
+  void foo()
+  {
+    ++alpha;
+    --alpha;
+    ++bravo[charlie];
+    --bravo[charlie];
+    ++_;
+    --_;
+    ++delta.echo;
+    --delta.echo;
+  }
+}
+

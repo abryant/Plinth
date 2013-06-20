@@ -1,0 +1,84 @@
+// Plinth Test
+// MustCompile
+
+class Test
+{
+  create()
+  {
+    super();
+  }
+
+  create(string s)
+  {
+  }
+  create(uint x)
+  {
+  }
+  create(ulong x)
+  {
+  }
+  create(boolean b)
+  {
+  }
+  create(?boolean b)
+  {
+  }
+
+  create(Test t, string s)
+  {
+    this(s);
+  }
+  create(Test t, uint x)
+  {
+    this(x);
+  }
+  create(Test t, ulong x)
+  {
+    this(x);
+  }
+  create(Test t)
+  {
+    this(null);
+  }
+  create(Test t, boolean b)
+  {
+    this(b);
+  }
+  create(Test t, ?boolean b)
+  {
+    this(b);
+  }
+}
+
+class SubTest extends Test
+{
+  create()
+  {
+    super();
+  }
+  create(SubTest t, string s)
+  {
+    super(s);
+  }
+  create(SubTest t, uint x)
+  {
+    super(x);
+  }
+  create(SubTest t, ulong x)
+  {
+    super(x);
+  }
+  create(SubTest t)
+  {
+    super(null);
+  }
+  create(SubTest t, boolean b)
+  {
+    super(b);
+  }
+  create(SubTest t, ?boolean b)
+  {
+    super(b);
+  }
+}
+

@@ -1,0 +1,15 @@
+// Plinth Test
+// Compiler: ShorthandAssign.pth: 12:5-10: Unable to resolve: alpha
+// Compiler: ShorthandAssign.pth: 12:12-17: Unable to resolve "bravo"
+// Compiler: ShorthandAssign.pth: 12:18-25: Unable to resolve "charlie"
+// Compiler: ShorthandAssign.pth: 12:28-33: Unable to resolve "delta"
+// Compiler: ShorthandAssign.pth: 12:45-52: Unable to resolve "foxtrot"
+
+class Test
+{
+  void foo()
+  {
+    alpha, bravo[charlie], delta.echo, _ += foxtrot;
+  }
+}
+

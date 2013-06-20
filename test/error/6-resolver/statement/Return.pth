@@ -1,0 +1,11 @@
+// Plinth Test
+// Compiler: Return.pth: 8:12-17: Unable to resolve "alpha"
+
+class Test
+{
+  uint foo()
+  {
+    return alpha;
+  }
+}
+

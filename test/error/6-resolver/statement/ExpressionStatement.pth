@@ -1,0 +1,11 @@
+// Plinth Test
+// Compiler: ExpressionStatement.pth: 8:5-10: Unable to resolve "alpha"
+
+class Test
+{
+  void foo()
+  {
+    alpha();
+  }
+}
+

@@ -1,0 +1,42 @@
+// Plinth Test
+// MustCompile
+
+class Test
+{
+  uint bravo;
+
+  property float charlie
+  setter(value)
+  {
+    charlie += value;
+  };
+
+  static ulong delta;
+
+  static property double echo
+  setter(value)
+  {
+    echo *= value;
+  };
+
+  void foo(Test golf)
+  {
+    uint alpha = 0;
+    alpha += 0;
+    bravo -= 1;
+    charlie *= 2;
+    delta /= 3;
+    echo %= 4;
+
+    []uint foxtrot = new [1]uint;
+    foxtrot[alpha] %%= 5;
+
+    golf.bravo += 6;
+
+    Test::delta -= 7;
+
+    alpha, bravo, delta, foxtrot[alpha], golf.bravo, Test::delta, _ += 8;
+    alpha, bravo, charlie, delta, echo, foxtrot[alpha], golf.bravo, Test::delta, _ *= 0, 0, 0.0, 0, 0.0, 0, 0, 0, 9;
+  }
+}
+

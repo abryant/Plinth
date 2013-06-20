@@ -1,0 +1,11 @@
+// Plinth Test
+// MustCompile
+
+class Test
+{
+  void foo(Throwable t) throws unchecked Throwable
+  {
+    throw t;
+  }
+}
+

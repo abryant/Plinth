@@ -1,0 +1,69 @@
+// Plinth Test
+// Compiler: BasicExpression.pth: 47:9-14: Unable to resolve "alpha"
+// Compiler: BasicExpression.pth: 47:17-22: Unable to resolve "bravo"
+// Compiler: BasicExpression.pth: 48:9-16: Unable to resolve "charlie"
+// Compiler: BasicExpression.pth: 48:17-22: Unable to resolve "delta"
+// Compiler: BasicExpression.pth: 49:19-26: Unable to resolve: foxtrot
+// Compiler: BasicExpression.pth: 49:14-18: Unable to resolve "echo"
+// Compiler: BasicExpression.pth: 50:15-19: Unable to resolve: golf
+// Compiler: BasicExpression.pth: 50:21-26: Unable to resolve "hotel"
+// Compiler: BasicExpression.pth: 50:28-33: Unable to resolve "india"
+// Compiler: BasicExpression.pth: 51:10-16: Unable to resolve "juliet"
+// Compiler: BasicExpression.pth: 52:10-14: Unable to resolve "kilo"
+// Compiler: BasicExpression.pth: 53:10-14: Unable to resolve "lima"
+// Compiler: BasicExpression.pth: 54:14-18: Unable to resolve: Mike
+// Compiler: BasicExpression.pth: 54:20-28: Unable to resolve "november"
+// Compiler: BasicExpression.pth: 55:13-18: Unable to resolve: Oscar
+// Compiler: BasicExpression.pth: 55:19-23: Unable to resolve "papa"
+// Compiler: BasicExpression.pth: 55:25-31: Unable to resolve "quebec"
+// Compiler: BasicExpression.pth: 56:16-21: Unable to resolve: romeo
+// Compiler: BasicExpression.pth: 56:22-28: Unable to resolve "sierra"
+// Compiler: BasicExpression.pth: 56:30-35: Unable to resolve "tango"
+// Compiler: BasicExpression.pth: 57:9-16: Unable to resolve "uniform"
+// Compiler: BasicExpression.pth: 57:20-26: Unable to resolve "victor"
+// Compiler: BasicExpression.pth: 58:9-15: Unable to resolve "whisky"
+// Compiler: BasicExpression.pth: 58:18-22: Unable to resolve "xray"
+// Compiler: BasicExpression.pth: 58:25-31: Unable to resolve "yankee"
+// Compiler: BasicExpression.pth: 59:9-13: Unable to resolve "zulu"
+// Compiler: BasicExpression.pth: 59:25-30: Unable to resolve: Alpha
+// Compiler: BasicExpression.pth: 60:9-14: Unable to resolve "bravo"
+// Compiler: BasicExpression.pth: 60:18-25: Unable to resolve "charlie"
+// Compiler: BasicExpression.pth: 61:10-15: Unable to resolve "delta"
+// Compiler: BasicExpression.pth: 62:9-13: Unable to resolve "echo"
+// Compiler: BasicExpression.pth: 62:17-24: Unable to resolve "foxtrot"
+// Compiler: BasicExpression.pth: 63:9-13: Unable to resolve "golf"
+// Compiler: BasicExpression.pth: 63:16-21: Unable to resolve "hotel"
+// Compiler: BasicExpression.pth: 64:9-14: Unable to resolve "india"
+// Compiler: BasicExpression.pth: 64:18-24: Unable to resolve "juliet"
+// Compiler: BasicExpression.pth: 65:9-13: Unable to resolve "kilo"
+// Compiler: BasicExpression.pth: 65:15-19: Unable to resolve "lima"
+// Compiler: BasicExpression.pth: 66:9-13: Unable to resolve "mike"
+
+class Test
+{
+  static void foo()
+  {
+    uint x;
+    x = alpha + bravo;
+    x = charlie[delta];
+    x = new [echo]foxtrot;
+    x = new []golf {hotel, india};
+    x = ~juliet;
+    x = !kilo;
+    x = (lima);
+    x = cast<Mike> november;
+    x = new Oscar(papa, quebec);
+    x = create romeo(sierra, tango);
+    x = uniform == victor;
+    x = whisky ? xray : yankee;
+    x = zulu instanceof Alpha;
+    x = bravo || charlie;
+    x = -delta;
+    x = echo ?: foxtrot;
+    x = golf < hotel;
+    x = india >> juliet;
+    x = kilo, lima;
+    x = mike ! 1;
+  }
+}
+

@@ -1,0 +1,19 @@
+// Plinth Test
+// Compiler: IfStatement.pth: 10:8-13: Unable to resolve "alpha"
+// Compiler: IfStatement.pth: 12:7-12: Unable to resolve "bravo"
+// Compiler: IfStatement.pth: 16:7-14: Unable to resolve "charlie"
+
+class Test
+{
+  void foo()
+  {
+    if alpha()
+    {
+      bravo();
+    }
+    else
+    {
+      charlie();
+    }
+  }
+}

@@ -1,0 +1,79 @@
+// Plinth Test
+// Compiler: MemberCode.pth: 22:5-10: Unable to resolve "alpha"
+// Compiler: MemberCode.pth: 25:12-17: Unable to resolve "bravo"
+// Compiler: MemberCode.pth: 27:21-28: Unable to resolve "charlie"
+// Compiler: MemberCode.pth: 30:5-10: Unable to resolve "delta"
+// Compiler: MemberCode.pth: 36:5-9: Unable to resolve "echo"
+// Compiler: MemberCode.pth: 40:5-12: Unable to resolve "foxtrot"
+// Compiler: MemberCode.pth: 44:5-9: Unable to resolve "golf"
+// Compiler: MemberCode.pth: 49:5-10: Unable to resolve "hotel"
+// Compiler: MemberCode.pth: 52:20-25: Unable to resolve "india"
+// Compiler: MemberCode.pth: 54:29-35: Unable to resolve "juliet"
+// Compiler: MemberCode.pth: 58:5-9: Unable to resolve "kilo"
+// Compiler: MemberCode.pth: 64:5-9: Unable to resolve "lima"
+// Compiler: MemberCode.pth: 68:5-9: Unable to resolve "mike"
+// Compiler: MemberCode.pth: 72:5-13: Unable to resolve "november"
+// Compiler: MemberCode.pth: 77:5-10: Unable to resolve "oscar"
+
+class Test
+{
+  create()
+  {
+    alpha();
+  }
+
+  uint x = bravo();
+
+  property uint y = charlie();
+
+  {
+    delta();
+  }
+
+  property ulong z
+  getter
+  {
+    echo();
+  }
+  setter(value)
+  {
+    foxtrot();
+  }
+  create(value)
+  {
+    golf();
+  };
+
+  void method()
+  {
+    hotel();
+  }
+
+  static uint sx = india();
+
+  static property uint sy = juliet();
+
+  static
+  {
+    kilo();
+  }
+
+  static property ulong sz
+  getter
+  {
+    lima();
+  }
+  setter(value)
+  {
+    mike();
+  }
+  create(value)
+  {
+    november();
+  };
+
+  static void staticMethod()
+  {
+    oscar();
+  }
+}

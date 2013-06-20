@@ -1,0 +1,32 @@
+// Plinth Test
+// Compiler: Type.pth: 22:7-12: Unable to resolve: Alpha
+// Compiler: Type.pth: 23:6-11: Unable to resolve: Bravo
+// Compiler: Type.pth: 23:13-20: Unable to resolve: Charlie
+// Compiler: Type.pth: 23:24-29: Unable to resolve: Delta
+// Compiler: Type.pth: 23:37-41: Unable to resolve: Echo
+// Compiler: Type.pth: 24:5-12: Unable to resolve: Foxtrot
+// Compiler: Type.pth: 25:5-18: Unable to resolve: test.pkg.Golf
+// Compiler: Type.pth: 26:5-13: A package cannot be used as a type
+// Compiler: Type.pth: 27:12-17: Unable to resolve: Hotel
+// Compiler: Type.pth: 27:19-24: Unable to resolve: India
+// Compiler: Type.pth: 28:6-12: Unable to resolve: Juliet
+// Compiler: Type.pth: 28:14-18: Unable to resolve: Kilo
+// Compiler: Type.pth: 29:5-11: Unable to resolve 'Lima': type parameters do not have sub-types
+
+package test.pkg;
+
+class Test<T>
+{
+  void foo()
+  {
+    []Alpha a;
+    {Bravo, Charlie -> Delta throws Echo} b;
+    Foxtrot f;
+    test.pkg.Golf g;
+    test.pkg h;
+    string<Hotel, India> s;
+    (Juliet, Kilo) j;
+    T.Lima l;
+  }
+}
+

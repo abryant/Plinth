@@ -1,0 +1,17 @@
+// Plinth Test
+// MustCompile
+
+class Test
+{
+  void foo()
+  {
+    return;
+  }
+
+  uint foo()
+  {
+    uint alpha = 1;
+    return alpha;
+  }
+}
+

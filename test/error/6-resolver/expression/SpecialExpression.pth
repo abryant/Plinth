@@ -1,0 +1,55 @@
+// Plinth Test
+// Compiler: SpecialExpression.pth: 25:13: Cannot create an instance of a type parameter
+// Compiler: SpecialExpression.pth: 26:9-23: Cannot access the array length member statically
+// Compiler: SpecialExpression.pth: 27:9-20: No such static member "alpha" for type Test
+// Compiler: SpecialExpression.pth: 28:9-20: No such static member "bravo" for type Test
+// Compiler: SpecialExpression.pth: 29:9-21: No such non-static member "charlie" for type Test<T>
+// Compiler: SpecialExpression.pth: 30:9-19: No such non-static member "delta" for type Test<T>
+// Compiler: SpecialExpression.pth: 31:9-18: Multiple non-static members have the name 'echo'
+// Compiler: SpecialExpression.pth: 32:9-22: Multiple static members have the name 'foxtrot'
+// Compiler: SpecialExpression.pth: 33:9-11: Cannot call a non-function-typed value
+// Compiler: SpecialExpression.pth: 34:9-19: Ambiguous method call, there are at least two applicable methods which take these arguments
+// Compiler: SpecialExpression.pth: 35:9-13: Multiple members have the name 'echo'
+// Compiler: SpecialExpression.pth: 36:9-16: Multiple members have the name 'foxtrot'
+// Compiler: SpecialExpression.pth: 37:9-13: Unable to resolve "golf"
+// Compiler: SpecialExpression.pth: 38:9-20: Unable to resolve "super.hotel"
+
+class Test<T>
+{
+  uint bravo;
+  static uint delta;
+
+  void foo()
+  {
+    uint x;
+    x = new T();
+    x = []uint::length;
+    x = Test::alpha;
+    x = Test::bravo;
+    x = this.charlie;
+    x = this.delta;
+    x = this.echo;
+    x = Test::foxtrot;
+    x = 12();
+    x = echo(null);
+    x = echo;
+    x = foxtrot;
+    x = golf;
+    x = super.hotel;
+  }
+
+  void echo(?string s)
+  {
+  }
+  void echo(?uint x)
+  {
+  }
+
+  static void foxtrot()
+  {
+  }
+  static void foxtrot(uint x)
+  {
+  }
+}
+

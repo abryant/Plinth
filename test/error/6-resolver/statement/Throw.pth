@@ -1,0 +1,11 @@
+// Plinth Test
+// Compiler: Throw.pth: 8:11-16: Unable to resolve "alpha"
+
+class Test
+{
+  void foo()
+  {
+    throw alpha;
+  }
+}
+

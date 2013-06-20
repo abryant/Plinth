@@ -1,0 +1,81 @@
+// Plinth Test
+// Compiler: DelegateConstructor.pth: 16:5-13: Cannot call a super(...) constructor from a compound type
+// Compiler: DelegateConstructor.pth: 24:5-13: A super(...) constructor can only be called from inside a class definition
+// Compiler: DelegateConstructor.pth: 53:5-13: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
+// Compiler: DelegateConstructor.pth: 55:5-22: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
+// Compiler: DelegateConstructor.pth: 57:5-16: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
+// Compiler: DelegateConstructor.pth: 65:5-14: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
+// Compiler: DelegateConstructor.pth: 66:5-23: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
+// Compiler: DelegateConstructor.pth: 67:5-17: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
+// Compiler: DelegateConstructor.pth: 78:5-13: Cannot create 'Echo' - it has no constructors
+
+compound alpha
+{
+  create()
+  {
+    super();
+  }
+}
+
+interface Bravo
+{
+  void foo()
+  {
+    super();
+  }
+}
+
+class Charlie
+{
+
+  create(uint x)
+  {
+  }
+  create(ulong x)
+  {
+  }
+  create(string s, ?string s2)
+  {
+  }
+  create(?string s, string s2)
+  {
+  }
+  create(?stdout o)
+  {
+  }
+  create(?Throwable t)
+  {
+  }
+
+  create()
+  {
+    // test two non-equivalent argument lists (2 is ubyte, not equivalent to uint or ulong)
+    this(2);
+    // test two argument lists which are equivalent when you disregard nullability
+    this("hi", "hi");
+    // test two completely equivalent argument lists (null acts as if it is equivalent to both stdout and Throwable here)
+    this(null);
+  }
+}
+
+class Delta extends Charlie
+{
+  create()
+  {
+    super(2);
+    super("hi", "hi");
+    super(null);
+  }
+}
+
+class Echo
+{
+}
+class Foxtrot extends Echo
+{
+  create()
+  {
+    super();
+  }
+}
+

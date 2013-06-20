@@ -1,0 +1,27 @@
+// Plinth Test
+// MustCompile
+
+class Test
+{
+  void foo()
+  {
+    uint alpha;
+    try
+    {
+      alpha = 2;
+    }
+    catch Throwable | Throwable t
+    {
+      alpha = 3;
+    }
+    catch Throwable t
+    {
+      alpha = 4;
+    }
+    finally
+    {
+      alpha = 5;
+    }
+  }
+}
+

@@ -1,0 +1,51 @@
+// Plinth Test
+// MustCompile
+
+class Test
+{
+  void foo()
+  {
+    {
+      uint alpha;
+    }
+
+    for (uint alpha; true;)
+    {
+    }
+
+    for (; true;)
+    {
+      uint alpha;
+    }
+
+    if true
+    {
+      uint alpha;
+    }
+    else
+    {
+      uint alpha;
+    }
+
+    try
+    {
+      uint alpha;
+    }
+    catch Throwable t
+    {
+      uint alpha;
+    }
+    finally
+    {
+      uint alpha;
+    }
+
+    while true
+    {
+      uint alpha;
+    }
+
+    uint alpha;
+  }
+}
+

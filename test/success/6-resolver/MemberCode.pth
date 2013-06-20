@@ -1,0 +1,71 @@
+// Plinth Test
+// MustCompile
+
+class Test
+{
+  static immutable uint test()
+  {
+    return 4;
+  }
+
+  create()
+  {
+    test();
+  }
+
+  uint x = test();
+
+  {
+    test();
+  }
+
+  property uint z = test()
+  getter
+  {
+    return test();
+  }
+  setter(value)
+  {
+    test();
+  }
+  create(value)
+  {
+    test();
+  };
+
+  void method()
+  {
+    test();
+  }
+
+  static uint sx = test();
+
+  static property uint sy = test();
+
+  static
+  {
+    test();
+  }
+
+  static property uint sz
+  getter
+  {
+    return test();
+  }
+  setter(value)
+  {
+    test();
+  };
+
+  static final property uint sz2 = 4
+  create(value)
+  {
+    test();
+  };
+
+  static void staticMethod()
+  {
+    test();
+  }
+}
+

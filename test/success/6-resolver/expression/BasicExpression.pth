@@ -1,0 +1,41 @@
+// Plinth Test
+// MustCompile
+
+class Test
+{
+  create(uint x)
+  {
+  }
+
+  void foo()
+  {
+    uint x = 0;
+    int y = 1;
+    boolean b = false;
+    []uint arr = new [1]uint;
+    ?Test nullTest = null;
+    (uint, boolean) tuple = 1, true;
+
+    _ = x + x;
+    _ = arr[x];
+    _ = new [x]?Test;
+    _ = new []?Test {nullTest};
+    _ = ~x;
+    _ = !b;
+    _ = (b);
+    _ = cast<Test> nullTest;
+    _ = new Test(x);
+    _ = create string(new [0]ubyte);
+    _ = x == y;
+    _ = b ? x : x;
+    _ = nullTest instanceof Test;
+    _ = b || b;
+    _ = -y;
+    _ = nullTest ?: nullTest;
+    _ = x < x;
+    _ = x << x;
+    _ = x, b;
+    _ = tuple ! 1;
+  }
+}
+

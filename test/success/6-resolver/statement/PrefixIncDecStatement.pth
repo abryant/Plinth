@@ -1,0 +1,48 @@
+// Plinth Test
+// MustCompile
+
+class Test
+{
+  uint bravo;
+
+  property float charlie
+  setter(value)
+  {
+    ++charlie;
+    --charlie;
+  };
+
+  static uint delta;
+
+  static property double echo
+  setter(value)
+  {
+    ++echo;
+    --echo;
+  };
+
+  void foo(Test golf)
+  {
+    uint alpha = 0;
+    ++alpha;
+    --alpha;
+    ++bravo;
+    --bravo;
+    ++charlie;
+    --charlie;
+    ++delta;
+    --delta;
+    ++echo;
+    --echo;
+
+    []ubyte foxtrot = new [1]ubyte;
+    ++foxtrot[alpha];
+    --foxtrot[alpha];
+
+    ++golf.bravo;
+    --golf.bravo;
+
+    ++Test::delta;
+    --Test::delta;
+  }
+}

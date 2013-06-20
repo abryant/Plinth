@@ -1,0 +1,19 @@
+// Plinth Test
+// MustCompile
+
+class Test
+{
+  boolean test()
+  {
+    return true;
+  }
+
+  void foo()
+  {
+    while test()
+    {
+      test();
+    }
+  }
+}
+

@@ -1,0 +1,38 @@
+// Plinth Test
+// Compiler: Try.pth: 17:7-12: Unable to resolve "alpha"
+// Compiler: Try.pth: 19:11-16: Unable to resolve: Bravo
+// Compiler: Try.pth: 19:19-26: Unable to resolve: Charlie
+// Compiler: Try.pth: 22:5-26: 'delta' has already been declared, and cannot be redeclared
+// Compiler: Try.pth: 25:11-15: Unable to resolve: Echo
+// Compiler: Try.pth: 30:7-14: Unable to resolve "foxtrot"
+// Compiler: Try.pth: 34:7-11: Unable to resolve "golf"
+
+class Test
+{
+  void foo()
+  {
+    uint delta;
+    try
+    {
+      alpha();
+    }
+    catch Bravo | Charlie b
+    {
+    }
+    catch Throwable delta
+    {
+    }
+    catch Echo e
+    {
+    }
+    catch Throwable t
+    {
+      foxtrot();
+    }
+    finally
+    {
+      golf();
+    }
+  }
+}
+

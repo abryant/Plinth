@@ -1,0 +1,32 @@
+// Plinth Test
+// Compiler: AssignStatement.pth: 17:5-10: Unable to resolve: alpha
+// Compiler: AssignStatement.pth: 18:5-10: Unable to resolve: bravo
+// Compiler: AssignStatement.pth: 21:10-17: 'charlie' has already been declared, and cannot be redeclared
+// Compiler: AssignStatement.pth: 24:5-25: The variables 'charlie', 'delta' have all already been declared, and cannot be redeclared
+// Compiler: AssignStatement.pth: 26:5-9: Unable to resolve: echo
+// Compiler: AssignStatement.pth: 26:11-18: Unable to resolve "foxtrot"
+// Compiler: AssignStatement.pth: 26:19-23: Unable to resolve "golf"
+// Compiler: AssignStatement.pth: 26:26-31: Unable to resolve "hotel"
+// Compiler: AssignStatement.pth: 26:43-49: Unable to resolve "juliet"
+
+class Test
+{
+
+  void foo()
+  {
+    alpha = 1;
+    bravo = 2;
+
+    uint charlie;
+    uint charlie;
+
+    uint delta;
+    uint charlie, delta;
+
+    echo, foxtrot[golf], hotel.india, _ = juliet;
+  }
+
+  void bravo()
+  {
+  }
+}

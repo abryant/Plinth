@@ -1,0 +1,93 @@
+// Plinth Test
+// MustCompile
+
+class Test
+{
+  uint field;
+  static uint staticField;
+
+  property uint prop;
+  static property uint staticProp;
+
+  void alpha(uint x)
+  {
+  }
+
+  void bravo()
+  {
+  }
+  void bravo(uint x)
+  {
+  }
+
+  static void charlie()
+  {
+  }
+
+  static void delta()
+  {
+  }
+  static void delta(uint x)
+  {
+  }
+
+  void echo(uint x)
+  {
+  }
+  static void echo(uint x)
+  {
+  }
+
+  void foo(Test t)
+  {
+    // field access
+    _ = t.field;
+    _ = Test::staticField;
+    _ = t.prop;
+    _ = Test::staticProp;
+    _ = t.alpha;
+    _ = cast<{-> void}> t.bravo;
+    _ = cast<{uint -> void}> t.bravo;
+    _ = Test::charlie;
+    _ = cast<{-> void}> Test::delta;
+    _ = cast<{uint -> void}> Test::delta;
+    _ = t.echo;
+    _ = Test::echo;
+
+    // function call
+    uint x = 0;
+    ?Test nt = t;
+    (true ? alpha : t.echo)(x);
+    alpha(x);
+    t.alpha(x);
+    nt?.alpha(x);
+    bravo();
+    t.bravo();
+    nt?.bravo();
+    bravo(x);
+    t.bravo(x);
+    nt?.bravo(x);
+    charlie();
+    Test::charlie();
+    delta();
+    Test::delta();
+    delta(x);
+    Test::delta(x);
+    t.echo(x);
+    nt?.echo(x);
+    Test::echo(x);
+
+    // variable access
+    _ = field;
+    _ = staticField;
+    _ = prop;
+    _ = staticProp;
+    _ = alpha;
+    _ = cast<{-> void}> bravo;
+    _ = cast<{uint -> void}> bravo;
+    _ = charlie;
+    _ = cast<{-> void}> delta;
+    _ = cast<{uint -> void}> delta;
+  }
+}
+

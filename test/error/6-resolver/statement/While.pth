@@ -1,0 +1,15 @@
+// Plinth Test
+// Compiler: While.pth: 9:11-16: Unable to resolve "alpha"
+// Compiler: While.pth: 11:7-12: Unable to resolve "bravo"
+
+class Test
+{
+  void foo()
+  {
+    while alpha()
+    {
+      bravo();
+    }
+  }
+}
+

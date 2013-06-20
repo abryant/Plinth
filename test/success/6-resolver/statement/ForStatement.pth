@@ -1,0 +1,18 @@
+// Plinth Test
+// MustCompile
+
+class Test
+{
+  uint test()
+  {
+    return 1;
+  }
+  void foo()
+  {
+    for (_ = test(); test() == 2; test())
+    {
+      test();
+    }
+  }
+}
+

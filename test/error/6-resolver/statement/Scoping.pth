@@ -1,0 +1,54 @@
+// Plinth Test
+// Compiler: Scoping.pth: 19:12-17: 'alpha' has already been declared, and cannot be redeclared
+// Compiler: Scoping.pth: 22:15-20: 'alpha' has already been declared, and cannot be redeclared
+// Compiler: Scoping.pth: 24:12-17: 'alpha' has already been declared, and cannot be redeclared
+// Compiler: Scoping.pth: 29:12-17: 'alpha' has already been declared, and cannot be redeclared
+// Compiler: Scoping.pth: 33:12-17: 'alpha' has already been declared, and cannot be redeclared
+// Compiler: Scoping.pth: 38:12-17: 'alpha' has already been declared, and cannot be redeclared
+// Compiler: Scoping.pth: 42:12-17: 'alpha' has already been declared, and cannot be redeclared
+// Compiler: Scoping.pth: 46:12-17: 'alpha' has already been declared, and cannot be redeclared
+// Compiler: Scoping.pth: 51:12-17: 'alpha' has already been declared, and cannot be redeclared
+
+class Test
+{
+  void foo()
+  {
+    uint alpha;
+
+    {
+      uint alpha;
+    }
+
+    for (uint alpha;;)
+    {
+      uint alpha;
+    }
+
+    if true
+    {
+      uint alpha;
+    }
+    else
+    {
+      uint alpha;
+    }
+
+    try
+    {
+      uint alpha;
+    }
+    catch Throwable t
+    {
+      uint alpha;
+    }
+    finally
+    {
+      uint alpha;
+    }
+
+    while true
+    {
+      uint alpha;
+    }
+  }
+}

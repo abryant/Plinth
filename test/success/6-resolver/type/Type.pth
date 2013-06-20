@@ -1,0 +1,16 @@
+// Plinth Test
+// MustCompile
+
+class Test<T, S>
+{
+  void foo()
+  {
+    []string a;
+    {string -> string throws Throwable} f;
+    Test<string, Throwable> t;
+    string s;
+    T param;
+    (string, Test<string, Throwable>) tuple;
+  }
+}
+

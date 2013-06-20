@@ -1,0 +1,35 @@
+// Plinth Test
+// MustCompile
+
+class Test
+{
+  uint charlie;
+  uint delta;
+
+  property uint echo
+  setter(value)
+  {
+    echo = value;
+    echo, _ = value, 2;
+  };
+
+  void foo(Test golf)
+  {
+    uint alpha;
+    uint alpha, bravo;
+
+    uint charlie = 2;
+
+    delta = 3;
+
+    echo = 4;
+
+    []uint foxtrot = new [5]uint;
+    foxtrot[0] = 5;
+
+    _ = 6;
+
+    alpha, bravo, charlie, delta, echo, foxtrot[1], golf.charlie, _ = 7, 8, 9, 10, 11, 12, 13, 14;
+  }
+}
+

@@ -1,0 +1,17 @@
+// Plinth Test
+// Compiler: ForStatement.pth: 11:14-19: Unable to resolve "alpha"
+// Compiler: ForStatement.pth: 11:23-28: Unable to resolve "bravo"
+// Compiler: ForStatement.pth: 11:32-39: Unable to resolve "charlie"
+// Compiler: ForStatement.pth: 13:7-12: Unable to resolve "delta"
+
+class Test
+{
+  void foo()
+  {
+    for (_ = alpha(); bravo(); charlie())
+    {
+      delta();
+    }
+  }
+}
+
