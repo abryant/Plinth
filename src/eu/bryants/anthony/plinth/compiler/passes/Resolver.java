@@ -807,14 +807,40 @@ public class Resolver
     else if (type instanceof FunctionType)
     {
       FunctionType functionType = (FunctionType) type;
-      resolve(functionType.getReturnType(), enclosingDefinition, compilationUnit);
+      CoalescedConceptualException coalescedException = null;
       for (Type parameterType : functionType.getParameterTypes())
       {
-        resolve(parameterType, enclosingDefinition, compilationUnit);
+        try
+        {
+          resolve(parameterType, enclosingDefinition, compilationUnit);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      try
+      {
+        resolve(functionType.getReturnType(), enclosingDefinition, compilationUnit);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
       for (Type thrownType : functionType.getThrownTypes())
       {
-        resolve(thrownType, enclosingDefinition, compilationUnit);
+        try
+        {
+          resolve(thrownType, enclosingDefinition, compilationUnit);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      if (coalescedException != null)
+      {
+        throw coalescedException;
       }
     }
     else if (type instanceof NamedType)
@@ -978,9 +1004,21 @@ public class Resolver
     else if (type instanceof TupleType)
     {
       TupleType tupleType = (TupleType) type;
+      CoalescedConceptualException coalescedException = null;
       for (Type subType : tupleType.getSubTypes())
       {
-        resolve(subType, enclosingDefinition, compilationUnit);
+        try
+        {
+          resolve(subType, enclosingDefinition, compilationUnit);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      if (coalescedException != null)
+      {
+        throw coalescedException;
       }
     }
     else if (type instanceof VoidType)
