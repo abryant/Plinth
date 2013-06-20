@@ -4590,7 +4590,10 @@ public class CodeGenerator
         LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "functionInvokeContinue");
         result = LLVM.LLVMBuildInvoke(builder, calleeFunction, C.toNativePointerArray(realArguments, false, true), realArguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
         LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
-        result = typeHelper.convertStandardToTemporary(builder, result, returnType);
+        if (!(returnType instanceof VoidType))
+        {
+          result = typeHelper.convertStandardToTemporary(builder, result, returnType);
+        }
       }
       else
       {
