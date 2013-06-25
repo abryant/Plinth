@@ -459,6 +459,18 @@ public class ExceptionChecker
           findUncaughtExceptions(valueExpression, uncaughtExceptions);
         }
       }
+      if (arrayCreationExpression.getInitialisationExpression() != null)
+      {
+        findUncaughtExceptions(arrayCreationExpression.getInitialisationExpression(), uncaughtExceptions);
+        if (arrayCreationExpression.getResolvedIsInitialiserFunction())
+        {
+          FunctionType functionType = (FunctionType) arrayCreationExpression.getInitialisationExpression().getType();
+          for (NamedType thrownType : functionType.getThrownTypes())
+          {
+            addUncaughtException(thrownType, arrayCreationExpression.getInitialisationExpression().getLexicalPhrase(), uncaughtExceptions);
+          }
+        }
+      }
     }
     else if (expression instanceof BitwiseNotExpression)
     {

@@ -92,7 +92,7 @@ public class ExpressionNotLessThanQNameRule extends Rule<ParseType>
       {
         arrayType = new ArrayType(false, false, arrayType == null ? originalType : arrayType, null);
       }
-      return new ArrayCreationExpression(arrayType, dimensions.toArray(new Expression[dimensions.size()]), null, LexicalPhrase.combine((LexicalPhrase) args[0], dimensions.getLexicalPhrase(), originalType.getLexicalPhrase()));
+      return new ArrayCreationExpression(arrayType, dimensions.toArray(new Expression[dimensions.size()]), null, null, LexicalPhrase.combine((LexicalPhrase) args[0], dimensions.getLexicalPhrase(), originalType.getLexicalPhrase()));
     }
     RelationalOperator operator;
     Expression left;

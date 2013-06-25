@@ -68,8 +68,17 @@ class Test implements Foo<holder<(uint, string), (long, []string)>>
     t = create holder<(uint, string), (long, []string)>((x, s), (-0xffffffffffff, args));
   }
 
+  static uint getArg(uint i, uint j, uint k)
+  {
+    return i * j * k;
+  }
+
   static uint main([]string args) throws Error
   {
+    [][][]uint notArgs = new [2][args.length][args.length]uint(getArg);
+    [][]uint asdfsafsafd = new [8][1]uint;
+    stdout::println(notArgs);
+
     StringComparator sc = new StringComparator();
     Comparator<string> c = sc;
     {string, string -> boolean} f = c.getEquals();

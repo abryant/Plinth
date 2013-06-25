@@ -1766,9 +1766,10 @@ public class TypeChecker
     {
       ArrayCreationExpression creationExpression = (ArrayCreationExpression) expression;
       CoalescedConceptualException coalescedException = null;
-      if (creationExpression.getDimensionExpressions() != null)
+      Expression[] dimensionExpressions = creationExpression.getDimensionExpressions();
+      if (dimensionExpressions != null)
       {
-        for (Expression expr : creationExpression.getDimensionExpressions())
+        for (Expression expr : dimensionExpressions)
         {
           try
           {
@@ -1794,14 +1795,21 @@ public class TypeChecker
         throw CoalescedConceptualException.coalesce(coalescedException, e);
       }
       Type baseType = declaredType.getBaseType();
-      if (creationExpression.getValueExpressions() == null)
+      if (dimensionExpressions != null)
+      {
+        for (int i = 1; i < dimensionExpressions.length; ++i)
+        {
+          baseType = ((ArrayType) baseType).getBaseType();
+        }
+      }
+      if (creationExpression.getValueExpressions() == null && creationExpression.getInitialisationExpression() == null)
       {
         if (!baseType.hasDefaultValue())
         {
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot create an array of '" + baseType + "' without an initialiser.", creationExpression.getLexicalPhrase()));
         }
       }
-      else
+      else if (creationExpression.getValueExpressions() != null)
       {
         for (Expression expr : creationExpression.getValueExpressions())
         {
@@ -1817,6 +1825,59 @@ public class TypeChecker
           {
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
+        }
+      }
+      else // if (creationExpression.getInitialisationExpression() != null)
+      {
+        if (dimensionExpressions == null)
+        {
+          throw CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot create an array without a length", creationExpression.getLexicalPhrase()));
+        }
+        try
+        {
+          Type type = checkTypes(creationExpression.getInitialisationExpression(), containingDefinition, inStaticContext);
+          // There are two options for the initialisation expression's type: it is either a function to call for each element of the array, or a value to set each element to.
+          // If it is a function to call, the parameters must be array indices into the resulting array, and the result must be assignable to the array's baseType.
+          // If it is a value, it must be assignable to the array's baseType
+
+          // Note: there is a case where these two options can overlap: if the expression is a function which generates something assignable to the array, and the function itself is also assignable to the array
+          // This case can only occur if the array's base type is very broad (e.g. object).
+          // In this edge case, we default to treating the expression as a function, rather than a value.
+
+          boolean isInitialiserFunction = type instanceof FunctionType && !type.isNullable();
+          if (isInitialiserFunction)
+          {
+            Type[] paramTypes = ((FunctionType) type).getParameterTypes();
+            if (paramTypes.length != 0 && paramTypes.length != dimensionExpressions.length)
+            {
+              // the only valid initialiser functions are those which take no parameters, and those which take a number of parameters equal to the number of created dimensions
+              isInitialiserFunction = false;
+            }
+            else if (paramTypes.length == dimensionExpressions.length)
+            {
+              for (int i = 0; i < paramTypes.length; ++i)
+              {
+                // each parameter must be an array index
+                if (!paramTypes[i].isEquivalent(ArrayLengthMember.ARRAY_LENGTH_TYPE))
+                {
+                  isInitialiserFunction = false;
+                }
+              }
+            }
+            if (isInitialiserFunction && !baseType.canAssign(((FunctionType) type).getReturnType()))
+            {
+              isInitialiserFunction = false;
+            }
+          }
+          if (!isInitialiserFunction && !baseType.canAssign(type))
+          {
+            throw new ConceptualException("Cannot initialise an array of " + baseType + " with an initialiser of type " + type + " - try using a " + baseType + " or a function which generates a " + baseType, creationExpression.getInitialisationExpression().getLexicalPhrase());
+          }
+          creationExpression.setResolvedIsInitialiserFunction(isInitialiserFunction);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
       if (coalescedException != null)

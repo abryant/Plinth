@@ -16,13 +16,17 @@ public class ArrayCreationExpression extends Expression
   private ArrayType declaredType;
   private Expression[] dimensionExpressions;
   private Expression[] valueExpressions;
+  private Expression initialisationExpression;
 
-  public ArrayCreationExpression(ArrayType type, Expression[] dimensionExpressions, Expression[] valueExpressions, LexicalPhrase lexicalPhrase)
+  private boolean resolvedIsInitialiserFunction;
+
+  public ArrayCreationExpression(ArrayType type, Expression[] dimensionExpressions, Expression[] valueExpressions, Expression initialisationExpression, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.declaredType = type;
     this.dimensionExpressions = dimensionExpressions;
     this.valueExpressions = valueExpressions;
+    this.initialisationExpression = initialisationExpression;
   }
 
   /**
@@ -47,6 +51,30 @@ public class ArrayCreationExpression extends Expression
   public Expression[] getValueExpressions()
   {
     return valueExpressions;
+  }
+
+  /**
+   * @return the initialisationExpression
+   */
+  public Expression getInitialisationExpression()
+  {
+    return initialisationExpression;
+  }
+
+  /**
+   * @return the resolvedIsInitialiserFunction
+   */
+  public boolean getResolvedIsInitialiserFunction()
+  {
+    return resolvedIsInitialiserFunction;
+  }
+
+  /**
+   * @param resolvedIsInitialiserFunction - the resolvedIsInitialiserFunction to set
+   */
+  public void setResolvedIsInitialiserFunction(boolean resolvedIsInitialiserFunction)
+  {
+    this.resolvedIsInitialiserFunction = resolvedIsInitialiserFunction;
   }
 
   /**
@@ -85,6 +113,12 @@ public class ArrayCreationExpression extends Expression
         }
       }
       buffer.append('}');
+    }
+    else if (initialisationExpression != null)
+    {
+      buffer.append('(');
+      buffer.append(initialisationExpression);
+      buffer.append(')');
     }
     return buffer.toString();
   }

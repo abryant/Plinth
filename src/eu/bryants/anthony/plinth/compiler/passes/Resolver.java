@@ -1927,6 +1927,17 @@ public class Resolver
           }
         }
       }
+      if (creationExpression.getInitialisationExpression() != null)
+      {
+        try
+        {
+          resolve(creationExpression.getInitialisationExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
       if (coalescedException != null)
       {
         throw coalescedException;

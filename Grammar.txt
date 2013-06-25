@@ -336,6 +336,7 @@ PrimaryNotThis = IntegerLiteral | FloatingLiteral
                | NestedQNameList LSquare Expression RSquare
                | NewKeyword LSquare RSquare Type LBrace RBrace
                | NewKeyword LSquare RSquare Type LBrace ExpressionList RBrace
+               | NewKeyword Dimensions Type LParen Expression RParen
                | SuperKeyword Dot Name
                | Primary Dot Name
                | NestedQNameList Dot Name

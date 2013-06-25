@@ -20,6 +20,7 @@ class Test
     _ = arr[x];
     _ = new [x]?Test;
     _ = new []?Test {nullTest};
+    _ = new [x][x]Test(cast<Test> nullTest);
     _ = ~x;
     _ = !b;
     _ = (b);

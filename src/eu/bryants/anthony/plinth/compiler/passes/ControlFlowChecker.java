@@ -2608,7 +2608,6 @@ public class ControlFlowChecker
     {
       ArrayCreationExpression creationExpression = (ArrayCreationExpression) expression;
       CoalescedConceptualException coalescedException = null;
-      // TODO: when we add the "new [7]Foo(creationFunction)" syntax, make sure creationFunction is immutable if we are in an immutable context
       if (creationExpression.getDimensionExpressions() != null)
       {
         for (Expression expr : creationExpression.getDimensionExpressions())
@@ -2634,6 +2633,25 @@ public class ControlFlowChecker
           catch (ConceptualException e)
           {
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+      }
+      if (creationExpression.getInitialisationExpression() != null)
+      {
+        try
+        {
+          checkControlFlow(creationExpression.getInitialisationExpression(), enclosingTypeDefinition, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+        if (creationExpression.getResolvedIsInitialiserFunction())
+        {
+          FunctionType initialiserFunctionType = (FunctionType) creationExpression.getInitialisationExpression().getType();
+          if (inImmutableContext && initialiserFunctionType.isImmutable())
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a non-immutable function in an immutable context", creationExpression.getInitialisationExpression().getLexicalPhrase()));
           }
         }
       }

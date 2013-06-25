@@ -388,9 +388,10 @@ public class TypePropagator
     else if (expression instanceof ArrayCreationExpression)
     {
       ArrayCreationExpression arrayCreationExpression = (ArrayCreationExpression) expression;
-      if (arrayCreationExpression.getDimensionExpressions() != null)
+      Expression[] dimensionExpressions = arrayCreationExpression.getDimensionExpressions();
+      if (dimensionExpressions != null)
       {
-        for (Expression e : arrayCreationExpression.getDimensionExpressions())
+        for (Expression e : dimensionExpressions)
         {
           propagateTypes(e, ArrayLengthMember.ARRAY_LENGTH_TYPE);
         }
@@ -400,6 +401,27 @@ public class TypePropagator
         for (Expression e : arrayCreationExpression.getValueExpressions())
         {
           propagateTypes(e, ((ArrayType) arrayCreationExpression.getType()).getBaseType());
+        }
+      }
+      if (arrayCreationExpression.getInitialisationExpression() != null)
+      {
+        if (arrayCreationExpression.getResolvedIsInitialiserFunction())
+        {
+          // propagate with the expression's type here, since the TypeChecker has already made sure it is a function (and we have no better type to use)
+          propagateTypes(arrayCreationExpression.getInitialisationExpression(), arrayCreationExpression.getInitialisationExpression().getType());
+        }
+        else
+        {
+          Type baseType = arrayCreationExpression.getDeclaredType().getBaseType();
+          if (dimensionExpressions != null)
+          {
+            for (int i = 1; i < dimensionExpressions.length; ++i)
+            {
+              baseType = ((ArrayType) baseType).getBaseType();
+            }
+          }
+          // this isn't an initialiser function, so the array's base type should be propagated on to the initialiser expression
+          propagateTypes(arrayCreationExpression.getInitialisationExpression(), baseType);
         }
       }
     }
