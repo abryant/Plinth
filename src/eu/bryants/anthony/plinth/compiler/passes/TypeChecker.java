@@ -1562,7 +1562,7 @@ public class TypeChecker
           types[i] = left;
           assignees[i].setResolvedType(left);
         }
-        if (operator == ShorthandAssignmentOperator.ADD && left.isEquivalent(SpecialTypeHandler.STRING_TYPE) && !(right instanceof VoidType))
+        if (operator == ShorthandAssignmentOperator.ADD && left.isEquivalent(SpecialTypeHandler.STRING_TYPE) && left.canAssign(right))
         {
           // do nothing, this is a shorthand string concatenation, which is allowed
         }
