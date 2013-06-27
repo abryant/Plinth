@@ -1618,15 +1618,41 @@ public class TypeChecker
     else if (statement instanceof TryStatement)
     {
       TryStatement tryStatement = (TryStatement) statement;
-      checkTypes(tryStatement.getTryBlock(), returnType, containingDefinition, inStaticContext);
+      CoalescedConceptualException coalescedException = null;
+      try
+      {
+        checkTypes(tryStatement.getTryBlock(), returnType, containingDefinition, inStaticContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
       for (CatchClause catchClause : tryStatement.getCatchClauses())
       {
         // the resolver has already called checkCatchClauseTypes(), so the caught variable has already been type-checked
-        checkTypes(catchClause.getBlock(), returnType, containingDefinition, inStaticContext);
+        try
+        {
+          checkTypes(catchClause.getBlock(), returnType, containingDefinition, inStaticContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
       }
       if (tryStatement.getFinallyBlock() != null)
       {
-        checkTypes(tryStatement.getFinallyBlock(), returnType, containingDefinition, inStaticContext);
+        try
+        {
+          checkTypes(tryStatement.getFinallyBlock(), returnType, containingDefinition, inStaticContext);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      if (coalescedException != null)
+      {
+        throw coalescedException;
       }
     }
     else if (statement instanceof WhileStatement)
