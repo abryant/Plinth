@@ -1405,7 +1405,7 @@ public class TypeChecker
         MemberReference<?> memberReference = fieldAccessExpression.getResolvedMemberReference();
         if (memberReference instanceof ArrayLengthMemberReference)
         {
-          throw new ConceptualException("Cannot increment or decrement an array's length", fieldAssignee.getLexicalPhrase());
+          throw new ConceptualException("Cannot " + (prefixIncDecStatement.isIncrement() ? "inc" : "dec") + "rement an array's length", fieldAssignee.getLexicalPhrase());
         }
         else if (memberReference instanceof FieldReference)
         {
@@ -1417,7 +1417,7 @@ public class TypeChecker
         }
         else if (memberReference instanceof MethodReference)
         {
-          throw new ConceptualException("Cannot increment or decrement a method", fieldAssignee.getLexicalPhrase());
+          throw new ConceptualException("Cannot " + (prefixIncDecStatement.isIncrement() ? "inc" : "dec") + "rement a method", fieldAssignee.getLexicalPhrase());
         }
         else
         {
@@ -2079,7 +2079,7 @@ public class TypeChecker
             buffer.append(", ");
           }
         }
-        throw new ConceptualException("The constructor '" + constructorReference.getReferencedMember().getContainingTypeDefinition().getQualifiedName() + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", creationExpression.getLexicalPhrase());
+        throw new ConceptualException("The constructor '" + constructorReference.getReferencedMember().getContainingTypeDefinition().getQualifiedName() + "(" + buffer + ")' is not defined to take " + arguments.length + " argument" + (arguments.length == 1 ? "" : "s"), creationExpression.getLexicalPhrase());
       }
       CoalescedConceptualException coalescedException = null;
       for (int i = 0; i < arguments.length; ++i)
@@ -2363,7 +2363,7 @@ public class TypeChecker
             buffer.append(", ");
           }
         }
-        coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The function '" + (name == null ? "" : name) + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", functionCallExpression.getLexicalPhrase()));
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The function '" + (name == null ? "" : name) + "(" + buffer + ")' is not defined to take " + arguments.length + " argument" + (arguments.length == 1 ? "" : "s"), functionCallExpression.getLexicalPhrase()));
         throw coalescedException;
       }
 
