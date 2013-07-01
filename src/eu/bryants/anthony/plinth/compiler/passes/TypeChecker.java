@@ -2646,40 +2646,62 @@ public class TypeChecker
     }
     else if (expression instanceof MinusExpression)
     {
-      Type type = checkTypes(((MinusExpression) expression).getExpression(), containingDefinition, inStaticContext);
+      Expression baseExpression = ((MinusExpression) expression).getExpression();
+      Type type = checkTypes(baseExpression, containingDefinition, inStaticContext);
       if (type instanceof PrimitiveType && !type.canBeNullable())
       {
         PrimitiveTypeType primitiveTypeType = ((PrimitiveType) type).getPrimitiveTypeType();
-        // allow the unary minus operator to automatically convert from unsigned to signed integer values
+
+        // in some cases, we can determine statically that the value of an unsigned base expression fits inside a signed type of the same bit width
+        // in these situations, we can convert straight from e.g. ubyte to byte, without expanding the type to short
+        boolean inSignedRange = false;
+        if (primitiveTypeType != PrimitiveTypeType.BOOLEAN && !primitiveTypeType.isFloating() && !primitiveTypeType.isSigned())
+        {
+          while (baseExpression instanceof BracketedExpression)
+          {
+            baseExpression = ((BracketedExpression) baseExpression).getExpression();
+          }
+          if (baseExpression instanceof IntegerLiteralExpression)
+          {
+            BigInteger value = ((IntegerLiteralExpression) baseExpression).getLiteral().getValue();
+            // if the value is between 0 and 2^(bit count - 1) inclusive, then we can convert straight from unsigned to signed without increasing the bit width
+            inSignedRange = value.signum() >= 0 && value.compareTo(BigInteger.valueOf(2).pow(primitiveTypeType.getBitCount() - 1)) <= 0;
+          }
+        }
+
+        PrimitiveTypeType signedType;
         if (primitiveTypeType == PrimitiveTypeType.UBYTE)
         {
-          PrimitiveType signedType = new PrimitiveType(false, PrimitiveTypeType.BYTE, null);
-          expression.setType(signedType);
-          return signedType;
+          signedType = inSignedRange ? PrimitiveTypeType.BYTE : PrimitiveTypeType.SHORT;
         }
-        if (primitiveTypeType == PrimitiveTypeType.USHORT)
+        else if (primitiveTypeType == PrimitiveTypeType.USHORT)
         {
-          PrimitiveType signedType = new PrimitiveType(false, PrimitiveTypeType.SHORT, null);
-          expression.setType(signedType);
-          return signedType;
+          signedType = inSignedRange ? PrimitiveTypeType.SHORT : PrimitiveTypeType.INT;
         }
-        if (primitiveTypeType == PrimitiveTypeType.UINT)
+        else if (primitiveTypeType == PrimitiveTypeType.UINT)
         {
-          PrimitiveType signedType = new PrimitiveType(false, PrimitiveTypeType.INT, null);
-          expression.setType(signedType);
-          return signedType;
+          signedType = inSignedRange ? PrimitiveTypeType.INT : PrimitiveTypeType.LONG;
         }
-        if (primitiveTypeType == PrimitiveTypeType.ULONG)
+        else if (primitiveTypeType == PrimitiveTypeType.ULONG)
         {
-          PrimitiveType signedType = new PrimitiveType(false, PrimitiveTypeType.LONG, null);
-          expression.setType(signedType);
-          return signedType;
+          signedType = inSignedRange ? PrimitiveTypeType.LONG : PrimitiveTypeType.FLOAT;
+        }
+        else
+        {
+          // the type must already be signed, floating-point, or boolean, so leave it as-is
+          signedType = primitiveTypeType;
         }
 
         if (primitiveTypeType != PrimitiveTypeType.BOOLEAN)
         {
-          expression.setType(type);
-          return type;
+          if (signedType == primitiveTypeType)
+          {
+            expression.setType(type);
+            return type;
+          }
+          PrimitiveType newType = new PrimitiveType(false, signedType, null);
+          expression.setType(newType);
+          return newType;
         }
       }
       throw new ConceptualException("The unary operator '-' is not defined for type '" + type + "'", expression.getLexicalPhrase());
