@@ -1,12 +1,12 @@
 ; ModuleID = 'maths.ll'
 
-define i64 @plinth_maths_bitcast_double_to_ulong(double %value) {
+define i64 @plinth_maths_bitcast_double_to_ulong(double %value) inlinehint {
 entry:
   %result = bitcast double %value to i64
   ret i64 %result
 }
 
-define i32 @plinth_maths_bitcast_float_to_uint(float %value) {
+define i32 @plinth_maths_bitcast_float_to_uint(float %value) inlinehint {
 entry:
   %result = bitcast float %value to i32
   ret i32 %result
