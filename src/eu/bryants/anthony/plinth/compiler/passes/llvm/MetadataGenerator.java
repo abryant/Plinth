@@ -27,6 +27,7 @@ import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.TypeParameter;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
+import eu.bryants.anthony.plinth.ast.type.WildcardType;
 
 /*
  * Created on 28 Aug 2012
@@ -368,6 +369,28 @@ public class MetadataGenerator
     {
       LLVMValueRef sortNode = createMDString("void");
       LLVMValueRef[] values = new LLVMValueRef[] {sortNode};
+      return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
+    }
+    if (type instanceof WildcardType)
+    {
+      WildcardType wildcardType = (WildcardType) type;
+      LLVMValueRef sortNode = createMDString("wildcard");
+      LLVMValueRef immutableNode = createMDString(wildcardType.isExplicitlyImmutable() ? "immutable" : "not-immutable");
+      Type[] superTypes = wildcardType.getSuperTypes();
+      Type[] subTypes = wildcardType.getSubTypes();
+      LLVMValueRef[] superTypeNodes = new LLVMValueRef[superTypes.length];
+      LLVMValueRef[] subTypeNodes = new LLVMValueRef[subTypes.length];
+      for (int i = 0; i < superTypes.length; ++i)
+      {
+        superTypeNodes[i] = generateType(superTypes[i]);
+      }
+      for (int i = 0; i < subTypes.length; ++i)
+      {
+        subTypeNodes[i] = generateType(subTypes[i]);
+      }
+      LLVMValueRef superTypesNode = LLVM.LLVMMDNode(C.toNativePointerArray(superTypeNodes, false, true), superTypeNodes.length);
+      LLVMValueRef subTypesNode = LLVM.LLVMMDNode(C.toNativePointerArray(subTypeNodes, false, true), subTypeNodes.length);
+      LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, immutableNode, superTypesNode, subTypesNode};
       return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
     }
     throw new IllegalArgumentException("Internal metadata generation error: unknown sort of Type: " + type);

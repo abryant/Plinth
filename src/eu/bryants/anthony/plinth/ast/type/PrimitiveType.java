@@ -132,16 +132,23 @@ public class PrimitiveType extends Type
       // all nullable types can have null assigned to them
       return true;
     }
-    if (!(type instanceof PrimitiveType))
-    {
-      return false;
-    }
-    PrimitiveTypeType otherType = ((PrimitiveType) type).getPrimitiveTypeType();
     // a nullable type cannot be assigned to a non-nullable type
     if (!isNullable() && type.canBeNullable())
     {
       return false;
     }
+
+    if (type instanceof WildcardType)
+    {
+      // we have already checked the nullability constraint, so just make sure that the wildcard type is a sub-type of this primitive type
+      return ((WildcardType) type).canBeAssignedTo(this);
+    }
+
+    if (!(type instanceof PrimitiveType))
+    {
+      return false;
+    }
+    PrimitiveTypeType otherType = ((PrimitiveType) type).getPrimitiveTypeType();
 
     // a boolean can only be assigned to a boolean
     // also, only a boolean can be assigned to a boolean

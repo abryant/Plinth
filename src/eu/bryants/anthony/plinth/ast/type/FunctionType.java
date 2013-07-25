@@ -77,58 +77,64 @@ public class FunctionType extends Type
       // all nullable types can have null assigned to them
       return true;
     }
-    if (!(type instanceof FunctionType))
-    {
-      return false;
-    }
     if (!isNullable() && type.canBeNullable())
     {
       // a nullable type cannot be assigned to a non-nullable type
       return false;
     }
-    // a non-immutable function cannot be assigned to an immutable function type
-    // NOTE: this is the opposite condition to the one for arrays and named types
-    FunctionType otherFunction = (FunctionType) type;
-    if (isImmutable() && !otherFunction.isImmutable())
+
+    if (type instanceof FunctionType)
     {
-      return false;
-    }
-    // to be assign-compatible, both of the FunctionTypes must have equivalent parameter and return types
-    if (!returnType.isEquivalent(otherFunction.getReturnType()))
-    {
-      return false;
-    }
-    Type[] otherParameters = otherFunction.getParameterTypes();
-    if (parameterTypes.length != otherParameters.length)
-    {
-      return false;
-    }
-    for (int i = 0; i < parameterTypes.length; ++i)
-    {
-      if (!parameterTypes[i].isEquivalent(otherParameters[i]))
+      // a non-immutable function cannot be assigned to an immutable function type
+      // NOTE: this is the opposite condition to the one for arrays and named types
+      FunctionType otherFunction = (FunctionType) type;
+      if (isImmutable() && !otherFunction.isImmutable())
       {
         return false;
       }
-    }
-    // the other type can only be assigned to us if we have at least all of the thrown types that it has
-    NamedType[] otherThrownTypes = otherFunction.getThrownTypes();
-    for (NamedType thrown : otherThrownTypes)
-    {
-      boolean found = false;
-      for (NamedType check : thrownTypes)
+      // to be assign-compatible, both of the FunctionTypes must have equivalent parameter and return types
+      if (!returnType.isEquivalent(otherFunction.getReturnType()))
       {
-        if (check.canAssign(thrown))
+        return false;
+      }
+      Type[] otherParameters = otherFunction.getParameterTypes();
+      if (parameterTypes.length != otherParameters.length)
+      {
+        return false;
+      }
+      for (int i = 0; i < parameterTypes.length; ++i)
+      {
+        if (!parameterTypes[i].isEquivalent(otherParameters[i]))
         {
-          found = true;
-          break;
+          return false;
         }
       }
-      if (!found)
+      // the other type can only be assigned to us if we have at least all of the thrown types that it has
+      NamedType[] otherThrownTypes = otherFunction.getThrownTypes();
+      for (NamedType thrown : otherThrownTypes)
       {
-        return false;
+        boolean found = false;
+        for (NamedType check : thrownTypes)
+        {
+          if (check.canAssign(thrown))
+          {
+            found = true;
+            break;
+          }
+        }
+        if (!found)
+        {
+          return false;
+        }
       }
+      return true;
     }
-    return true;
+    if (type instanceof WildcardType)
+    {
+      // we have already checked the nullability constraint, so just make sure that the wildcard type is a sub-type of this function type
+      return ((WildcardType) type).canBeAssignedTo(this);
+    }
+    return false;
   }
 
   /**

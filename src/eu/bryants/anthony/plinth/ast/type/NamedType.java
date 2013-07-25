@@ -124,6 +124,7 @@ public class NamedType extends Type
       // since type parameters can extend each other, we need to use a queue and make sure not to infinite loop
       // with a circular super-type restriction (e.g. Foo<A extends B, B extends A> - A and B should both be possibly-nullable here)
       Set<TypeParameter> visitedParameters = new HashSet<TypeParameter>();
+      Set<WildcardType> visitedWildcards = new HashSet<WildcardType>();
       Deque<Type> typeQueue = new LinkedList<Type>();
       for (Type superType : resolvedTypeParameter.getSuperTypes())
       {
@@ -145,11 +146,26 @@ public class NamedType extends Type
           {
             continue;
           }
-          for (Type t : ((NamedType) superType).getResolvedTypeParameter().getSuperTypes())
+          for (Type t : typeParameter.getSuperTypes())
           {
             typeQueue.add(t);
           }
           visitedParameters.add(typeParameter);
+        }
+        else if (superType instanceof WildcardType)
+        {
+          // wildcard types shouldn't really ever have circular references, but we process them as
+          // if they do rather than recursing with another canBeNullable() call
+          WildcardType wildcard = (WildcardType) superType;
+          if (visitedWildcards.contains(wildcard))
+          {
+            continue;
+          }
+          for (Type t : wildcard.getSuperTypes())
+          {
+            typeQueue.add(t);
+          }
+          visitedWildcards.add(wildcard);
         }
       }
       return !hasNotNullSuperType;
@@ -208,6 +224,7 @@ public class NamedType extends Type
       // since type parameters can extend each other, we need to use a queue and make sure not to infinite loop
       // with a circular super-type restriction (e.g. Foo<A extends B, B extends A> - A and B should both be possibly-immutable here)
       Set<TypeParameter> visitedParameters = new HashSet<TypeParameter>();
+      Set<WildcardType> visitedWildcards = new HashSet<WildcardType>();
       Deque<Type> typeQueue = new LinkedList<Type>();
       for (Type superType : resolvedTypeParameter.getSuperTypes())
       {
@@ -219,7 +236,8 @@ public class NamedType extends Type
         Type superType = typeQueue.poll();
         if ((superType instanceof ArrayType  && !((ArrayType)  superType).isExplicitlyImmutable()) ||
             (superType instanceof NamedType  && !((NamedType)  superType).isExplicitlyImmutable()) ||
-            (superType instanceof ObjectType && !((ObjectType) superType).isExplicitlyImmutable()))
+            (superType instanceof ObjectType && !((ObjectType) superType).isExplicitlyImmutable()) ||
+            (superType instanceof WildcardType && !(((WildcardType) superType).isExplicitlyImmutable())))
         {
           hasNotImmutableSuperType = true;
           break;
@@ -236,6 +254,21 @@ public class NamedType extends Type
             typeQueue.add(t);
           }
           visitedParameters.add(typeParameter);
+        }
+        else if (superType instanceof WildcardType)
+        {
+          // wildcard types shouldn't really ever have circular references, but we process them as
+          // if they do rather than recursing with another canBeExplicitlyImmutable() call
+          WildcardType wildcard = (WildcardType) superType;
+          if (visitedWildcards.contains(wildcard))
+          {
+            continue;
+          }
+          for (Type t : wildcard.getSuperTypes())
+          {
+            typeQueue.add(t);
+          }
+          visitedWildcards.add(wildcard);
         }
       }
       return !hasNotImmutableSuperType;
@@ -318,21 +351,24 @@ public class NamedType extends Type
       return false;
     }
     // an explicitly-immutable type cannot be assigned to a non-explicitly-immutable named type
-    if (!isExplicitlyImmutable() && ((type instanceof NamedType  && ((NamedType)  type).isExplicitlyImmutable()) ||
-                                     (type instanceof ArrayType  && ((ArrayType)  type).isExplicitlyImmutable()) ||
-                                     (type instanceof ObjectType && ((ObjectType) type).isExplicitlyImmutable())))
+    if (!isExplicitlyImmutable() && ((type instanceof NamedType    && ((NamedType)    type).isExplicitlyImmutable()) ||
+                                     (type instanceof ArrayType    && ((ArrayType)    type).isExplicitlyImmutable()) ||
+                                     (type instanceof ObjectType   && ((ObjectType)   type).isExplicitlyImmutable()) ||
+                                     (type instanceof WildcardType && ((WildcardType) type).isExplicitlyImmutable())))
     {
       return false;
     }
     // a contextually-immutable type cannot be assigned to a non-immutable named type
-    if (!isContextuallyImmutable() && ((type instanceof NamedType  && ((NamedType)  type).isContextuallyImmutable()) ||
-                                       (type instanceof ArrayType  && ((ArrayType)  type).isContextuallyImmutable()) ||
-                                       (type instanceof ObjectType && ((ObjectType) type).isContextuallyImmutable())))
+    if (!isContextuallyImmutable() && ((type instanceof NamedType    && ((NamedType)    type).isContextuallyImmutable()) ||
+                                       (type instanceof ArrayType    && ((ArrayType)    type).isContextuallyImmutable()) ||
+                                       (type instanceof ObjectType   && ((ObjectType)   type).isContextuallyImmutable()) ||
+                                       (type instanceof WildcardType && ((WildcardType) type).isContextuallyImmutable())))
     {
       return false;
     }
     // a possibly-immutable type cannot be assigned to a not-possibly-immutable named type
-    if (!canBeExplicitlyImmutable() && type instanceof NamedType && ((NamedType) type).canBeExplicitlyImmutable())
+    if (!canBeExplicitlyImmutable() && ((type instanceof NamedType    && ((NamedType)    type).canBeExplicitlyImmutable()) ||
+                                        (type instanceof WildcardType && ((WildcardType) type).canBeExplicitlyImmutable())))
     {
       return false;
     }
@@ -340,8 +376,9 @@ public class NamedType extends Type
 
     // find a set of all the types we need to check against
     // if it is just a normal type, then we will have a single element set
-    // but if it is a type parameter, we will have a set of all of its super-types
+    // but if it is a type parameter or a wildcard type, we will have a set of all of its super-types
     Set<TypeParameter> otherTypeParameters = new HashSet<TypeParameter>();
+    Set<WildcardType> visitedWildcardSuperTypes = new HashSet<WildcardType>();
     Set<Type> otherSuperTypes = new HashSet<Type>();
     Deque<Type> typeQueue = new LinkedList<Type>();
     typeQueue.add(type);
@@ -364,6 +401,20 @@ public class NamedType extends Type
           typeQueue.add(parameterSuperType);
         }
       }
+      else if (otherSuperType instanceof WildcardType)
+      {
+        WildcardType wildcardType = (WildcardType) otherSuperType;
+        if (visitedWildcardSuperTypes.contains(wildcardType))
+        {
+          continue;
+        }
+        visitedWildcardSuperTypes.add(wildcardType);
+        // we can ignore the Wildcard type's nullability and immutability, as we have already checked that those properties do not conflict above
+        for (Type t : wildcardType.getSuperTypes())
+        {
+          typeQueue.add(t);
+        }
+      }
       else
       {
         otherSuperTypes.add(otherSuperType);
@@ -377,7 +428,6 @@ public class NamedType extends Type
 
     if (resolvedTypeDefinition != null)
     {
-      NamedType simplifiedThis = new NamedType(false, false, false, resolvedTypeDefinition, typeArguments);
       for (Type checkType : otherSuperTypes)
       {
         // checkType can never be a TypeParameter, so if it is a NamedType, check its inheritance hierarchy
@@ -387,7 +437,41 @@ public class NamedType extends Type
           GenericTypeSpecialiser checkTypeSpecialiser = new GenericTypeSpecialiser((NamedType) checkType);
           for (NamedType checkSuperType : checkTypeDefinition.getInheritanceLinearisation())
           {
-            if (simplifiedThis.isEquivalent(checkTypeSpecialiser.getSpecialisedType(checkSuperType)))
+            // check that checkSuperType matches this type
+            if (checkSuperType.getResolvedTypeDefinition() != resolvedTypeDefinition)
+            {
+              continue;
+            }
+            // check that the type arguments match
+            // (note: wildcard types mean that we cannot just check for equivalence)
+            NamedType specialisedType = (NamedType) checkTypeSpecialiser.getSpecialisedType(checkSuperType);
+            Type[] specialisedArguments = specialisedType.getTypeArguments();
+            if ((typeArguments == null) != (specialisedArguments == null))
+            {
+              continue;
+            }
+            if (typeArguments == null)
+            {
+              // checkSuperType matches this NamedType, as there are no type arguments to check
+              return true;
+            }
+            if (typeArguments.length != specialisedArguments.length)
+            {
+              throw new IllegalStateException("Number of type arguments does not match for " + resolvedTypeDefinition.getQualifiedName());
+            }
+            boolean argumentsMatch = true;
+            for (int i = 0; argumentsMatch && i < typeArguments.length; ++i)
+            {
+              if (typeArguments[i] instanceof WildcardType)
+              {
+                argumentsMatch = ((WildcardType) typeArguments[i]).encompasses(specialisedArguments[i]);
+              }
+              else
+              {
+                argumentsMatch = typeArguments[i].isEquivalent(specialisedArguments[i]);
+              }
+            }
+            if (argumentsMatch)
             {
               return true;
             }
@@ -409,6 +493,7 @@ public class NamedType extends Type
 
     // find a set of all of our sub-types
     Set<TypeParameter> visitedParameters = new HashSet<TypeParameter>();
+    Set<WildcardType> visitedWildcardSubTypes = new HashSet<WildcardType>();
     Set<Type> thisSubTypes = new HashSet<Type>();
     Deque<Type> thisSubTypeQueue = new LinkedList<Type>();
     for (Type subType : resolvedTypeParameter.getSubTypes())
@@ -435,6 +520,20 @@ public class NamedType extends Type
           thisSubTypeQueue.add(parameterSubType);
         }
       }
+      else if (subType instanceof WildcardType)
+      {
+        WildcardType wildcardType = (WildcardType) subType;
+        if (visitedWildcardSubTypes.contains(wildcardType))
+        {
+          continue;
+        }
+        visitedWildcardSubTypes.add(wildcardType);
+        // we can ignore the Wildcard type's nullability and immutability, as we have already checked that those properties do not conflict above
+        for (Type t : wildcardType.getSubTypes())
+        {
+          thisSubTypeQueue.add(t);
+        }
+      }
       else
       {
         thisSubTypes.add(subType);
@@ -448,6 +547,7 @@ public class NamedType extends Type
         if (lowerType.canAssign(otherSuperType))
         {
           // one of our sub-types can assign one of the other type's super-types, which is all we need for the assignment to work
+          // (this is because every one of our sub-types necessarily extends any actual type that the type parameter might end up being)
           return true;
         }
       }
@@ -461,7 +561,44 @@ public class NamedType extends Type
   @Override
   public boolean isEquivalent(Type type)
   {
-    return isRuntimeEquivalent(type);
+    if (resolvedTypeParameter != null)
+    {
+      return type instanceof NamedType &&
+             isNullable() == type.isNullable() &&
+             resolvedTypeParameter == ((NamedType) type).getResolvedTypeParameter() &&
+             isExplicitlyImmutable() == ((NamedType) type).isExplicitlyImmutable() &&
+             isContextuallyImmutable() == ((NamedType) type).isContextuallyImmutable();
+    }
+    if (resolvedTypeDefinition != null)
+    {
+      if (!(type instanceof NamedType) ||
+          isNullable() != type.isNullable() ||
+          !resolvedTypeDefinition.equals(((NamedType) type).getResolvedTypeDefinition()) ||
+          (typeArguments == null) != (((NamedType) type).getTypeArguments() == null) ||
+          (!resolvedTypeDefinition.isImmutable() &&
+              (isExplicitlyImmutable() != ((NamedType) type).isExplicitlyImmutable() ||
+               isContextuallyImmutable() != ((NamedType) type).isContextuallyImmutable())))
+      {
+        return false;
+      }
+      if (typeArguments != null)
+      {
+        Type[] otherTypeArguments = ((NamedType) type).getTypeArguments();
+        if (typeArguments.length != otherTypeArguments.length)
+        {
+          return false;
+        }
+        for (int i = 0; i < typeArguments.length; ++i)
+        {
+          if (!typeArguments[i].isEquivalent(otherTypeArguments[i]))
+          {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+    throw new IllegalStateException("Cannot check for type equivalence before the named type is resolved");
   }
 
   /**
@@ -499,7 +636,7 @@ public class NamedType extends Type
         }
         for (int i = 0; i < typeArguments.length; ++i)
         {
-          if (!typeArguments[i].isEquivalent(otherTypeArguments[i]))
+          if (!typeArguments[i].isRuntimeEquivalent(otherTypeArguments[i]))
           {
             return false;
           }
@@ -556,6 +693,7 @@ public class NamedType extends Type
       // since type parameters can extend each other, we need to use a queue and make sure not to infinite loop
       // with a circular super-type restriction (e.g. Foo<A extends B, B extends A> - A and B should both be possibly-nullable here)
       Set<TypeParameter> visitedParameters = new HashSet<TypeParameter>();
+      Set<WildcardType> visitedWildcardTypes = new HashSet<WildcardType>();
       Deque<Type> typeQueue = new LinkedList<Type>();
       for (Type superType : resolvedTypeParameter.getSuperTypes())
       {
@@ -578,9 +716,22 @@ public class NamedType extends Type
           }
           visitedParameters.add(typeParameter);
         }
+        else if (superType instanceof WildcardType)
+        {
+          WildcardType wildcardType = (WildcardType) superType;
+          if (visitedWildcardTypes.contains(wildcardType))
+          {
+            continue;
+          }
+          visitedWildcardTypes.add(wildcardType);
+          for (Type t : wildcardType.getSuperTypes())
+          {
+            typeQueue.add(t);
+          }
+        }
         else
         {
-          // only add super-types which are not generic type parameters
+          // only add super-types which are not generic type parameters or wildcard types
           superTypes.add(superType);
         }
       }

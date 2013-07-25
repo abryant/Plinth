@@ -52,28 +52,35 @@ public class TupleType extends Type
       // if we are a single element tuple, and that element can assign the type, then we can also assign the type
       return true;
     }
-    if (!(type instanceof TupleType))
-    {
-      return false;
-    }
-    TupleType otherTuple = (TupleType) type;
+
     // a nullable type cannot be assigned to a non-nullable type
-    if (!isNullable() && otherTuple.canBeNullable())
+    if (!isNullable() && type.canBeNullable())
     {
       return false;
     }
-    if (subTypes.length != otherTuple.subTypes.length)
+
+    if (type instanceof TupleType)
     {
-      return false;
-    }
-    for (int i = 0; i < subTypes.length; i++)
-    {
-      if (!subTypes[i].canAssign(otherTuple.subTypes[i]))
+      TupleType otherTuple = (TupleType) type;
+      if (subTypes.length != otherTuple.subTypes.length)
       {
         return false;
       }
+      for (int i = 0; i < subTypes.length; i++)
+      {
+        if (!subTypes[i].canAssign(otherTuple.subTypes[i]))
+        {
+          return false;
+        }
+      }
+      return true;
     }
-    return true;
+    if (type instanceof WildcardType)
+    {
+      // we have already checked the nullability constraint, so just make sure that the wildcard type is a sub-type of this tuple type
+      return ((WildcardType) type).canBeAssignedTo(this);
+    }
+    return false;
   }
 
   /**

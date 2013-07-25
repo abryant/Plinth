@@ -40,7 +40,7 @@ public class WildcardTypeArgumentRule extends Rule<ParseType>
   {
     if (production == PRODUCTION)
     {
-      return new WildcardType(false, false, false, null, null, (LexicalPhrase) args[0]);
+      return new WildcardType(false, false, false, new Type[0], new Type[0], (LexicalPhrase) args[0]);
     }
     ParseList<Type> superTypeList = null;
     ParseList<Type> subTypeList = null;
@@ -72,8 +72,8 @@ public class WildcardTypeArgumentRule extends Rule<ParseType>
     {
       throw badTypeList();
     }
-    Type[] superTypes = superTypeList == null ? null : superTypeList.toArray(new Type[superTypeList.size()]);
-    Type[] subTypes = subTypeList == null ? null : subTypeList.toArray(new Type[subTypeList.size()]);
+    Type[] superTypes = superTypeList == null ? new Type[0] : superTypeList.toArray(new Type[superTypeList.size()]);
+    Type[] subTypes = subTypeList == null ? new Type[0] : subTypeList.toArray(new Type[subTypeList.size()]);
     return new WildcardType(false, false, false, superTypes, subTypes, lexicalPhrase);
   }
 

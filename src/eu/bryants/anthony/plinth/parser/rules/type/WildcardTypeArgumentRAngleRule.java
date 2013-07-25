@@ -82,8 +82,8 @@ public class WildcardTypeArgumentRAngleRule extends Rule<ParseType>
     {
       throw badTypeList();
     }
-    Type[] superTypes = superTypeList == null ? null : superTypeList.toArray(new Type[superTypeList.size()]);
-    Type[] subTypes = subTypeList == null ? null : subTypeList.toArray(new Type[subTypeList.size()]);
+    Type[] superTypes = superTypeList == null ? new Type[0] : superTypeList.toArray(new Type[superTypeList.size()]);
+    Type[] subTypes = subTypeList == null ? new Type[0] : subTypeList.toArray(new Type[subTypeList.size()]);
     WildcardType wildcardTypeArgument = new WildcardType(false, false, false, superTypes, subTypes, lexicalPhrase);
     return new ParseContainer<Type>(wildcardTypeArgument, rAngleLexicalPhrase);
   }

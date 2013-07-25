@@ -4,6 +4,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -176,7 +177,7 @@ public class TypeChecker
       {
         if (typeArguments[i] instanceof WildcardType)
         {
-          throw new ConceptualException("A type cannot derive from a type with wildcard type arguments", superType.getLexicalPhrase());
+          throw new ConceptualException("A type cannot derive from a type with wildcard type arguments (wildcards are only for matching real types, they cannot be used directly)", superType.getLexicalPhrase());
         }
       }
     }
@@ -983,6 +984,13 @@ public class TypeChecker
           if (!canHaveCommonSubType(superTypes.get(i), superTypes.get(j)))
           {
             throw new ConceptualException("A wildcard type cannot extend both " + superTypes.get(i) + " and " + superTypes.get(j) + ", they are incompatible", wildcardType.getLexicalPhrase());
+          }
+        }
+        for (Type subType : wildcardType.getSubTypes())
+        {
+          if (!superTypes.get(i).canAssign(subType))
+          {
+            throw new ConceptualException("Invalid wildcard type: there are no types which both extend " + superTypes.get(i) + " and are super-types of " + subType, wildcardType.getLexicalPhrase());
           }
         }
       }
@@ -1964,19 +1972,25 @@ public class TypeChecker
       checkType(castedType, containingDefinition, inStaticContext);
 
       // forbid casting away immutability (both explicit and contextual)
-      boolean fromExplicitlyImmutable = (exprType instanceof ArrayType  && ((ArrayType)  exprType).isExplicitlyImmutable()) ||
-                                        (exprType instanceof NamedType  && ((NamedType)  exprType).isExplicitlyImmutable()) ||
-                                        (exprType instanceof ObjectType && ((ObjectType) exprType).isExplicitlyImmutable());
-      boolean toExplicitlyImmutable = (castedType instanceof ArrayType  && ((ArrayType)  castedType).isExplicitlyImmutable()) ||
-                                      (castedType instanceof NamedType  && ((NamedType)  castedType).isExplicitlyImmutable()) ||
-                                      (castedType instanceof ObjectType && ((ObjectType) castedType).isExplicitlyImmutable());
+      boolean fromExplicitlyImmutable = (exprType instanceof ArrayType    && ((ArrayType)    exprType).isExplicitlyImmutable()) ||
+                                        (exprType instanceof NamedType    && ((NamedType)    exprType).isExplicitlyImmutable()) ||
+                                        (exprType instanceof ObjectType   && ((ObjectType)   exprType).isExplicitlyImmutable()) ||
+                                        (exprType instanceof WildcardType && ((WildcardType) exprType).isExplicitlyImmutable());
+      boolean toExplicitlyImmutable = (castedType instanceof ArrayType    && ((ArrayType)    castedType).isExplicitlyImmutable()) ||
+                                      (castedType instanceof NamedType    && ((NamedType)    castedType).isExplicitlyImmutable()) ||
+                                      (castedType instanceof ObjectType   && ((ObjectType)   castedType).isExplicitlyImmutable()) ||
+                                      (castedType instanceof WildcardType && ((WildcardType) castedType).isExplicitlyImmutable());
       if (fromExplicitlyImmutable & !toExplicitlyImmutable)
       {
         throw new ConceptualException("Cannot cast away immutability, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
       }
 
-      boolean fromCanBeExplicitlyImmutable = fromExplicitlyImmutable || (exprType instanceof NamedType && ((NamedType) exprType).canBeExplicitlyImmutable());
-      boolean toCanBeExplicitlyImmutable = toExplicitlyImmutable || (castedType instanceof NamedType && ((NamedType) castedType).canBeExplicitlyImmutable());
+      boolean fromCanBeExplicitlyImmutable = fromExplicitlyImmutable ||
+                                             (exprType instanceof NamedType    && ((NamedType)    exprType).canBeExplicitlyImmutable()) ||
+                                             (exprType instanceof WildcardType && ((WildcardType) exprType).canBeExplicitlyImmutable());
+      boolean toCanBeExplicitlyImmutable = toExplicitlyImmutable ||
+                                           (castedType instanceof NamedType    && ((NamedType)    castedType).canBeExplicitlyImmutable()) ||
+                                           (castedType instanceof WildcardType && ((WildcardType) castedType).canBeExplicitlyImmutable());
       if (fromCanBeExplicitlyImmutable)
       {
         if (!toCanBeExplicitlyImmutable)
@@ -2000,12 +2014,14 @@ public class TypeChecker
       }
 
 
-      boolean fromContextuallyImmutable = (exprType instanceof ArrayType  && ((ArrayType)  exprType).isContextuallyImmutable()) ||
-                                          (exprType instanceof NamedType  && ((NamedType)  exprType).isContextuallyImmutable()) ||
-                                          (exprType instanceof ObjectType && ((ObjectType) exprType).isContextuallyImmutable());
-      boolean toContextuallyImmutable = (castedType instanceof ArrayType  && ((ArrayType)  castedType).isContextuallyImmutable()) ||
-                                        (castedType instanceof NamedType  && ((NamedType)  castedType).isContextuallyImmutable()) ||
-                                        (castedType instanceof ObjectType && ((ObjectType) castedType).isContextuallyImmutable());
+      boolean fromContextuallyImmutable = (exprType instanceof ArrayType    && ((ArrayType)    exprType).isContextuallyImmutable()) ||
+                                          (exprType instanceof NamedType    && ((NamedType)    exprType).isContextuallyImmutable()) ||
+                                          (exprType instanceof ObjectType   && ((ObjectType)   exprType).isContextuallyImmutable()) ||
+                                          (exprType instanceof WildcardType && ((WildcardType) exprType).isContextuallyImmutable());
+      boolean toContextuallyImmutable = (castedType instanceof ArrayType    && ((ArrayType)    castedType).isContextuallyImmutable()) ||
+                                        (castedType instanceof NamedType    && ((NamedType)    castedType).isContextuallyImmutable()) ||
+                                        (castedType instanceof ObjectType   && ((ObjectType)   castedType).isContextuallyImmutable()) ||
+                                        (castedType instanceof WildcardType && ((WildcardType) castedType).isContextuallyImmutable());
       if (fromContextuallyImmutable & !toContextuallyImmutable)
       {
         throw new ConceptualException("Cannot cast away contextual immutability, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
@@ -2070,6 +2086,17 @@ public class TypeChecker
       // the type has already been resolved by the Resolver
       NamedType type = creationExpression.getCreatedType();
       checkType(type, containingDefinition, inStaticContext);
+      Type[] createdTypeArguments = type.getTypeArguments();
+      if (createdTypeArguments != null)
+      {
+        for (int i = 0; i < createdTypeArguments.length; ++i)
+        {
+          if (createdTypeArguments[i] instanceof WildcardType)
+          {
+            throw new ConceptualException("Cannot create an object with a wildcard type argument (wildcards are only for matching real types, they cannot be used directly)", createdTypeArguments[i].getLexicalPhrase());
+          }
+        }
+      }
 
       // the Resolver has checked that this isn't a TypeParameter
       TypeDefinition resolvedTypeDefinition = type.getResolvedTypeDefinition();
@@ -2474,9 +2501,13 @@ public class TypeChecker
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot use 'instanceof' to check whether something is nullable", checkType.getLexicalPhrase()));
       }
-      if ((checkType instanceof ArrayType && ((ArrayType) checkType).isExplicitlyImmutable()) ||
-          (checkType instanceof NamedType && ((NamedType) checkType).isExplicitlyImmutable() && !((NamedType) checkType).getResolvedTypeDefinition().isImmutable()) ||
-          (checkType instanceof ObjectType && ((ObjectType) checkType).isExplicitlyImmutable()))
+      if (checkType instanceof WildcardType)
+      {
+        throw new IllegalStateException("Cannot perform an instanceof check for a wildcard type that isn't a type argument");
+      }
+      if ((checkType instanceof ArrayType    && ((ArrayType)    checkType).isExplicitlyImmutable()) ||
+          (checkType instanceof NamedType    && ((NamedType)    checkType).isExplicitlyImmutable() && !(((NamedType) checkType).getResolvedTypeDefinition() != null && ((NamedType) checkType).getResolvedTypeDefinition().isImmutable())) ||
+          (checkType instanceof ObjectType   && ((ObjectType)   checkType).isExplicitlyImmutable()))
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot use 'instanceof' to check whether something is an immutable value", checkType.getLexicalPhrase()));
       }
@@ -2514,19 +2545,19 @@ public class TypeChecker
         // the number must be signed
         // check that bitLength() < SIZE to find out which signed type to use
         // use strictly less than because bitLength() excludes the sign bit
-        if (value.bitLength() < Byte.SIZE)
+        if (value.bitLength() < PrimitiveTypeType.BYTE.getBitCount())
         {
           primitiveTypeType = PrimitiveTypeType.BYTE;
         }
-        else if (value.bitLength() < Short.SIZE)
+        else if (value.bitLength() < PrimitiveTypeType.SHORT.getBitCount())
         {
           primitiveTypeType = PrimitiveTypeType.SHORT;
         }
-        else if (value.bitLength() < Integer.SIZE)
+        else if (value.bitLength() < PrimitiveTypeType.INT.getBitCount())
         {
           primitiveTypeType = PrimitiveTypeType.INT;
         }
-        else if (value.bitLength() < Long.SIZE)
+        else if (value.bitLength() < PrimitiveTypeType.LONG.getBitCount())
         {
           primitiveTypeType = PrimitiveTypeType.LONG;
         }
@@ -3079,6 +3110,14 @@ public class TypeChecker
                 typeQueue.add(parameterSuperType);
               }
             }
+            else if (superType instanceof WildcardType)
+            {
+              WildcardType wildcardType = (WildcardType) superType;
+              for (Type t : wildcardType.getSuperTypes())
+              {
+                typeQueue.add(t);
+              }
+            }
             else
             {
               checkSuperTypes.add(superType);
@@ -3123,6 +3162,14 @@ public class TypeChecker
               for (Type parameterSuperType : typeParameter.getSuperTypes())
               {
                 typeQueue.add(parameterSuperType);
+              }
+            }
+            else if (superType instanceof WildcardType)
+            {
+              WildcardType wildcardType = (WildcardType) superType;
+              for (Type t : wildcardType.getSuperTypes())
+              {
+                typeQueue.add(t);
               }
             }
             else
@@ -3219,6 +3266,10 @@ public class TypeChecker
         }
         return true;
       }
+    }
+    if (checkType instanceof WildcardType)
+    {
+      throw new IllegalArgumentException("Cannot perform an instanceof check for a wildcard type that is not a type argument");
     }
     return false;
   }
@@ -3368,6 +3419,99 @@ public class TypeChecker
     {
       return nullB;
     }
+
+
+    if (a instanceof NamedType && ((NamedType) a).getResolvedTypeParameter() != null &&
+        b instanceof NamedType && ((NamedType) b).getResolvedTypeParameter() != null)
+    {
+      // before we try to split up the type parameter into its super-types, check that it isn't just the nullability/immutability that cause it to not assign properly
+      NamedType namedA = (NamedType) a;
+      NamedType namedB = (NamedType) b;
+      boolean nullability = a.canBeNullable() || b.canBeNullable();
+      boolean explicitImmutability = namedA.canBeExplicitlyImmutable() || namedB.canBeExplicitlyImmutable();
+      boolean contextualImmutability = namedA.isContextuallyImmutable() || namedB.isContextuallyImmutable();
+      // alter the types to have the minimum nullability, explicit immutability, and contextual immutability that we need
+      // if neither of the altered types can assign the unaltered other type, then we cannot do anything else,
+      // since either the types are the same, or one of them is a supertype of the other, because we do not yet have a concept of multiple inheritance (e.g. interfaces)
+      Type alteredA = Type.findTypeWithNullability(namedA, nullability);
+      alteredA = Type.findTypeWithDataImmutability(alteredA, explicitImmutability, contextualImmutability);
+      if (alteredA.canAssign(b))
+      {
+        return alteredA;
+      }
+      Type alteredB = Type.findTypeWithNullability(namedB, nullability);
+      alteredB = Type.findTypeWithDataImmutability(alteredB, explicitImmutability, contextualImmutability);
+      if (alteredB.canAssign(a))
+      {
+        return alteredB;
+      }
+    }
+
+    if (a instanceof WildcardType || b instanceof WildcardType ||
+        (a instanceof NamedType && ((NamedType) a).getResolvedTypeParameter() != null) ||
+        (b instanceof NamedType && ((NamedType) b).getResolvedTypeParameter() != null))
+    {
+      // at least one of the types is a wildcard or a type parameter, so find a common super-type of one of its super-types and the other type
+      boolean reducingA = a instanceof WildcardType ||
+                          (a instanceof NamedType && ((NamedType) a).getResolvedTypeParameter() != null);
+      Set<TypeParameter> visitedTypeParameters = new HashSet<TypeParameter>();
+      List<Type> parentTypes = new LinkedList<Type>();
+      Deque<Type> typeQueue = new LinkedList<Type>();
+      typeQueue.add(reducingA ? a : b);
+      while (!typeQueue.isEmpty())
+      {
+        Type parentType = typeQueue.poll();
+        if (parentType instanceof NamedType && ((NamedType) parentType).getResolvedTypeParameter() != null)
+        {
+          TypeParameter typeParameter = ((NamedType) parentType).getResolvedTypeParameter();
+          if (visitedTypeParameters.contains(typeParameter))
+          {
+            continue;
+          }
+          visitedTypeParameters.add(typeParameter);
+          for (Type t : typeParameter.getSuperTypes())
+          {
+            typeQueue.add(t);
+          }
+        }
+        else if (parentType instanceof WildcardType)
+        {
+          WildcardType wildcardType = (WildcardType) parentType;
+          for (Type t : wildcardType.getSuperTypes())
+          {
+            typeQueue.add(t);
+          }
+        }
+        else
+        {
+          parentTypes.add(parentType);
+        }
+      }
+      // find the nullability and immutability of the resulting type
+      boolean nullable = a.canBeNullable() || b.canBeNullable();
+      boolean explicitlyImmutable = Type.isExplicitlyDataImmutable(a) || Type.isExplicitlyDataImmutable(b) ||
+                                    (a instanceof NamedType && ((NamedType) a).canBeExplicitlyImmutable()) ||
+                                    (a instanceof WildcardType && ((WildcardType) a).canBeExplicitlyImmutable()) ||
+                                    (b instanceof NamedType && ((NamedType) b).canBeExplicitlyImmutable()) ||
+                                    (b instanceof WildcardType && ((WildcardType) b).canBeExplicitlyImmutable());
+      boolean contextuallyImmutable = Type.isContextuallyDataImmutable(a) || Type.isContextuallyDataImmutable(b);
+      // go through each of the parent types of this wildcard/type parameter, and find what each of the common super-types would be
+      Type otherType = reducingA ? b : a;
+      otherType = Type.findTypeWithNullability(otherType, nullable);
+      otherType = Type.findTypeWithDataImmutability(otherType, explicitlyImmutable, contextuallyImmutable);
+      for (Type parentType : parentTypes)
+      {
+        parentType = Type.findTypeWithNullability(parentType, nullable);
+        parentType = Type.findTypeWithDataImmutability(parentType, explicitlyImmutable, contextuallyImmutable);
+        Type commonSuperType = findCommonSuperType(parentType, otherType);
+        if (!(commonSuperType instanceof ObjectType))
+        {
+          return commonSuperType;
+        }
+      }
+      // we couldn't find a common super-type through the parent types of the wildcard/type parameter, so just default to ObjectType
+      return new ObjectType(nullable, explicitlyImmutable, contextuallyImmutable, null);
+    }
     if (a instanceof PrimitiveType && b instanceof PrimitiveType)
     {
       PrimitiveTypeType aType = ((PrimitiveType) a).getPrimitiveTypeType();
@@ -3466,7 +3610,8 @@ public class TypeChecker
         return alteredA;
       }
     }
-    if (a instanceof NamedType && b instanceof NamedType)
+    if (a instanceof NamedType && ((NamedType) a).getResolvedTypeDefinition() != null &&
+        b instanceof NamedType && ((NamedType) b).getResolvedTypeDefinition() != null)
     {
       NamedType namedA = (NamedType) a;
       NamedType namedB = (NamedType) b;
@@ -3489,52 +3634,7 @@ public class TypeChecker
         return alteredB;
       }
 
-      if (namedA.getResolvedTypeParameter() != null || namedB.getResolvedTypeParameter() != null)
-      {
-        // at least one of the types is a TypeParameter, so find a common super-type of one of its super-types and the other type
-        boolean reducingA = namedA.getResolvedTypeParameter() != null;
-        Set<TypeParameter> visitedTypeParameters = new HashSet<TypeParameter>();
-        List<Type> parentTypes = new LinkedList<Type>();
-        Deque<Type> typeQueue = new LinkedList<Type>();
-        typeQueue.add(reducingA ? namedA : namedB);
-        while (!typeQueue.isEmpty())
-        {
-          Type parentType = typeQueue.poll();
-          if (parentType instanceof NamedType && ((NamedType) parentType).getResolvedTypeParameter() != null)
-          {
-            TypeParameter typeParameter = ((NamedType) parentType).getResolvedTypeParameter();
-            if (visitedTypeParameters.contains(typeParameter))
-            {
-              continue;
-            }
-            visitedTypeParameters.add(typeParameter);
-            for (Type t : typeParameter.getSuperTypes())
-            {
-              typeQueue.add(t);
-            }
-          }
-          else
-          {
-            parentTypes.add(parentType);
-          }
-        }
-        // go through each of the parent types of this TypeParameter, and find what each of the common super-types would be
-        Type otherType = reducingA ? namedB : namedA;
-        otherType = Type.findTypeWithNullability(otherType, nullability);
-        otherType = Type.findTypeWithDataImmutability(otherType, explicitImmutability, contextualImmutability);
-        for (Type parentType : parentTypes)
-        {
-          parentType = Type.findTypeWithNullability(parentType, nullability);
-          parentType = Type.findTypeWithDataImmutability(parentType, explicitImmutability, contextualImmutability);
-          Type commonSuperType = findCommonSuperType(parentType, otherType);
-          if (!(commonSuperType instanceof ObjectType))
-          {
-            return commonSuperType;
-          }
-        }
-        // we couldn't find a common super-type through the parent types of the TypeParameter, so just default to ObjectType
-        return new ObjectType(nullability, explicitImmutability, contextualImmutability, null);
-      }
+      // we have already checked for type parameters above, so both of these types must resolve to TypeDefinitions
 
       // the two types are not in a parent-child relationship, i.e. neither of the types inherits from the other
       // so see if they have any super-types in common
@@ -3590,7 +3690,110 @@ public class TypeChecker
       {
         return new NamedType(nullability, explicitImmutability, contextualImmutability, bestSuperType.getResolvedTypeDefinition(), bestSuperType.getTypeArguments());
       }
-      {} // TODO: try to use wildcard type arguments to find a common super-type which is more specific than object
+
+      // there was no common super-type in the inheritance hierarchy, so try to use wildcard
+      // type arguments to find a common super-type which is more specific than object
+
+      // find the first TypeDefinition in common between the two types
+      // we calculate this in a similar way to the super-type-in-common search above
+      int bestWildcardIndexA = -1;
+      int bestWildcardIndexB = -1;
+      boolean foundCommonTypeDefinition = false;
+      wildcardSuperTypeLoop:
+      for (int indexA = 0; indexA < specialisedLinearisationA.length; ++indexA)
+      {
+        for (int indexB = 0; indexB < specialisedLinearisationB.length; ++indexB)
+        {
+          if (specialisedLinearisationA[indexA].getResolvedTypeDefinition() == specialisedLinearisationB[indexB].getResolvedTypeDefinition())
+          {
+            if (specialisedLinearisationA[indexA].getResolvedTypeDefinition() instanceof ClassDefinition)
+            {
+              foundCommonTypeDefinition = true;
+              bestWildcardIndexA = indexA;
+              bestWildcardIndexB = indexB;
+              break wildcardSuperTypeLoop;
+            }
+
+            if (bestWildcardIndexA == -1 || bestWildcardIndexB == -1 ||
+                indexA + indexB < bestWildcardIndexA + bestWildcardIndexB)
+            {
+              foundCommonTypeDefinition = true;
+              bestWildcardIndexA = indexA;
+              bestWildcardIndexB = indexB;
+            }
+            else if (indexA + indexB == bestWildcardIndexA + bestWildcardIndexB)
+            {
+              // there are two equidistant common TypeDefinitions, so default to no-common-TypeDefinition unless we can find a better one
+              foundCommonTypeDefinition = false;
+            }
+            // skip the rest of the inner loop, since any duplicates would have higher indexes than we have this iteration
+            continue wildcardSuperTypeLoop;
+          }
+        }
+      }
+      if (foundCommonTypeDefinition)
+      {
+        // try to find a set of type arguments that make these common TypeDefinitions match
+        NamedType nearMatchA = specialisedLinearisationA[bestWildcardIndexA];
+        NamedType nearMatchB = specialisedLinearisationB[bestWildcardIndexB];
+        Type[] argsA = nearMatchA.getTypeArguments();
+        Type[] argsB = nearMatchB.getTypeArguments();
+        if (argsA == null && argsB == null)
+        {
+          // these near matches have the same TypeDefinitions, the same nullability, and no type arguments
+          // which means that they should have been picked up by the bestSuperType finder, and something has gone very wrong with this algorithm
+          throw new IllegalStateException("Internal error finding a common super-type: found two near-matches to alter with wildcard types, but they have no type arguments! The near-matches are: " + nearMatchA + " and " + nearMatchB);
+        }
+        if (argsA.length != argsB.length)
+        {
+          throw new IllegalStateException("Found two types with the same TypeDefinition but different numbers of type arguments: " + nearMatchA + " and " + nearMatchB);
+        }
+        Type[] resultTypes = new Type[argsA.length];
+        for (int i = 0; i < argsA.length; ++i)
+        {
+          if (argsA[i].isEquivalent(argsB[i]))
+          {
+            resultTypes[i] = argsA[i];
+          }
+          else
+          {
+            // find all of the super-types of each of the arguments, and find their common super-type
+            Set<Type> aSuperTypes = Type.findAllSuperTypes(argsA[i]);
+            Set<Type> bSuperTypes = Type.findAllSuperTypes(argsB[i]);
+            aSuperTypes.addAll(bSuperTypes);
+            Type[] superTypes;
+            if (aSuperTypes.isEmpty())
+            {
+              // there are no super-types
+              superTypes = new Type[0];
+            }
+            else
+            {
+              Iterator<Type> it = aSuperTypes.iterator();
+              Type commonSuperType = it.next();
+              while (it.hasNext())
+              {
+                commonSuperType = findCommonSuperType(commonSuperType, it.next());
+              }
+              boolean nullable = argsA[i].canBeNullable() || argsB[i].canBeNullable() || commonSuperType.isNullable();
+              boolean explicitlyImmutable = Type.isExplicitlyDataImmutable(argsA[i]) || Type.isExplicitlyDataImmutable(argsB[i]) || Type.isExplicitlyDataImmutable(commonSuperType) ||
+                                            (argsA[i] instanceof NamedType && ((NamedType) argsA[i]).canBeExplicitlyImmutable()) ||
+                                            (argsA[i] instanceof WildcardType && ((WildcardType) argsA[i]).canBeExplicitlyImmutable()) ||
+                                            (argsB[i] instanceof NamedType && ((NamedType) argsB[i]).canBeExplicitlyImmutable()) ||
+                                            (argsB[i] instanceof WildcardType && ((WildcardType) argsB[i]).canBeExplicitlyImmutable());
+              boolean contextuallyImmutable = Type.isContextuallyDataImmutable(argsA[i]) || Type.isContextuallyDataImmutable(argsB[i]) || Type.isContextuallyDataImmutable(commonSuperType);
+              commonSuperType = Type.findTypeWithNullability(commonSuperType, nullable);
+              commonSuperType = Type.findTypeWithDataImmutability(commonSuperType, explicitlyImmutable, contextuallyImmutable);
+              superTypes = new Type[] {commonSuperType};
+            }
+            // use this common super-type as the upper bound for a wildcard type argument
+            resultTypes[i] = new WildcardType(false, false, false, superTypes, new Type[0], null);
+          }
+        }
+
+        // create a new type based on the known common TypeDefinition which uses the deduced resultTypes as type arguments
+        return new NamedType(nullability, explicitImmutability, contextualImmutability, nearMatchA.getResolvedTypeDefinition(), resultTypes);
+      }
     }
     if (a instanceof TupleType && b instanceof TupleType)
     {
@@ -3609,18 +3812,22 @@ public class TypeChecker
     }
     // otherwise, object is the common supertype, so find its nullability and immutability
     boolean nullable = a.canBeNullable() || b.canBeNullable();
-    boolean explicitlyImmutable = (a instanceof ArrayType  && ((ArrayType)  a).isExplicitlyImmutable()) ||
-                                  (a instanceof NamedType  && ((NamedType)  a).isExplicitlyImmutable()) ||
-                                  (a instanceof ObjectType && ((ObjectType) a).isExplicitlyImmutable()) ||
-                                  (b instanceof ArrayType  && ((ArrayType)  b).isExplicitlyImmutable()) ||
-                                  (b instanceof NamedType  && ((NamedType)  b).isExplicitlyImmutable()) ||
-                                  (b instanceof ObjectType && ((ObjectType) b).isExplicitlyImmutable());
-    boolean contextuallyImmutable = (a instanceof ArrayType  && ((ArrayType)  a).isContextuallyImmutable()) ||
-                                    (a instanceof NamedType  && ((NamedType)  a).isContextuallyImmutable()) ||
-                                    (a instanceof ObjectType && ((ObjectType) a).isContextuallyImmutable()) ||
-                                    (b instanceof ArrayType  && ((ArrayType)  b).isContextuallyImmutable()) ||
-                                    (b instanceof NamedType  && ((NamedType)  b).isContextuallyImmutable()) ||
-                                    (b instanceof ObjectType && ((ObjectType) b).isContextuallyImmutable());
+    boolean explicitlyImmutable = (a instanceof ArrayType    && ((ArrayType)    a).isExplicitlyImmutable()) ||
+                                  (a instanceof NamedType    && ((NamedType)    a).isExplicitlyImmutable()) ||
+                                  (a instanceof ObjectType   && ((ObjectType)   a).isExplicitlyImmutable()) ||
+                                  (a instanceof WildcardType && ((WildcardType) a).isExplicitlyImmutable()) ||
+                                  (b instanceof ArrayType    && ((ArrayType)    b).isExplicitlyImmutable()) ||
+                                  (b instanceof NamedType    && ((NamedType)    b).isExplicitlyImmutable()) ||
+                                  (b instanceof ObjectType   && ((ObjectType)   b).isExplicitlyImmutable()) ||
+                                  (b instanceof WildcardType && ((WildcardType) b).isExplicitlyImmutable());
+    boolean contextuallyImmutable = (a instanceof ArrayType    && ((ArrayType)    a).isContextuallyImmutable()) ||
+                                    (a instanceof NamedType    && ((NamedType)    a).isContextuallyImmutable()) ||
+                                    (a instanceof ObjectType   && ((ObjectType)   a).isContextuallyImmutable()) ||
+                                    (a instanceof WildcardType && ((WildcardType) a).isContextuallyImmutable()) ||
+                                    (b instanceof ArrayType    && ((ArrayType)    b).isContextuallyImmutable()) ||
+                                    (b instanceof NamedType    && ((NamedType)    b).isContextuallyImmutable()) ||
+                                    (b instanceof ObjectType   && ((ObjectType)   b).isContextuallyImmutable()) ||
+                                    (b instanceof WildcardType && ((WildcardType) b).isContextuallyImmutable());
     return new ObjectType(nullable, explicitlyImmutable, contextuallyImmutable, null);
   }
 
@@ -3751,6 +3958,15 @@ public class TypeChecker
         alteredSubTypes[i] = findTypeWithDeepImmutability(subTypes[i], addExplicitImmutability, contextuallyImmutable);
       }
       return new TupleType(tupleType.isNullable(), alteredSubTypes, null);
+    }
+    if (type instanceof WildcardType)
+    {
+      WildcardType wildcardType = (WildcardType) type;
+      if (wildcardType.isContextuallyImmutable() == contextuallyImmutable && (!addExplicitImmutability || wildcardType.isExplicitlyImmutable()))
+      {
+        return wildcardType;
+      }
+      return new WildcardType(wildcardType.isNullable(), wildcardType.isExplicitlyImmutable() || addExplicitImmutability, contextuallyImmutable, wildcardType.getSuperTypes(), wildcardType.getSubTypes(), null);
     }
     if (type instanceof FunctionType || type instanceof PrimitiveType || type instanceof NullType)
     {

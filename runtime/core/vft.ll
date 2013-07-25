@@ -8,7 +8,6 @@
 
 %RTTI = type {i8, i32}
 %TypeArgumentMapper = type {i32, [0 x %RTTI*]}
-%VFTSearchList = type {i32, [0 x {%RTTI*, %VFT*}]}
 
 %ExcludeList = type [0 x i1]
 %Descriptor = type { i32, [0 x {%RawString*, %RTTI*}] }
@@ -42,43 +41,9 @@ declare void @free(i8*)
 declare i32 @strncmp(i8* %str1, i8* %str2, i32 %len)
 declare void @abort() noreturn
 
-declare protected i1 @plinth_is_type_equivalent(%RTTI* %typeA, %RTTI* %typeB, %TypeArgumentMapper* %mapperA, %TypeArgumentMapper* %mapperB, i1 %ignoreTypeModifiers)
+declare protected i1 @plinth_check_type_matches(%RTTI* %queryType, %RTTI* %specType, %TypeArgumentMapper* %queryMapper, %TypeArgumentMapper* %specMapper, i1 %ignoreTypeModifiers, i1 %looselyMatchWildcards)
 
 declare void @plinth_stderr_write(%String* %array)
-
-define protected %VFT* @plinth_core_find_vft(%VFTSearchList* %vftSearchList, %RTTI* %thisRTTI, %RTTI* %searchRTTI, %TypeArgumentMapper* %searchTypeMapper) {
-entry:
-  ; extract a pointer to the TypeArgumentMapper from this object's RTTI
-  ; note: this object isn't necessarily a NamedType, so this bitcast and GEP might return something which cannot be used without causing undefined behaviour
-  ;       however, it will only be used by 'plinth_is_type_equivalent' if the search list contains type parameters, and since type parameters only occur in named types,
-  ;       we can be sure that no errors will occur
-  %thisNamedRTTI = bitcast %RTTI* %thisRTTI to {i8, i32, i1, i1, %RawString*, %TypeArgumentMapper}*
-  %thisTypeArgumentMapper = getelementptr {i8, i32, i1, i1, %RawString*, %TypeArgumentMapper}* %thisNamedRTTI, i32 0, i32 5
-  %numSearchPtr = getelementptr %VFTSearchList* %vftSearchList, i32 0, i32 0
-  %numSearch = load i32* %numSearchPtr
-  %continueLoop = icmp ult i32 0, %numSearch
-  br i1 %continueLoop, label %searchLoop, label %exit
-
-searchLoop:
-  %i = phi i32 [0, %entry], [%nexti, %endSearchLoop]
-  %rttiPtr = getelementptr %VFTSearchList* %vftSearchList, i32 0, i32 1, i32 %i, i32 0
-  %rtti = load %RTTI** %rttiPtr
-  %match = call i1 @plinth_is_type_equivalent(%RTTI* %rtti, %RTTI* %searchRTTI, %TypeArgumentMapper* %thisTypeArgumentMapper, %TypeArgumentMapper* %searchTypeMapper, i1 1)
-  br i1 %match, label %returnVFT, label %endSearchLoop
-
-returnVFT:
-  %vftPtr = getelementptr %VFTSearchList* %vftSearchList, i32 0, i32 1, i32 %i, i32 1
-  %vft = load %VFT** %vftPtr
-  ret %VFT* %vft
-
-endSearchLoop:
-  %nexti = add i32 %i, 1
-  %continue = icmp ult i32 %nexti, %numSearch
-  br i1 %continue, label %searchLoop, label %exit
-
-exit:
-  ret %VFT* null
-}
 
 define protected %VFT* @plinth_core_generate_supertype_vft(%FunctionSearchList* %searchDescriptors, i32 %index) {
 entry:
@@ -189,7 +154,7 @@ checkNotNullOverrideRTTI:
   ; %overrideRTTI won't have any type parameters, so the %overrideMapper won't be accessed anyway, and we'll be fine
   %castedOverrideMapper = bitcast %RTTI* %overrideMapper to {i8, i32, i1, i1, %RawString*, %TypeArgumentMapper}*
   %overrideTypeArgumentMapper = getelementptr {i8, i32, i1, i1, %RawString*, %TypeArgumentMapper}* %castedOverrideMapper, i32 0, i32 5
-  %overrideRTTIMatches = call i1 @plinth_is_type_equivalent(%RTTI* %overrideRTTI, %RTTI* %thisRTTI, %TypeArgumentMapper* %overrideTypeArgumentMapper, %TypeArgumentMapper* null, i1 1)
+  %overrideRTTIMatches = call i1 @plinth_check_type_matches(%RTTI* %overrideRTTI, %RTTI* %thisRTTI, %TypeArgumentMapper* %overrideTypeArgumentMapper, %TypeArgumentMapper* null, i1 true, i1 false)
   br i1 %overrideRTTIMatches, label %foundFunction, label %endFunctionLoop
 
 foundFunction:

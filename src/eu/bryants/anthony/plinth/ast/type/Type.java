@@ -1,5 +1,8 @@
 package eu.bryants.anthony.plinth.ast.type;
 
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
@@ -132,11 +135,37 @@ public abstract class Type
     {
       return ((ObjectType) type).isExplicitlyImmutable();
     }
+    if (type instanceof WildcardType)
+    {
+      return ((WildcardType) type).isExplicitlyImmutable();
+    }
     if (type instanceof FunctionType || type instanceof NullType || type instanceof PrimitiveType || type instanceof TupleType)
     {
       return false;
     }
     throw new IllegalArgumentException("Cannot find the data explicit-immutability of an unknown type: " + type);
+  }
+
+  /**
+   * Finds whether the specified type can be explicitly immutable in terms of data. i.e. it is possible that the data inside it cannot be modified.
+   * @param type - the type to check
+   * @return true if the specified type can be explicitly immutable in terms of data, false if the type cannot be immutable
+   */
+  public static boolean canBeExplicitlyDataImmutable(Type type)
+  {
+    if (isExplicitlyDataImmutable(type))
+    {
+      return true;
+    }
+    if (type instanceof NamedType)
+    {
+      return ((NamedType) type).canBeExplicitlyImmutable();
+    }
+    if (type instanceof WildcardType)
+    {
+      return ((WildcardType) type).canBeExplicitlyImmutable();
+    }
+    return false;
   }
 
   /**
@@ -157,6 +186,10 @@ public abstract class Type
     if (type instanceof ObjectType)
     {
       return ((ObjectType) type).isContextuallyImmutable();
+    }
+    if (type instanceof WildcardType)
+    {
+      return ((WildcardType) type).isContextuallyImmutable();
     }
     if (type instanceof FunctionType || type instanceof NullType || type instanceof PrimitiveType || type instanceof TupleType)
     {
@@ -209,6 +242,11 @@ public abstract class Type
     {
       return new TupleType(nullable, ((TupleType) type).getSubTypes(), null);
     }
+    if (type instanceof WildcardType)
+    {
+      WildcardType wildcardType = (WildcardType) type;
+      return new WildcardType(nullable, wildcardType.isExplicitlyImmutable(), wildcardType.isContextuallyImmutable(), wildcardType.getSuperTypes(), wildcardType.getSubTypes(), null);
+    }
     throw new IllegalArgumentException("Cannot find the " + (nullable ? "nullable" : "non-nullable") + " version of: " + type);
   }
 
@@ -253,6 +291,15 @@ public abstract class Type
       }
       return new ObjectType(objectType.isNullable(), explicitlyImmutable, contextuallyImmutable, null);
     }
+    if (type instanceof WildcardType)
+    {
+      WildcardType wildcardType = (WildcardType) type;
+      if (wildcardType.isExplicitlyImmutable() == explicitlyImmutable && wildcardType.isContextuallyImmutable() == contextuallyImmutable)
+      {
+        return wildcardType;
+      }
+      return new WildcardType(wildcardType.isNullable(), explicitlyImmutable, contextuallyImmutable, wildcardType.getSuperTypes(), wildcardType.getSubTypes(), null);
+    }
     if (type instanceof PrimitiveType || type instanceof TupleType || type instanceof FunctionType || type instanceof NullType)
     {
       return type;
@@ -269,5 +316,55 @@ public abstract class Type
   {
     Type result = findTypeWithNullability(type, false);
     return findTypeWithDataImmutability(result, false, false);
+  }
+
+  /**
+   * Finds all of the super-types of the specified type.
+   * If the type is a wildcard or a type parameter, then this can return a set containing multiple types.
+   * Otherwise, the set will just contain the original type.
+   * Note: this method ignores all nullability and immutability constraints that the original type may have - they should be dealt with explicitly by the caller.
+   * @param type - the type to find all of the super-types of
+   * @return the set of all super-types of the specified type
+   */
+  public static Set<Type> findAllSuperTypes(Type type)
+  {
+    Set<TypeParameter> visitedTypeParameters = new HashSet<TypeParameter>();
+    Set<Type> superTypes = new HashSet<Type>();
+    Deque<Type> typeQueue = new LinkedList<Type>();
+    typeQueue.add(type);
+    while (!typeQueue.isEmpty())
+    {
+      Type superType = typeQueue.poll();
+      if (superType instanceof NamedType && ((NamedType) superType).getResolvedTypeParameter() != null)
+      {
+        TypeParameter typeParameter = ((NamedType) superType).getResolvedTypeParameter();
+        if (visitedTypeParameters.contains(typeParameter))
+        {
+          // since type parameters can extend each other, we need to continue here to make sure we don't infinite loop
+          // with a circular super-type restriction (e.g. Foo<A extends B, B extends A>)
+          continue;
+        }
+        visitedTypeParameters.add(typeParameter);
+        // we can ignore the TypeParameter's nullability and immutability, as the caller has already checked that those properties do not conflict
+        for (Type parameterSuperType : typeParameter.getSuperTypes())
+        {
+          typeQueue.add(parameterSuperType);
+        }
+      }
+      else if (superType instanceof WildcardType)
+      {
+        WildcardType wildcardType = (WildcardType) superType;
+        // we can ignore the Wildcard type's nullability and immutability, as the caller has already checked that those properties do not conflict
+        for (Type t : wildcardType.getSuperTypes())
+        {
+          typeQueue.add(t);
+        }
+      }
+      else
+      {
+        superTypes.add(superType);
+      }
+    }
+    return superTypes;
   }
 }

@@ -125,6 +125,7 @@ public class LLVM
   public static native LLVMValueRef LLVMGetFirstInstruction(LLVMBasicBlockRef block);
   public static native LLVMValueRef LLVMGetLastInstruction(LLVMBasicBlockRef block);
   public static native LLVMValueRef LLVMGetNextInstruction(LLVMValueRef instruction);
+  public static native LLVMBasicBlockRef LLVMGetInstructionParent(LLVMValueRef instruction);
 
   public static native LLVMBuilderRef LLVMCreateBuilder();
   public static LLVMBuilderRef LLVMCreateFunctionBuilder(LLVMValueRef function)
@@ -137,6 +138,25 @@ public class LLVM
   public static native void LLVMDisposeBuilder(LLVMBuilderRef builder);
   public static native void LLVMPositionBuilder(LLVMBuilderRef builder, LLVMBasicBlockRef block, LLVMValueRef instruction);
   public static native void LLVMPositionBuilderBefore(LLVMBuilderRef builder, LLVMValueRef instruction);
+  public static void LLVMPositionBuilderAfter(LLVMBuilderRef builder, LLVMBasicBlockRef block, LLVMValueRef instruction)
+  {
+    if (instruction == null)
+    {
+      LLVMPositionBuilderAtStart(builder, block);
+    }
+    else
+    {
+      LLVMValueRef nextInstruction = LLVMGetNextInstruction(instruction);
+      if (nextInstruction == null)
+      {
+        LLVMPositionBuilderAtEnd(builder, block);
+      }
+      else
+      {
+        LLVMPositionBuilderBefore(builder, nextInstruction);
+      }
+    }
+  }
   public static native void LLVMPositionBuilderAtEnd(LLVMBuilderRef builder, LLVMBasicBlockRef block);
   public static native LLVMBasicBlockRef LLVMGetInsertBlock(LLVMBuilderRef builder);
   public static void LLVMPositionBuilderAtStart(LLVMBuilderRef builder, LLVMBasicBlockRef block)

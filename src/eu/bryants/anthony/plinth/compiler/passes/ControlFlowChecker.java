@@ -90,6 +90,7 @@ import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
+import eu.bryants.anthony.plinth.ast.type.WildcardType;
 import eu.bryants.anthony.plinth.compiler.CoalescedConceptualException;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
 
@@ -2847,9 +2848,10 @@ public class ControlFlowChecker
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
           Type baseType = resolvedBaseExpression.getType();
-          if ((baseType instanceof ArrayType && ((ArrayType) baseType).isContextuallyImmutable()) ||
-              (baseType instanceof NamedType && ((NamedType) baseType).isContextuallyImmutable()) ||
-              (baseType instanceof ObjectType && ((ObjectType) baseType).isContextuallyImmutable()))
+          if ((baseType instanceof ArrayType    &&  ((ArrayType)    baseType).isContextuallyImmutable()) ||
+              (baseType instanceof NamedType    && (((NamedType)    baseType).isContextuallyImmutable()  || ((NamedType) baseType).canBeExplicitlyImmutable())) ||
+              (baseType instanceof ObjectType   &&  ((ObjectType)   baseType).isContextuallyImmutable()) ||
+              (baseType instanceof WildcardType && (((WildcardType) baseType).isContextuallyImmutable()  || ((WildcardType) baseType).canBeExplicitlyImmutable())))
           {
             if (!functionCallExpression.getResolvedMethodReference().getReferencedMember().isImmutable())
             {

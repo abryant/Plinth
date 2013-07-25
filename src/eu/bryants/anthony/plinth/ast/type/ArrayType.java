@@ -67,28 +67,36 @@ public class ArrayType extends Type
       return true;
     }
 
-    if (!(type instanceof ArrayType))
-    {
-      return false;
-    }
     // a nullable type cannot be assigned to a non-nullable type
     if (!isNullable() && type.canBeNullable())
     {
       return false;
     }
-    ArrayType otherArrayType = (ArrayType) type;
-    // an explicitly-immutable array cannot be assigned to a non-explicitly-immutable array type
-    if (!isExplicitlyImmutable() && otherArrayType.isExplicitlyImmutable())
+
+    // an explicitly-immutable type cannot be assigned to a non-explicitly-immutable array type
+    if (!isExplicitlyImmutable() && ((type instanceof ArrayType && ((ArrayType) type).isExplicitlyImmutable()) ||
+                                     (type instanceof WildcardType && ((WildcardType) type).isExplicitlyImmutable())))
     {
       return false;
     }
-    // a contextually-immutable array cannot be assigned to a non-immutable array type
-    if (!isContextuallyImmutable() && otherArrayType.isContextuallyImmutable())
+    // a contextually-immutable type cannot be assigned to a non-immutable array type
+    if (!isContextuallyImmutable() && ((type instanceof ArrayType && ((ArrayType) type).isContextuallyImmutable()) ||
+                                       (type instanceof WildcardType && ((WildcardType) type).isContextuallyImmutable())))
     {
       return false;
     }
-    Type otherBaseType = otherArrayType.getBaseType();
-    return baseType.canAssign(otherBaseType) && otherBaseType.canAssign(baseType);
+
+    if (type instanceof ArrayType)
+    {
+      Type otherBaseType = ((ArrayType) type).getBaseType();
+      return baseType.canAssign(otherBaseType) && otherBaseType.canAssign(baseType);
+    }
+    if (type instanceof WildcardType)
+    {
+      // we have already checked the nullability and immutability constraints, so make sure that the wildcard type is a sub-type of this array type
+      return ((WildcardType) type).canBeAssignedTo(this);
+    }
+    return false;
   }
 
   /**

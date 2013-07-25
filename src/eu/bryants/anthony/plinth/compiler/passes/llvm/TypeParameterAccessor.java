@@ -10,8 +10,12 @@ import nativelib.llvm.LLVM.LLVMBasicBlockRef;
 import nativelib.llvm.LLVM.LLVMBuilderRef;
 import nativelib.llvm.LLVM.LLVMTypeRef;
 import nativelib.llvm.LLVM.LLVMValueRef;
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
+import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.TypeParameter;
+import eu.bryants.anthony.plinth.ast.type.WildcardType;
 
 /*
  * Created on 9 May 2013
@@ -26,14 +30,22 @@ public class TypeParameterAccessor
   private TypeHelper typeHelper;
   private RTTIHelper rttiHelper;
 
-  // the TypeDefinition that this accessor works in the context of, and can get type parameters from
+  // the TypeDefinition or the interface NamedType that this accessor works in the context of, and can get type parameters from
   private TypeDefinition typeDefinition;
+  private NamedType interfaceNamedType;
 
   // the current object, in a temporary type representation
   private LLVMValueRef thisValue;
 
+  // the proxy accessor, only for use when we have an interfaceNamedType
+  private TypeParameterAccessor proxyAccessor;
+
   // the map of extra known TypeParameter values, usually provided as parameters (e.g. to an interface function)
   private Map<TypeParameter, LLVMValueRef> knownTypeParameters;
+
+  // the instruction and block that mark when this TypeParameterAccessor was created, so that a type argument mapper can be created at exactly that point if necessary
+  private LLVMBasicBlockRef createdDuringBlock;
+  private LLVMValueRef createdAfterInstruction;
 
   private LLVMValueRef typeArgumentMapper;
 
@@ -43,7 +55,7 @@ public class TypeParameterAccessor
    * @param typeHelper - the TypeHelper to extract type parameters from 'this' with
    * @param rttiHelper - the RTTIHelper to generate pure RTTI types with
    * @param typeDefinition - the TypeDefinition that we are working inside in a non-static context, or null in a static context
-   * @param thisValue - the value of 'this' to extract RTTI values from
+   * @param thisValue - the value of 'this' to extract RTTI values from, in a temporary type representation
    */
   public TypeParameterAccessor(LLVMBuilderRef builder, TypeHelper typeHelper, RTTIHelper rttiHelper, TypeDefinition typeDefinition, LLVMValueRef thisValue)
   {
@@ -52,6 +64,33 @@ public class TypeParameterAccessor
     this.rttiHelper = rttiHelper;
     this.typeDefinition = typeDefinition;
     this.thisValue = thisValue;
+    createdDuringBlock = LLVM.LLVMGetInsertBlock(builder);
+    createdAfterInstruction = LLVM.LLVMGetLastInstruction(createdDuringBlock);
+  }
+
+  /**
+   * Creates a new TypeParameterAccessor which looks up an interface's RTTI blocks.
+   * It does this by either creating it from the known value inside thisInterfaceType, or if it is a wildcard, by looking it up inside thisValue.
+   * When creating a new RTTI block from thisInterfaceType, any encountered type parameters will be looked up in the specified proxy accessor.
+   * @param builder - the LLVMBuilderRef to build RTTI creations and extractions and type argument mappers with
+   * @param rttiHelper - the RTTIHelper to generate RTTI types with
+   * @param thisValue - the value of this, which must be in a temporary representation of thisInterfaceType
+   * @param thisInterfaceType - the type of the interface that this accessor will access the type parameters from
+   * @param proxyAccessor - the TypeParameterAccessor to consult about any type parameters inside thisInterfaceType
+   */
+  public TypeParameterAccessor(LLVMBuilderRef builder, RTTIHelper rttiHelper, LLVMValueRef thisValue, NamedType thisInterfaceType, TypeParameterAccessor proxyAccessor)
+  {
+    if (!(thisInterfaceType.getResolvedTypeDefinition() instanceof InterfaceDefinition))
+    {
+      throw new IllegalArgumentException("An interface TypeParameterAccessor cannot be created for anything but an interface");
+    }
+    this.builder = builder;
+    this.rttiHelper = rttiHelper;
+    this.thisValue = thisValue;
+    this.interfaceNamedType = thisInterfaceType;
+    this.proxyAccessor = proxyAccessor;
+    createdDuringBlock = LLVM.LLVMGetInsertBlock(builder);
+    createdAfterInstruction = LLVM.LLVMGetLastInstruction(createdDuringBlock);
   }
 
   /**
@@ -67,6 +106,8 @@ public class TypeParameterAccessor
     this.rttiHelper = rttiHelper;
     this.typeDefinition = typeDefinition;
     this.knownTypeParameters = knownTypeParameters;
+    createdDuringBlock = LLVM.LLVMGetInsertBlock(builder);
+    createdAfterInstruction = LLVM.LLVMGetLastInstruction(createdDuringBlock);
   }
 
   /**
@@ -78,6 +119,8 @@ public class TypeParameterAccessor
   {
     this.builder = builder;
     this.rttiHelper = rttiHelper;
+    createdDuringBlock = LLVM.LLVMGetInsertBlock(builder);
+    createdAfterInstruction = LLVM.LLVMGetLastInstruction(createdDuringBlock);
   }
 
   /**
@@ -93,6 +136,19 @@ public class TypeParameterAccessor
     this.rttiHelper = rttiHelper;
     this.typeDefinition = typeDefinition;
     this.typeArgumentMapper = typeArgumentMapper;
+    // no need to set createdAfterInstruction here, as the typeArgumentMapper already exists
+  }
+
+  /**
+   * @return the TypeDefinition associated with this TypeParameterAccessor, or null if this TypeParameterAccessor doesn't have any sort of associated TypeDefinition
+   */
+  public TypeDefinition getTypeDefinition()
+  {
+    if (interfaceNamedType != null)
+    {
+      return interfaceNamedType.getResolvedTypeDefinition();
+    }
+    return typeDefinition;
   }
 
   /**
@@ -115,13 +171,39 @@ public class TypeParameterAccessor
     // the map didn't contain it, so check 'this'
     if (thisValue != null)
     {
-      TypeParameter[] typeParameters = typeDefinition.getTypeParameters();
-      for (TypeParameter t : typeParameters)
+      if (typeDefinition != null)
       {
-        if (t == typeParameter)
+        TypeParameter[] typeParameters = typeDefinition.getTypeParameters();
+        for (TypeParameter t : typeParameters)
         {
-          LLVMValueRef paramPointer = typeHelper.getTypeParameterPointer(builder, thisValue, typeParameter);
-          return LLVM.LLVMBuildLoad(builder, paramPointer, "");
+          if (t == typeParameter)
+          {
+            LLVMValueRef paramPointer = typeHelper.getTypeParameterPointer(builder, thisValue, typeParameter);
+            return LLVM.LLVMBuildLoad(builder, paramPointer, "");
+          }
+        }
+      }
+      else if (interfaceNamedType != null)
+      {
+        TypeDefinition interfaceTypeDefinition = interfaceNamedType.getResolvedTypeDefinition();
+        TypeParameter[] typeParameters = interfaceTypeDefinition.getTypeParameters();
+        Type[] typeArguments = interfaceNamedType.getTypeArguments();
+        int wildcardIndex = 0;
+        for (int i = 0; i < typeParameters.length; ++i)
+        {
+          if (typeArguments[i] instanceof WildcardType)
+          {
+            if (typeParameters[i] == typeParameter)
+            {
+              // extract the wildcard type's RTTI block from the interface's 'this' value
+              return LLVM.LLVMBuildExtractValue(builder, thisValue, 2 + wildcardIndex, "");
+            }
+            ++wildcardIndex;
+          }
+          if (typeParameters[i] == typeParameter)
+          {
+            return rttiHelper.buildRTTICreation(builder, false, typeArguments[i], proxyAccessor);
+          }
         }
       }
     }
@@ -154,10 +236,21 @@ public class TypeParameterAccessor
     List<TypeParameter> list = new ArrayList<TypeParameter>();
     if (thisValue != null)
     {
-      TypeParameter[] typeParameters = typeDefinition.getTypeParameters();
-      for (TypeParameter t : typeParameters)
+      if (typeDefinition != null)
       {
-        list.add(t);
+        TypeParameter[] typeParameters = typeDefinition.getTypeParameters();
+        for (TypeParameter t : typeParameters)
+        {
+          list.add(t);
+        }
+      }
+      else if (interfaceNamedType != null)
+      {
+        TypeParameter[] typeParameters = interfaceNamedType.getResolvedTypeDefinition().getTypeParameters();
+        for (TypeParameter t : typeParameters)
+        {
+          list.add(t);
+        }
       }
     }
     if (knownTypeParameters != null && !knownTypeParameters.isEmpty())
@@ -182,7 +275,7 @@ public class TypeParameterAccessor
   /**
    * Builds/Gets a type argument mapper for using in runtime functions such as 'plinth_is_type_equivalent'.
    * The mapper is actually built in the entry block and cached, so that it can be used multiple times.
-   * @return the pointer to the type argument mapper built
+   * @return the pointer to the type argument mapper built, in the generic type argument mapper LLVM type
    */
   public LLVMValueRef getTypeArgumentMapper()
   {
@@ -193,11 +286,21 @@ public class TypeParameterAccessor
 
     List<TypeParameter> list = getTypeParameterList();
 
-    LLVMTypeRef mapperType = getTypeArgumentMapperType(list.size());
+    LLVMTypeRef mapperType = rttiHelper.getTypeArgumentMapperType(list.size());
     LLVMValueRef alloca = LLVM.LLVMBuildAllocaInEntryBlock(builder, mapperType, "");
 
     LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
-    LLVM.LLVMPositionBuilderAfterEntryAllocas(builder);
+
+    if (createdDuringBlock.equals(LLVM.LLVMGetEntryBasicBlock(LLVM.LLVMGetBasicBlockParent(currentBlock))) &&
+        (createdAfterInstruction == null || LLVM.LLVMIsAAllocaInst(createdAfterInstruction) != null))
+    {
+      // this mapper was created during the allocas in the entry block, so make sure the mapper building code is built after the allocas
+      LLVM.LLVMPositionBuilderAfterEntryAllocas(builder);
+    }
+    else
+    {
+      LLVM.LLVMPositionBuilderAfter(builder, createdDuringBlock, createdAfterInstruction);
+    }
     buildTypeArgumentMapper(alloca, list);
     LLVM.LLVMPositionBuilderAtEnd(builder, currentBlock);
 
@@ -210,19 +313,7 @@ public class TypeParameterAccessor
    */
   public LLVMTypeRef getTypeArgumentMapperType()
   {
-    return getTypeArgumentMapperType(getTypeParameterList().size());
-  }
-
-  /**
-   * @return the native structure type of a type argument mapper with the specified number of parameters
-   */
-  private LLVMTypeRef getTypeArgumentMapperType(int numParameters)
-  {
-    LLVMTypeRef pureRTTIType = rttiHelper.getGenericPureRTTIType();
-    LLVMTypeRef arrayType = LLVM.LLVMArrayType(pureRTTIType, numParameters);
-    LLVMTypeRef[] subTypes = new LLVMTypeRef[] {LLVM.LLVMInt32Type(), arrayType};
-    LLVMTypeRef mapperType = LLVM.LLVMStructType(C.toNativePointerArray(subTypes, false, true), subTypes.length, false);
-    return mapperType;
+    return rttiHelper.getTypeArgumentMapperType(getTypeParameterList().size());
   }
 
   /**

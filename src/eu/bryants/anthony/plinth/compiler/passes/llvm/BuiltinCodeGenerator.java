@@ -200,7 +200,7 @@ public class BuiltinCodeGenerator
 
     // get the parameter and convert it to a long
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
-    parameter = typeHelper.convertTemporary(builder, landingPadContainer, parameter, baseType, valueOfMethod.getParameters()[0].getType(), false, typeParameterAccessor);
+    parameter = typeHelper.convertTemporary(builder, landingPadContainer, parameter, baseType, valueOfMethod.getParameters()[0].getType(), false, typeParameterAccessor, typeParameterAccessor);
 
     LLVMValueRef[] arguments;
     if (radix)
@@ -251,7 +251,7 @@ public class BuiltinCodeGenerator
 
     // get the parameter and convert it to a long
     LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 0);
-    parameter = typeHelper.convertTemporary(builder, landingPadContainer, parameter, baseType, valueOfMethod.getParameters()[0].getType(), false, typeParameterAccessor);
+    parameter = typeHelper.convertTemporary(builder, landingPadContainer, parameter, baseType, valueOfMethod.getParameters()[0].getType(), false, typeParameterAccessor, typeParameterAccessor);
 
     LLVMValueRef[] arguments;
     if (radix)
@@ -466,7 +466,8 @@ public class BuiltinCodeGenerator
       LLVMBasicBlockRef notNullBlock = LLVM.LLVMAddBasicBlock(builder, "toStringCall");
       LLVM.LLVMBuildCondBr(builder, nullCheckResult, notNullBlock, nullBlock);
       LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
-      notNullElement = typeHelper.convertTemporary(builder, landingPadContainer, element, baseType, notNullBaseType, false, typeParameterAccessor);
+      // skip runtime checks on this nullable -> not-nullable conversion, as we have just done them (see: nullCheckResult)
+      notNullElement = typeHelper.convertTemporary(builder, landingPadContainer, element, baseType, notNullBaseType, true, typeParameterAccessor, typeParameterAccessor);
     }
     // we shouldn't usually create BuiltinMethods like this, as they might need to have a method index set depending on the base type
     // but it's fine in this case, because we're just using it to get a Disambiguator
@@ -658,7 +659,8 @@ public class BuiltinCodeGenerator
           LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
         }
         Type notNullSubType = Type.findTypeWithNullability(subTypes[i], false);
-        LLVMValueRef notNullSubValue = typeHelper.convertTemporary(builder, landingPadContainer, subValue, subTypes[i], notNullSubType, false, typeParameterAccessor);
+        // skip runtime checks on this nullable -> not-nullable conversion, as we have just done them ourselves (see: nullCheckResult)
+        LLVMValueRef notNullSubValue = typeHelper.convertTemporary(builder, landingPadContainer, subValue, subTypes[i], notNullSubType, true, typeParameterAccessor, typeParameterAccessor);
         // we shouldn't usually create BuiltinMethods like this, as they might need to have a method index set depending on the base type
         // but it's fine in this case, because we're just using it to get a Disambiguator
         Disambiguator toStringMethodDisambiguator = new MethodReference(new BuiltinMethod(notNullSubType, BuiltinMethodType.TO_STRING), GenericTypeSpecialiser.IDENTITY_SPECIALISER).getDisambiguator();

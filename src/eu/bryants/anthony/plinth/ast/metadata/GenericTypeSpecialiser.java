@@ -137,13 +137,18 @@ public final class GenericTypeSpecialiser
     {
       WildcardType wildcardType = (WildcardType) type;
       Type[] superTypes = wildcardType.getSuperTypes();
+      Type[] subTypes = wildcardType.getSubTypes();
+      if (superTypes.length == 0 && subTypes.length == 0)
+      {
+        // nothing to replace
+        return wildcardType;
+      }
       Type[] newSuperTypes = new Type[superTypes.length];
+      Type[] newSubTypes = new Type[subTypes.length];
       for (int i = 0; i < superTypes.length; ++i)
       {
         newSuperTypes[i] = getSpecialisedType(superTypes[i]);
       }
-      Type[] subTypes = wildcardType.getSubTypes();
-      Type[] newSubTypes = new Type[subTypes.length];
       for (int i = 0; i < subTypes.length; ++i)
       {
         newSubTypes[i] = getSpecialisedType(subTypes[i]);

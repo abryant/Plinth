@@ -126,6 +126,11 @@ public class ObjectType extends Type
       otherExplicitlyImmutable = ((ObjectType) type).isExplicitlyImmutable();
       otherContextuallyImmutable = ((ObjectType) type).isContextuallyImmutable();
     }
+    else if (type instanceof WildcardType)
+    {
+      otherExplicitlyImmutable = ((WildcardType) type).isExplicitlyImmutable();
+      otherContextuallyImmutable = ((WildcardType) type).isContextuallyImmutable();
+    }
 
     // an explicitly-immutable named type cannot be assigned to a non-explicitly-immutable named type
     if (!isExplicitlyImmutable() && otherExplicitlyImmutable)

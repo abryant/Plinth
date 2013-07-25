@@ -370,8 +370,10 @@ public class Resolver
       if (field.isMutable())
       {
         // check whether the internals of the field can be altered
-        boolean isAlterable = (type instanceof ArrayType && !((ArrayType) type).isContextuallyImmutable()) ||
-                              (type instanceof NamedType && !((NamedType) type).isContextuallyImmutable());
+        boolean isAlterable = (type instanceof ArrayType    && !((ArrayType)    type).isContextuallyImmutable()) ||
+                              (type instanceof NamedType    && !((NamedType)    type).isContextuallyImmutable()) ||
+                              (type instanceof ObjectType   && !((ObjectType)   type).isContextuallyImmutable()) ||
+                              (type instanceof WildcardType && !((WildcardType) type).isContextuallyImmutable());
         if (field.isFinal() && !isAlterable)
         {
           // the field is both final and not alterable (e.g. a final uint, or a final #Object), so it cannot be mutable

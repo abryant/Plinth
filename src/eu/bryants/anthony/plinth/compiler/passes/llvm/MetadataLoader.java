@@ -42,6 +42,7 @@ import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.ast.type.TypeParameter;
 import eu.bryants.anthony.plinth.ast.type.VoidType;
+import eu.bryants.anthony.plinth.ast.type.WildcardType;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 
@@ -1006,6 +1007,36 @@ public class MetadataLoader
         throw new MalformedMetadataException("A void type's metadata node must have the correct number of sub-nodes");
       }
       return new VoidType(null);
+    }
+    if (sortOfType.equals("wildcard"))
+    {
+      if (values.length != 5)
+      {
+        throw new MalformedMetadataException("A void type's metadata node must have the correct number of sub-nodes");
+      }
+      boolean nullable = readBooleanValue(values[1], "wildcard type", "nullable");
+      boolean immutable = readBooleanValue(values[2], "wildcard type", "immutable");
+      if (LLVM.LLVMIsAMDNode(values[3]) == null)
+      {
+        throw new MalformedMetadataException("A wildcard type's super-type list must be represented by a metadata node");
+      }
+      if (LLVM.LLVMIsAMDNode(values[4]) == null)
+      {
+        throw new MalformedMetadataException("A wildcard type's sub-type list must be represented by a metadata node");
+      }
+      LLVMValueRef[] superTypeNodes = readOperands(values[3]);
+      LLVMValueRef[] subTypeNodes = readOperands(values[4]);
+      Type[] superTypes = new Type[superTypeNodes.length];
+      Type[] subTypes = new Type[subTypeNodes.length];
+      for (int i = 0; i < superTypeNodes.length; ++i)
+      {
+        superTypes[i] = loadType(superTypeNodes[i]);
+      }
+      for (int i = 0; i < subTypeNodes.length; ++i)
+      {
+        subTypes[i] = loadType(subTypeNodes[i]);
+      }
+      return new WildcardType(nullable, immutable, superTypes, subTypes, null);
     }
     throw new MalformedMetadataException("A type must specify a valid sort of type in its metadata node (e.g. a primitive type, or an array type)");
   }

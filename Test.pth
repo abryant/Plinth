@@ -38,12 +38,12 @@ class StringComparator implements Comparator<string>, Comparator<int>
   }
 }
 
-compound holder<T, S>
+compound holder<R, S>
 {
-  property T t immutable create;
+  property R t immutable create;
   S s;
 
-  immutable create(T t, S s)
+  immutable create(R t, S s)
   {
     this.t = t;
     this.s = s;
@@ -51,6 +51,11 @@ compound holder<T, S>
   immutable string toString()
   {
     return "<" + t + ">, <" + s + ">";
+  }
+
+  void checkWildcards()
+  {
+    stdout::println(t);
   }
 }
 
@@ -65,12 +70,19 @@ class Test implements Foo<holder<(uint, string), (long, []string)>>
 
   create(uint x, string s, []string args)
   {
-    t = create holder<(uint, string), (long, []string)>((x, s), (-0xffffffffffff, args));
+    holder<(uint, string), (long, []string)> asdf = create holder<(uint, string), (long, []string)>((x, s), (-0xffffffffffff, args));
+    t = asdf;
   }
 
   static uint getArg(uint i, uint j, uint k)
   {
     return i * j * k;
+  }
+
+  static void testTypeArguments(Foo<holder<(uint, string), (long, []string)>> f)
+  {
+    Foo<?> other = f;
+    stdout::println(other.t);
   }
 
   static uint main([]string args) throws Error
@@ -103,10 +115,26 @@ class Test implements Foo<holder<(uint, string), (long, []string)>>
     }
     stdout::println("lastResult: " + sc.lastResult);
 
-    Test test = new Test(args.length, args[1], args);
+    Test test = new SubTest(args.length, args[1], args);
     Foo<holder<(uint, string), (long, []string)>> foo = test;
     holder<(uint, string), (long, []string)> aaaaa = foo.t;
     stdout::println(aaaaa);
+
+    stdout::println("hi1");
+    holder<uint, string> intStringHolder = create holder<uint, string>(1, "hi");
+    stdout::println("hi2");
+    holder<? super uint, ?> wildcardTest = intStringHolder;
+    stdout::println("hi3");
+    wildcardTest.checkWildcards();
+
     return 0;
+  }
+}
+
+class SubTest extends Test
+{
+  create(uint x, string s, []string args)
+  {
+    super(x, s, args);
   }
 }
