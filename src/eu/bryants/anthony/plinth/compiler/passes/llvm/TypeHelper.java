@@ -2525,10 +2525,7 @@ public class TypeHelper
         LLVM.LLVMBuildCondBr(builder, runtimeTypeMatches, instanceOfContinueBlock, castFailureBlock);
 
         LLVM.LLVMPositionBuilderAtEnd(builder, castFailureBlock);
-        LLVMValueRef rttiPointer = rttiHelper.lookupPureRTTI(builder, value);
-        LLVMValueRef compoundNameUbyteArray = rttiHelper.lookupNamedTypeName(builder, rttiPointer);
-        LLVMValueRef compoundNameString = codeGenerator.buildStringCreation(builder, landingPadContainer, compoundNameUbyteArray);
-        buildThrowCastError(builder, landingPadContainer, compoundNameString, to.toString(), null);
+        buildThrowCastError(builder, landingPadContainer, from.toString(), to.toString(), null);
 
         LLVM.LLVMPositionBuilderAtEnd(builder, instanceOfContinueBlock);
         // both from and to are compound types, and we have made sure that we can convert between them
