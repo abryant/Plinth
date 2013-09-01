@@ -185,7 +185,7 @@ public class TypeHelper
       LLVMTypeRef llvmArrayType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), mangledTypeName);
       nativeArrayTypes.put(mangledTypeName, llvmArrayType);
 
-      LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
+      LLVMTypeRef rttiType = rttiHelper.getGenericRTTIType();
       LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
       LLVMTypeRef lengthType = LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount());
 
@@ -202,7 +202,7 @@ public class TypeHelper
     {
       // create a tuple of an opaque pointer and a function pointer which has an opaque pointer as its first argument
       FunctionType functionType = (FunctionType) type;
-      LLVMTypeRef rttiPointerType = rttiHelper.getGenericInstanceRTTIType();
+      LLVMTypeRef rttiPointerType = rttiHelper.getGenericRTTIType();
       LLVMTypeRef llvmOpaquePointerType = LLVM.LLVMPointerType(opaqueType, 0);
       LLVMTypeRef llvmFunctionPointer = findRawFunctionPointerType(functionType);
       LLVMTypeRef[] subTypes = new LLVMTypeRef[] {rttiPointerType, llvmOpaquePointerType, llvmFunctionPointer};
@@ -279,7 +279,7 @@ public class TypeHelper
         // add the type argument RTTI pointers to the struct
         for (int i = 0; i < typeParameters.length; ++i)
         {
-          llvmSubTypes[i] = rttiHelper.getGenericPureRTTIType();
+          llvmSubTypes[i] = rttiHelper.getGenericRTTIType();
         }
 
         // add the fields to the struct recursively
@@ -323,7 +323,7 @@ public class TypeHelper
         types[1] = findNativeType(new ObjectType(false, false, null), false);
         for (int i = 0; i < numWildcards; ++i)
         {
-          types[2 + i] = rttiHelper.getGenericPureRTTIType();
+          types[2 + i] = rttiHelper.getGenericRTTIType();
         }
         return LLVM.LLVMStructType(C.toNativePointerArray(types, false, true), types.length, false);
       }
@@ -338,7 +338,7 @@ public class TypeHelper
       }
       objectType = LLVM.LLVMStructCreateNamed(codeGenerator.getContext(), "object");
 
-      LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
+      LLVMTypeRef rttiType = rttiHelper.getGenericRTTIType();
       LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
       LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {rttiType, vftPointerType};
       LLVM.LLVMStructSetBody(objectType, C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
@@ -395,7 +395,7 @@ public class TypeHelper
    */
   public LLVMTypeRef findSpecialisedObjectType(Type specialisationType)
   {
-    LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericRTTIType();
     LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
     LLVMTypeRef llvmSpecialisedType = findStandardType(specialisationType);
     LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {rttiType, vftPointerType, llvmSpecialisedType};
@@ -413,7 +413,7 @@ public class TypeHelper
   {
     LLVMTypeRef llvmArrayType = findStandardType(arrayType);
 
-    LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericRTTIType();
     LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
     LLVMTypeRef lengthType = findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE);
 
@@ -464,7 +464,7 @@ public class TypeHelper
       types[0] = findTemporaryType(new NamedType(false, method.isImmutable(), method.isImmutable(), method.getContainingTypeDefinition()));
       for (int i = 0; i < typeParameters.length; ++i)
       {
-        types[offset + i] = rttiHelper.getGenericPureRTTIType();
+        types[offset + i] = rttiHelper.getGenericRTTIType();
       }
       offset += typeParameters.length;
     }
@@ -509,7 +509,7 @@ public class TypeHelper
         types[0] = findTemporaryType(new NamedType(false, false, false, typeDefinition));
         for (int i = 0; i < typeParameters.length; ++i)
         {
-          types[1 + i] = rttiHelper.getGenericPureRTTIType();
+          types[1 + i] = rttiHelper.getGenericRTTIType();
         }
       }
       else
@@ -546,7 +546,7 @@ public class TypeHelper
         types[0] = findTemporaryType(new NamedType(false, false, false, typeDefinition));
         for (int i = 0; i < typeParameters.length; ++i)
         {
-          types[offset + i] = rttiHelper.getGenericPureRTTIType();
+          types[offset + i] = rttiHelper.getGenericRTTIType();
         }
         offset += typeParameters.length;
       }
@@ -578,7 +578,7 @@ public class TypeHelper
     {
       // 1 RTTI pointer, 1 object-VFT (for builtin methods), 1 class VFT, some interface VFTs, some type parameter RTTI pointers, and some fields
       subTypes = new LLVMTypeRef[3 + implementedInterfaces.length + typeParameters.length + nonStaticVariables.length];
-      subTypes[0] = rttiHelper.getGenericInstanceRTTIType();
+      subTypes[0] = rttiHelper.getGenericRTTIType();
       subTypes[1] = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
       offset = 2;
     }
@@ -600,7 +600,7 @@ public class TypeHelper
     offset += 1 + implementedInterfaces.length;
     for (int i = 0; i < typeParameters.length; ++i)
     {
-      subTypes[offset + i] = rttiHelper.getGenericPureRTTIType();
+      subTypes[offset + i] = rttiHelper.getGenericRTTIType();
     }
     offset += typeParameters.length;
     for (int i = 0; i < nonStaticVariables.length; ++i)
@@ -892,7 +892,7 @@ public class TypeHelper
     opaquePointerSubTypes[1] = proxiedFunctionType;
     for (int i = 0; i < numRTTIBlocks; ++i)
     {
-      opaquePointerSubTypes[2 + i] = rttiHelper.getGenericPureRTTIType();
+      opaquePointerSubTypes[2 + i] = rttiHelper.getGenericRTTIType();
     }
     opaquePointerSubTypes[2 + numRTTIBlocks] = typeArgumentMapperType;
     LLVMTypeRef opaquePointerType = LLVM.LLVMStructType(C.toNativePointerArray(opaquePointerSubTypes, false, true), opaquePointerSubTypes.length, false);
@@ -1127,7 +1127,7 @@ public class TypeHelper
       opaquePointerSubTypes[1] = proxiedFunctionType;
       for (int i = 0; i < numRTTIBlocks; ++i)
       {
-        opaquePointerSubTypes[2 + i] = rttiHelper.getGenericPureRTTIType();
+        opaquePointerSubTypes[2 + i] = rttiHelper.getGenericRTTIType();
       }
       opaquePointerSubTypes[2 + numRTTIBlocks] = typeArgumentMapperType;
 
@@ -1152,7 +1152,7 @@ public class TypeHelper
           }
           else
           {
-            rttiBlock = rttiHelper.buildRTTICreation(builder, false, typeArguments[i], typeParameterAccessor);
+            rttiBlock = rttiHelper.buildRTTICreation(builder, typeArguments[i], typeParameterAccessor);
           }
           LLVMValueRef rttiBlockPointer = LLVM.LLVMBuildStructGEP(builder, pointer, 2 + i, "");
           LLVM.LLVMBuildStore(builder, rttiBlock, rttiBlockPointer);
@@ -1213,7 +1213,7 @@ public class TypeHelper
     realFunction = LLVM.LLVMBuildBitCast(builder, realFunction, findRawFunctionPointerType(functionType), "");
 
     LLVMValueRef result = LLVM.LLVMGetUndef(findStandardType(functionType));
-    result = LLVM.LLVMBuildInsertValue(builder, result, rttiHelper.buildRTTICreation(builder, true, functionType, typeParameterAccessor), 0, "");
+    result = LLVM.LLVMBuildInsertValue(builder, result, rttiHelper.buildRTTICreation(builder, functionType, typeParameterAccessor), 0, "");
     result = LLVM.LLVMBuildInsertValue(builder, result, realCallee, 1, "");
     result = LLVM.LLVMBuildInsertValue(builder, result, realFunction, 2, "");
     return convertStandardToTemporary(builder, result, functionType);
@@ -1247,7 +1247,7 @@ public class TypeHelper
       }
       else
       {
-        realArguments[1 + i] = rttiHelper.buildRTTICreation(builder, false, typeArguments[i], calleeAccessor);
+        realArguments[1 + i] = rttiHelper.buildRTTICreation(builder, typeArguments[i], calleeAccessor);
       }
     }
     if (wildcardIndex > 0)
@@ -1589,7 +1589,7 @@ public class TypeHelper
     for (int i = 0; typeArguments != null && i < typeArguments.length; ++i)
     {
       LLVMValueRef pointer = getTypeParameterPointer(builder, compoundValue, typeParameters[i]);
-      LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, false, typeArguments[i], typeParameterAccessor);
+      LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, typeArguments[i], typeParameterAccessor);
       LLVM.LLVMBuildStore(builder, rtti, pointer);
     }
     // initialise all of the fields which have default values to zero/null
@@ -1619,7 +1619,7 @@ public class TypeHelper
     // otherwise, the RTTI would turn out wrong (due to typeParameterAccessor) and people would be able to cast
     // from object to a function of whatever the values of those type parameters are,
     // even though the function's native representation might not take whatever type those type parameters happen to be
-    LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, true, stripTypeParameters(toType), toAccessor);
+    LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, stripTypeParameters(toType), toAccessor);
 
     TypeDefinition fromMapperTypeDefinition = fromAccessor.getTypeDefinition();
     TypeDefinition toMapperTypeDefinition = toAccessor.getTypeDefinition();
@@ -1789,7 +1789,7 @@ public class TypeHelper
 
     // find the type of the proxy array
     LLVMTypeRef llvmArrayType = findStandardType(toType);
-    LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericRTTIType();
     LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
     LLVMTypeRef lengthType = LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount());
 
@@ -1814,7 +1814,7 @@ public class TypeHelper
     LLVMValueRef pointer = codeGenerator.buildHeapAllocation(builder, proxyArrayPointerType);
 
     // store the RTTI
-    LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, true, toType, toAccessor);
+    LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, toType, toAccessor);
     LLVMValueRef rttiPtr = LLVM.LLVMBuildStructGEP(builder, pointer, 0, "");
     LLVM.LLVMBuildStore(builder, rtti, rttiPtr);
 
@@ -1891,7 +1891,7 @@ public class TypeHelper
 
     // find the real type of the proxy array
     LLVMTypeRef llvmArrayType = findStandardType(toType);
-    LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericRTTIType();
     LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
     LLVMTypeRef lengthType = LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount());
 
@@ -1982,7 +1982,7 @@ public class TypeHelper
 
     // find the real type of the proxy array
     LLVMTypeRef llvmArrayType = findStandardType(toType);
-    LLVMTypeRef rttiType = rttiHelper.getGenericInstanceRTTIType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericRTTIType();
     LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(virtualFunctionHandler.getObjectVFTType(), 0);
     LLVMTypeRef lengthType = LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount());
 
@@ -2842,8 +2842,9 @@ public class TypeHelper
         LLVM.LLVMBuildCondBr(builder, runtimeTypeMatches, instanceOfContinueBlock, castFailureBlock);
 
         LLVM.LLVMPositionBuilderAtEnd(builder, castFailureBlock);
-        LLVMValueRef rttiPointer = rttiHelper.lookupPureRTTI(builder, value);
-        LLVMValueRef classNameUbyteArray = rttiHelper.lookupNamedTypeName(builder, rttiPointer);
+        LLVMValueRef rttiPointer = rttiHelper.getRTTIPointer(builder, value);
+        LLVMValueRef rtti = LLVM.LLVMBuildLoad(builder, rttiPointer, "");
+        LLVMValueRef classNameUbyteArray = rttiHelper.lookupNamedTypeName(builder, rtti);
         LLVMValueRef classNameString = codeGenerator.buildStringCreation(builder, landingPadContainer, classNameUbyteArray);
         buildThrowCastError(builder, landingPadContainer, classNameString, to.toString(), null);
 
@@ -2982,7 +2983,7 @@ public class TypeHelper
         {
           if (toTypeArguments[i] instanceof WildcardType)
           {
-            LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, false, foundTypeArguments[i], wildcardTypeParameterAccessor);
+            LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, foundTypeArguments[i], wildcardTypeParameterAccessor);
             interfaceValue = LLVM.LLVMBuildInsertValue(builder, interfaceValue, rtti, 2 + wildcardIndex, "");
             ++wildcardIndex;
           }
@@ -3063,8 +3064,7 @@ public class TypeHelper
             (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof InterfaceDefinition))
         {
           // if we're coming from a class or an interface, then we know that we can look up the real class name
-          LLVMValueRef rttiPointer = rttiHelper.lookupPureRTTI(builder, objectValue); {} // TODO: when pure and instance RTTI are the same, just use objectRTTI instead of looking it up again
-          LLVMValueRef classNameUbyteArray = rttiHelper.lookupNamedTypeName(builder, rttiPointer);
+          LLVMValueRef classNameUbyteArray = rttiHelper.lookupNamedTypeName(builder, objectRTTI);
           LLVMValueRef classNameString = codeGenerator.buildStringCreation(builder, landingPadContainer, classNameUbyteArray);
           buildThrowCastError(builder, landingPadContainer, classNameString, to.toString(), null);
         }
@@ -3089,14 +3089,14 @@ public class TypeHelper
             if (interfaceTypeParameterAccessor == null)
             {
               LLVMValueRef interfaceRTTIValue = LLVM.LLVMBuildExtractValue(builder, typeLookupResult, 0, "");
-              interfaceRTTIValue = LLVM.LLVMBuildBitCast(builder, interfaceRTTIValue, LLVM.LLVMPointerType(rttiHelper.getPureRTTIStructType(toNamed), 0), "");
+              interfaceRTTIValue = LLVM.LLVMBuildBitCast(builder, interfaceRTTIValue, LLVM.LLVMPointerType(rttiHelper.getRTTIStructType(toNamed), 0), "");
               interfaceTypeParameterAccessor = new TypeParameterAccessor(builder, rttiHelper, toNamed.getResolvedTypeDefinition(), rttiHelper.getNamedTypeArgumentMapper(builder, interfaceRTTIValue));
             }
             // extract the type argument's RTTI from the interface RTTI value, by looking up the value of the type parameter at index i
             LLVMValueRef unspecialisedRTTI = interfaceTypeParameterAccessor.findTypeParameterRTTI(toNamed.getResolvedTypeDefinition().getTypeParameters()[i]);
             // specialise the extracted type argument to the same level as its concrete type
             // here we assume that if the interface's unspecialised RTTI in the type search list references a type parameter, then the concrete type of that object is a named type which defines that parameter
-            LLVMValueRef objectNamedRTTI = LLVM.LLVMBuildBitCast(builder, objectRTTI, rttiHelper.getGenericNamedPureRTTIType(), "");
+            LLVMValueRef objectNamedRTTI = LLVM.LLVMBuildBitCast(builder, objectRTTI, rttiHelper.getGenericNamedRTTIType(), "");
             LLVMValueRef specialisedRTTI = rttiHelper.buildRTTISpecialisation(builder, unspecialisedRTTI, rttiHelper.getNamedTypeArgumentMapper(builder, objectNamedRTTI));
             // store the new RTTI block inside the interface's value
             interfaceValue = LLVM.LLVMBuildInsertValue(builder, interfaceValue, specialisedRTTI, 2 + wildcardIndex, "");
@@ -3372,7 +3372,7 @@ public class TypeHelper
         // otherwise, the RTTI would turn out wrong (due to the TypeParameterAccessor) and people would be able to cast
         // things in ways that would crash at runtime: e.g. (uint, T) to object to (uint, string) if T was string
         // to fix this, we set the RTTI to (uint, object), which is the only type that this should actually be castable to once it is an object
-        rtti = rttiHelper.buildRTTICreation(builder, true, stripTypeParameters(notNullFromType), fromAccessor);
+        rtti = rttiHelper.buildRTTICreation(builder, stripTypeParameters(notNullFromType), fromAccessor);
       }
       LLVMValueRef rttiPointer = rttiHelper.getRTTIPointer(builder, pointer);
       LLVM.LLVMBuildStore(builder, rtti, rttiPointer);

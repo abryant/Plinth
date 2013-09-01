@@ -182,7 +182,7 @@ public class VirtualFunctionHandler
     LLVMValueRef[] llvmEntries = new LLVMValueRef[methods.length];
 
     LLVMTypeRef stringType = typeHelper.findRawStringType();
-    LLVMTypeRef rttiType = rttiHelper.getGenericPureRTTIType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericRTTIType();
     LLVMTypeRef[] entrySubTypes = new LLVMTypeRef[] {stringType, rttiType};
     LLVMTypeRef entryType = LLVM.LLVMStructType(C.toNativePointerArray(entrySubTypes, false, true), entrySubTypes.length, false);
 
@@ -356,7 +356,7 @@ public class VirtualFunctionHandler
     LLVMValueRef vftDescriptorGlobalVar = getVFTDescriptorPointer(typeDefinition);
 
     LLVMTypeRef stringType = typeHelper.findRawStringType();
-    LLVMTypeRef rttiType = rttiHelper.getGenericPureRTTIType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericRTTIType();
     LLVMTypeRef[] entrySubTypes = new LLVMTypeRef[] {stringType, rttiType};
     LLVMTypeRef entryType = LLVM.LLVMStructType(C.toNativePointerArray(entrySubTypes, false, true), entrySubTypes.length, false);
 
@@ -443,7 +443,7 @@ public class VirtualFunctionHandler
       }
       else
       {
-        overrideTypeRTTI = rttiHelper.getPureRTTI(overrideType);
+        overrideTypeRTTI = rttiHelper.getRTTI(overrideType);
       }
       LLVMValueRef[] entryValues = new LLVMValueRef[] {llvmDescriptorString, overrideTypeRTTI};
       llvmEntries[i] = LLVM.LLVMConstStruct(C.toNativePointerArray(entryValues, false, true), entryValues.length, false);
@@ -765,9 +765,9 @@ public class VirtualFunctionHandler
    */
   public LLVMValueRef getTypeSearchList(TypeDefinition typeDefinition)
   {
-    if (!(typeDefinition instanceof ClassDefinition))
+    if (!(typeDefinition instanceof ClassDefinition || typeDefinition instanceof InterfaceDefinition))
     {
-      throw new IllegalArgumentException("Cannot get a type search list for a non-class type");
+      throw new IllegalArgumentException("Cannot get a type search list for a type that is not a class or an interface");
     }
     String mangledName = TYPE_SEARCH_LIST_PREFIX + typeDefinition.getQualifiedName().getMangledName();
     LLVMValueRef existingValue = LLVM.LLVMGetNamedGlobal(module, mangledName);
@@ -779,7 +779,7 @@ public class VirtualFunctionHandler
     NamedType[] inheritanceLinearisation = typeDefinition.getInheritanceLinearisation();
     LLVMValueRef[] elements = new LLVMValueRef[inheritanceLinearisation.length + 1];
 
-    LLVMTypeRef rttiType = rttiHelper.getGenericPureRTTIType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericRTTIType();
     LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
     LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {rttiType, vftPointerType};
     LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
@@ -795,7 +795,7 @@ public class VirtualFunctionHandler
     {
       for (int i = 0; i < inheritanceLinearisation.length; ++i)
       {
-        LLVMValueRef rttiValue = rttiHelper.getPureRTTI(inheritanceLinearisation[i]);
+        LLVMValueRef rttiValue = rttiHelper.getRTTI(inheritanceLinearisation[i]);
         LLVMValueRef vftValue;
         if (inheritanceLinearisation[i].getResolvedTypeDefinition() == typeDefinition)
         {
@@ -804,13 +804,13 @@ public class VirtualFunctionHandler
         }
         else
         {
-          // leave it as null, to be filled in at runtime before anything else is executed
+          // leave it as null for the moment, if this is for a class, we will fill it in at runtime before anything else is executed
           vftValue = LLVM.LLVMConstNull(vftPointerType);
         }
         LLVMValueRef[] elementSubValues = new LLVMValueRef[] {rttiValue, vftValue};
         elements[i] = LLVM.LLVMConstStruct(C.toNativePointerArray(elementSubValues, false, true), elementSubValues.length, false);
       }
-      LLVMValueRef objectRTTIValue = rttiHelper.getPureRTTI(new ObjectType(false, false, null));
+      LLVMValueRef objectRTTIValue = rttiHelper.getRTTI(new ObjectType(false, false, null));
       LLVMValueRef nullVFTValue = LLVM.LLVMConstNull(vftPointerType);
       LLVMValueRef[] elementSubValues = new LLVMValueRef[] {objectRTTIValue, nullVFTValue};
       elements[inheritanceLinearisation.length] = LLVM.LLVMConstStruct(C.toNativePointerArray(elementSubValues, false, true), elementSubValues.length, false);
@@ -840,14 +840,14 @@ public class VirtualFunctionHandler
       return existingValue;
     }
 
-    LLVMTypeRef rttiType = rttiHelper.getGenericPureRTTIType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericRTTIType();
     LLVMTypeRef vftPointerType = LLVM.LLVMPointerType(getGenericVFTType(), 0);
     LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {rttiType, vftPointerType};
     LLVMTypeRef elementType = LLVM.LLVMStructType(C.toNativePointerArray(elementSubTypes, false, true), elementSubTypes.length, false);
 
     LLVMValueRef[] elements = new LLVMValueRef[1];
 
-    LLVMValueRef objectRTTIValue = rttiHelper.getPureRTTI(new ObjectType(false, false, null));
+    LLVMValueRef objectRTTIValue = rttiHelper.getRTTI(new ObjectType(false, false, null));
     LLVMValueRef nullVFTValue = LLVM.LLVMConstBitCast(objectVFT, vftPointerType);
     LLVMValueRef[] elementSubValues = new LLVMValueRef[] {objectRTTIValue, nullVFTValue};
     elements[0] = LLVM.LLVMConstStruct(C.toNativePointerArray(elementSubValues, false, true), elementSubValues.length, false);
@@ -1121,7 +1121,7 @@ public class VirtualFunctionHandler
   private LLVMTypeRef getDescriptorType(int numMethods)
   {
     LLVMTypeRef stringType = typeHelper.findRawStringType();
-    LLVMTypeRef rttiType = rttiHelper.getGenericPureRTTIType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericRTTIType();
     LLVMTypeRef[] entrySubTypes = new LLVMTypeRef[] {stringType, rttiType};
     LLVMTypeRef entryType = LLVM.LLVMStructType(C.toNativePointerArray(entrySubTypes, false, true), entrySubTypes.length, false);
 
@@ -1141,7 +1141,7 @@ public class VirtualFunctionHandler
       return vftDescriptorType;
     }
     LLVMTypeRef stringType = typeHelper.findRawStringType();
-    LLVMTypeRef rttiType = rttiHelper.getGenericPureRTTIType();
+    LLVMTypeRef rttiType = rttiHelper.getGenericRTTIType();
     LLVMTypeRef[] entrySubTypes = new LLVMTypeRef[] {stringType, rttiType};
     LLVMTypeRef entryType = LLVM.LLVMStructType(C.toNativePointerArray(entrySubTypes, false, true), entrySubTypes.length, false);
 
@@ -1293,7 +1293,7 @@ public class VirtualFunctionHandler
     {
       return functionSearchListType;
     }
-    LLVMTypeRef rttiPointer = rttiHelper.getGenericPureRTTIType();
+    LLVMTypeRef rttiPointer = rttiHelper.getGenericRTTIType();
     LLVMTypeRef descriptorPointer = LLVM.LLVMPointerType(getGenericDescriptorType(), 0);
     LLVMTypeRef vftPointer = LLVM.LLVMPointerType(getGenericVFTType(), 0);
     LLVMTypeRef excludeListPointer = LLVM.LLVMPointerType(getExcludeListType(0), 0);
@@ -1393,7 +1393,7 @@ public class VirtualFunctionHandler
     LLVMValueRef[] searchExcludeLists = new LLVMValueRef[searchTypes.length + 1];
     for (int i = 0; i < searchTypes.length; ++i)
     {
-      searchRTTIs[i] = rttiHelper.getPureRTTI(searchTypes[i]);
+      searchRTTIs[i] = rttiHelper.getRTTI(searchTypes[i]);
       LLVMValueRef descriptor = getVFTDescriptorPointer(searchTypes[i].getResolvedTypeDefinition());
       searchDescriptors[i] = LLVM.LLVMConstBitCast(descriptor, LLVM.LLVMPointerType(getGenericDescriptorType(), 0));
       LLVMValueRef vft = getVFTGlobal(searchTypes[i].getResolvedTypeDefinition());
@@ -1401,7 +1401,7 @@ public class VirtualFunctionHandler
       LLVMValueRef excludeList = getExcludeList(searchTypes[i]);
       searchExcludeLists[i] = LLVM.LLVMConstBitCast(excludeList, LLVM.LLVMPointerType(getExcludeListType(0), 0));
     }
-    searchRTTIs[searchTypes.length] = rttiHelper.getPureRTTI(new ObjectType(false, false, null));
+    searchRTTIs[searchTypes.length] = rttiHelper.getRTTI(new ObjectType(false, false, null));
     LLVMValueRef objectDescriptor = getObjectVFTDescriptorPointer();
     searchDescriptors[searchTypes.length] = LLVM.LLVMConstBitCast(objectDescriptor, LLVM.LLVMPointerType(getGenericDescriptorType(), 0));
     LLVMValueRef objectVFT = getObjectVFTGlobal();
@@ -1410,7 +1410,7 @@ public class VirtualFunctionHandler
     searchExcludeLists[searchTypes.length] = LLVM.LLVMConstBitCast(objectExcludeList, LLVM.LLVMPointerType(getExcludeListType(0), 0));
 
     LLVMValueRef[] elements = new LLVMValueRef[searchTypes.length + 1];
-    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {rttiHelper.getGenericPureRTTIType(),
+    LLVMTypeRef[] elementSubTypes = new LLVMTypeRef[] {rttiHelper.getGenericRTTIType(),
                                                        LLVM.LLVMPointerType(getGenericDescriptorType(), 0),
                                                        LLVM.LLVMPointerType(getGenericVFTType(), 0),
                                                        LLVM.LLVMPointerType(getExcludeListType(0), 0)};

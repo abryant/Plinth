@@ -121,12 +121,15 @@ class Test implements Foo<holder<(uint, string), (long, []string)>>
     stdout::println(aaaaa);
 
     stdout::println("hi1");
-    holder<uint, string> intStringHolder = create holder<uint, string>(1, "hi");
+    holder<uint, Test> intTestHolder = create holder<uint, Test>(1, test);
     stdout::println("hi2");
-    holder<? super uint, ?> wildcardTest = intStringHolder;
+    holder<? extends uint, ? super Test> wildcardTest = intTestHolder;
     stdout::println("hi3");
     wildcardTest.checkWildcards();
 
+    object objectFoo = foo;
+    Foo<? extends holder<?, ?>> secondFoo = cast<Foo<? extends holder<? extends (uint, string), ? super (long, []string)>>> objectFoo;
+    stdout::println(secondFoo.t);
     return 0;
   }
 }

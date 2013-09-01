@@ -168,6 +168,7 @@ public class CodeGenerator
 
     if (typeDefinition instanceof ClassDefinition || typeDefinition instanceof InterfaceDefinition)
     {
+      virtualFunctionHandler.getTypeSearchList(typeDefinition);
       virtualFunctionHandler.addVirtualFunctionTable();
       virtualFunctionHandler.addVirtualFunctionTableDescriptor();
     }
@@ -358,12 +359,12 @@ public class CodeGenerator
       return existingFunc;
     }
 
-    // an allocator's arguments are the pure RTTI blocks of each of the type parameters
+    // an allocator's arguments are the RTTI blocks of each of the type parameters
     TypeParameter[] typeParameters = classDefinition.getTypeParameters();
     LLVMTypeRef[] types = new LLVMTypeRef[typeParameters.length];
     for (int i = 0; i < typeParameters.length; ++i)
     {
-      types[i] = rttiHelper.getGenericPureRTTIType();
+      types[i] = rttiHelper.getGenericRTTIType();
     }
 
     LLVMTypeRef returnType = typeHelper.findTemporaryType(new NamedType(false, false, false, classDefinition));
@@ -946,7 +947,7 @@ public class CodeGenerator
     TypeParameterAccessor typeParameterAccessor = new TypeParameterAccessor(builder, rttiHelper, typeDefinition, typeParameterMap);
 
     // generate and store the run-time type information
-    LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, true, namedType, typeParameterAccessor);
+    LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, namedType, typeParameterAccessor);
     LLVMValueRef rttiPointer = rttiHelper.getRTTIPointer(builder, pointer);
     LLVM.LLVMBuildStore(builder, rtti, rttiPointer);
 
@@ -959,7 +960,7 @@ public class CodeGenerator
         Type[] linearisationTypeArguments = linearisationType.getTypeArguments();
         for (int i = 0; i < linearisationTypeParameters.length; ++i)
         {
-          LLVMValueRef typeArgumentRTTI = rttiHelper.buildRTTICreation(builder, false, linearisationTypeArguments[i], typeParameterAccessor);
+          LLVMValueRef typeArgumentRTTI = rttiHelper.buildRTTICreation(builder, linearisationTypeArguments[i], typeParameterAccessor);
           LLVMValueRef typeParameterRTTIPointer = typeHelper.getTypeParameterPointer(builder, pointer, linearisationTypeParameters[i]);
           LLVM.LLVMBuildStore(builder, typeArgumentRTTI, typeParameterRTTIPointer);
         }
@@ -1869,7 +1870,7 @@ public class CodeGenerator
 
     // build the []ubyte up from the string value, and store it as a global variable
     ArrayType arrayType = new ArrayType(false, true, new PrimitiveType(false, PrimitiveTypeType.UBYTE, null), null);
-    LLVMValueRef rttiValue = rttiHelper.getInstanceRTTI(arrayType);
+    LLVMValueRef rttiValue = rttiHelper.getRTTI(arrayType);
     LLVMValueRef vftValue = virtualFunctionHandler.getBaseChangeObjectVFT(arrayType);
     LLVMValueRef lengthValue = LLVM.LLVMConstInt(typeHelper.findStandardType(ArrayLengthMember.ARRAY_LENGTH_TYPE), bytes.length, false);
     LLVMValueRef getterFunctionValue = typeHelper.getArrayGetterFunction(arrayType);
@@ -2056,7 +2057,7 @@ public class CodeGenerator
     LLVM.LLVMPositionBuilderAtEnd(builder, stringArrayCallocContinueBlock);
     stringArray = LLVM.LLVMBuildBitCast(builder, stringArray, llvmStringArrayType, "");
 
-    LLVMValueRef stringsRTTI = rttiHelper.getInstanceRTTI(stringArrayType);
+    LLVMValueRef stringsRTTI = rttiHelper.getRTTI(stringArrayType);
     LLVMValueRef stringsRTTIPointer = rttiHelper.getRTTIPointer(builder, stringArray);
     LLVM.LLVMBuildStore(builder, stringsRTTI, stringsRTTIPointer);
     LLVMValueRef stringsVFT = virtualFunctionHandler.getBaseChangeObjectVFT(stringArrayType);
@@ -2105,7 +2106,7 @@ public class CodeGenerator
     LLVM.LLVMPositionBuilderAtEnd(builder, bytesCallocContinueBlock);
     bytes = LLVM.LLVMBuildBitCast(builder, bytes, llvmUbyteArrayType, "");
 
-    LLVMValueRef bytesRTTI = rttiHelper.getInstanceRTTI(ubyteArrayType);
+    LLVMValueRef bytesRTTI = rttiHelper.getRTTI(ubyteArrayType);
     LLVMValueRef bytesRTTIPointer = rttiHelper.getRTTIPointer(builder, bytes);
     LLVM.LLVMBuildStore(builder, bytesRTTI, bytesRTTIPointer);
     LLVMValueRef bytesVFT = virtualFunctionHandler.getBaseChangeObjectVFT(ubyteArrayType);
@@ -3691,7 +3692,7 @@ public class CodeGenerator
       LLVMValueRef allocatedPointer = LLVM.LLVMBuildBitCast(builder, memoryPointer, llvmArrayType, "");
 
       Type rttiType = Type.findTypeWithNullability(currentType, false);
-      LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, true, rttiType, typeParameterAccessor);
+      LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, rttiType, typeParameterAccessor);
       LLVMValueRef rttiPointer = rttiHelper.getRTTIPointer(builder, allocatedPointer);
       LLVM.LLVMBuildStore(builder, rtti, rttiPointer);
 
@@ -4349,7 +4350,7 @@ public class CodeGenerator
         LLVMValueRef[] allocatorArgs = new LLVMValueRef[typeParameters.length];
         for (int i = 0; i < typeParameters.length; ++i)
         {
-          allocatorArgs[i] = rttiHelper.buildRTTICreation(builder, false, typeArguments[i], typeParameterAccessor);
+          allocatorArgs[i] = rttiHelper.buildRTTICreation(builder, typeArguments[i], typeParameterAccessor);
         }
         LLVMBasicBlockRef allocatorInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "allocatorInvokeContinue");
         pointer = LLVM.LLVMBuildInvoke(builder, getAllocatorFunction(classDefinition), C.toNativePointerArray(allocatorArgs, false, true), allocatorArgs.length, allocatorInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
@@ -4946,7 +4947,7 @@ public class CodeGenerator
       LLVMValueRef pointer = buildHeapAllocation(builder, nativeType);
 
       // store the VFT
-      LLVMValueRef rtti = rttiHelper.getInstanceRTTI(objectType);
+      LLVMValueRef rtti = rttiHelper.getRTTI(objectType);
       LLVMValueRef rttiPointer = rttiHelper.getRTTIPointer(builder, pointer);
       LLVM.LLVMBuildStore(builder, rtti, rttiPointer);
       LLVMValueRef objectVFT = virtualFunctionHandler.getObjectVFTGlobal();

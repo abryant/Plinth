@@ -352,10 +352,9 @@ public class BuiltinCodeGenerator
     else
     {
       // use the run-time type information to find the real type
-      LLVMValueRef rttiPointer = rttiHelper.lookupPureRTTI(builder, parameter);
-      LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
-                                                   LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false)};
-      LLVMValueRef sortIdPointer = LLVM.LLVMBuildGEP(builder, rttiPointer, C.toNativePointerArray(indices, false, true), indices.length, "");
+      LLVMValueRef rttiPointer = rttiHelper.getRTTIPointer(builder, parameter);
+      LLVMValueRef rtti = LLVM.LLVMBuildLoad(builder, rttiPointer, "");
+      LLVMValueRef sortIdPointer = LLVM.LLVMBuildStructGEP(builder, rtti, 1, "");
       LLVMValueRef sortId = LLVM.LLVMBuildLoad(builder, sortIdPointer, "");
       LLVMValueRef isObject = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, sortId, LLVM.LLVMConstInt(LLVM.LLVMInt8Type(), RTTIHelper.OBJECT_SORT_ID, false), "");
 
@@ -374,7 +373,7 @@ public class BuiltinCodeGenerator
       LLVM.LLVMPositionBuilderAtEnd(builder, isNotObjectBlock);
 
       // look up the name of this type inside the RTTI block
-      LLVMValueRef classQualifiedNameUbyteArray = rttiHelper.lookupNamedTypeName(builder, rttiPointer);
+      LLVMValueRef classQualifiedNameUbyteArray = rttiHelper.lookupNamedTypeName(builder, rtti);
 
       // TODO: add the run-time types of the generic type arguments to the string somehow
       LLVMValueRef classStringPrefix = codeGenerator.buildStringCreation(builder, landingPadContainer, "[");

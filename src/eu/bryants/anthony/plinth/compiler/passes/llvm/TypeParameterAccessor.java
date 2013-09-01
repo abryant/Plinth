@@ -53,7 +53,7 @@ public class TypeParameterAccessor
    * Creates a new TypeParameterAccessor to use for accessing the RTTI blocks for TypeParameters.
    * @param builder - the LLVMBuilderRef to build RTTI extractions and type argument mappers with
    * @param typeHelper - the TypeHelper to extract type parameters from 'this' with
-   * @param rttiHelper - the RTTIHelper to generate pure RTTI types with
+   * @param rttiHelper - the RTTIHelper to generate RTTI types with
    * @param typeDefinition - the TypeDefinition that we are working inside in a non-static context, or null in a static context
    * @param thisValue - the value of 'this' to extract RTTI values from, in a temporary type representation
    */
@@ -96,7 +96,7 @@ public class TypeParameterAccessor
   /**
    * Creates a TypeParameterAccessor that simply looks up RTTI values in a map.
    * @param builder - the LLVMBuilderRef to build type argument mappers with
-   * @param rttiHelper - the RTTIHelper to generate pure RTTI types with
+   * @param rttiHelper - the RTTIHelper to generate RTTI types with
    * @param typeDefinition - the TypeDefinition that we are working inside in a non-static context, or null in a static context
    * @param knownTypeParameters - the map to look up TypeParameters in
    */
@@ -113,7 +113,7 @@ public class TypeParameterAccessor
   /**
    * Creates a TypeParameterAccessor that doesn't contain any type parameter mappings.
    * @param builder - the LLVMBuilderRef to build type argument mappers with
-   * @param rttiHelper - the RTTIHelper to generate pure RTTI types with
+   * @param rttiHelper - the RTTIHelper to generate RTTI types with
    */
   public TypeParameterAccessor(LLVMBuilderRef builder, RTTIHelper rttiHelper)
   {
@@ -126,7 +126,7 @@ public class TypeParameterAccessor
   /**
    * Creates a TypeParameterAccessor that looks up values in the specified type argument mapper.
    * @param builder - the LLVMBuilderRef to build RTTI extractions with
-   * @param rttiHelper - the RTTIHelper to generate pure RTTI types with
+   * @param rttiHelper - the RTTIHelper to generate RTTI types with
    * @param typeDefinition - the TypeDefinition that we are working inside in a non-static context, or null in a static context
    * @param typeArgumentMapper - the type argument mapper to read type parameter values from
    */
@@ -154,7 +154,7 @@ public class TypeParameterAccessor
   /**
    * Tries to find the specified TypeParameter's RTTI block, by first checking any specific known parameters, and then looking inside 'this' for them.
    * @param typeParameter - the TypeParameter to search for
-   * @return a pointer to the pure RTTI block for the type argument corresponding to the TypeParameter
+   * @return a pointer to the RTTI block for the type argument corresponding to the TypeParameter
    */
   public LLVMValueRef findTypeParameterRTTI(TypeParameter typeParameter)
   {
@@ -202,7 +202,7 @@ public class TypeParameterAccessor
           }
           if (typeParameters[i] == typeParameter)
           {
-            return rttiHelper.buildRTTICreation(builder, false, typeArguments[i], proxyAccessor);
+            return rttiHelper.buildRTTICreation(builder, typeArguments[i], proxyAccessor);
           }
         }
       }
