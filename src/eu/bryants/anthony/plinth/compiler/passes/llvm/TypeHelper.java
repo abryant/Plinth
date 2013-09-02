@@ -2065,6 +2065,16 @@ public class TypeHelper
     LLVMTypeRef realArrayType = LLVM.LLVMPointerType(findNonProxiedArrayStructureType(arrayType, 0), 0);
     array = LLVM.LLVMBuildBitCast(builder, array, realArrayType, "");
 
+    // check that the array index is in range
+    LLVMValueRef lengthPointer = LLVM.LLVMBuildStructGEP(builder, array, 2, "");
+    LLVMValueRef length = LLVM.LLVMBuildLoad(builder, lengthPointer, "");
+    LLVMValueRef isInRange = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntULT, index, length, "");
+
+    LLVMBasicBlockRef notInRangeBlock = LLVM.LLVMAddBasicBlock(builder, "notInRange");
+    LLVMBasicBlockRef inRangeBlock = LLVM.LLVMAddBasicBlock(builder, "inRange");
+    LLVM.LLVMBuildCondBr(builder, isInRange, inRangeBlock, notInRangeBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, inRangeBlock);
     LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
                                                  LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 5, false),
                                                  index};
@@ -2072,6 +2082,9 @@ public class TypeHelper
     LLVMValueRef element = convertStandardPointerToTemporary(builder, elementPointer, arrayType.getBaseType());
 
     LLVM.LLVMBuildRet(builder, element);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, notInRangeBlock);
+    buildThrowIndexError(builder, landingPadContainer, index, length);
 
     LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
     if (landingPadBlock != null)
@@ -2121,6 +2134,16 @@ public class TypeHelper
     LLVMTypeRef realArrayType = LLVM.LLVMPointerType(findNonProxiedArrayStructureType(arrayType, 0), 0);
     array = LLVM.LLVMBuildBitCast(builder, array, realArrayType, "");
 
+    // check that the array index is in range
+    LLVMValueRef lengthPointer = LLVM.LLVMBuildStructGEP(builder, array, 2, "");
+    LLVMValueRef length = LLVM.LLVMBuildLoad(builder, lengthPointer, "");
+    LLVMValueRef isInRange = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntULT, index, length, "");
+
+    LLVMBasicBlockRef notInRangeBlock = LLVM.LLVMAddBasicBlock(builder, "notInRange");
+    LLVMBasicBlockRef inRangeBlock = LLVM.LLVMAddBasicBlock(builder, "inRange");
+    LLVM.LLVMBuildCondBr(builder, isInRange, inRangeBlock, notInRangeBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, inRangeBlock);
     LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
                                                  LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 5, false),
                                                  index};
@@ -2128,6 +2151,9 @@ public class TypeHelper
     LLVM.LLVMBuildStore(builder, value, elementPointer);
 
     LLVM.LLVMBuildRetVoid(builder);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, notInRangeBlock);
+    buildThrowIndexError(builder, landingPadContainer, index, length);
 
     LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
     if (landingPadBlock != null)
@@ -2141,6 +2167,36 @@ public class TypeHelper
     LLVM.LLVMDisposeBuilder(builder);
 
     return function;
+  }
+
+  /**
+   * Builds code to throw an index error, with the specified index and size.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer containing the landing pad block for exceptions to be unwound to
+   * @param index - the index that was out of bounds
+   * @param size - the size that the index should have been less than
+   */
+  public void buildThrowIndexError(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef index, LLVMValueRef size)
+  {
+    // call the allocator
+    ClassDefinition indexErrorTypeDefinition = (ClassDefinition) SpecialTypeHandler.INDEX_ERROR_TYPE.getResolvedTypeDefinition();
+    LLVMValueRef[] allocatorArgs = new LLVMValueRef[0];
+    LLVMValueRef allocator = codeGenerator.getAllocatorFunction(indexErrorTypeDefinition);
+    LLVMBasicBlockRef allocatorInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "indexErrorAllocatorContinue");
+    LLVMValueRef allocatedIndexError = LLVM.LLVMBuildInvoke(builder, allocator, C.toNativePointerArray(allocatorArgs, false, true), allocatorArgs.length, allocatorInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, allocatorInvokeContinueBlock);
+
+    // call the constructor
+    LLVMValueRef constructorFunction = codeGenerator.getConstructorFunction(SpecialTypeHandler.indexErrorIndexSizeConstructor);
+    LLVMValueRef[] constructorArgs = new LLVMValueRef[] {allocatedIndexError, index, size};
+    LLVMBasicBlockRef constructorInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "indexErrorConstructorContinue");
+    LLVM.LLVMBuildInvoke(builder, constructorFunction, C.toNativePointerArray(constructorArgs, false, true), constructorArgs.length, constructorInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, constructorInvokeContinueBlock);
+
+    LLVMValueRef indexError = convertTemporaryToStandard(builder, allocatedIndexError, SpecialTypeHandler.INDEX_ERROR_TYPE);
+
+    LLVMValueRef unwindException = codeGenerator.buildCreateException(builder, indexError);
+    codeGenerator.buildThrow(builder, landingPadContainer, unwindException);
   }
 
   /**

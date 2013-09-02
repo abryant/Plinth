@@ -1,0 +1,24 @@
+/**
+ * An Error which represents that an index was out of bounds.
+ */
+class IndexError extends Error
+{
+  /**
+   * Creates a new IndexError, representing that the specified index was out of bounds.
+   * @param index - the index that was out of bounds
+   */
+  create(uint index)
+  {
+    super("Index out of bounds: " + index);
+  }
+
+  /**
+   * Creates a new IndexError, representing that the specified index was out of bounds, and that it should be less than the specified size.
+   * @param index - the index that was out of bounds
+   * @param size - the size that the index must be less than
+   */
+  create(uint index, uint size)
+  {
+    super("Index out of bounds: " + index + " (must be less than " + size + ")");
+  }
+}

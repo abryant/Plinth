@@ -42,6 +42,9 @@ public class SpecialTypeHandler
   public static final NamedType CAST_ERROR_TYPE = new NamedType(false, false, new QName("CastError", null), null, null);
   public static Constructor castErrorTypesReasonConstructor;
 
+  public static final NamedType INDEX_ERROR_TYPE = new NamedType(false, false, new QName("IndexError", null), null, null);
+  public static Constructor indexErrorIndexSizeConstructor;
+
   public static final String MAIN_METHOD_NAME = "main";
 
   /**
@@ -61,6 +64,9 @@ public class SpecialTypeHandler
 
     TypeChecker.checkType(CAST_ERROR_TYPE, null, true);
     verifyCastErrorType();
+
+    TypeChecker.checkType(INDEX_ERROR_TYPE, null, true);
+    verifyIndexErrorType();
   }
 
   private static void verifyStringType() throws ConceptualException
@@ -180,7 +186,7 @@ public class SpecialTypeHandler
     }
     if (!isThrowable)
     {
-      throw new ConceptualException("The CastError type must inherit from Throwable", null);
+      throw new ConceptualException("The CastError type must inherit from Throwable", typeDefinition.getLexicalPhrase());
     }
 
     Type nullableStringType = Type.findTypeWithNullability(STRING_TYPE, true);
@@ -198,6 +204,45 @@ public class SpecialTypeHandler
     if (castErrorTypesReasonConstructor == null)
     {
       throw new ConceptualException("The CastError type must have a constructor which takes two type strings and a nullable reason string as arguments", typeDefinition.getLexicalPhrase());
+    }
+  }
+
+  private static void verifyIndexErrorType() throws ConceptualException
+  {
+    TypeDefinition typeDefinition = INDEX_ERROR_TYPE.getResolvedTypeDefinition();
+    if (typeDefinition == null || !(typeDefinition instanceof ClassDefinition))
+    {
+      throw new ConceptualException("The IndexError type must be defined as a class!", null);
+    }
+
+    boolean isThrowable = false;
+    for (NamedType t : typeDefinition.getInheritanceLinearisation())
+    {
+      if (t.isEquivalent(THROWABLE_TYPE))
+      {
+        isThrowable = true;
+        break;
+      }
+    }
+    if (!isThrowable)
+    {
+      throw new ConceptualException("The IndexError type must inherit from Throwable", typeDefinition.getLexicalPhrase());
+    }
+
+    Type uintType = new PrimitiveType(false, PrimitiveTypeType.UINT, null);
+    for (Constructor constructor : typeDefinition.getUniqueConstructors())
+    {
+      Parameter[] parameters = constructor.getParameters();
+      if (parameters.length == 2 && parameters[0].getType().isEquivalent(uintType) &&
+                                    parameters[1].getType().isEquivalent(uintType))
+      {
+        indexErrorIndexSizeConstructor = constructor;
+        break;
+      }
+    }
+    if (indexErrorIndexSizeConstructor == null)
+    {
+      throw new ConceptualException("The IndexError type must have a constructor which takes an index and a size (both uints) as arguments", typeDefinition.getLexicalPhrase());
     }
   }
 

@@ -99,6 +99,13 @@ class CastError implements Throwable
   }
 }
 
+class IndexError implements Throwable
+{
+  create(uint index, uint size)
+  {
+  }
+}
+
 compound stdout
 {
   static immutable native "plinth_stdout_write" void write(#[]ubyte bytes);

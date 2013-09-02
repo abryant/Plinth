@@ -89,6 +89,15 @@ class Test implements Foo<holder<(uint, string), (long, []string)>>
   {
     [][][]uint notArgs = new [2][args.length][args.length]uint(getArg);
     [][]uint asdfsafsafd = new [8][1]uint;
+    try
+    {
+      asdfsafsafd[5][4] = 7;
+    }
+    catch IndexError ie
+    {
+      stdout::println("IndexError caught!");
+      ie.print();
+    }
     stdout::println(notArgs);
 
     StringComparator sc = new StringComparator();

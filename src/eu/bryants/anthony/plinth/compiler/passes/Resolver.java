@@ -153,6 +153,7 @@ public class Resolver
     resolve(SpecialTypeHandler.STRING_TYPE, null, null);
     resolve(SpecialTypeHandler.THROWABLE_TYPE, null, null);
     resolve(SpecialTypeHandler.CAST_ERROR_TYPE, null, null);
+    resolve(SpecialTypeHandler.INDEX_ERROR_TYPE, null, null);
   }
 
   /**
