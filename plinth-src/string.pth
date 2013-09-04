@@ -211,7 +211,7 @@ immutable compound string
   ?uint indexOf(string s)
   {
     #[]uint chars = getUnicodeChars();
-    #[]uint otherChars = getUnicodeChars();
+    #[]uint otherChars = s.getUnicodeChars();
     for (uint i = 0; i < chars.length - otherChars.length; ++i)
     {
       if chars[i] == otherChars[0]
