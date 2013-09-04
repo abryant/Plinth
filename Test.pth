@@ -1,152 +1,59 @@
 package foo.bar;
 
-interface Comparator<T>
+class Test
 {
-  property boolean lastResult;
-  boolean equals(T t1, T t2);
-  {T, T -> boolean} getEquals()
-  {
-    return equals;
-  }
-}
-
-class StringComparator implements Comparator<string>, Comparator<int>
-{
-  property boolean lastResult;
-  create()
-  {
-  }
-  boolean equals(string s1, string s2)
-  {
-    boolean eq = s1.length() == s2.length();
-    lastResult = eq;
-    return eq;
-  }
-  boolean equals(int i1, int i2)
-  {
-    boolean eq = i1 == i2;
-    lastResult = eq;
-    return eq;
-  }
-  {string, string -> boolean} getEquals()
-  {
-    return notEquals;
-  }
-  boolean notEquals(string s1, string s2)
-  {
-    return !equals(s1, s2);
-  }
-}
-
-compound holder<R, S>
-{
-  property R t immutable create;
-  S s;
-
-  immutable create(R t, S s)
-  {
-    this.t = t;
-    this.s = s;
-  }
-  immutable string toString()
-  {
-    return "<" + t + ">, <" + s + ">";
-  }
-
-  void checkWildcards()
-  {
-    stdout::println(t);
-  }
-}
-
-interface Foo<T>
-{
-  property T t;
-}
-
-class Test implements Foo<holder<(uint, string), (long, []string)>>
-{
-  property holder<(uint, string), (long, []string)> t;
-
-  create(uint x, string s, []string args)
-  {
-    holder<(uint, string), (long, []string)> asdf = create holder<(uint, string), (long, []string)>((x, s), (-0xffffffffffff, args));
-    t = asdf;
-  }
-
-  static uint getArg(uint i, uint j, uint k)
-  {
-    return i * j * k;
-  }
-
-  static void testTypeArguments(Foo<holder<(uint, string), (long, []string)>> f)
-  {
-    Foo<?> other = f;
-    stdout::println(other.t);
-  }
-
   static uint main([]string args) throws Error
   {
-    [][][]uint notArgs = new [2][args.length][args.length]uint(getArg);
-    [][]uint asdfsafsafd = new [8][1]uint;
-    try
+    LinkedList<string> list = new LinkedList<string>();
+    for (uint i = 0; i < args.length; ++i)
     {
-      asdfsafsafd[5][4] = 7;
+      list.add(args[i]);
     }
-    catch IndexError ie
-    {
-      stdout::println("IndexError caught!");
-      ie.print();
-    }
-    stdout::println(notArgs);
 
-    StringComparator sc = new StringComparator();
-    Comparator<string> c = sc;
-    {string, string -> boolean} f = c.getEquals();
-    if f("hi", args[1])
+    while true
     {
-      stdout::println("hi == " + args[1]);
+      stdout::print("> ");
+      string line;
+      try
+      {
+        line = stdin::readLine().trim();
+      }
+      catch EOFException e
+      {
+        stdout::println();
+        stdout::println("End of input reached - exiting...");
+        break;
+      }
+      if line.startsWith("add ")
+      {
+        string item = line.substring(4);
+        stdout::println("Adding: " + item);
+        list.add(item);
+      }
+      else if line.equals("print")
+      {
+        Iterator<string> it = list.getIterator();
+        while it.hasNext()
+        {
+          stdout::println(it.next());
+        }
+      }
+      else if line.startsWith("remove")
+      {
+        uint index = line.substring(6).trim().length;
+        stdout::println("Removing: " + index);
+        list.remove(index);
+      }
+      else if line.equals("size")
+      {
+        stdout::println("List size: " + list.length);
+      }
+      else
+      {
+        stdout::println("Unknown operation!");
+      }
     }
-    else
-    {
-      stdout::println("hi != " + args[1]);
-    }
-    Comparator<int> cInt = sc;
-    stdout::println("lastResult: " + cInt.lastResult);
-    {int, int -> boolean} intF = cInt.getEquals();
-    if intF(5, cast<int> args.length)
-    {
-      stdout::println("5 == " + args.length);
-    }
-    else
-    {
-      stdout::println("5 != " + args.length);
-    }
-    stdout::println("lastResult: " + sc.lastResult);
 
-    Test test = new SubTest(args.length, args[1], args);
-    Foo<holder<(uint, string), (long, []string)>> foo = test;
-    holder<(uint, string), (long, []string)> aaaaa = foo.t;
-    stdout::println(aaaaa);
-
-    stdout::println("hi1");
-    holder<uint, Test> intTestHolder = create holder<uint, Test>(1, test);
-    stdout::println("hi2");
-    holder<? extends uint, ? super Test> wildcardTest = intTestHolder;
-    stdout::println("hi3");
-    wildcardTest.checkWildcards();
-
-    object objectFoo = foo;
-    Foo<? extends holder<?, ?>> secondFoo = cast<Foo<? extends holder<? extends (uint, string), ? super (long, []string)>>> objectFoo;
-    stdout::println(secondFoo.t);
     return 0;
-  }
-}
-
-class SubTest extends Test
-{
-  create(uint x, string s, []string args)
-  {
-    super(x, s, args);
   }
 }

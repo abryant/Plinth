@@ -1,0 +1,351 @@
+/**
+ * Stores a doubly-linked list of values of a given type.
+ */
+class LinkedList<T>
+{
+  uint size;
+  ?LinkedListEntry<T> head;
+  ?LinkedListEntry<T> tail;
+
+  /**
+   * A read-only property for accessing the length of this LinkedList.
+   */
+  property uint length
+  getter
+  {
+    return size;
+  }
+  setter(value) throws unchecked IllegalActionError
+  {
+    throw new IllegalActionError("Cannot assign to a LinkedList's length");
+  };
+
+  /**
+   * Creates a new, empty, LinkedList.
+   */
+  create()
+  {
+  }
+
+  LinkedListEntry<T> getEntry(uint index) throws unchecked IndexError
+  {
+    if index >= size
+    {
+      throw new IndexError(index, size);
+    }
+    if index < size / 2
+    {
+      LinkedListEntry<T> current = cast<LinkedListEntry<T>> head;
+      while index > 0
+      {
+        current = cast<LinkedListEntry<T>> current.next;
+        --index;
+      }
+      return current;
+    }
+    LinkedListEntry<T> current = cast<LinkedListEntry<T>> tail;
+    while index < size - 1
+    {
+      current = cast<LinkedListEntry<T>> current.prev;
+      ++index;
+    }
+    return current;
+  }
+
+  /**
+   * @return true if this LinkedList is empty, false otherwise
+   */
+  boolean isEmpty()
+  {
+    return size == 0;
+  }
+
+  /**
+   * Adds the specified element to the end of this LinkedList.
+   * @param t - the element to add
+   */
+  void add(T t)
+  {
+    addLast(t);
+  }
+
+  /**
+   * Adds the specified element to this LinkedList at the specified index.
+   * @param t - the element to add
+   * @param index - the index to insert the element at
+   */
+  void add(T t, uint index) throws unchecked IndexError
+  {
+    if index > size
+    {
+      throw new IndexError(index, size + 1);
+    }
+    if index == size
+    {
+      addLast(t);
+      return;
+    }
+    LinkedListEntry<T> newEntry = new LinkedListEntry<T>(t);
+    ++size;
+    LinkedListEntry<T> entry = getEntry(index);
+    if entry.prev == null
+    {
+      entry.prev = newEntry;
+      newEntry.next = entry;
+      head = newEntry;
+    }
+    else
+    {
+      newEntry.prev = entry.prev;
+      newEntry.next = entry;
+      (cast<LinkedListEntry<T>> entry.prev).next = newEntry;
+      entry.prev = newEntry;
+    }
+  }
+
+  /**
+   * Adds the specified element to the start of this LinkedList.
+   * @param t - the element to add
+   */
+  void addFirst(T t)
+  {
+    LinkedListEntry<T> entry = new LinkedListEntry<T>(t);
+    ++size;
+    if head == null
+    {
+      head = entry;
+      tail = entry;
+      return;
+    }
+    head.prev = entry;
+    entry.next = head;
+    head = entry;
+  }
+
+  /**
+   * Adds the specified element to the end of this LinkedList.
+   * @param t - the element to add
+   */
+  void addLast(T t)
+  {
+    LinkedListEntry<T> entry = new LinkedListEntry<T>(t);
+    ++size;
+    if tail == null
+    {
+      head = entry;
+      tail = entry;
+      return;
+    }
+    tail.next = entry;
+    entry.prev = tail;
+    tail = entry;
+  }
+
+  /**
+   * @param index - the index of the element to get
+   * @return the value at the specified index
+   */
+  T get(uint index)
+  {
+    return getEntry(index).value;
+  }
+
+  /**
+   * @return the first element of this LinkedList
+   * @throws IllegalActionError - if the list is empty
+   */
+  T getFirst() throws unchecked IllegalActionError
+  {
+    if head == null
+    {
+      throw new IllegalActionError("Cannot get the first element of an empty list.");
+    }
+    return (cast<LinkedListEntry<T>> head).value;
+  }
+
+  /**
+   * @return the last element of this LinkedList
+   * @throws IllegalActionError - if the list is empty
+   */
+  T getLast() throws unchecked IllegalActionError
+  {
+    if tail == null
+    {
+      throw new IllegalActionError("Cannot get the last element of an empty list.");
+    }
+    return (cast<LinkedListEntry<T>> tail).value;
+  }
+
+  /**
+   * @param index - the index of the element to remove
+   * @return the value removed
+   */
+  T remove(uint index)
+  {
+    LinkedListEntry<T> entry = getEntry(index);
+    --size;
+    if entry.next == null && entry.prev == null
+    {
+      head = null;
+      tail = null;
+    }
+    else if entry.next == null
+    {
+      (cast<LinkedListEntry<T>> entry.prev).next = null;
+      tail = entry.prev;
+    }
+    else if entry.prev == null
+    {
+      (cast<LinkedListEntry<T>> entry.next).prev = null;
+      head = entry.next;
+    }
+    else
+    {
+      (cast<LinkedListEntry<T>> entry.next).prev = entry.prev;
+      (cast<LinkedListEntry<T>> entry.prev).next = entry.next;
+    }
+    return entry.value;
+  }
+
+  /**
+   * Removes the first element from this LinkedList.
+   * @return the element removed
+   * @throws IllegalActionError - if the list is empty
+   */
+  T removeFirst() throws unchecked IllegalActionError
+  {
+    if head == null
+    {
+      throw new IllegalActionError("Cannot remove the first element of an empty list.");
+    }
+    --size;
+    LinkedListEntry<T> oldHead = cast<LinkedListEntry<T>> head;
+    head = oldHead.next;
+    (cast<LinkedListEntry<T>> head).prev = null;
+    return oldHead.value;
+  }
+
+  /**
+   * Removes the last element from this LinkedList.
+   * @return the element removed
+   * @throws IllegalActionError - if the list is empty
+   */
+  T removeLast() throws unchecked IllegalActionError
+  {
+    if tail == null
+    {
+      throw new IllegalActionError("Cannot remove the last element of an empty list.");
+    }
+    --size;
+    LinkedListEntry<T> oldTail = cast<LinkedListEntry<T>> tail;
+    tail = oldTail.prev;
+    (cast<LinkedListEntry<T>> tail).next = null;
+    return oldTail.value;
+  }
+
+  Iterator<T> getIterator()
+  {
+    return new LinkedListIterator<T>(this);
+  }
+}
+
+class LinkedListEntry<T>
+{
+  ?LinkedListEntry<T> next;
+  ?LinkedListEntry<T> prev;
+  T value;
+
+  create(T value)
+  {
+    this.value = value;
+  }
+}
+
+class LinkedListIterator<T> implements Iterator<T>
+{
+  LinkedList<T> list;
+  ?LinkedListEntry<T> current;
+
+  create(LinkedList<T> list)
+  {
+    this.list = list;
+  }
+
+  boolean hasNext()
+  {
+    if current == null
+    {
+      return !list.isEmpty();
+    }
+    return (cast<LinkedListEntry<T>> current).next != null;
+  }
+
+  T next() throws unchecked IllegalActionError
+  {
+    if current == null
+    {
+      if list.isEmpty()
+      {
+        throw new IllegalActionError("Cannot get the next element from an iterator when hasNext() returns false");
+      }
+      current = list.head;
+    }
+    else
+    {
+      if (cast<LinkedListEntry<T>> current).next == null
+      {
+        throw new IllegalActionError("Cannot get the next element from an iterator when hasNext() returns false");
+      }
+      current = (cast<LinkedListEntry<T>> current).next;
+    }
+    return (cast<LinkedListEntry<T>> current).value;
+  }
+
+  void reset()
+  {
+    current = null;
+  }
+
+  void remove() throws unchecked IllegalActionError
+  {
+    if current == null
+    {
+      throw new IllegalActionError("Cannot remove an element before next() has been called");
+    }
+    LinkedListEntry<T> curr = cast<LinkedListEntry<T>> current;
+    if curr.prev == null
+    {
+      if list.head != curr
+      {
+        throw new IllegalActionError("Cannot call remove() on an iterator twice without an intermediary call to next()");
+      }
+      --list.size;
+      list.head = curr.next;
+      if curr.next == null
+      {
+        list.tail = null;
+      }
+      else
+      {
+        (cast<LinkedListEntry<T>> curr.next).prev = null;
+      }
+    }
+    else
+    {
+      if curr.prev?.next != curr
+      {
+        throw new IllegalActionError("Cannot call remove() on an iterator twice without an intermediary call to next()");
+      }
+      --list.size;
+      (cast<LinkedListEntry<T>> curr.prev).next = curr.next;
+      if curr.next == null
+      {
+        list.tail = curr.prev;
+      }
+      else
+      {
+        (cast<LinkedListEntry<T>> curr.next).prev = curr.prev;
+      }
+    }
+  }
+}
