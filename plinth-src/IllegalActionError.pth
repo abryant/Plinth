@@ -1,0 +1,15 @@
+/**
+ * An error which represents that an illegal action was performed.
+ * One example of an illegal action is assigning to a property that is meant to be read only.
+ */
+class IllegalActionError extends Error
+{
+  /**
+   * Creates a new IllegalActionError, with the specified message.
+   * @param message - the new IllegalActionError's message
+   */
+  immutable create(string message)
+  {
+    super(message);
+  }
+}

@@ -8,6 +8,21 @@ immutable compound string
   mutable ?#[]uint chars;
 
   /**
+   * A read-only property for accessing the length of this string.
+   * The length returned by this property indicates the number of characters in the string, not the
+   * number of bytes in its UTF-8 representation; for that, use byteLength().
+   */
+  property uint length
+  getter
+  {
+    return getUnicodeChars().length;
+  }
+  immutable setter(value) throws unchecked IllegalActionError
+  {
+    throw new IllegalActionError("Cannot assign to a string's length");
+  };
+
+  /**
    * Creates an empty string.
    */
   create()
@@ -117,31 +132,11 @@ immutable compound string
   }
 
   /**
-   * Finds the character length of this string, which is the number of unicode characters it contains.
-   * This may not be equal to the number of bytes that represent this string, since in UTF-8 several bytes can represent a single character.
-   * @return the number of unicode characters in this string
-   */
-  uint characterLength()
-  {
-    return getUnicodeChars().length;
-  }
-
-  /**
    * @return the number of bytes in the UTF-8 representation of this string.
    */
   uint byteLength()
   {
     return bytes.length;
-  }
-
-  /**
-   * Finds the length of this string in terms of the number of characters it contains, rather than the number of bytes make up its UTF-8 representation.
-   * The result is equivalent to that of characterLength().
-   * @return the character length of this string.
-   */
-  uint length()
-  {
-    return characterLength();
   }
 
   /**
