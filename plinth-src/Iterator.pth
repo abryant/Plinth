@@ -1,0 +1,39 @@
+/**
+ * Iterator is an interface for iterating through a list of elements, usually from some form of
+ * data structure such as a list.
+ * An Iterator should maintain its current location in the data structure it is iterating through,
+ * and be able to advance to the next element if it exists, using the next() method.
+ * Before calling next(), the user of an Iterator should always call hasNe xt() to determine whether
+ * there is a next element to advance to. If there is not, an Error may be thrown.
+ * An Iterator can also be reset back to the start of its list of elements, so that after a call to
+ * reset(), the Iterator behaves exactly as if a new Iterator had been created and used instead.
+ */
+interface Iterator<T>
+{
+  /**
+   * @return true if there is another element to return, false if next() will throw an Error
+   */
+  boolean hasNext();
+
+  /**
+   * Advances the iterator to the next element, and returns it.
+   * @return the next element encountered by this Iterator
+   * @throws IllegalActionError - if there is no next element
+   */
+  T next();
+
+  /**
+   * Resets the iterator back to its original location.
+   */
+  void reset();
+
+  /**
+   * Removes the last element returned by a call to next().
+   * If the last element returned by a call to next() has already been removed, this method throws
+   * an IllegalActionError.
+   * @throws IllegalActionError - if the last element returned by a call to next() has already been
+   *           removed, or no elements have been returned by a call to next() since it was last
+   *           reset.
+   */
+  void remove();
+}
