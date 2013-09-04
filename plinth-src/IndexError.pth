@@ -7,7 +7,7 @@ class IndexError extends Error
    * Creates a new IndexError, representing that the specified index was out of bounds.
    * @param index - the index that was out of bounds
    */
-  create(uint index)
+  immutable create(uint index)
   {
     super("Index out of bounds: " + index);
   }
@@ -17,7 +17,7 @@ class IndexError extends Error
    * @param index - the index that was out of bounds
    * @param size - the size that the index must be less than
    */
-  create(uint index, uint size)
+  immutable create(uint index, uint size)
   {
     super("Index out of bounds: " + index + " (must be less than " + size + ")");
   }

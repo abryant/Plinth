@@ -9,7 +9,7 @@ class CastError extends Error
    * @param toType - the name of the type being cast to
    * @param reason - an optional reason that the cast failed
    */
-  create(string fromType, string toType, ?string reason)
+  immutable create(string fromType, string toType, ?string reason)
   {
     super("Could not cast from " + fromType + " to " + toType + (reason == null ? "" : " (" + cast<string> reason + ")"));
   }

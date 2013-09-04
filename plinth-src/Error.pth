@@ -13,7 +13,7 @@ class Error implements Throwable
    * Creates a new Error with the specified message.
    * @param message - the new Error's message
    */
-  create(string message)
+  immutable create(string message)
   {
     this.message = message;
   }
@@ -21,7 +21,7 @@ class Error implements Throwable
   /**
    * @return the message associated with the Error
    */
-  string getMessage()
+  immutable string getMessage()
   {
     return message;
   }

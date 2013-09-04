@@ -6,7 +6,7 @@ interface Throwable
   /**
    * @return the message associated with this Throwable
    */
-  string getMessage();
+  immutable string getMessage();
 
   /**
    * Prints the contents of this Throwable to the stderr stream.
