@@ -163,16 +163,38 @@ immutable compound string
   }
 
   /**
-   * Finds a substring of this string, starting at the specified offset, with the specified length.
-   * @param off - the offset to the substring
-   * @param len - the length of the substring
-   * @return the substring of this string with the specified offset and length
+   * Finds a substring of this string, starting at the specified offset, and continuing to the end of the string.
+   * @param start - the index of the start of the new string
+   * @return the substring of this string which begins at the specified index
+   * @throws IndexError - if start is greater than the string's length
    */
-  string substring(uint start, uint end)
+  string substring(uint start)
   {
-    // TODO: make assertions about arguments
-    uint len = end - start;
+    return substring(start, getUnicodeChars().length);
+  }
+
+  /**
+   * Finds the substring of this string which starts at the specified start index, and ends just before the specified end index.
+   * A substring of a string is a consecutive sequence of characters that appears inside that string.
+   * If the start and end indices are the same, then the empty string is returned.
+   * @param start - the index of the first character to include in the substring
+   * @param end - the index immediately following the index of the last character to include in the substring
+   * @return the substring of this string from start (inclusive) to end (exclusive)
+   * @throws IndexError - if start is greater than end, or end is greater than the string's length
+   */
+  string substring(uint start, uint end) throws unchecked IndexError
+  {
     #[]uint chars = getUnicodeChars();
+    if end > chars.length
+    {
+      throw new IndexError(end, chars.length + 1);
+    }
+    if start > end
+    {
+      throw new IndexError(start, end + 1);
+    }
+    // note: one edge case is start == end && end == chars.length, which will just create a zero-length string
+    uint len = end - start;
     []uint subChars = new [len]uint;
     for (uint i = 0; i < len; ++i)
     {
