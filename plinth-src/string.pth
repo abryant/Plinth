@@ -226,6 +226,29 @@ immutable compound string
   }
 
   /**
+   * Checks whether this string begins with the specified other string.
+   * @param s - the string to check
+   * @return true if this string begins with the string s, false otherwise
+   */
+  boolean startsWith(string s)
+  {
+    #[]uint chars = getUnicodeChars();
+    #[]uint otherChars = s.getUnicodeChars();
+    if otherChars.length > chars.length
+    {
+      return false;
+    }
+    for (uint i = 0; i < otherChars.length; ++i)
+    {
+      if chars[i] != otherChars[i]
+      {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
    * @return the UTF-32 code points of the characters of this string.
    */
   #[]uint getUnicodeChars()
