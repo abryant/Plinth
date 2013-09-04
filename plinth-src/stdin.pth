@@ -32,8 +32,9 @@ compound stdin
   /**
    * Reads a line from stdin. The line may have an arbitrary length, as it continues until it reaches a newline character ('\n'), or encounters a read error (e.g. end of file).
    * @return a string representing the data read from stdin, including the trailing newline if there was one.
+   * @throws EOFException - if the end of input is reached before the line is terminated
    */
-  static string readLine()
+  static string readLine() throws EOFException
   {
     []ubyte buffer = new [256]ubyte;
     uint i = 0;
@@ -42,7 +43,7 @@ compound stdin
       int value = readByte();
       if value < 0
       {
-        break;
+        throw new EOFException("Reached the end of input on stdin");
       }
       if i >= buffer.length
       {

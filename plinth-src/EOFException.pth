@@ -1,0 +1,14 @@
+/**
+ * An Exception that can be thrown to indicate that the end of a file or stream has been reached.
+ */
+class EOFException extends Exception
+{
+  /**
+   * Creates a new EOFException with the specified message.
+   * @param message - the message to store in this EOFException
+   */
+  immutable create(string message)
+  {
+    super(message);
+  }
+}
