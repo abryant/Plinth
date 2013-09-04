@@ -2964,6 +2964,7 @@ public class TypeHelper
       GenericTypeSpecialiser genericTypeSpecialiser = new GenericTypeSpecialiser((NamedType) from);
       NamedType toNamed = (NamedType) to;
       NamedType foundType = null;
+      NamedType specialisedFoundType = null;
       for (NamedType t : classDefinition.getInheritanceLinearisation())
       {
         NamedType superType = (NamedType) genericTypeSpecialiser.getSpecialisedType(t);
@@ -2997,6 +2998,7 @@ public class TypeHelper
           // Note: we want the unspecialised version of the super-type here, so that it can be specialised at run-time to have the same type arguments as the run-time type of the class we are converting from
           // one point to consider is, if 'from' has wildcard type arguments, we want to set the interface's type argument RTTI pointers to their real values, not a '?'
           foundType = t;
+          specialisedFoundType = superType;
           break;
         }
       }
@@ -3024,7 +3026,7 @@ public class TypeHelper
 
         // we know exactly where the VFT is at compile time, so we don't need to search for it at run time, just look it up
         TypeParameterAccessor foundAccessor = new TypeParameterAccessor(builder, this, rttiHelper, classDefinition, value);
-        LLVMValueRef vft = virtualFunctionHandler.getVirtualFunctionTable(builder, landingPadContainer, value, (NamedType) from, foundType, fromAccessor, foundAccessor);
+        LLVMValueRef vft = virtualFunctionHandler.getVirtualFunctionTable(builder, landingPadContainer, value, (NamedType) from, specialisedFoundType, fromAccessor, foundAccessor);
         LLVMValueRef objectPointer = convertTemporary(builder, landingPadContainer, value, from, new ObjectType(from.canBeNullable(), false, null), skipRuntimeChecks, fromAccessor, new TypeParameterAccessor(builder, rttiHelper));
         LLVMValueRef interfaceValue = LLVM.LLVMGetUndef(resultNativeType);
         interfaceValue = LLVM.LLVMBuildInsertValue(builder, interfaceValue, vft, 0, "");
