@@ -1,0 +1,39 @@
+/**
+ * Provides utilities for dealing with unicode characters.
+ */
+compound unicode
+{
+  /**
+   * @param char - a unicode character code
+   * @return true if the specified unicode character code represents a white space character, false otherwise
+   */
+  static immutable boolean isWhiteSpace(uint char)
+  {
+    return
+      // horizontal tab, line feed, vertical tab, form feed, carriage return
+      (char >= 0x0009 & char <= 0x000d) |
+      // space
+      char == 0x0020 |
+      // next line
+      char == 0x0085 |
+      // no-break space
+      char == 0x00a0 |
+      // ogham space mark
+      char == 0x1680 |
+      // mongolian vowel separator
+      char == 0x180e |
+      // en quad, em quad, en space, em space, three-per-em space, four-per-em space,
+      // six-per-em space, figure space, punctuation space, thin space, hair space
+      (char >= 0x2000 & char <= 0x200a) |
+      // line separator
+      char == 0x2028 |
+      // paragraph separator
+      char == 0x2029 |
+      // narrow no-break space
+      char == 0x202f |
+      // medium mathematical space
+      char == 0x205f |
+      // ideographic space
+      char == 0x3000;
+  }
+}

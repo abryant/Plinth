@@ -249,6 +249,39 @@ immutable compound string
   }
 
   /**
+   * Finds the maximal sub-string of this string which does not have any white-space characters (as defined by the unicode standard) at the beginning or the end of it.
+   * @return a copy of this string with any whitespace at the beginning and end of it removed
+   */
+  string trim()
+  {
+    #[]uint chars = getUnicodeChars();
+    uint startIndex = chars.length;
+    for (uint i = 0; i < chars.length; ++i)
+    {
+      if !unicode::isWhiteSpace(chars[i])
+      {
+        startIndex = i;
+        break;
+      }
+    }
+    if startIndex == chars.length
+    {
+      // the string only contains white space
+      return "";
+    }
+    uint endIndex = startIndex;
+    for (uint i = chars.length - 1; i > startIndex; --i)
+    {
+      if !unicode::isWhiteSpace(chars[i])
+      {
+        endIndex = i;
+        break;
+      }
+    }
+    return substring(startIndex, endIndex + 1);
+  }
+
+  /**
    * @return the UTF-32 code points of the characters of this string.
    */
   #[]uint getUnicodeChars()
