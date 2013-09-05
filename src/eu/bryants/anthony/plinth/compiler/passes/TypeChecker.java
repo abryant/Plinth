@@ -1972,25 +1972,37 @@ public class TypeChecker
       checkType(castedType, containingDefinition, inStaticContext);
 
       // forbid casting away immutability (both explicit and contextual)
-      boolean fromExplicitlyImmutable = (exprType instanceof ArrayType    && ((ArrayType)    exprType).isExplicitlyImmutable()) ||
-                                        (exprType instanceof NamedType    && ((NamedType)    exprType).isExplicitlyImmutable()) ||
-                                        (exprType instanceof ObjectType   && ((ObjectType)   exprType).isExplicitlyImmutable()) ||
-                                        (exprType instanceof WildcardType && ((WildcardType) exprType).isExplicitlyImmutable());
-      boolean toExplicitlyImmutable = (castedType instanceof ArrayType    && ((ArrayType)    castedType).isExplicitlyImmutable()) ||
-                                      (castedType instanceof NamedType    && ((NamedType)    castedType).isExplicitlyImmutable()) ||
-                                      (castedType instanceof ObjectType   && ((ObjectType)   castedType).isExplicitlyImmutable()) ||
-                                      (castedType instanceof WildcardType && ((WildcardType) castedType).isExplicitlyImmutable());
+      boolean fromExplicitlyImmutable = Type.isExplicitlyDataImmutable(exprType);
+      boolean toExplicitlyImmutable = Type.isExplicitlyDataImmutable(castedType);
       if (fromExplicitlyImmutable & !toExplicitlyImmutable)
       {
         throw new ConceptualException("Cannot cast away immutability, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
       }
 
-      boolean fromCanBeExplicitlyImmutable = fromExplicitlyImmutable ||
-                                             (exprType instanceof NamedType    && ((NamedType)    exprType).canBeExplicitlyImmutable()) ||
-                                             (exprType instanceof WildcardType && ((WildcardType) exprType).canBeExplicitlyImmutable());
-      boolean toCanBeExplicitlyImmutable = toExplicitlyImmutable ||
-                                           (castedType instanceof NamedType    && ((NamedType)    castedType).canBeExplicitlyImmutable()) ||
-                                           (castedType instanceof WildcardType && ((WildcardType) castedType).canBeExplicitlyImmutable());
+      // make sure we check contextual immutability before possible-immutability,
+      // because in a lot of cases the castedType needs to be adjusted to cope with the
+      // syntactical impossibility of specifying that it should be contextually immutable
+      boolean fromContextuallyImmutable = Type.isContextuallyDataImmutable(exprType);
+      boolean toContextuallyImmutable = Type.isContextuallyDataImmutable(castedType);
+      if (fromContextuallyImmutable & !toContextuallyImmutable)
+      {
+        // since it is impossible for the user to specify whether castedType is contextually immutable,
+        // we have to assume that casting away contextual immutability was unintended and shouldn't actually be done,
+        // unless of course, the only change to the type is in its contextual immutability
+        if (exprType.isEquivalent(Type.findTypeWithDataImmutability(castedType, toExplicitlyImmutable, true)))
+        {
+          // the types are equivalent if we add the contextual immutability back in, so this cast was intended and is an error
+          throw new ConceptualException("Cannot cast away contextual immutability, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
+        }
+
+        // the types are not equivalent if we add the contextual immutability back in, so assume that the cast was just to make that type change
+        castedType = Type.findTypeWithDataImmutability(castedType, toExplicitlyImmutable, true);
+        expression.setType(castedType);
+        toContextuallyImmutable = true;
+      }
+
+      boolean fromCanBeExplicitlyImmutable = Type.canBeExplicitlyDataImmutable(exprType);
+      boolean toCanBeExplicitlyImmutable = Type.canBeExplicitlyDataImmutable(castedType);
       if (fromCanBeExplicitlyImmutable)
       {
         if (!toCanBeExplicitlyImmutable)
@@ -2003,29 +2015,17 @@ public class TypeChecker
         // but if we are casting to something which isn't necessarily immutable, then the cast should only be allowed if the type we are casting from extends the type we are casting to
         if (!toExplicitlyImmutable)
         {
-          // castedType is a TypeParameter which can be (but isn't necessarily) immutable
-          // if it extends exprType, then everything is fine because the super-sub-type relationship guarantees that the immutability constraints are not broken
+          // castedType can be (but isn't necessarily) immutable
+          // also, exprType can be (but isn't necessarily) immutable (otherwise we would have caught it earlier with the explicit immutability check)
+          // if castedType can assign exprType (ignoring nullability), then everything is fine because the super-sub-type relationship guarantees that the immutability constraints are not broken
           // but in all other cases, we must forbid this cast because of potential immutability constraints
-          if (!castedType.canAssign(exprType))
+          if (!Type.findTypeWithNullability(castedType, true).canAssign(exprType))
           {
-            throw new ConceptualException(castedType + " could be not-immutable here, so we cannot cast something of the " + (fromExplicitlyImmutable ? "" : "possibly-") + "immutable type " + exprType + " to it", expression.getLexicalPhrase());
+            throw new ConceptualException(castedType + " could be not-immutable here, so we cannot cast something of the possibly-immutable type " + exprType + " to it", expression.getLexicalPhrase());
           }
         }
       }
 
-
-      boolean fromContextuallyImmutable = (exprType instanceof ArrayType    && ((ArrayType)    exprType).isContextuallyImmutable()) ||
-                                          (exprType instanceof NamedType    && ((NamedType)    exprType).isContextuallyImmutable()) ||
-                                          (exprType instanceof ObjectType   && ((ObjectType)   exprType).isContextuallyImmutable()) ||
-                                          (exprType instanceof WildcardType && ((WildcardType) exprType).isContextuallyImmutable());
-      boolean toContextuallyImmutable = (castedType instanceof ArrayType    && ((ArrayType)    castedType).isContextuallyImmutable()) ||
-                                        (castedType instanceof NamedType    && ((NamedType)    castedType).isContextuallyImmutable()) ||
-                                        (castedType instanceof ObjectType   && ((ObjectType)   castedType).isContextuallyImmutable()) ||
-                                        (castedType instanceof WildcardType && ((WildcardType) castedType).isContextuallyImmutable());
-      if (fromContextuallyImmutable & !toContextuallyImmutable)
-      {
-        throw new ConceptualException("Cannot cast away contextual immutability, from '" + exprType + "' to '" + castedType + "'", expression.getLexicalPhrase());
-      }
       // NOTE: we allow casting function values to and from immutable, since the immutability constraints will be checked at run-time
 
       // we have checked the immutability constraints properly, so we can ignore them in this next check
