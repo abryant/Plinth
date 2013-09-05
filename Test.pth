@@ -4,7 +4,7 @@ class Test
 {
   static uint main([]string args) throws Error
   {
-    LinkedList<string> list = new LinkedList<string>();
+    List<string> list = new ArrayList<string>();
     for (uint i = 0; i < args.length; ++i)
     {
       list.add(args[i]);
@@ -32,7 +32,7 @@ class Test
       }
       else if line.equals("print")
       {
-        Iterator<string> it = list.getIterator();
+        Iterator<string> it = list.iterator();
         while it.hasNext()
         {
           stdout::println(it.next());

@@ -1,0 +1,10 @@
+/**
+ * An interface that allows an object to be iterated through.
+ */
+interface Iterable<T>
+{
+  /**
+   * @return the Iterator that will iterate through this Iterable
+   */
+  Iterator<T> iterator();
+}

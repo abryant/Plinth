@@ -1,7 +1,7 @@
 /**
  * Stores a doubly-linked list of values of a given type.
  */
-class LinkedList<T>
+class LinkedList<T> implements List<T>
 {
   uint size;
   ?LinkedListEntry<T> head;
@@ -244,7 +244,20 @@ class LinkedList<T>
     return oldTail.value;
   }
 
-  Iterator<T> getIterator()
+  /**
+   * Removes all of the elements from this LinkedList.
+   */
+  void clear()
+  {
+    head = null;
+    tail = null;
+    size = 0;
+  }
+
+  /**
+   * @return a new Iterator<T> for iterating through this LinkedList, starting with the first element
+   */
+  Iterator<T> iterator()
   {
     return new LinkedListIterator<T>(this);
   }

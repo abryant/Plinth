@@ -1,0 +1,326 @@
+/**
+ * A List which stores its elements in an array.
+ */
+class ArrayList<T> implements List<T>
+{
+  // the underlying data structure for an ArrayList is actually a ring buffer,
+  // in order to support more efficient add/remove operations near the start of the list
+  []?T data;
+  uint offset;
+  uint size;
+
+  unbacked property uint length
+  getter
+  {
+    return size;
+  }
+  setter(value) throws unchecked IllegalActionError
+  {
+    throw new IllegalActionError("Cannot assign to a LinkedList's length");
+  };
+
+  /**
+   * Creates a new ArrayList with a default initial capacity of 20.
+   * Note: this capacity will only affect performance, since the array is resized dynamically.
+   */
+  create()
+  {
+    this(20);
+  }
+
+  /**
+   * Creates a new ArrayList with the specified initial capacity.
+   * Note: this capacity will only affect performance, since the array is resized dynamically.
+   * @param capacity - the initial capacity for the underlying array
+   */
+  create(uint capacity)
+  {
+    data = new [capacity]?T;
+  }
+
+  /**
+   * @return true if this ArrayList is empty, false otherwise
+   */
+  immutable boolean isEmpty()
+  {
+    return size == 0;
+  }
+
+  /**
+   * Trims the underlying array of this ArrayList to the list's current length.
+   */
+  void trimToSize()
+  {
+    resize(size);
+  }
+
+  void resize(uint newCapacity) throws unchecked IllegalActionError
+  {
+    if newCapacity < size
+    {
+      throw new IllegalActionError("Cannot resize an ArrayList's underlying array to below the ArrayList's current length");
+    }
+    []?T newArray = new [newCapacity]?T;
+    for (uint i = 0; i < size; ++i)
+    {
+      newArray[i] = data[(offset + i) %% data.length];
+    }
+    data = newArray;
+    offset = 0;
+  }
+
+  /**
+   * Adds the specified element to the beginning of this ArrayList.
+   * Note: because ArrayList is implemented as a ring buffer, this operation works in amortised constant time (i.e. the same complexity as addLast())
+   * @param t - the element to add
+   */
+  void addFirst(T t)
+  {
+    if size == data.length
+    {
+      resize(data.length * 2);
+    }
+    offset = (offset + data.length - 1) %% data.length;
+    ++size;
+    data[offset] = t;
+  }
+
+  /**
+   * Adds the specified element to the end of this ArrayList.
+   * @param t - the element to add
+   */
+  void addLast(T t)
+  {
+    if size == data.length
+    {
+      resize(data.length * 2);
+    }
+    data[(offset + size) %% data.length] = t;
+    ++size;
+  }
+
+  /**
+   * Adds the specified element to the end of this ArrayList.
+   * @param t - the element to add
+   */
+  void add(T t)
+  {
+    addLast(t);
+  }
+
+  /**
+   * Adds the specified element to this ArrayList at the specified index.
+   * @param index - the index to insert the element at
+   * @param t - the element to add
+   */
+  void add(uint index, T t) throws unchecked IndexError
+  {
+    if index > size
+    {
+      throw new IndexError(index, size + 1);
+    }
+    if size == data.length
+    {
+      resize(data.length * 2);
+    }
+    if index <= size / 2
+    {
+      for (uint i = 0; i < index; ++i)
+      {
+        data[(offset + i + data.length - 1) %% data.length] = data[(offset + i) %% data.length];
+      }
+      offset = (offset + data.length - 1) %% data.length;
+      ++size;
+    }
+    else
+    {
+      // note: index cannot be 0 here, as that would be handled by the other case
+      for (uint i = size - 1; i >= index; --i)
+      {
+        data[(offset + i + 1) %% data.length] = data[(offset + i) %% data.length];
+      }
+      ++size;
+    }
+    data[(offset + index) %% data.length] = t;
+  }
+
+  /**
+   * @return the first element of this ArrayList
+   * @throws IllegalActionError - if the list is empty
+   */
+  T getFirst() throws unchecked IllegalActionError
+  {
+    if size == 0
+    {
+      throw new IllegalActionError("Cannot get the first element of an empty list.");
+    }
+    return cast<T> data[offset];
+  }
+
+  /**
+   * @return the last element of this ArrayList
+   * @throws IllegalActionError - if the list is empty
+   */
+  T getLast() throws unchecked IllegalActionError
+  {
+    if size == 0
+    {
+      throw new IllegalActionError("Cannot get the last element of an empty list.");
+    }
+    return cast<T> data[(offset + size - 1) %% data.length];
+  }
+
+  /**
+   * @param index - the index of the element to get
+   * @return the element at the specified index
+   */
+  T get(uint index) throws unchecked IndexError
+  {
+    if index >= size
+    {
+      throw new IndexError(index, size);
+    }
+    return cast<T> data[(offset + index) %% data.length];
+  }
+
+  /**
+   * Removes the first element from this ArrayList.
+   * @return the element removed
+   * @throws IllegalActionError - if the list is empty
+   */
+  T removeFirst() throws unchecked IllegalActionError
+  {
+    if size == 0
+    {
+      throw new IllegalActionError("Cannot remove the first element of an empty list.");
+    }
+    T removed = cast<T> data[offset];
+    data[offset] = null;
+    offset = (offset + 1) %% data.length;
+    --size;
+    return removed;
+  }
+
+  /**
+   * Removes the last element from this ArrayList.
+   * @return the element removed
+   * @throws IllegalActionError - if the list is empty
+   */
+  T removeLast() throws unchecked IllegalActionError
+  {
+    if size == 0
+    {
+      throw new IllegalActionError("Cannot remove the last element of an empty list.");
+    }
+    --size;
+    T removed = cast<T> data[(offset + size) %% data.length];
+    data[(offset + size) %% data.length] = null;
+    return removed;
+  }
+
+  /**
+   * Removes the element at the specified index from this ArrayList.
+   * @param index - the index of the element to remove
+   * @return the element removed
+   * @throws IndexError - if the index is greater than or equal to the list's length
+   */
+  T remove(uint index) throws unchecked IndexError
+  {
+    if index >= size
+    {
+      throw new IndexError(index, size);
+    }
+    T removed = cast<T> data[(offset + index) %% data.length];
+    if index <= size / 2
+    {
+      for (uint i = index; i > 0; --i)
+      {
+        data[(offset + i) %% data.length] = data[(offset + i - 1) %% data.length];
+      }
+      data[offset] = null;
+      offset = (offset + 1) %% data.length;
+    }
+    else
+    {
+      for (uint i = index; i < size - 1; ++i)
+      {
+        data[(offset + i) %% data.length] = data[(offset + i + 1) %% data.length];
+      }
+      data[(offset + size - 1) %% data.length] = null;
+    }
+    --size;
+    return removed;
+  }
+
+  /**
+   * Removes all of the elements from this ArrayList.
+   */
+  void clear()
+  {
+    // actually remove all of the elements, so they can be garbage collected
+    for (uint i = 0; i < size; ++i)
+    {
+      data[(offset + i) %% data.length] = null;
+    }
+    offset = 0;
+    size = 0;
+  }
+
+  /**
+   * @return a new Iterator<T> for iterating through this ArrayList, starting with the first element
+   */
+  Iterator<T> iterator()
+  {
+    return new ArrayListIterator<T>(this);
+  }
+}
+
+class ArrayListIterator<T> implements Iterator<T>
+{
+  ArrayList<T> list;
+  uint nextIndex;
+  boolean removedCurrent;
+
+  immutable create(ArrayList<T> list)
+  {
+    this.list = list;
+  }
+
+  immutable boolean hasNext()
+  {
+    return nextIndex < list.size;
+  }
+
+  T next() throws unchecked IllegalActionError
+  {
+    if nextIndex >= list.length
+    {
+      throw new IllegalActionError("Cannot get the next element from an iterator when hasNext() returns false");
+    }
+    T element = list.get(nextIndex);
+    ++nextIndex;
+    removedCurrent = false;
+    return element;
+  }
+
+  void reset()
+  {
+    nextIndex = 0;
+    removedCurrent = false;
+  }
+
+  void remove() throws unchecked IllegalActionError
+  {
+    if nextIndex == 0
+    {
+      throw new IllegalActionError("Cannot remove an element before next() has been called");
+    }
+    if removedCurrent
+    {
+      throw new IllegalActionError("Cannot call remove() on an iterator twice without an intermediary call to next()");
+    }
+    --nextIndex;
+    list.remove(nextIndex);
+    removedCurrent = true;
+  }
+}
