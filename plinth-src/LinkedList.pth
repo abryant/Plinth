@@ -55,7 +55,7 @@ class LinkedList<T>
   /**
    * @return true if this LinkedList is empty, false otherwise
    */
-  boolean isEmpty()
+  immutable boolean isEmpty()
   {
     return size == 0;
   }
@@ -271,7 +271,7 @@ class LinkedListIterator<T> implements Iterator<T>
     this.list = list;
   }
 
-  boolean hasNext()
+  immutable boolean hasNext()
   {
     if current == null
     {

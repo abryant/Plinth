@@ -13,7 +13,7 @@ interface Iterator<T>
   /**
    * @return true if there is another element to return, false if next() will throw an Error
    */
-  boolean hasNext();
+  immutable boolean hasNext();
 
   /**
    * Advances the iterator to the next element, and returns it.
