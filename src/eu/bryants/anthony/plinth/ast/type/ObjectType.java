@@ -106,39 +106,13 @@ public class ObjectType extends Type
       return false;
     }
 
-    // check the data-immutability of the other type
-    // note that this is only data immutability, and a function's immutability does not affect things here
-    // in fact, all non-data-immutable types are assumed to be not-immutable, so that they can be cast to directly 'object' rather than requiring '#object'
-    boolean otherExplicitlyImmutable = false;
-    boolean otherContextuallyImmutable = false;
-    if (type instanceof ArrayType)
-    {
-      otherExplicitlyImmutable = ((ArrayType) type).isExplicitlyImmutable();
-      otherContextuallyImmutable = ((ArrayType) type).isContextuallyImmutable();
-    }
-    else if (type instanceof NamedType)
-    {
-      otherExplicitlyImmutable = ((NamedType) type).isExplicitlyImmutable();
-      otherContextuallyImmutable = ((NamedType) type).isContextuallyImmutable();
-    }
-    else if (type instanceof ObjectType)
-    {
-      otherExplicitlyImmutable = ((ObjectType) type).isExplicitlyImmutable();
-      otherContextuallyImmutable = ((ObjectType) type).isContextuallyImmutable();
-    }
-    else if (type instanceof WildcardType)
-    {
-      otherExplicitlyImmutable = ((WildcardType) type).isExplicitlyImmutable();
-      otherContextuallyImmutable = ((WildcardType) type).isContextuallyImmutable();
-    }
-
-    // an explicitly-immutable named type cannot be assigned to a non-explicitly-immutable named type
-    if (!isExplicitlyImmutable() && otherExplicitlyImmutable)
+    // a (possibly-)explicitly-immutable type cannot be assigned to a non-explicitly-immutable object type
+    if (!isExplicitlyImmutable() && Type.canBeExplicitlyDataImmutable(type))
     {
       return false;
     }
-    // a contextually-immutable named type cannot be assigned to a non-immutable named type
-    if (!isContextuallyImmutable() && otherContextuallyImmutable)
+    // a contextually-immutable type cannot be assigned to a non-immutable object type
+    if (!isContextuallyImmutable() && Type.isContextuallyDataImmutable(type))
     {
       return false;
     }

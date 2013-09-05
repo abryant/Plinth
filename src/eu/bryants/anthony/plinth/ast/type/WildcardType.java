@@ -150,10 +150,7 @@ public class WildcardType extends Type
     while (!typeQueue.isEmpty())
     {
       Type superType = typeQueue.poll();
-      if ((superType instanceof ArrayType  && !((ArrayType)  superType).isExplicitlyImmutable()) ||
-          (superType instanceof NamedType  && !((NamedType)  superType).isExplicitlyImmutable()) ||
-          (superType instanceof ObjectType && !((ObjectType) superType).isExplicitlyImmutable()) ||
-          (superType instanceof WildcardType && !(((WildcardType) superType).isExplicitlyImmutable())))
+      if (!Type.isExplicitlyDataImmutable(superType))
       {
         hasNotImmutableSuperType = true;
         break;
@@ -229,24 +226,17 @@ public class WildcardType extends Type
       return false;
     }
     // an explicitly-immutable type cannot be assigned to a non-explicitly-immutable type
-    if (!isExplicitlyImmutable() && ((type instanceof NamedType    && ((NamedType)    type).isExplicitlyImmutable()) ||
-                                     (type instanceof ArrayType    && ((ArrayType)    type).isExplicitlyImmutable()) ||
-                                     (type instanceof ObjectType   && ((ObjectType)   type).isExplicitlyImmutable()) ||
-                                     (type instanceof WildcardType && ((WildcardType) type).isExplicitlyImmutable())))
+    if (!isExplicitlyImmutable() && Type.isExplicitlyDataImmutable(type))
     {
       return false;
     }
     // a contextually-immutable type cannot be assigned to a non-immutable type
-    if (!isContextuallyImmutable() && ((type instanceof NamedType    && ((NamedType)    type).isContextuallyImmutable()) ||
-                                       (type instanceof ArrayType    && ((ArrayType)    type).isContextuallyImmutable()) ||
-                                       (type instanceof ObjectType   && ((ObjectType)   type).isContextuallyImmutable()) ||
-                                       (type instanceof WildcardType && ((WildcardType) type).isContextuallyImmutable())))
+    if (!isContextuallyImmutable() && Type.isContextuallyDataImmutable(type))
     {
       return false;
     }
     // a possibly-immutable type cannot be assigned to a not-possibly-immutable type
-    if (!canBeExplicitlyImmutable() && ((type instanceof NamedType    && ((NamedType)    type).canBeExplicitlyImmutable()) ||
-                                        (type instanceof WildcardType && ((WildcardType) type).canBeExplicitlyImmutable())))
+    if (!canBeExplicitlyImmutable() && Type.canBeExplicitlyDataImmutable(type))
     {
       return false;
     }

@@ -3495,11 +3495,7 @@ public class TypeChecker
       }
       // find the nullability and immutability of the resulting type
       boolean nullable = a.canBeNullable() || b.canBeNullable();
-      boolean explicitlyImmutable = Type.isExplicitlyDataImmutable(a) || Type.isExplicitlyDataImmutable(b) ||
-                                    (a instanceof NamedType && ((NamedType) a).canBeExplicitlyImmutable()) ||
-                                    (a instanceof WildcardType && ((WildcardType) a).canBeExplicitlyImmutable()) ||
-                                    (b instanceof NamedType && ((NamedType) b).canBeExplicitlyImmutable()) ||
-                                    (b instanceof WildcardType && ((WildcardType) b).canBeExplicitlyImmutable());
+      boolean explicitlyImmutable = Type.canBeExplicitlyDataImmutable(a) || Type.canBeExplicitlyDataImmutable(b);
       boolean contextuallyImmutable = Type.isContextuallyDataImmutable(a) || Type.isContextuallyDataImmutable(b);
       // go through each of the parent types of this wildcard/type parameter, and find what each of the common super-types would be
       Type otherType = reducingA ? b : a;
@@ -3639,8 +3635,6 @@ public class TypeChecker
       {
         return alteredB;
       }
-
-      // we have already checked for type parameters above, so both of these types must resolve to TypeDefinitions
 
       // the two types are not in a parent-child relationship, i.e. neither of the types inherits from the other
       // so see if they have any super-types in common
@@ -3818,22 +3812,8 @@ public class TypeChecker
     }
     // otherwise, object is the common supertype, so find its nullability and immutability
     boolean nullable = a.canBeNullable() || b.canBeNullable();
-    boolean explicitlyImmutable = (a instanceof ArrayType    && ((ArrayType)    a).isExplicitlyImmutable()) ||
-                                  (a instanceof NamedType    && ((NamedType)    a).isExplicitlyImmutable()) ||
-                                  (a instanceof ObjectType   && ((ObjectType)   a).isExplicitlyImmutable()) ||
-                                  (a instanceof WildcardType && ((WildcardType) a).isExplicitlyImmutable()) ||
-                                  (b instanceof ArrayType    && ((ArrayType)    b).isExplicitlyImmutable()) ||
-                                  (b instanceof NamedType    && ((NamedType)    b).isExplicitlyImmutable()) ||
-                                  (b instanceof ObjectType   && ((ObjectType)   b).isExplicitlyImmutable()) ||
-                                  (b instanceof WildcardType && ((WildcardType) b).isExplicitlyImmutable());
-    boolean contextuallyImmutable = (a instanceof ArrayType    && ((ArrayType)    a).isContextuallyImmutable()) ||
-                                    (a instanceof NamedType    && ((NamedType)    a).isContextuallyImmutable()) ||
-                                    (a instanceof ObjectType   && ((ObjectType)   a).isContextuallyImmutable()) ||
-                                    (a instanceof WildcardType && ((WildcardType) a).isContextuallyImmutable()) ||
-                                    (b instanceof ArrayType    && ((ArrayType)    b).isContextuallyImmutable()) ||
-                                    (b instanceof NamedType    && ((NamedType)    b).isContextuallyImmutable()) ||
-                                    (b instanceof ObjectType   && ((ObjectType)   b).isContextuallyImmutable()) ||
-                                    (b instanceof WildcardType && ((WildcardType) b).isContextuallyImmutable());
+    boolean explicitlyImmutable = Type.isExplicitlyDataImmutable(a) || Type.isExplicitlyDataImmutable(b);
+    boolean contextuallyImmutable = Type.isContextuallyDataImmutable(a) || Type.isContextuallyDataImmutable(b);
     return new ObjectType(nullable, explicitlyImmutable, contextuallyImmutable, null);
   }
 

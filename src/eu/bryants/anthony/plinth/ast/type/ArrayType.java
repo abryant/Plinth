@@ -74,14 +74,12 @@ public class ArrayType extends Type
     }
 
     // an explicitly-immutable type cannot be assigned to a non-explicitly-immutable array type
-    if (!isExplicitlyImmutable() && ((type instanceof ArrayType && ((ArrayType) type).isExplicitlyImmutable()) ||
-                                     (type instanceof WildcardType && ((WildcardType) type).isExplicitlyImmutable())))
+    if (!isExplicitlyImmutable() && Type.isExplicitlyDataImmutable(type))
     {
       return false;
     }
     // a contextually-immutable type cannot be assigned to a non-immutable array type
-    if (!isContextuallyImmutable() && ((type instanceof ArrayType && ((ArrayType) type).isContextuallyImmutable()) ||
-                                       (type instanceof WildcardType && ((WildcardType) type).isContextuallyImmutable())))
+    if (!isContextuallyImmutable() && Type.isContextuallyDataImmutable(type))
     {
       return false;
     }
