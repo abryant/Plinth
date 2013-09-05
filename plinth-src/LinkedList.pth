@@ -10,7 +10,7 @@ class LinkedList<T>
   /**
    * A read-only property for accessing the length of this LinkedList.
    */
-  property uint length
+  unbacked property uint length
   getter
   {
     return size;
@@ -71,10 +71,10 @@ class LinkedList<T>
 
   /**
    * Adds the specified element to this LinkedList at the specified index.
-   * @param t - the element to add
    * @param index - the index to insert the element at
+   * @param t - the element to add
    */
-  void add(T t, uint index) throws unchecked IndexError
+  void add(uint index, T t) throws unchecked IndexError
   {
     if index > size
     {
@@ -177,6 +177,7 @@ class LinkedList<T>
   }
 
   /**
+   * Removes the element at the specified index from this LinkedList.
    * @param index - the index of the element to remove
    * @return the value removed
    */
