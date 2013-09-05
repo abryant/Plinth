@@ -1763,14 +1763,15 @@ public class TypeChecker
     {
       ArrayAccessExpression arrayAccessExpression = (ArrayAccessExpression) expression;
       CoalescedConceptualException coalescedException = null;
-      Type type = null;
+      ArrayType arrayType = null;
       try
       {
-        type = checkTypes(arrayAccessExpression.getArrayExpression(), containingDefinition, inStaticContext);
+        Type type = checkTypes(arrayAccessExpression.getArrayExpression(), containingDefinition, inStaticContext);
         if (!(type instanceof ArrayType) || type.canBeNullable())
         {
-          throw new ConceptualException("Array accesses are not defined for type " + type, arrayAccessExpression.getLexicalPhrase());
+          throw new ConceptualException("Array accesses are not defined for type " + arrayType, arrayAccessExpression.getLexicalPhrase());
         }
+        arrayType = (ArrayType) type;
       }
       catch (ConceptualException e)
       {
@@ -1792,7 +1793,12 @@ public class TypeChecker
       {
         throw coalescedException;
       }
-      Type baseType = ((ArrayType) type).getBaseType();
+      Type baseType = arrayType.getBaseType();
+      if (arrayType.isContextuallyImmutable())
+      {
+        // note: if the array is explicitly immutable, we add explicit immutability as well
+        baseType = findTypeWithDeepImmutability(baseType, arrayType.isExplicitlyImmutable(), true);
+      }
       arrayAccessExpression.setType(baseType);
       return baseType;
     }
@@ -3924,7 +3930,7 @@ public class TypeChecker
         return arrayType;
       }
       Type baseType = findTypeWithDeepImmutability(arrayType.getBaseType(), addExplicitImmutability, contextuallyImmutable);
-      return new ArrayType(arrayType.isNullable(), arrayType.isExplicitlyImmutable(), contextuallyImmutable, baseType, null);
+      return new ArrayType(arrayType.isNullable(), arrayType.isExplicitlyImmutable() || addExplicitImmutability, contextuallyImmutable, baseType, null);
     }
     if (type instanceof NamedType)
     {
