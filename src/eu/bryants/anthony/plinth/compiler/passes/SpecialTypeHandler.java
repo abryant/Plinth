@@ -13,6 +13,7 @@ import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.Type;
+import eu.bryants.anthony.plinth.ast.type.TypeParameter;
 import eu.bryants.anthony.plinth.compiler.ConceptualException;
 
 /*
@@ -45,6 +46,18 @@ public class SpecialTypeHandler
   public static final NamedType INDEX_ERROR_TYPE = new NamedType(false, false, new QName("IndexError", null), null, null);
   public static Constructor indexErrorIndexSizeConstructor;
 
+  // iteratorType has a generic type parameter, so we specify uint here, and then once the TypeDefinition is resolved we will swap the NamedType out for one where the type argument points back to the TypeParameter
+  public static NamedType iteratorType = new NamedType(false, false, new QName("Iterator", null), new Type[] {new PrimitiveType(false, PrimitiveTypeType.UINT, null)}, null);
+  private static final String ITERATOR_HAS_NEXT_NAME = "hasNext";
+  private static final String ITERATOR_NEXT_NAME = "next";
+  public static Method iteratorHasNextMethod;
+  public static Method iteratorNextMethod;
+
+  // iterableType has a generic type parameter, so we specify uint here, and then once the TypeDefinition is resolved we will swap the NamedType out for one where the type argument points back to the TypeParameter
+  public static NamedType iterableType = new NamedType(false, false, new QName("Iterable", null), new Type[] {new PrimitiveType(false, PrimitiveTypeType.UINT, null)}, null);
+  private static final String ITERABLE_ITERATOR_NAME = "iterator";
+  public static Method iterableIteratorMethod;
+
   public static final String MAIN_METHOD_NAME = "main";
 
   /**
@@ -67,6 +80,12 @@ public class SpecialTypeHandler
 
     TypeChecker.checkType(INDEX_ERROR_TYPE, null, true);
     verifyIndexErrorType();
+
+    TypeChecker.checkType(iteratorType, iteratorType.getResolvedTypeDefinition(), false);
+    verifyIteratorType();
+
+    TypeChecker.checkType(iterableType, iterableType.getResolvedTypeDefinition(), false);
+    verifyIterableType();
   }
 
   private static void verifyStringType() throws ConceptualException
@@ -243,6 +262,88 @@ public class SpecialTypeHandler
     if (indexErrorIndexSizeConstructor == null)
     {
       throw new ConceptualException("The IndexError type must have a constructor which takes an index and a size (both uints) as arguments", typeDefinition.getLexicalPhrase());
+    }
+  }
+
+  private static void verifyIteratorType() throws ConceptualException
+  {
+    TypeDefinition typeDefinition = iteratorType.getResolvedTypeDefinition();
+    if (typeDefinition == null || !(typeDefinition instanceof InterfaceDefinition))
+    {
+      throw new ConceptualException("The Iterator type must be defined as an interface!", null);
+    }
+
+    TypeParameter[] typeParameters = typeDefinition.getTypeParameters();
+    if (typeParameters.length != 1 || typeParameters[0].getSuperTypes().length != 0 || typeParameters[0].getSubTypes().length != 0)
+    {
+      throw new ConceptualException("The Iterator type must have a single type parameter with no restrictions on acceptable types", null);
+    }
+
+    PrimitiveType booleanType = new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null);
+    for (Method method : typeDefinition.getMethodsByName(ITERATOR_HAS_NEXT_NAME))
+    {
+      if (!method.isStatic() && method.isImmutable() &&
+          method.getReturnType().isEquivalent(booleanType) &&
+          method.getParameters().length == 0 &&
+          method.getCheckedThrownTypes().length == 0)
+      {
+        iteratorHasNextMethod = method;
+        break;
+      }
+    }
+    if (iteratorHasNextMethod == null)
+    {
+      throw new ConceptualException("The Iterator type must have a non-static immutable method with the signature: boolean hasNext()", null);
+    }
+
+    NamedType typeParameterType = new NamedType(false, false, false, typeParameters[0]);
+    for (Method method : typeDefinition.getMethodsByName(ITERATOR_NEXT_NAME))
+    {
+      if (!method.isStatic() && !method.isImmutable() &&
+          method.getReturnType().isEquivalent(typeParameterType) &&
+          method.getParameters().length == 0 &&
+          method.getCheckedThrownTypes().length == 0)
+      {
+        iteratorNextMethod = method;
+        break;
+      }
+    }
+    if (iteratorNextMethod == null)
+    {
+      throw new ConceptualException("The Iterator type must have a non-static non-immutable method with the signature: T next() (where T is the Iterator's type parameter)", null);
+    }
+  }
+
+  private static void verifyIterableType() throws ConceptualException
+  {
+    TypeDefinition typeDefinition = iterableType.getResolvedTypeDefinition();
+    if (typeDefinition == null || !(typeDefinition instanceof InterfaceDefinition))
+    {
+      throw new ConceptualException("The Iterable type must be defined as an interface!", null);
+    }
+
+    TypeParameter[] typeParameters = typeDefinition.getTypeParameters();
+    if (typeParameters.length != 1 || typeParameters[0].getSuperTypes().length != 0 || typeParameters[0].getSubTypes().length != 0)
+    {
+      throw new ConceptualException("The Iterable type must have a single type parameter with no restrictions on acceptable types", null);
+    }
+
+    NamedType typeParameterType = new NamedType(false, false, false, typeParameters[0]);
+    NamedType iteratorResultType = new NamedType(false, false, iteratorType.getResolvedTypeDefinition(), new Type[] {typeParameterType});
+    for (Method method : typeDefinition.getMethodsByName(ITERABLE_ITERATOR_NAME))
+    {
+      if (!method.isStatic() && !method.isImmutable() &&
+          method.getReturnType().isEquivalent(iteratorResultType) &&
+          method.getParameters().length == 0 &&
+          method.getCheckedThrownTypes().length == 0)
+      {
+        iterableIteratorMethod = method;
+        break;
+      }
+    }
+    if (iterableIteratorMethod == null)
+    {
+      throw new ConceptualException("The Iterable type must have a non-static non-immutable method with the signature: Iterator<T> iterator() (where T is the Iterable's type parameter)", null);
     }
   }
 

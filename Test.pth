@@ -5,9 +5,9 @@ class Test
   static uint main([]string args) throws Error
   {
     List<string> list = new ArrayList<string>();
-    for (uint i = 0; i < args.length; ++i)
+    for string s in args
     {
-      list.add(args[i]);
+      list.add(s);
     }
 
     while true
@@ -33,9 +33,13 @@ class Test
       else if line.equals("print")
       {
         Iterator<string> it = list.iterator();
-        while it.hasNext()
+        if it.hasNext()
         {
-          stdout::println(it.next());
+          stdout::println("Printed separately: " + it.next());
+        }
+        for string s in it
+        {
+          stdout::println(s);
         }
       }
       else if line.startsWith("remove")

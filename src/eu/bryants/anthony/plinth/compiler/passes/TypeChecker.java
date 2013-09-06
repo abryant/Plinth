@@ -75,6 +75,7 @@ import eu.bryants.anthony.plinth.ast.statement.BreakStatement;
 import eu.bryants.anthony.plinth.ast.statement.ContinueStatement;
 import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
+import eu.bryants.anthony.plinth.ast.statement.ForEachStatement;
 import eu.bryants.anthony.plinth.ast.statement.ForStatement;
 import eu.bryants.anthony.plinth.ast.statement.IfStatement;
 import eu.bryants.anthony.plinth.ast.statement.PrefixIncDecStatement;
@@ -1333,6 +1334,154 @@ public class TypeChecker
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
+      if (coalescedException != null)
+      {
+        throw coalescedException;
+      }
+    }
+    else if (statement instanceof ForEachStatement)
+    {
+      ForEachStatement forEachStatement = (ForEachStatement) statement;
+      CoalescedConceptualException coalescedException = null;
+
+      Type iterableType = null;
+      try
+      {
+        iterableType = checkTypes(forEachStatement.getIterableExpression(), containingDefinition, inStaticContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+
+      try
+      {
+        Type variableType = forEachStatement.getVariableType();
+        checkType(variableType, containingDefinition, inStaticContext);
+
+        if (iterableType != null)
+        {
+          if (iterableType instanceof PrimitiveType &&
+              !iterableType.isNullable() &&
+              !((PrimitiveType) iterableType).getPrimitiveTypeType().isFloating() &&
+              ((PrimitiveType) iterableType).getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+          {
+            forEachStatement.setResolvedIterableType(iterableType);
+            if (!variableType.canAssign(iterableType))
+            {
+              throw new ConceptualException("Cannot store an integer of type " + iterableType + " in a variable of type " + variableType, variableType.getLexicalPhrase());
+            }
+          }
+          else if (iterableType instanceof ArrayType && !iterableType.canBeNullable())
+          {
+            ArrayType iterableArrayType = (ArrayType) iterableType;
+            Type baseType = iterableArrayType.getBaseType();
+            if (iterableArrayType.isContextuallyImmutable())
+            {
+              // note: if the array is explicitly immutable, we add explicit immutability as well
+              baseType = findTypeWithDeepImmutability(baseType, iterableArrayType.isExplicitlyImmutable(), true);
+            }
+            forEachStatement.setResolvedIterableType(iterableType);
+            if (!variableType.canAssign(baseType))
+            {
+              throw new ConceptualException("Cannot store an array element of type " + baseType + " in a variable of type " + variableType, variableType.getLexicalPhrase());
+            }
+          }
+          else if ((iterableType instanceof NamedType || iterableType instanceof WildcardType) &&
+                   !iterableType.canBeNullable() &&
+                   !Type.canBeExplicitlyDataImmutable(iterableType) &&
+                   !Type.isContextuallyDataImmutable(iterableType))
+          {
+            NamedType resolvedIteratorType = null;
+            NamedType resolvedIterableType = null;
+            NamedType backupType = null;
+            for (Type superType : Type.findAllSuperTypes(iterableType))
+            {
+              if (!(superType instanceof NamedType) || ((NamedType) superType).getResolvedTypeDefinition() == null)
+              {
+                continue;
+              }
+              NamedType namedSuperType = (NamedType) superType;
+              GenericTypeSpecialiser specialiser = new GenericTypeSpecialiser(namedSuperType);
+              for (NamedType t : namedSuperType.getResolvedTypeDefinition().getInheritanceLinearisation())
+              {
+                // this cast is always safe, since everything in an inheritance linearisation points to a TypeDefinition, never a TypeParameter
+                NamedType checkType = (NamedType) specialiser.getSpecialisedType(t);
+                if (checkType.getResolvedTypeDefinition() == SpecialTypeHandler.iteratorType.getResolvedTypeDefinition())
+                {
+                  if (variableType.isEquivalent(checkType.getTypeArguments()[0]))
+                  {
+                    // this matches the requested type perfectly, so use it and skip the rest of the tests
+                    resolvedIteratorType = checkType;
+                    break;
+                  }
+                  if (variableType.canAssign(checkType.getTypeArguments()[0]) && resolvedIteratorType == null)
+                  {
+                    // this can assign the requested type, but isn't a perfect match, so keep searching in case we find one
+                    resolvedIteratorType = checkType;
+                  }
+                  if (backupType == null || backupType.getResolvedTypeDefinition() == SpecialTypeHandler.iterableType.getResolvedTypeDefinition())
+                  {
+                    backupType = checkType;
+                  }
+                }
+                if (checkType.getResolvedTypeDefinition() == SpecialTypeHandler.iterableType.getResolvedTypeDefinition())
+                {
+                  if (variableType.isEquivalent(checkType.getTypeArguments()[0]))
+                  {
+                    // this matches the requested type perfectly, so use it unless we find an Iterator that matches
+                    resolvedIterableType = checkType;
+                  }
+                  if (variableType.canAssign(checkType.getTypeArguments()[0]) && resolvedIterableType == null)
+                  {
+                    // this can assign the requested type, but isn't a perfect match, so keep searching in case we find one
+                    resolvedIterableType = checkType;
+                  }
+                  if (backupType == null)
+                  {
+                    backupType = checkType;
+                  }
+                }
+              }
+            }
+            if (resolvedIteratorType != null)
+            {
+              forEachStatement.setResolvedIterableType(resolvedIteratorType);
+            }
+            else if (resolvedIterableType != null)
+            {
+              forEachStatement.setResolvedIterableType(resolvedIterableType);
+            }
+            else if (backupType != null)
+            {
+              Type iterationType = backupType.getTypeArguments()[0];
+              throw new ConceptualException("Cannot store a value from an Iterator<" + iterationType + "> in a variable of type " + variableType, variableType.getLexicalPhrase());
+            }
+            else
+            {
+              throw new ConceptualException("Cannot iterate through a " + iterableType, forEachStatement.getIterableExpression().getLexicalPhrase());
+            }
+          }
+          else
+          {
+            throw new ConceptualException("Cannot iterate through a " + iterableType, forEachStatement.getIterableExpression().getLexicalPhrase());
+          }
+        }
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+
+      try
+      {
+        checkTypes(forEachStatement.getBlock(), returnType, containingDefinition, inStaticContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+
       if (coalescedException != null)
       {
         throw coalescedException;

@@ -80,6 +80,7 @@ import eu.bryants.anthony.plinth.ast.statement.BreakStatement;
 import eu.bryants.anthony.plinth.ast.statement.ContinueStatement;
 import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
+import eu.bryants.anthony.plinth.ast.statement.ForEachStatement;
 import eu.bryants.anthony.plinth.ast.statement.ForStatement;
 import eu.bryants.anthony.plinth.ast.statement.IfStatement;
 import eu.bryants.anthony.plinth.ast.statement.PrefixIncDecStatement;
@@ -154,6 +155,10 @@ public class Resolver
     resolve(SpecialTypeHandler.THROWABLE_TYPE, null, null);
     resolve(SpecialTypeHandler.CAST_ERROR_TYPE, null, null);
     resolve(SpecialTypeHandler.INDEX_ERROR_TYPE, null, null);
+    resolve(SpecialTypeHandler.iteratorType, null, null);
+    SpecialTypeHandler.iteratorType = new NamedType(false, false, false, SpecialTypeHandler.iteratorType.getResolvedTypeDefinition());
+    resolve(SpecialTypeHandler.iterableType, null, null);
+    SpecialTypeHandler.iterableType = new NamedType(false, false, false, SpecialTypeHandler.iterableType.getResolvedTypeDefinition());
   }
 
   /**
@@ -1415,6 +1420,67 @@ public class Resolver
           coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
         }
       }
+      if (coalescedException != null)
+      {
+        throw coalescedException;
+      }
+    }
+    else if (statement instanceof ForEachStatement)
+    {
+      ForEachStatement forEachStatement = (ForEachStatement) statement;
+      CoalescedConceptualException coalescedException = null;
+
+      // resolve the iterable expression, outside the for loop's block
+      try
+      {
+        resolve(forEachStatement.getIterableExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+
+      // populate the block with the variables from its enclosing block
+      Block block = forEachStatement.getBlock();
+      for (Variable v : enclosingBlock.getVariables())
+      {
+        block.addVariable(v);
+      }
+
+      // resolve the variable's type
+      // if this throws an exception, do not try to add the variable to the for loop's block, as its type will be invalid
+      Type variableType = forEachStatement.getVariableType();
+      try
+      {
+        resolve(variableType, enclosingDefinition, compilationUnit);
+
+        Variable variable = new Variable(forEachStatement.isVariableFinal(), variableType, forEachStatement.getVariableName());
+        forEachStatement.setResolvedVariable(variable);
+
+        Variable oldVariable = block.addVariable(variable);
+        if (oldVariable != null)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("'" + variable.getName() + "' has already been declared, and cannot be redeclared", forEachStatement.getLexicalPhrase()));
+        }
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+
+      // resolve the statements in the for loop's block
+      for (Statement s : block.getStatements())
+      {
+        try
+        {
+          resolve(s, block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, canReturnAgainstContextualImmutability, enclosingProperty);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+
       if (coalescedException != null)
       {
         throw coalescedException;
@@ -3007,6 +3073,10 @@ public class Resolver
           stack.push(forStatement.getUpdateStatement());
         }
         stack.push(forStatement.getBlock());
+      }
+      else if (statement instanceof ForEachStatement)
+      {
+        stack.push(((ForEachStatement) statement).getBlock());
       }
       else if (statement instanceof IfStatement)
       {

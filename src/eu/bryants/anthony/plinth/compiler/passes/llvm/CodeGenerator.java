@@ -91,6 +91,7 @@ import eu.bryants.anthony.plinth.ast.statement.BreakableStatement;
 import eu.bryants.anthony.plinth.ast.statement.ContinueStatement;
 import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
+import eu.bryants.anthony.plinth.ast.statement.ForEachStatement;
 import eu.bryants.anthony.plinth.ast.statement.ForStatement;
 import eu.bryants.anthony.plinth.ast.statement.IfStatement;
 import eu.bryants.anthony.plinth.ast.statement.PrefixIncDecStatement;
@@ -2622,6 +2623,159 @@ public class CodeGenerator
       {
         LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
       }
+    }
+    else if (statement instanceof ForEachStatement)
+    {
+      ForEachStatement forEachStatement = (ForEachStatement) statement;
+      Type iterableType = forEachStatement.getResolvedIterableType();
+
+      // first, build the iterable expression, and convert it to the right type
+      LLVMValueRef iterableValue = buildExpression(forEachStatement.getIterableExpression(), builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
+      iterableValue = typeHelper.convertTemporary(builder, landingPadContainer, iterableValue, forEachStatement.getIterableExpression().getType(), iterableType, false, typeParameterAccessor, typeParameterAccessor);
+
+      if (iterableType instanceof NamedType && ((NamedType) iterableType).getResolvedTypeDefinition() == SpecialTypeHandler.iterableType.getResolvedTypeDefinition())
+      {
+        NamedType namedIterableType = (NamedType) iterableType;
+        // call iterator() on the Iterable
+        MethodReference iteratorMethodReference = new MethodReference(SpecialTypeHandler.iterableIteratorMethod, new GenericTypeSpecialiser(namedIterableType));
+        iterableValue = typeHelper.buildMethodCall(builder, landingPadContainer, iterableValue, iterableType, iteratorMethodReference, new LLVMValueRef[0], typeParameterAccessor);
+        // update the iterable type to be Iterator<T> (where the T comes from Iterable<T>)
+        iterableType = new NamedType(false, false, false, SpecialTypeHandler.iteratorType.getResolvedTypeDefinition(), new Type[] {namedIterableType.getTypeArguments()[0]});
+      }
+
+      PrimitiveType indexType = null;
+      LLVMTypeRef llvmIndexType = null;
+      LLVMValueRef llvmLength = null;
+      LLVMValueRef llvmLengthIsNegative = null; // only for signed primitives
+      if (iterableType instanceof PrimitiveType)
+      {
+        indexType = (PrimitiveType) iterableType;
+        llvmIndexType = typeHelper.findTemporaryType(indexType);
+        llvmLength = iterableValue;
+        if (indexType.getPrimitiveTypeType().isSigned())
+        {
+          llvmLengthIsNegative = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntSLT, iterableValue, LLVM.LLVMConstInt(llvmIndexType, 0, false), "");
+        }
+      }
+      else if (iterableType instanceof ArrayType)
+      {
+        indexType = ArrayLengthMember.ARRAY_LENGTH_TYPE;
+        llvmIndexType = typeHelper.findTemporaryType(indexType);
+        LLVMValueRef arrayLengthPointer = typeHelper.getArrayLengthPointer(builder, iterableValue);
+        llvmLength = LLVM.LLVMBuildLoad(builder, arrayLengthPointer, "");
+      }
+
+      LLVMBasicBlockRef continuationBlock = LLVM.LLVMAddBasicBlock(builder, "afterForEachLoop");
+      LLVMBasicBlockRef loopUpdate = null;
+      if (indexType != null && (!forEachStatement.getBlock().stopsExecution() || forEachStatement.isContinuedThrough()))
+      {
+        // a loop update only needs to exist if there is an index to increment, and even then it should only be generated if there is actually a code path that reaches it
+        loopUpdate = LLVM.LLVMAddBasicBlock(builder, "forEachLoopUpdate");
+      }
+      LLVMBasicBlockRef loopBody = LLVM.LLVMAddBasicBlock(builder, "forEachLoopBody");
+      LLVMBasicBlockRef loopCheck = LLVM.LLVMAddBasicBlock(builder, "forEachLoopCheck");
+
+      LLVMBasicBlockRef startBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildBr(builder, loopCheck);
+      LLVM.LLVMPositionBuilderAtEnd(builder, loopCheck);
+
+      // build the loop check
+      LLVMValueRef indexValue = null;
+      LLVMValueRef checkResult;
+      if (iterableType instanceof PrimitiveType || iterableType instanceof ArrayType)
+      {
+        // get the index
+        indexValue = LLVM.LLVMBuildPhi(builder, llvmIndexType, "");
+        LLVMValueRef startValue = LLVM.LLVMConstInt(llvmIndexType, 0, false);
+        LLVMValueRef[] incomingValues = new LLVMValueRef[] {startValue};
+        LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock};
+        LLVM.LLVMAddIncoming(indexValue, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+
+        // compare the index to the length (being careful about signed values)
+        if (indexType.getPrimitiveTypeType().isSigned())
+        {
+          LLVMValueRef positiveCheckResult = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntSLT, indexValue, llvmLength, "");
+          LLVMValueRef negativeCheckResult = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntSGT, indexValue, llvmLength, "");
+          checkResult = LLVM.LLVMBuildSelect(builder, llvmLengthIsNegative, negativeCheckResult, positiveCheckResult, "");
+        }
+        else
+        {
+          checkResult = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntULT, indexValue, llvmLength, "");
+        }
+      }
+      else if (iterableType instanceof NamedType && ((NamedType) iterableType).getResolvedTypeDefinition() == SpecialTypeHandler.iteratorType.getResolvedTypeDefinition())
+      {
+        // call hasNext() on the iterator
+        MethodReference hasNextMethodReference = new MethodReference(SpecialTypeHandler.iteratorHasNextMethod, new GenericTypeSpecialiser((NamedType) iterableType));
+        checkResult = typeHelper.buildMethodCall(builder, landingPadContainer, iterableValue, iterableType, hasNextMethodReference, new LLVMValueRef[0], typeParameterAccessor);
+      }
+      else
+      {
+        throw new IllegalArgumentException("Unknown iterable type in a for each loop: " + iterableType);
+      }
+
+      LLVM.LLVMBuildCondBr(builder, checkResult, loopBody, continuationBlock);
+      LLVM.LLVMPositionBuilderAtEnd(builder, loopBody);
+
+      // store the next value in the variable
+      LLVMValueRef variableValue;
+      Type currentType;
+      if (iterableType instanceof PrimitiveType)
+      {
+        variableValue = indexValue;
+        currentType = indexType;
+      }
+      else if (iterableType instanceof ArrayType)
+      {
+        variableValue = typeHelper.buildRetrieveArrayElement(builder, landingPadContainer, iterableValue, indexValue);
+        currentType = ((ArrayType) iterableType).getBaseType();
+      }
+      else // if (iterableType instanceof NamedType && ((NamedType) iterableType).getResolvedTypeDefinition() == SpecialTypeHandler.iteratorType.getResolvedTypeDefinition())
+      {
+        // call next() on the iterator
+        MethodReference nextMethodReference = new MethodReference(SpecialTypeHandler.iteratorNextMethod, new GenericTypeSpecialiser((NamedType) iterableType));
+        variableValue = typeHelper.buildMethodCall(builder, landingPadContainer, iterableValue, iterableType, nextMethodReference, new LLVMValueRef[0], typeParameterAccessor);
+        currentType = nextMethodReference.getReturnType();
+      }
+      Variable forEachVariable = forEachStatement.getResolvedVariable();
+      variableValue = typeHelper.convertTemporary(builder, landingPadContainer, variableValue, currentType, forEachVariable.getType(), false, typeParameterAccessor, typeParameterAccessor);
+      LLVMValueRef llvmVariable = variables.get(forEachVariable);
+      LLVM.LLVMBuildStore(builder, variableValue, llvmVariable);
+
+      // build the loop body
+      breakBlocks.put(forEachStatement, continuationBlock);
+      continueBlocks.put(forEachStatement, loopUpdate == null ? loopCheck : loopUpdate);
+      buildStatement(forEachStatement.getBlock(), returnType, builder, thisValue, variables, typeParameterAccessor, landingPadContainer, finallyBlocks, finallyJumpVariables, finallyJumpBlocks, breakBlocks, continueBlocks, returnVoidCallback);
+      if (!forEachStatement.getBlock().stopsExecution())
+      {
+        LLVM.LLVMBuildBr(builder, loopUpdate == null ? loopCheck : loopUpdate);
+      }
+
+      // build the loop update block
+      if (loopUpdate != null)
+      {
+        LLVM.LLVMPositionBuilderAtEnd(builder, loopUpdate);
+        // the loop update block is only generated if there is an index to update inside it, so update the index now
+        LLVMValueRef nextIndex;
+        if (indexType.getPrimitiveTypeType().isSigned())
+        {
+          LLVMValueRef addition = LLVM.LLVMBuildSelect(builder, llvmLengthIsNegative,
+                                                       LLVM.LLVMConstInt(llvmIndexType, -1, false),
+                                                       LLVM.LLVMConstInt(llvmIndexType, 1, false), "");
+          nextIndex = LLVM.LLVMBuildAdd(builder, indexValue, addition, "");
+        }
+        else
+        {
+          nextIndex = LLVM.LLVMBuildAdd(builder, indexValue, LLVM.LLVMConstInt(llvmIndexType, 1, false), "");
+        }
+        LLVM.LLVMBuildBr(builder, loopCheck);
+
+        LLVMValueRef[] incomingValues = new LLVMValueRef[] {nextIndex};
+        LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {loopUpdate};
+        LLVM.LLVMAddIncoming(indexValue, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+      }
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
     }
     else if (statement instanceof IfStatement)
     {

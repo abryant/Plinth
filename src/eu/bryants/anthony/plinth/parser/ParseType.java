@@ -59,7 +59,7 @@ public enum ParseType
   ASSIGN_STATEMENT,              // AssignStatement
   BREAK_STATEMENT,               // BreakStatement
   CONTINUE_STATEMENT,            // ContinueStatement
-  FOR_STATEMENT,                 // ForStatement
+  FOR_STATEMENT,                 // Statement (ForStatement or ForEachStatement)
   IF_STATEMENT,                  // IfStatement
   PREFIX_INC_DEC_STATEMENT,      // PrefixIncDecStatement
   RETURN_STATEMENT,              // ReturnStatement
@@ -211,6 +211,7 @@ public enum ParseType
   IMPLEMENTS_KEYWORD,
   IMPORT_KEYWORD,
   INSTANCEOF_KEYWORD,
+  IN_KEYWORD,
   INT_KEYWORD,
   INTERFACE_KEYWORD,
   LONG_KEYWORD,

@@ -139,6 +139,8 @@ ForInit = Assignment | ShorthandAssignment Semicolon | Semicolon
 ForUpdate = DoublePlus Assignee | DoubleMinus Assignee | AssigneeList Equals Expression | ShorthandAssignment | FunctionCallExpression | epsilon
 ForStatement = ForKeyword LParen ForInit Expression Semicolon ForUpdate RParen Block
              | ForKeyword LParen ForInit            Semicolon ForUpdate RParen Block
+             | ForKeyword Modifiers Type Name InKeyword Expression Block
+             | ForKeyword           Type Name InKeyword Expression Block
 
 =========
   Types

@@ -51,6 +51,7 @@ import eu.bryants.anthony.plinth.ast.statement.BreakStatement;
 import eu.bryants.anthony.plinth.ast.statement.ContinueStatement;
 import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
+import eu.bryants.anthony.plinth.ast.statement.ForEachStatement;
 import eu.bryants.anthony.plinth.ast.statement.ForStatement;
 import eu.bryants.anthony.plinth.ast.statement.IfStatement;
 import eu.bryants.anthony.plinth.ast.statement.PrefixIncDecStatement;
@@ -208,6 +209,12 @@ public class TypePropagator
         propagateTypes(forStatement.getUpdateStatement(), returnType);
       }
       propagateTypes(forStatement.getBlock(), returnType);
+    }
+    else if (statement instanceof ForEachStatement)
+    {
+      ForEachStatement forEachStatement = (ForEachStatement) statement;
+      propagateTypes(forEachStatement.getIterableExpression(), forEachStatement.getResolvedIterableType());
+      propagateTypes(forEachStatement.getBlock(), returnType);
     }
     else if (statement instanceof IfStatement)
     {

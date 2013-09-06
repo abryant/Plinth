@@ -23,6 +23,7 @@ import eu.bryants.anthony.plinth.ast.statement.BreakStatement;
 import eu.bryants.anthony.plinth.ast.statement.ContinueStatement;
 import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
+import eu.bryants.anthony.plinth.ast.statement.ForEachStatement;
 import eu.bryants.anthony.plinth.ast.statement.ForStatement;
 import eu.bryants.anthony.plinth.ast.statement.IfStatement;
 import eu.bryants.anthony.plinth.ast.statement.PrefixIncDecStatement;
@@ -309,6 +310,11 @@ public class CycleChecker
         findDelegateConstructors(forStatement.getUpdateStatement(), delegateConstructors);
       }
       findDelegateConstructors(forStatement.getBlock(), delegateConstructors);
+    }
+    else if (statement instanceof ForEachStatement)
+    {
+      ForEachStatement forEachStatement = (ForEachStatement) statement;
+      findDelegateConstructors(forEachStatement.getBlock(), delegateConstructors);
     }
     else if (statement instanceof IfStatement)
     {

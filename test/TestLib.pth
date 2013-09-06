@@ -121,3 +121,14 @@ compound stdout
   }
 }
 
+interface Iterator<T>
+{
+  immutable boolean hasNext();
+  T next();
+}
+
+interface Iterable<T>
+{
+  Iterator<T> iterator();
+}
+

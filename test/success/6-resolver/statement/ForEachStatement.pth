@@ -1,0 +1,14 @@
+// Plinth Test
+// MustCompile
+
+class ForEachStatement
+{
+  void foo(Iterable<ForEachStatement> iterable)
+  {
+    for ForEachStatement fes in iterable
+    {
+      stdout::println(fes.toString());
+    }
+  }
+}
+

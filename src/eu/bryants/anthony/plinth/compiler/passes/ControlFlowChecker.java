@@ -74,6 +74,7 @@ import eu.bryants.anthony.plinth.ast.statement.BreakableStatement;
 import eu.bryants.anthony.plinth.ast.statement.ContinueStatement;
 import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
+import eu.bryants.anthony.plinth.ast.statement.ForEachStatement;
 import eu.bryants.anthony.plinth.ast.statement.ForStatement;
 import eu.bryants.anthony.plinth.ast.statement.IfStatement;
 import eu.bryants.anthony.plinth.ast.statement.PrefixIncDecStatement;
@@ -1584,6 +1585,119 @@ public class ControlFlowChecker
       }
       // if there is no conditional and the for statement is never broken out of, then control cannot continue after the end of the loop
       return condition == null && !forStatement.isBrokenOutOf();
+    }
+    else if (statement instanceof ForEachStatement)
+    {
+      ForEachStatement forEachStatement = (ForEachStatement) statement;
+
+      // check the iterable expression
+      CoalescedConceptualException coalescedException = null;
+      try
+      {
+        checkControlFlow(forEachStatement.getIterableExpression(), enclosingTypeDefinition, state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+
+      // check the immutability constraints on the iterable expression
+      if (forEachStatement.getResolvedIterableType() instanceof NamedType)
+      {
+        NamedType iterableType = (NamedType) forEachStatement.getResolvedIterableType();
+        if (iterableType.getResolvedTypeDefinition() == SpecialTypeHandler.iteratorType.getResolvedTypeDefinition() ||
+            iterableType.getResolvedTypeDefinition() == SpecialTypeHandler.iterableType.getResolvedTypeDefinition())
+        {
+          if (inImmutableContext)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot iterate through an Iterator in an immutable context, as Iterator::next() is not immutable", forEachStatement.getIterableExpression().getLexicalPhrase()));
+          }
+          else if (iterableType.canBeExplicitlyImmutable() || iterableType.isContextuallyImmutable())
+          {
+            if (iterableType.getResolvedTypeDefinition() == SpecialTypeHandler.iteratorType.getResolvedTypeDefinition())
+            {
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot iterate through an Iterator on an immutable object, as Iterator::next() is not immutable", forEachStatement.getIterableExpression().getLexicalPhrase()));
+            }
+            else
+            {
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot iterate through an Iterable on an immutable object, as Iterator::next() is not immutable", forEachStatement.getIterableExpression().getLexicalPhrase()));
+            }
+          }
+        }
+      }
+
+      ControlFlowState loopState = state.copy();
+
+      Variable resolvedVariable = forEachStatement.getResolvedVariable();
+      loopState.variables.initialised.add(resolvedVariable);
+      loopState.variables.possiblyInitialised.add(resolvedVariable);
+
+      enclosingBreakableStack.push(forEachStatement);
+      boolean returned = forEachStatement.getBlock().stopsExecution();
+      try
+      {
+        returned = checkControlFlow(forEachStatement.getBlock(), enclosingTypeDefinition, loopState, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+      }
+      catch (ConceptualException e)
+      {
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+      if (returned)
+      {
+        loopState.overwriteWithContinueVariables(forEachStatement);
+      }
+      else
+      {
+        loopState.reintegrateContinueVariables(forEachStatement);
+      }
+
+      if (coalescedException != null)
+      {
+        // make sure we clean up the breakable stack if something fails
+        enclosingBreakableStack.pop();
+        throw coalescedException;
+      }
+
+      // run through the loop block again, so that we catch any final variables that are initialised in the loop
+      // (only if it is possible to run the loop more than once)
+      if (!returned || forEachStatement.isContinuedThrough())
+      {
+        boolean secondReturned = forEachStatement.getBlock().stopsExecution();
+        try
+        {
+          secondReturned = checkControlFlow(forEachStatement.getBlock(), enclosingTypeDefinition, loopState, delegateConstructorVariables, enclosingBreakableStack, inConstructor, inSelfishContext, inStaticContext, inImmutableContext, inInitialiser);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+        if (secondReturned)
+        {
+          loopState.overwriteWithContinueVariables(forEachStatement);
+        }
+        else
+        {
+          loopState.reintegrateContinueVariables(forEachStatement);
+        }
+      }
+
+      if (returned)
+      {
+        state.combineReturned(loopState);
+      }
+      else
+      {
+        state.combine(loopState);
+      }
+      state.reintegrateBreakVariables(forEachStatement);
+
+      enclosingBreakableStack.pop();
+
+      if (coalescedException != null)
+      {
+        throw coalescedException;
+      }
+      return false;
     }
     else if (statement instanceof IfStatement)
     {

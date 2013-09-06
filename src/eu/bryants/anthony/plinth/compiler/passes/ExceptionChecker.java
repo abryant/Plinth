@@ -53,6 +53,7 @@ import eu.bryants.anthony.plinth.ast.statement.BreakStatement;
 import eu.bryants.anthony.plinth.ast.statement.ContinueStatement;
 import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
+import eu.bryants.anthony.plinth.ast.statement.ForEachStatement;
 import eu.bryants.anthony.plinth.ast.statement.ForStatement;
 import eu.bryants.anthony.plinth.ast.statement.IfStatement;
 import eu.bryants.anthony.plinth.ast.statement.PrefixIncDecStatement;
@@ -291,6 +292,12 @@ public class ExceptionChecker
         findUncaughtExceptions(forStatement.getUpdateStatement(), uncaughtExceptions);
       }
       findUncaughtExceptions(forStatement.getBlock(), uncaughtExceptions);
+    }
+    else if (statement instanceof ForEachStatement)
+    {
+      ForEachStatement forEachStatement = (ForEachStatement) statement;
+      findUncaughtExceptions(forEachStatement.getIterableExpression(), uncaughtExceptions);
+      findUncaughtExceptions(forEachStatement.getBlock(), uncaughtExceptions);
     }
     else if (statement instanceof IfStatement)
     {
