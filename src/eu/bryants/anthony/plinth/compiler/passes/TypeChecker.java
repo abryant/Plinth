@@ -67,6 +67,7 @@ import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
+import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
 import eu.bryants.anthony.plinth.ast.statement.AssignStatement;
@@ -325,13 +326,17 @@ public class TypeChecker
 
       if (property.getSetterBlock() != null)
       {
-        try
+        Parameter setterParameter = property.getSetterParameter();
+        if (setterParameter instanceof NormalParameter)
         {
-          checkType(property.getSetterParameter().getType(), typeDefinition, property.isStatic());
-        }
-        catch (ConceptualException e)
-        {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          try
+          {
+            checkType(setterParameter.getType(), typeDefinition, property.isStatic());
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
         }
         if (property.getSetterUncheckedThrownTypes() != null)
         {
@@ -355,13 +360,17 @@ public class TypeChecker
 
       if (property.getConstructorBlock() != null)
       {
-        try
+        Parameter constructorParameter = property.getConstructorParameter();
+        if (constructorParameter instanceof NormalParameter)
         {
-          checkType(property.getConstructorParameter().getType(), typeDefinition, property.isStatic());
-        }
-        catch (ConceptualException e)
-        {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          try
+          {
+            checkType(constructorParameter.getType(), typeDefinition, property.isStatic());
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
         }
         if (property.getConstructorUncheckedThrownTypes() != null)
         {
@@ -386,15 +395,18 @@ public class TypeChecker
 
     for (Constructor constructor : typeDefinition.getAllConstructors())
     {
-      for (Parameter p : constructor.getParameters())
+      for (Parameter parameter : constructor.getParameters())
       {
-        try
+        if (parameter instanceof NormalParameter)
         {
-          checkType(p.getType(), typeDefinition, false);
-        }
-        catch (ConceptualException e)
-        {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          try
+          {
+            checkType(parameter.getType(), typeDefinition, false);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
         }
       }
       for (NamedType thrownType : constructor.getCheckedThrownTypes())
@@ -439,15 +451,18 @@ public class TypeChecker
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
       }
-      for (Parameter p : method.getParameters())
+      for (Parameter parameter : method.getParameters())
       {
-        try
+        if (parameter instanceof NormalParameter)
         {
-          checkType(p.getType(), typeDefinition, method.isStatic());
-        }
-        catch (ConceptualException e)
-        {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          try
+          {
+            checkType(parameter.getType(), typeDefinition, method.isStatic());
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
         }
       }
       for (NamedType thrownType : method.getCheckedThrownTypes())

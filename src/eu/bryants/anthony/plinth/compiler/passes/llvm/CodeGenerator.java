@@ -79,9 +79,11 @@ import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
 import eu.bryants.anthony.plinth.ast.metadata.Variable;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
+import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
+import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
 import eu.bryants.anthony.plinth.ast.statement.AssignStatement;
@@ -1162,11 +1164,63 @@ public class CodeGenerator
       }
 
       // store the parameter values to the LLVMValueRefs
-      for (Parameter p : constructor.getParameters())
+      for (Parameter parameter : constructor.getParameters())
       {
-        LLVMValueRef llvmParameter = LLVM.LLVMGetParam(llvmFunction, 1 + p.getIndex());
-        LLVMValueRef convertedParameter = typeHelper.convertStandardToTemporary(builder, llvmParameter, p.getType());
-        LLVM.LLVMBuildStore(builder, convertedParameter, variables.get(p.getVariable()));
+        LLVMValueRef llvmParameter = LLVM.LLVMGetParam(llvmFunction, 1 + parameter.getIndex());
+        if (parameter instanceof NormalParameter)
+        {
+          NormalParameter normalParameter = (NormalParameter) parameter;
+          LLVMValueRef convertedParameter = typeHelper.convertStandardToTemporary(builder, llvmParameter, normalParameter.getType());
+          LLVM.LLVMBuildStore(builder, convertedParameter, variables.get(normalParameter.getVariable()));
+        }
+        else if (parameter instanceof AutoAssignParameter)
+        {
+          AutoAssignParameter autoAssignParameter = (AutoAssignParameter) parameter;
+          Variable var = autoAssignParameter.getResolvedVariable();
+          if (var instanceof MemberVariable)
+          {
+            MemberVariable memberVariable = (MemberVariable) var;
+            // no need to convert anything, as the parameter is in a standard representation of the correct type already
+            LLVMValueRef assigneePointer = typeHelper.getMemberPointer(builder, thisValue, memberVariable);
+            LLVM.LLVMBuildStore(builder, llvmParameter, assigneePointer);
+          }
+          else if (var instanceof GlobalVariable)
+          {
+            GlobalVariable globalVariable = (GlobalVariable) var;
+            // no need to convert anything, as the parameter is in a standard representation of the correct type already
+            LLVMValueRef assigneePoiner = getGlobal(globalVariable);
+            LLVM.LLVMBuildStore(builder, llvmParameter, assigneePoiner);
+          }
+          else if (var instanceof PropertyPseudoVariable)
+          {
+            Property property = ((PropertyPseudoVariable) var).getProperty();
+            LLVMValueRef calleeValue;
+            Type calleeType;
+            if (property.isStatic())
+            {
+              calleeValue = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
+              calleeType = null;
+            }
+            else
+            {
+              calleeValue = thisValue;
+              calleeType = new NamedType(false, false, false, typeDefinition);
+            }
+            LLVMValueRef convertedValue = typeHelper.convertStandardToTemporary(builder, landingPadContainer, llvmParameter, autoAssignParameter.getType(), property.getType(), typeParameterAccessor, typeParameterAccessor);
+
+            PropertyReference propertyReference = new PropertyReference(property, GenericTypeSpecialiser.IDENTITY_SPECIALISER);
+            MemberFunctionType memberFunctionType = autoAssignParameter.isPropertyConstructorCall() ? MemberFunctionType.PROPERTY_CONSTRUCTOR : MemberFunctionType.PROPERTY_SETTER;
+            typeHelper.buildPropertySetterConstructorFunctionCall(builder, landingPadContainer, calleeValue, calleeType, convertedValue, propertyReference, memberFunctionType, typeParameterAccessor);
+          }
+          else
+          {
+            throw new IllegalArgumentException("An AutoAssignParameter should only be able to initialise Fields and Properties! The variable was: " + var);
+          }
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Parameter: " + parameter);
+        }
       }
 
       if (!constructor.getCallsDelegateConstructor())
@@ -1428,8 +1482,61 @@ public class CodeGenerator
 
     // store the parameter's value in its variable
     LLVMValueRef llvmParameter = LLVM.LLVMGetParam(function, argumentOffset);
-    LLVMValueRef convertedParameter = typeHelper.convertStandardToTemporary(builder, llvmParameter, property.getType());
-    LLVM.LLVMBuildStore(builder, convertedParameter, variables.get(property.getSetterParameter().getVariable()));
+    Parameter parameter = property.getSetterParameter();
+    if (parameter instanceof NormalParameter)
+    {
+      NormalParameter normalParameter = (NormalParameter) parameter;
+      LLVMValueRef convertedParameter = typeHelper.convertStandardToTemporary(builder, llvmParameter, normalParameter.getType());
+      LLVM.LLVMBuildStore(builder, convertedParameter, variables.get(normalParameter.getVariable()));
+    }
+    else if (parameter instanceof AutoAssignParameter)
+    {
+      AutoAssignParameter autoAssignParameter = (AutoAssignParameter) parameter;
+      Variable var = autoAssignParameter.getResolvedVariable();
+      if (var instanceof MemberVariable)
+      {
+        MemberVariable memberVariable = (MemberVariable) var;
+        // no need to convert anything, as the parameter is in a standard representation of the correct type already
+        LLVMValueRef assigneePointer = typeHelper.getMemberPointer(builder, thisValue, memberVariable);
+        LLVM.LLVMBuildStore(builder, llvmParameter, assigneePointer);
+      }
+      else if (var instanceof GlobalVariable)
+      {
+        GlobalVariable globalVariable = (GlobalVariable) var;
+        // no need to convert anything, as the parameter is in a standard representation of the correct type already
+        LLVMValueRef assigneePoiner = getGlobal(globalVariable);
+        LLVM.LLVMBuildStore(builder, llvmParameter, assigneePoiner);
+      }
+      else if (var instanceof PropertyPseudoVariable)
+      {
+        Property varProperty = ((PropertyPseudoVariable) var).getProperty();
+        LLVMValueRef calleeValue;
+        Type calleeType;
+        if (varProperty.isStatic())
+        {
+          calleeValue = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
+          calleeType = null;
+        }
+        else
+        {
+          calleeValue = thisValue;
+          calleeType = new NamedType(false, false, false, typeDefinition);
+        }
+        LLVMValueRef convertedValue = typeHelper.convertStandardToTemporary(builder, landingPadContainer, llvmParameter, autoAssignParameter.getType(), varProperty.getType(), typeParameterAccessor, typeParameterAccessor);
+
+        PropertyReference propertyReference = new PropertyReference(varProperty, GenericTypeSpecialiser.IDENTITY_SPECIALISER);
+        MemberFunctionType memberFunctionType = autoAssignParameter.isPropertyConstructorCall() ? MemberFunctionType.PROPERTY_CONSTRUCTOR : MemberFunctionType.PROPERTY_SETTER;
+        typeHelper.buildPropertySetterConstructorFunctionCall(builder, landingPadContainer, calleeValue, calleeType, convertedValue, propertyReference, memberFunctionType, typeParameterAccessor);
+      }
+      else
+      {
+        throw new IllegalArgumentException("An AutoAssignParameter should only be able to initialise Fields and Properties! The variable was: " + var);
+      }
+    }
+    else
+    {
+      throw new IllegalArgumentException("Unknown type of Parameter: " + parameter);
+    }
 
     buildStatement(property.getSetterBlock(), property.getType(), builder, thisValue, variables, typeParameterAccessor,
                    landingPadContainer, new HashMap<TryStatement, LLVMBasicBlockRef>(), new HashMap<TryStatement, LLVMValueRef>(),
@@ -1542,8 +1649,60 @@ public class CodeGenerator
 
     // store the parameter's value in its variable
     LLVMValueRef llvmParameter = LLVM.LLVMGetParam(function, argumentOffset);
-    LLVMValueRef convertedParameter = typeHelper.convertStandardToTemporary(builder, llvmParameter, property.getType());
-    LLVM.LLVMBuildStore(builder, convertedParameter, variables.get(implementationParameter.getVariable()));
+    if (implementationParameter instanceof NormalParameter)
+    {
+      NormalParameter normalParameter = (NormalParameter) implementationParameter;
+      LLVMValueRef convertedParameter = typeHelper.convertStandardToTemporary(builder, llvmParameter, normalParameter.getType());
+      LLVM.LLVMBuildStore(builder, convertedParameter, variables.get(normalParameter.getVariable()));
+    }
+    else if (implementationParameter instanceof AutoAssignParameter)
+    {
+      AutoAssignParameter autoAssignParameter = (AutoAssignParameter) implementationParameter;
+      Variable var = autoAssignParameter.getResolvedVariable();
+      if (var instanceof MemberVariable)
+      {
+        MemberVariable memberVariable = (MemberVariable) var;
+        // no need to convert anything, as the parameter is in a standard representation of the correct type already
+        LLVMValueRef assigneePointer = typeHelper.getMemberPointer(builder, thisValue, memberVariable);
+        LLVM.LLVMBuildStore(builder, llvmParameter, assigneePointer);
+      }
+      else if (var instanceof GlobalVariable)
+      {
+        GlobalVariable globalVariable = (GlobalVariable) var;
+        // no need to convert anything, as the parameter is in a standard representation of the correct type already
+        LLVMValueRef assigneePoiner = getGlobal(globalVariable);
+        LLVM.LLVMBuildStore(builder, llvmParameter, assigneePoiner);
+      }
+      else if (var instanceof PropertyPseudoVariable)
+      {
+        Property varProperty = ((PropertyPseudoVariable) var).getProperty();
+        LLVMValueRef calleeValue;
+        Type calleeType;
+        if (varProperty.isStatic())
+        {
+          calleeValue = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
+          calleeType = null;
+        }
+        else
+        {
+          calleeValue = thisValue;
+          calleeType = new NamedType(false, false, false, typeDefinition);
+        }
+        LLVMValueRef convertedValue = typeHelper.convertStandardToTemporary(builder, landingPadContainer, llvmParameter, autoAssignParameter.getType(), varProperty.getType(), typeParameterAccessor, typeParameterAccessor);
+
+        PropertyReference propertyReference = new PropertyReference(varProperty, GenericTypeSpecialiser.IDENTITY_SPECIALISER);
+        MemberFunctionType memberFunctionType = autoAssignParameter.isPropertyConstructorCall() ? MemberFunctionType.PROPERTY_CONSTRUCTOR : MemberFunctionType.PROPERTY_SETTER;
+        typeHelper.buildPropertySetterConstructorFunctionCall(builder, landingPadContainer, calleeValue, calleeType, convertedValue, propertyReference, memberFunctionType, typeParameterAccessor);
+      }
+      else
+      {
+        throw new IllegalArgumentException("An AutoAssignParameter should only be able to initialise Fields and Properties! The variable was: " + var);
+      }
+    }
+    else
+    {
+      throw new IllegalArgumentException("Unknown type of Parameter: " + implementationParameter);
+    }
 
     buildStatement(implementationBlock, property.getType(), builder, thisValue, variables, typeParameterAccessor,
                    landingPadContainer, new HashMap<TryStatement, LLVMBasicBlockRef>(), new HashMap<TryStatement, LLVMValueRef>(),
@@ -1653,12 +1812,64 @@ public class CodeGenerator
       }
 
       // store the parameter values to the LLVMValueRefs
-      for (Parameter p : method.getParameters())
+      for (Parameter parameter : method.getParameters())
       {
-        // find the LLVM parameter, the +1 on the index is to account for the 'this' pointer (or the unused opaque* for static methods)
-        LLVMValueRef llvmParameter = LLVM.LLVMGetParam(llvmFunction, argumentOffset + p.getIndex());
-        LLVMValueRef convertedParameter = typeHelper.convertStandardToTemporary(builder, llvmParameter, p.getType());
-        LLVM.LLVMBuildStore(builder, convertedParameter, variables.get(p.getVariable()));
+        // find the LLVM parameter, the extra argumentOffset in the index is to account for the 'this' pointer (or the unused opaque* for static methods)
+        LLVMValueRef llvmParameter = LLVM.LLVMGetParam(llvmFunction, argumentOffset + parameter.getIndex());
+        if (parameter instanceof NormalParameter)
+        {
+          NormalParameter normalParameter = (NormalParameter) parameter;
+          LLVMValueRef convertedParameter = typeHelper.convertStandardToTemporary(builder, llvmParameter, normalParameter.getType());
+          LLVM.LLVMBuildStore(builder, convertedParameter, variables.get(normalParameter.getVariable()));
+        }
+        else if (parameter instanceof AutoAssignParameter)
+        {
+          AutoAssignParameter autoAssignParameter = (AutoAssignParameter) parameter;
+          Variable var = autoAssignParameter.getResolvedVariable();
+          if (var instanceof MemberVariable)
+          {
+            MemberVariable memberVariable = (MemberVariable) var;
+            // no need to convert anything, as the parameter is in a standard representation of the correct type already
+            LLVMValueRef assigneePointer = typeHelper.getMemberPointer(builder, thisValue, memberVariable);
+            LLVM.LLVMBuildStore(builder, llvmParameter, assigneePointer);
+          }
+          else if (var instanceof GlobalVariable)
+          {
+            GlobalVariable globalVariable = (GlobalVariable) var;
+            // no need to convert anything, as the parameter is in a standard representation of the correct type already
+            LLVMValueRef assigneePoiner = getGlobal(globalVariable);
+            LLVM.LLVMBuildStore(builder, llvmParameter, assigneePoiner);
+          }
+          else if (var instanceof PropertyPseudoVariable)
+          {
+            Property property = ((PropertyPseudoVariable) var).getProperty();
+            LLVMValueRef calleeValue;
+            Type calleeType;
+            if (property.isStatic())
+            {
+              calleeValue = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
+              calleeType = null;
+            }
+            else
+            {
+              calleeValue = thisValue;
+              calleeType = new NamedType(false, false, false, typeDefinition);
+            }
+            LLVMValueRef convertedValue = typeHelper.convertStandardToTemporary(builder, landingPadContainer, llvmParameter, autoAssignParameter.getType(), property.getType(), typeParameterAccessor, typeParameterAccessor);
+
+            PropertyReference propertyReference = new PropertyReference(property, GenericTypeSpecialiser.IDENTITY_SPECIALISER);
+            MemberFunctionType memberFunctionType = autoAssignParameter.isPropertyConstructorCall() ? MemberFunctionType.PROPERTY_CONSTRUCTOR : MemberFunctionType.PROPERTY_SETTER;
+            typeHelper.buildPropertySetterConstructorFunctionCall(builder, landingPadContainer, calleeValue, calleeType, convertedValue, propertyReference, memberFunctionType, typeParameterAccessor);
+          }
+          else
+          {
+            throw new IllegalArgumentException("An AutoAssignParameter should only be able to initialise Fields and Properties! The variable was: " + var);
+          }
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Parameter: " + parameter);
+        }
       }
 
       buildStatement(method.getBlock(), method.getReturnType(), builder, thisValue, variables, typeParameterAccessor,

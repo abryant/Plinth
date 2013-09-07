@@ -1,9 +1,13 @@
 // Plinth Test
-// Compiler: DuplicateMethodParameter.pth: 6:21-27: Duplicate parameter: x
+// Compiler: DuplicateMethodParameter.pth: 7:21-27: Duplicate parameter: x
+// Compiler: DuplicateMethodParameter.pth: 12:22-24: Duplicate parameter: y
 
 class Test
 {
   void test(uint x, Test x)
   {
   }
+
+  uint y;
+  void test2(uint y, @y);
 }

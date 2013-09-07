@@ -1,7 +1,6 @@
 package eu.bryants.anthony.plinth.ast.misc;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
-import eu.bryants.anthony.plinth.ast.metadata.Variable;
 import eu.bryants.anthony.plinth.ast.type.Type;
 
 /*
@@ -11,32 +10,26 @@ import eu.bryants.anthony.plinth.ast.type.Type;
 /**
  * @author Anthony Bryant
  */
-public class Parameter
+public abstract class Parameter
 {
-  private boolean isFinal;
   private Type type;
   private String name;
   private LexicalPhrase lexicalPhrase;
 
-  private Variable variable;
   private int index;
 
-  public Parameter(boolean isFinal, Type type, String name, LexicalPhrase lexicalPhrase)
+  public Parameter(String name, LexicalPhrase lexicalPhrase)
   {
-    this.isFinal = isFinal;
-    this.type = type;
     this.name = name;
     this.lexicalPhrase = lexicalPhrase;
-
-    variable = new Variable(isFinal, type, name);
   }
 
   /**
-   * @return the isFinal
+   * @param type - the type to set
    */
-  public boolean isFinal()
+  protected void setType(Type type)
   {
-    return isFinal;
+    this.type = type;
   }
 
   /**
@@ -64,14 +57,6 @@ public class Parameter
   }
 
   /**
-   * @return the variable
-   */
-  public Variable getVariable()
-  {
-    return variable;
-  }
-
-  /**
    * @return the index
    */
   public int getIndex()
@@ -85,11 +70,5 @@ public class Parameter
   public void setIndex(int index)
   {
     this.index = index;
-  }
-
-  @Override
-  public String toString()
-  {
-    return (isFinal ? "final " : "") + type + " " + name;
   }
 }

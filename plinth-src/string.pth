@@ -34,10 +34,7 @@ immutable compound string
    * Creates a string containing the specified UTF-8 bytes.
    * @param bytes - the UTF-8 bytes
    */
-  create(#[]ubyte bytes)
-  {
-    this.bytes = bytes;
-  }
+  create(@bytes);
 
   /**
    * Creates a string containing the specified unicode (UTF-32) characters.

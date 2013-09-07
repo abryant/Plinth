@@ -10,6 +10,7 @@ import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
+import eu.bryants.anthony.plinth.ast.statement.Statement;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
@@ -30,12 +31,14 @@ public class ConstructorRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> MODIFIERS_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.CREATE_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
-  private static final Production<ParseType> PRODUCTION           = new Production<ParseType>(                     ParseType.CREATE_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_PRODUCTION           = new Production<ParseType>(ParseType.MODIFIERS, ParseType.CREATE_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> PRODUCTION                     = new Production<ParseType>(                     ParseType.CREATE_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_SEMICOLON_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.CREATE_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
+  private static final Production<ParseType> SEMICOLON_PRODUCTION           = new Production<ParseType>(                     ParseType.CREATE_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
 
   public ConstructorRule()
   {
-    super(ParseType.CONSTRUCTOR, MODIFIERS_PRODUCTION, PRODUCTION);
+    super(ParseType.CONSTRUCTOR, MODIFIERS_PRODUCTION, PRODUCTION, MODIFIERS_SEMICOLON_PRODUCTION, SEMICOLON_PRODUCTION);
   }
 
   /**
@@ -44,7 +47,7 @@ public class ConstructorRule extends Rule<ParseType>
   @Override
   public Object match(Production<ParseType> production, Object[] args) throws ParseException
   {
-    if (production == MODIFIERS_PRODUCTION)
+    if (production == MODIFIERS_PRODUCTION || production == MODIFIERS_SEMICOLON_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
       ParseList<Modifier> modifiers = (ParseList<Modifier>) args[0];
@@ -65,13 +68,24 @@ public class ConstructorRule extends Rule<ParseType>
           checkedThrownTypes.add(thrownExceptionType.getType());
         }
       }
-      Block block = (Block) args[4];
+      Block block;
+      LexicalPhrase lexicalPhrase;
+      if (production == MODIFIERS_PRODUCTION)
+      {
+        block = (Block) args[4];
+        lexicalPhrase = LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], parameters.getLexicalPhrase(), throwsList.getLexicalPhrase(), block.getLexicalPhrase());
+      }
+      else
+      {
+        block = new Block(new Statement[0], null);
+        lexicalPhrase = LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], parameters.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[4]);
+      }
       return processModifiers(modifiers, parameters.toArray(new Parameter[parameters.size()]),
                               checkedThrownTypes.toArray(new NamedType[checkedThrownTypes.size()]), uncheckedThrownTypes.toArray(new NamedType[uncheckedThrownTypes.size()]),
                               block,
-                              LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], parameters.getLexicalPhrase(), throwsList.getLexicalPhrase(), block.getLexicalPhrase()));
+                              lexicalPhrase);
     }
-    if (production == PRODUCTION)
+    if (production == PRODUCTION || production == SEMICOLON_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
       ParseList<Parameter> parameters = (ParseList<Parameter>) args[1];
@@ -90,11 +104,22 @@ public class ConstructorRule extends Rule<ParseType>
           checkedThrownTypes.add(thrownExceptionType.getType());
         }
       }
-      Block block = (Block) args[3];
+      Block block;
+      LexicalPhrase lexicalPhrase;
+      if (production == PRODUCTION)
+      {
+        block = (Block) args[3];
+        lexicalPhrase = LexicalPhrase.combine((LexicalPhrase) args[0], parameters.getLexicalPhrase(), throwsList.getLexicalPhrase(), block.getLexicalPhrase());
+      }
+      else
+      {
+        block = new Block(new Statement[0], null);
+        lexicalPhrase = LexicalPhrase.combine((LexicalPhrase) args[0], parameters.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[3]);
+      }
       return new Constructor(false, false, null, parameters.toArray(new Parameter[parameters.size()]),
                              checkedThrownTypes.toArray(new NamedType[checkedThrownTypes.size()]), uncheckedThrownTypes.toArray(new NamedType[uncheckedThrownTypes.size()]),
                              block,
-                             LexicalPhrase.combine((LexicalPhrase) args[0], parameters.getLexicalPhrase(), throwsList.getLexicalPhrase(), block.getLexicalPhrase()));
+                             lexicalPhrase);
     }
     throw badTypeList();
   }

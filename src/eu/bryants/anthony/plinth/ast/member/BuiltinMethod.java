@@ -1,5 +1,6 @@
 package eu.bryants.anthony.plinth.ast.member;
 
+import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
@@ -21,7 +22,7 @@ public class BuiltinMethod extends Method
   {
     // NOTE: if isImmutable is ever false, we may have to exclude it if it becomes part of an immutable TypeDefinition
     TO_STRING      (SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[0]),
-    TO_STRING_RADIX(SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[] {new Parameter(false, new PrimitiveType(false, PrimitiveTypeType.UINT, null), "radix", null)}),
+    TO_STRING_RADIX(SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[] {new NormalParameter(false, new PrimitiveType(false, PrimitiveTypeType.UINT, null), "radix", null)}),
     ;
     public final Type returnType;
     public final String methodName;

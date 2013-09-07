@@ -29,6 +29,7 @@ import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
 import eu.bryants.anthony.plinth.ast.metadata.MemberFunctionType;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
 import eu.bryants.anthony.plinth.ast.metadata.VirtualFunction;
+import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
@@ -812,7 +813,7 @@ public class MetadataLoader
       {
         throw new MalformedMetadataException("A parameter must have a valid name in its metadata node");
       }
-      parameters[i] = new Parameter(false, type, name, null);
+      parameters[i] = new NormalParameter(false, type, name, null);
     }
     return parameters;
   }

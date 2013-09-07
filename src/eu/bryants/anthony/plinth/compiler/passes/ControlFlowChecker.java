@@ -62,9 +62,11 @@ import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
 import eu.bryants.anthony.plinth.ast.metadata.Variable;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
+import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
+import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
 import eu.bryants.anthony.plinth.ast.statement.AssignStatement;
@@ -432,12 +434,98 @@ public class ControlFlowChecker
       state.variables.initialised = new HashSet<Variable>(delegateConstructorVariables.initialiserDefinitelyInitialised);
       state.variables.possiblyInitialised = new HashSet<Variable>(delegateConstructorVariables.initialiserPossiblyInitialised);
     }
-    for (Parameter p : constructor.getParameters())
-    {
-      state.variables.initialised.add(p.getVariable());
-      state.variables.possiblyInitialised.add(p.getVariable());
-    }
     CoalescedConceptualException coalescedException = null;
+    for (Parameter parameter : constructor.getParameters())
+    {
+      if (parameter instanceof NormalParameter)
+      {
+        NormalParameter normalParameter = (NormalParameter) parameter;
+        state.variables.initialised.add(normalParameter.getVariable());
+        state.variables.possiblyInitialised.add(normalParameter.getVariable());
+      }
+      else if (parameter instanceof AutoAssignParameter)
+      {
+        // this parameter is actually an assignment to a field or a property, so make sure we get all of the assignment constraints right
+        AutoAssignParameter autoAssignParameter = (AutoAssignParameter) parameter;
+        Variable var = autoAssignParameter.getResolvedVariable();
+        if (var instanceof MemberVariable)
+        {
+          if (var.isFinal() && state.variables.possiblyInitialised.contains(var))
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Final field '" + var.getName() + "' may already have been initialised", autoAssignParameter.getLexicalPhrase()));
+          }
+          state.variables.initialised.add(var);
+          state.variables.possiblyInitialised.add(var);
+        }
+        else if (var instanceof GlobalVariable)
+        {
+          if (var.isFinal())
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The static final field '" + var.getName() + "' cannot be modified", autoAssignParameter.getLexicalPhrase()));
+          }
+          boolean isMutable = (((GlobalVariable) var).getField() != null    && ((GlobalVariable) var).getField().isMutable()) ||
+                              (((GlobalVariable) var).getProperty() != null && ((GlobalVariable) var).getProperty().isMutable());
+          if (constructor.isImmutable() && !isMutable)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the static variable '" + var.getName() + "' in an immutable context", autoAssignParameter.getLexicalPhrase()));
+          }
+        }
+        else if (var instanceof PropertyPseudoVariable)
+        {
+          Property property = ((PropertyPseudoVariable) var).getProperty();
+          if (state.variables.initialised.contains(var))
+          {
+            // the variable has definitely been initialised, so this is a setter call
+            if (var.isFinal())
+            {
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Final property '" + var.getName() + "' cannot be modified", autoAssignParameter.getLexicalPhrase()));
+            }
+            else if (constructor.isImmutable() && !property.isSetterImmutable())
+            {
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the property '" + var.getName() + "' in an immutable context: its setter is not immutable", autoAssignParameter.getLexicalPhrase()));
+            }
+            autoAssignParameter.setPropertyConstructorCall(false);
+
+            if (!property.isStatic())
+            {
+              // this is a setter call during a constructor, so make sure it is allowed (i.e. everything else is already initialised)
+              try
+              {
+                checkThisAccess(state.variables.initialised, state.variables.initialiserState, constructor.getContainingTypeDefinition(), constructor.isSelfish(), "call a property setter on", autoAssignParameter.getLexicalPhrase());
+              }
+              catch (ConceptualException e)
+              {
+                coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+              }
+            }
+          }
+          else if (!state.variables.possiblyInitialised.contains(var))
+          {
+            // this property has definitely not already been initialised, so this is a constructor call
+            autoAssignParameter.setPropertyConstructorCall(true);
+            if (constructor.isImmutable() && !property.isConstructorImmutable())
+            {
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot initialise the property '" + var.getName() + "' in an immutable context: its constructor is not immutable", autoAssignParameter.getLexicalPhrase()));
+            }
+            state.variables.initialised.add(var);
+            state.variables.possiblyInitialised.add(var);
+          }
+          else
+          {
+            // this property may or may not have been initialised - this is an error, since we cannot decide between the constructor and the setter
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("This property may or may not have already been initialised. Cannot call either its constructor or its setter.", autoAssignParameter.getLexicalPhrase()));
+          }
+        }
+        else
+        {
+          throw new IllegalArgumentException("An auto-assign parameter should only be allowed to assign to a field or a property! the variable was: " + var);
+        }
+      }
+      else
+      {
+        throw new IllegalArgumentException("Unknown type of Parameter: " + parameter);
+      }
+    }
     try
     {
       checkControlFlow(constructor.getBlock(), constructor.getContainingTypeDefinition(), state, delegateConstructorVariables, new LinkedList<Statement>(), true, constructor.isSelfish(), false, constructor.isImmutable(), false);
@@ -510,16 +598,101 @@ public class ControlFlowChecker
       // this method has no body, so there is nothing to check
       return;
     }
+    CoalescedConceptualException coalescedException = null;
     ControlFlowState state = new ControlFlowState(InitialiserState.DEFINITELY_RUN);
-    for (Parameter p : method.getParameters())
+    for (Parameter parameter : method.getParameters())
     {
-      state.variables.initialised.add(p.getVariable());
-      state.variables.possiblyInitialised.add(p.getVariable());
+      if (parameter instanceof NormalParameter)
+      {
+        NormalParameter normalParameter = (NormalParameter) parameter;
+        state.variables.initialised.add(normalParameter.getVariable());
+        state.variables.possiblyInitialised.add(normalParameter.getVariable());
+      }
+      else if (parameter instanceof AutoAssignParameter)
+      {
+        AutoAssignParameter autoAssignParameter = (AutoAssignParameter) parameter;
+        Variable var = autoAssignParameter.getResolvedVariable();
+        if (var instanceof MemberVariable)
+        {
+          if (method.isStatic())
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the instance variable '" + var.getName() + "' in a static context", autoAssignParameter.getLexicalPhrase()));
+          }
+          else
+          {
+            if (var.isFinal())
+            {
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Final field '" + var.getName() + "' cannot be modified", autoAssignParameter.getLexicalPhrase()));
+            }
+            // if it is a mutable field or a mutable property backing variable, allow assignments even in an immutable context
+            boolean isMutable = (((MemberVariable) var).getField() != null    && ((MemberVariable) var).getField().isMutable()) ||
+                                (((MemberVariable) var).getProperty() != null && ((MemberVariable) var).getProperty().isMutable());
+            if (method.isImmutable() && !isMutable)
+            {
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the instance variable '" + var.getName() + "' in an immutable context", autoAssignParameter.getLexicalPhrase()));
+            }
+          }
+        }
+        else if (var instanceof GlobalVariable)
+        {
+          if (var.isFinal())
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The static final field '" + var.getName() + "' cannot be modified", autoAssignParameter.getLexicalPhrase()));
+          }
+          // if it is a mutable field or a mutable property backing variable, allow assignments even in an immutable context
+          boolean isMutable = (((GlobalVariable) var).getField() != null    && ((GlobalVariable) var).getField().isMutable()) ||
+                              (((GlobalVariable) var).getProperty() != null && ((GlobalVariable) var).getProperty().isMutable());
+          if (method.isImmutable() && !isMutable)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the static variable '" + var.getName() + "' in an immutable context", autoAssignParameter.getLexicalPhrase()));
+          }
+        }
+        else if (var instanceof PropertyPseudoVariable)
+        {
+          Property property = ((PropertyPseudoVariable) var).getProperty();
+          if (method.isStatic() && !property.isStatic())
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the instance property '" + var.getName() + "' in a static context", autoAssignParameter.getLexicalPhrase()));
+          }
+          else
+          {
+            // this cannot be a property constructor call, as it is inside a method, so it must be a setter
+            if (var.isFinal())
+            {
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Final property '" + var.getName() + "' cannot be modified", autoAssignParameter.getLexicalPhrase()));
+            }
+            else if (method.isImmutable() && !property.isSetterImmutable())
+            {
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the property '" + var.getName() + "' in an immutable context: its setter is not immutable", autoAssignParameter.getLexicalPhrase()));
+            }
+            autoAssignParameter.setPropertyConstructorCall(false);
+          }
+        }
+        else
+        {
+          throw new IllegalArgumentException("An auto-assign parameter should only be allowed to assign to a field or a property! the variable was: " + var);
+        }
+      }
+      else
+      {
+        throw new IllegalArgumentException("Unknown type of Parameter: " + parameter);
+      }
     }
-    boolean returned = checkControlFlow(method.getBlock(), method.getContainingTypeDefinition(), state, null, new LinkedList<Statement>(), false, false, method.isStatic(), method.isImmutable(), false);
-    if (!returned && !(method.getReturnType() instanceof VoidType))
+    try
     {
-      throw new ConceptualException("Method does not always return a value", method.getLexicalPhrase());
+      boolean returned = checkControlFlow(method.getBlock(), method.getContainingTypeDefinition(), state, null, new LinkedList<Statement>(), false, false, method.isStatic(), method.isImmutable(), false);
+      if (!returned && !(method.getReturnType() instanceof VoidType))
+      {
+        throw new ConceptualException("Method does not always return a value", method.getLexicalPhrase());
+      }
+    }
+    catch (ConceptualException e)
+    {
+      coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+    }
+    if (coalescedException != null)
+    {
+      throw coalescedException;
     }
   }
 
@@ -574,10 +747,82 @@ public class ControlFlowChecker
       {
         try
         {
-          Parameter setterParameter = property.getSetterParameter();
           ControlFlowState state = new ControlFlowState(InitialiserState.DEFINITELY_RUN);
-          state.variables.initialised.add(setterParameter.getVariable());
-          state.variables.possiblyInitialised.add(setterParameter.getVariable());
+          Parameter setterParameter = property.getSetterParameter();
+          if (setterParameter instanceof NormalParameter)
+          {
+            NormalParameter normalParameter = (NormalParameter) setterParameter;
+            state.variables.initialised.add(normalParameter.getVariable());
+            state.variables.possiblyInitialised.add(normalParameter.getVariable());
+          }
+          else if (setterParameter instanceof AutoAssignParameter)
+          {
+            AutoAssignParameter autoAssignParameter = (AutoAssignParameter) setterParameter;
+            Variable var = autoAssignParameter.getResolvedVariable();
+            if (var instanceof MemberVariable)
+            {
+              if (property.isStatic())
+              {
+                coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the instance variable '" + var.getName() + "' in a static context", autoAssignParameter.getLexicalPhrase()));
+              }
+              else
+              {
+                if (var.isFinal())
+                {
+                  coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Final field '" + var.getName() + "' cannot be modified", autoAssignParameter.getLexicalPhrase()));
+                }
+                // if it is a mutable field or a mutable property backing variable, allow assignments even in an immutable context
+                boolean isMutable = (((MemberVariable) var).getField() != null    && ((MemberVariable) var).getField().isMutable()) ||
+                                    (((MemberVariable) var).getProperty() != null && ((MemberVariable) var).getProperty().isMutable());
+                if (property.isSetterImmutable() && !isMutable)
+                {
+                  coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the instance variable '" + var.getName() + "' in an immutable context", autoAssignParameter.getLexicalPhrase()));
+                }
+              }
+            }
+            else if (var instanceof GlobalVariable)
+            {
+              if (var.isFinal())
+              {
+                coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The static final field '" + var.getName() + "' cannot be modified", autoAssignParameter.getLexicalPhrase()));
+              }
+              // if it is a mutable field or a mutable property backing variable, allow assignments even in an immutable context
+              boolean isMutable = (((GlobalVariable) var).getField() != null    && ((GlobalVariable) var).getField().isMutable()) ||
+                                  (((GlobalVariable) var).getProperty() != null && ((GlobalVariable) var).getProperty().isMutable());
+              if (property.isSetterImmutable() && !isMutable)
+              {
+                coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the static variable '" + var.getName() + "' in an immutable context", autoAssignParameter.getLexicalPhrase()));
+              }
+            }
+            else if (var instanceof PropertyPseudoVariable)
+            {
+              Property varProperty = ((PropertyPseudoVariable) var).getProperty();
+              if (property.isStatic() && !varProperty.isStatic())
+              {
+                coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the instance property '" + var.getName() + "' in a static context", autoAssignParameter.getLexicalPhrase()));
+              }
+              else
+              {
+                if (var.isFinal())
+                {
+                  coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Final property '" + var.getName() + "' cannot be modified", autoAssignParameter.getLexicalPhrase()));
+                }
+                else if (property.isSetterImmutable() && !varProperty.isSetterImmutable())
+                {
+                  coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the property '" + var.getName() + "' in an immutable context: its setter is not immutable", autoAssignParameter.getLexicalPhrase()));
+                }
+                autoAssignParameter.setPropertyConstructorCall(false);
+              }
+            }
+            else
+            {
+              throw new IllegalArgumentException("An auto-assign parameter should only be allowed to assign to a field or a property! the variable was: " + var);
+            }
+          }
+          else
+          {
+            throw new IllegalArgumentException("Unknown type of Parameter: " + setterParameter);
+          }
           checkControlFlow(property.getSetterBlock(), property.getContainingTypeDefinition(), state, null, new LinkedList<Statement>(), false, false, property.isStatic(), property.isSetterImmutable(), false);
         }
         catch (ConceptualException e)
@@ -674,8 +919,140 @@ public class ControlFlowChecker
               state.variables.possiblyInitialised.add(var);
             }
           }
-          state.variables.initialised.add(constructorParameter.getVariable());
-          state.variables.possiblyInitialised.add(constructorParameter.getVariable());
+
+          if (constructorParameter instanceof NormalParameter)
+          {
+            NormalParameter normalParameter = (NormalParameter) constructorParameter;
+            state.variables.initialised.add(normalParameter.getVariable());
+            state.variables.possiblyInitialised.add(normalParameter.getVariable());
+          }
+          else if (constructorParameter instanceof AutoAssignParameter)
+          {
+            AutoAssignParameter autoAssignParameter = (AutoAssignParameter) constructorParameter;
+            Variable var = autoAssignParameter.getResolvedVariable();
+            if (var instanceof MemberVariable)
+            {
+              if (property.isStatic())
+              {
+                coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the instance variable '" + var.getName() + "' in a static context", autoAssignParameter.getLexicalPhrase()));
+              }
+              else
+              {
+                if (var.isFinal())
+                {
+                  if (state.variables.possiblyInitialised.contains(var))
+                  {
+                    coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Final field '" + var.getName() + "' may already have been initialised", autoAssignParameter.getLexicalPhrase()));
+                  }
+                }
+                state.variables.initialised.add(var);
+                state.variables.possiblyInitialised.add(var);
+              }
+            }
+            else if (var instanceof GlobalVariable)
+            {
+              // assigning to a global variable is only ever an initialisation if the variable is final, otherwise something else could have assigned to it first
+              boolean isInitialisation = var.isFinal() && property.isStatic() && ((GlobalVariable) var).getEnclosingTypeDefinition() == property.getContainingTypeDefinition();
+              if (isInitialisation)
+              {
+                if (state.variables.possiblyInitialised.contains(var))
+                {
+                  coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The static final field '" + var.getName() + "' may already have been initialised", autoAssignParameter.getLexicalPhrase()));
+                }
+                state.variables.initialised.add(var);
+                state.variables.possiblyInitialised.add(var);
+              }
+              else if (var.isFinal())
+              {
+                coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The static final field '" + var.getName() + "' cannot be modified", autoAssignParameter.getLexicalPhrase()));
+              }
+              if (!isInitialisation && property.isStatic() && ((GlobalVariable) var).getProperty() != null)
+              {
+                // this is a property backing variable, and we are inside a property constructor, so initialise this backing variable
+                state.variables.initialised.add(var);
+                state.variables.possiblyInitialised.add(var);
+              }
+              // if it is a mutable field or a mutable property backing variable, allow assignments even in an immutable context
+              boolean isMutable = (((GlobalVariable) var).getField() != null    && ((GlobalVariable) var).getField().isMutable()) ||
+                                  (((GlobalVariable) var).getProperty() != null && ((GlobalVariable) var).getProperty().isMutable());
+              if (property.isConstructorImmutable() && !isMutable)
+              {
+                coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the static variable '" + var.getName() + "' in an immutable context", autoAssignParameter.getLexicalPhrase()));
+              }
+            }
+            else if (var instanceof PropertyPseudoVariable)
+            {
+              Property varProperty = ((PropertyPseudoVariable) var).getProperty();
+              if (property.isStatic() && !varProperty.isStatic())
+              {
+                coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the instance property '" + var.getName() + "' in a static context", autoAssignParameter.getLexicalPhrase()));
+              }
+              else
+              {
+                boolean isInitialisation = varProperty.isStatic() ?
+                                           (varProperty.isFinal() && property.isStatic() && varProperty.getContainingTypeDefinition() == property.getContainingTypeDefinition()) :
+                                           true;
+                if (!isInitialisation || state.variables.initialised.contains(var))
+                {
+                  // either we are not in any sort of initialiser, or this property has already been initialised
+                  // so this is a setter call
+                  if (var.isFinal())
+                  {
+                    coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Final property '" + var.getName() + "' cannot be modified", autoAssignParameter.getLexicalPhrase()));
+                  }
+                  else if (property.isConstructorImmutable() && !varProperty.isSetterImmutable())
+                  {
+                    coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot assign to the property '" + var.getName() + "' in an immutable context: its setter is not immutable", autoAssignParameter.getLexicalPhrase()));
+                  }
+                  autoAssignParameter.setPropertyConstructorCall(false);
+                }
+                if (isInitialisation)
+                {
+                  if (state.variables.initialised.contains(var))
+                  {
+                    if (!varProperty.isStatic())
+                    {
+                      // this is a setter call during a constructor, so make sure it is allowed (i.e. everything else is already initialised)
+                      try
+                      {
+                        checkThisAccess(state.variables.initialised, state.variables.initialiserState, property.getContainingTypeDefinition(), false, "call a property setter on", autoAssignParameter.getLexicalPhrase());
+                      }
+                      catch (ConceptualException e)
+                      {
+                        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+                      }
+                    }
+                  }
+                  else if (!state.variables.possiblyInitialised.contains(var))
+                  {
+                    // this property has definitely not already been initialised, so this is a constructor call
+                    autoAssignParameter.setPropertyConstructorCall(true);
+                    if (property.isConstructorImmutable() && !varProperty.isConstructorImmutable())
+                    {
+                      coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot initialise the property '" + var.getName() + "' in an immutable context: its constructor is not immutable", autoAssignParameter.getLexicalPhrase()));
+                    }
+                    state.variables.initialised.add(var);
+                    state.variables.possiblyInitialised.add(var);
+                  }
+                  else
+                  {
+                    // this property may or may not have been initialised - this is an error, since we cannot decide between the constructor and the setter
+                    coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("This property may or may not have already been initialised. Cannot call either its constructor or its setter.", autoAssignParameter.getLexicalPhrase()));
+                  }
+                }
+              }
+            }
+            else
+            {
+              throw new IllegalArgumentException("An auto-assign parameter should only be allowed to assign to a field or a property! the variable was: " + var);
+            }
+          }
+          else
+          {
+            throw new IllegalArgumentException("Unknown type of Parameter: " + constructorParameter);
+          }
+
+
           checkControlFlow(constructorBlock, property.getContainingTypeDefinition(), state, null, new LinkedList<Statement>(), true, false, property.isStatic(), property.isConstructorImmutable(), false);
 
           if (!property.isUnbacked() && !property.getType().hasDefaultValue())

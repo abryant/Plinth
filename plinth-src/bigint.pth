@@ -14,9 +14,8 @@ immutable compound bigint
     data = new [0]ulong;
   }
 
-  create(boolean negative, ulong value)
+  create(@negative, ulong value)
   {
-    this.negative = negative;
     if value == 0
     {
       bitLength = 0;
@@ -32,11 +31,9 @@ immutable compound bigint
     this(false, value);
   }
 
-  create(boolean negative, #[]ulong data)
+  create(@negative, @data)
   {
-    this.negative = negative;
     this.bitLength = findBitLength(data);
-    this.data = data;
   }
 
   /**

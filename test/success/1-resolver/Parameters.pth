@@ -13,17 +13,26 @@ class Alpha
   {
   }
 
+  uint x;
+  static ?string s;
+
+  create(boolean b, @x);
+  create(@x, string s);
+
   void test(uint x, Alpha y)
   {
   }
   void test(uint x, uint y)
   {
   }
+  void test(@x, string y);
+  void test(@s, @x);
   static void test(uint x, uint y)
   {
   }
   static void test(uint x, Alpha y)
   {
   }
+  static void test(@s);
 }
 

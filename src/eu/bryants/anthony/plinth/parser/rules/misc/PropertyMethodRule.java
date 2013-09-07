@@ -7,8 +7,10 @@ import parser.ParseException;
 import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
+import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
+import eu.bryants.anthony.plinth.ast.statement.Statement;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
@@ -35,15 +37,17 @@ public class PropertyMethodRule extends Rule<ParseType>
   private static final Production<ParseType> SETTER_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.SETTER_KEYWORD);
   private static final Production<ParseType> SETTER_BLOCK_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.SETTER_KEYWORD, ParseType.LPAREN, ParseType.OPTIONAL_MODIFIERS, ParseType.NAME, ParseType.RPAREN, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
   private static final Production<ParseType> SETTER_BLOCK_PARAMETERS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.SETTER_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> SETTER_NO_BLOCK_PARAMETERS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.SETTER_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE);
   private static final Production<ParseType> CONSTRUCTOR_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CREATE_KEYWORD);
   private static final Production<ParseType> CONSTRUCTOR_BLOCK_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CREATE_KEYWORD, ParseType.LPAREN, ParseType.OPTIONAL_MODIFIERS, ParseType.NAME, ParseType.RPAREN, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
   private static final Production<ParseType> CONSTRUCTOR_BLOCK_PARAMETERS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CREATE_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> CONSTRUCTOR_NO_BLOCK_PARAMETERS_PRODUCTION = new Production<ParseType>(ParseType.OPTIONAL_MODIFIERS, ParseType.CREATE_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE);
 
   public PropertyMethodRule()
   {
-    super(ParseType.PROPERTY_METHOD, GETTER_PRODUCTION, GETTER_BLOCK_PRODUCTION,
-                                     SETTER_PRODUCTION, SETTER_BLOCK_PRODUCTION, SETTER_BLOCK_PARAMETERS_PRODUCTION,
-                                     CONSTRUCTOR_PRODUCTION, CONSTRUCTOR_BLOCK_PRODUCTION, CONSTRUCTOR_BLOCK_PARAMETERS_PRODUCTION);
+    super(ParseType.PROPERTY_METHOD, GETTER_PRODUCTION,      GETTER_BLOCK_PRODUCTION,
+                                     SETTER_PRODUCTION,      SETTER_BLOCK_PRODUCTION,      SETTER_BLOCK_PARAMETERS_PRODUCTION,      SETTER_NO_BLOCK_PARAMETERS_PRODUCTION,
+                                     CONSTRUCTOR_PRODUCTION, CONSTRUCTOR_BLOCK_PRODUCTION, CONSTRUCTOR_BLOCK_PARAMETERS_PRODUCTION, CONSTRUCTOR_NO_BLOCK_PARAMETERS_PRODUCTION);
   }
 
   /**
@@ -96,10 +100,11 @@ public class PropertyMethodRule extends Rule<ParseType>
       return processModifiers(modifiers, type, null, parameterModifiers, parameterName, uncheckedThrownTypes, block,
                               LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], (LexicalPhrase) args[2], parameterModifiers.getLexicalPhrase(), parameterName.getLexicalPhrase(), (LexicalPhrase) args[5], thrownTypesList.getLexicalPhrase(), block.getLexicalPhrase()));
     }
-    if (production == SETTER_BLOCK_PARAMETERS_PRODUCTION || production == CONSTRUCTOR_BLOCK_PARAMETERS_PRODUCTION)
+    if (production == SETTER_BLOCK_PARAMETERS_PRODUCTION    || production == CONSTRUCTOR_BLOCK_PARAMETERS_PRODUCTION ||
+        production == SETTER_NO_BLOCK_PARAMETERS_PRODUCTION || production == CONSTRUCTOR_NO_BLOCK_PARAMETERS_PRODUCTION)
     {
       PropertyMethodType type = PropertyMethodType.SETTER;
-      if (production == CONSTRUCTOR_BLOCK_PARAMETERS_PRODUCTION)
+      if (production == CONSTRUCTOR_BLOCK_PARAMETERS_PRODUCTION || production == CONSTRUCTOR_NO_BLOCK_PARAMETERS_PRODUCTION)
       {
         type = PropertyMethodType.CONSTRUCTOR;
       }
@@ -115,7 +120,22 @@ public class PropertyMethodRule extends Rule<ParseType>
       @SuppressWarnings("unchecked")
       ParseList<ThrownExceptionType> thrownTypesList = (ParseList<ThrownExceptionType>) args[3];
       NamedType[] uncheckedThrownTypes = getThrownTypes(thrownTypesList);
-      Block block = (Block) args[4];
+      Block block;
+      if (production == SETTER_BLOCK_PARAMETERS_PRODUCTION || production == CONSTRUCTOR_BLOCK_PARAMETERS_PRODUCTION)
+      {
+        block = (Block) args[4];
+      }
+      else
+      {
+        if (parameter instanceof AutoAssignParameter)
+        {
+          block = new Block(new Statement[0], null);
+        }
+        else
+        {
+          throw new LanguageParseException("A non-default property " + type + " must specify a block and/or an auto-assign parameter", parameter.getLexicalPhrase());
+        }
+      }
       return processModifiers(modifiers, type, parameter, null, null, uncheckedThrownTypes, block,
                               LexicalPhrase.combine(modifiers.getLexicalPhrase(), (LexicalPhrase) args[1], parameters.getLexicalPhrase(), thrownTypesList.getLexicalPhrase(), block.getLexicalPhrase()));
     }

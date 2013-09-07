@@ -813,6 +813,10 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       }
       return makeSymbolToken(ParseType.AMPERSAND, 1);
     }
+    if (nextChar == '@')
+    {
+      return makeSymbolToken(ParseType.AT, 1);
+    }
     if (nextChar == '^')
     {
       int secondChar = reader.read(1);

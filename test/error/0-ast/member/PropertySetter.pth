@@ -1,0 +1,8 @@
+// Plinth Test
+// Compiler: PropertySetter.pth: 7:10-16: A non-default property setter must specify a block and/or an auto-assign parameter
+
+class Test
+{
+  property uint foo
+  setter(uint x);
+}

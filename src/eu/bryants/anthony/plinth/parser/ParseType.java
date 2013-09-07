@@ -136,6 +136,7 @@ public enum ParseType
   AMPERSAND,
   AMPERSAND_EQUALS,
   ARROW,
+  AT,
   CARET,
   CARET_EQUALS,
   COLON,

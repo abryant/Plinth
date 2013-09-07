@@ -67,10 +67,12 @@ import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
 import eu.bryants.anthony.plinth.ast.metadata.Variable;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
+import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Import;
+import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
@@ -418,13 +420,46 @@ public class Resolver
 
       if (property.getSetterBlock() != null)
       {
-        try
+        Parameter setterParameter = property.getSetterParameter();
+        if (setterParameter instanceof NormalParameter)
         {
-          resolve(property.getSetterParameter().getType(), typeDefinition, compilationUnit);
+          try
+          {
+            resolve(property.getSetterParameter().getType(), typeDefinition, compilationUnit);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
         }
-        catch (ConceptualException e)
+        else if (setterParameter instanceof AutoAssignParameter)
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          AutoAssignParameter autoAssignParameter = (AutoAssignParameter) setterParameter;
+          Field f = typeDefinition.getField(autoAssignParameter.getName());
+          Property p = typeDefinition.getProperty(autoAssignParameter.getName());
+          if (f != null)
+          {
+            autoAssignParameter.setResolvedVariable(f.isStatic() ? f.getGlobalVariable() : f.getMemberVariable());
+          }
+          else if (p != null)
+          {
+            if (p == property)
+            {
+              autoAssignParameter.setResolvedVariable(p.isStatic() ? p.getBackingGlobalVariable() : p.getBackingMemberVariable());
+            }
+            else
+            {
+              autoAssignParameter.setResolvedVariable(p.getPseudoVariable());
+            }
+          }
+          else
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Unable to resolve: " + autoAssignParameter.getName(), autoAssignParameter.getLexicalPhrase()));
+          }
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown Parameter type: " + setterParameter);
         }
         if (property.getSetterUncheckedThrownTypes() != null)
         {
@@ -444,13 +479,46 @@ public class Resolver
 
       if (property.getConstructorBlock() != null)
       {
-        try
+        Parameter constructorParameter = property.getConstructorParameter();
+        if (constructorParameter instanceof NormalParameter)
         {
-          resolve(property.getConstructorParameter().getType(), typeDefinition, compilationUnit);
+          try
+          {
+            resolve(property.getConstructorParameter().getType(), typeDefinition, compilationUnit);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
         }
-        catch (ConceptualException e)
+        else if (constructorParameter instanceof AutoAssignParameter)
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          AutoAssignParameter autoAssignParameter = (AutoAssignParameter) constructorParameter;
+          Field f = typeDefinition.getField(autoAssignParameter.getName());
+          Property p = typeDefinition.getProperty(autoAssignParameter.getName());
+          if (f != null)
+          {
+            autoAssignParameter.setResolvedVariable(f.isStatic() ? f.getGlobalVariable() : f.getMemberVariable());
+          }
+          else if (p != null)
+          {
+            if (p == property)
+            {
+              autoAssignParameter.setResolvedVariable(p.isStatic() ? p.getBackingGlobalVariable() : p.getBackingMemberVariable());
+            }
+            else
+            {
+              autoAssignParameter.setResolvedVariable(p.getPseudoVariable());
+            }
+          }
+          else
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Unable to resolve: " + autoAssignParameter.getName(), autoAssignParameter.getLexicalPhrase()));
+          }
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown Parameter type: " + constructorParameter);
         }
         if (property.getConstructorUncheckedThrownTypes() != null)
         {
@@ -475,11 +543,19 @@ public class Resolver
 
       if (property.getSetterBlock() != null)
       {
-        property.getSetterBlock().addVariable(property.getSetterParameter().getVariable());
+        Parameter setterParameter = property.getSetterParameter();
+        if (setterParameter instanceof NormalParameter)
+        {
+          property.getSetterBlock().addVariable(((NormalParameter) setterParameter).getVariable());
+        }
       }
       if (property.getConstructorBlock() != null)
       {
-        property.getConstructorBlock().addVariable(property.getConstructorParameter().getVariable());
+        Parameter constructorParameter = property.getConstructorParameter();
+        if (constructorParameter instanceof NormalParameter)
+        {
+          property.getConstructorBlock().addVariable(((NormalParameter) constructorParameter).getVariable());
+        }
       }
 
       if (typeDefinition.isImmutable() && !property.isStatic() && !property.isFinal() && !property.isSetterImmutable())
@@ -488,41 +564,85 @@ public class Resolver
       }
     }
 
+    // note: Field and Property resolution must happen before Constructor and Method resolution
+    // this is because Constructors and Methods are disambiguated by their parameters, and
+    // AutoAssignParameters take their types from Fields and Properties.
+    // if an error happens in Field or Property type resolution, we need to avoid doing Constructor
+    // and Method duplicate checking based on potentially-bad types
+
     Map<String, Constructor> allConstructors = new HashMap<String, Constructor>();
     for (Constructor constructor : typeDefinition.getAllConstructors())
     {
       Block mainBlock = constructor.getBlock();
-      if (mainBlock == null)
-      {
-        // we are resolving a bitcode file with no blocks inside it, so create a temporary one so that we can check for duplicate parameters easily
-        mainBlock = new Block(null, null);
-      }
       StringBuffer disambiguatorBuffer = new StringBuffer();
       if (constructor.getSinceSpecifier() != null)
       {
         disambiguatorBuffer.append(constructor.getSinceSpecifier().getMangledName());
       }
       disambiguatorBuffer.append('_');
-      boolean parameterResolveFailed = false;
-      for (Parameter p : constructor.getParameters())
+      boolean parameterTypeResolveFailed = false;
+      Set<String> usedParameterNames = new HashSet<String>();
+      for (Parameter parameter : constructor.getParameters())
       {
-        Variable oldVar = mainBlock.addVariable(p.getVariable());
-        if (oldVar != null)
+        if (usedParameterNames.contains(parameter.getName()))
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Duplicate parameter: " + p.getName(), p.getLexicalPhrase()));
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Duplicate parameter: " + parameter.getName(), parameter.getLexicalPhrase()));
         }
-        try
+        usedParameterNames.add(parameter.getName());
+
+        if (parameter instanceof NormalParameter)
         {
-          resolve(p.getType(), typeDefinition, compilationUnit);
-          disambiguatorBuffer.append(p.getType().getMangledName());
+          NormalParameter normalParameter = (NormalParameter) parameter;
+          // mainBlock can be null if we are resolving a bitcode file with no blocks inside it
+          if (mainBlock != null)
+          {
+            mainBlock.addVariable(normalParameter.getVariable());
+          }
+          try
+          {
+            resolve(normalParameter.getType(), typeDefinition, compilationUnit);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+            parameterTypeResolveFailed = true;
+          }
         }
-        catch (ConceptualException e)
+        else if (parameter instanceof AutoAssignParameter)
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
-          parameterResolveFailed = true;
+          AutoAssignParameter autoAssignParameter = (AutoAssignParameter) parameter;
+          Field field = typeDefinition.getField(autoAssignParameter.getName());
+          Property property = typeDefinition.getProperty(autoAssignParameter.getName());
+          if (field != null)
+          {
+            autoAssignParameter.setResolvedVariable(field.isStatic() ? field.getGlobalVariable() : field.getMemberVariable());
+            // the Field's type may have failed to resolve earlier
+            // since this is a difficult thing to check, just pretend that this parameter also failed to resolve if any other errors have happened
+            parameterTypeResolveFailed |= coalescedException != null;
+          }
+          else if (property != null)
+          {
+            autoAssignParameter.setResolvedVariable(property.getPseudoVariable());
+            // the Property's type may have failed to resolve earlier
+            // since this is a difficult thing to check, just pretend that this parameter also failed to resolve if any other errors have happened
+            parameterTypeResolveFailed |= coalescedException != null;
+          }
+          else
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Unable to resolve: " + autoAssignParameter.getName(), autoAssignParameter.getLexicalPhrase()));
+            parameterTypeResolveFailed = true;
+          }
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown Parameter type: " + parameter);
+        }
+        if (!parameterTypeResolveFailed)
+        {
+          disambiguatorBuffer.append(parameter.getType().getMangledName());
         }
       }
-      if (!parameterResolveFailed)
+      if (!parameterTypeResolveFailed)
       {
         String disambiguator = disambiguatorBuffer.toString();
         Constructor existing = allConstructors.put(disambiguator, constructor);
@@ -571,27 +691,63 @@ public class Resolver
         typeResolveFailed = true;
       }
       Block mainBlock = method.getBlock();
-      if (mainBlock == null)
-      {
-        // we are resolving a method with no block, so create a temporary one so that we can check for duplicate parameters easily
-        mainBlock = new Block(null, null);
-      }
+
       Parameter[] parameters = method.getParameters();
-      for (int i = 0; i < parameters.length; ++i)
+      Set<String> usedParameterNames = new HashSet<String>();
+      for (Parameter parameter : parameters)
       {
-        Variable oldVar = mainBlock.addVariable(parameters[i].getVariable());
-        if (oldVar != null)
+        if (usedParameterNames.contains(parameter.getName()))
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Duplicate parameter: " + parameters[i].getName(), parameters[i].getLexicalPhrase()));
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Duplicate parameter: " + parameter.getName(), parameter.getLexicalPhrase()));
         }
-        try
+        usedParameterNames.add(parameter.getName());
+
+        if (parameter instanceof NormalParameter)
         {
-          resolve(parameters[i].getType(), typeDefinition, compilationUnit);
+          NormalParameter normalParameter = (NormalParameter) parameter;
+          // mainBlock can be null if we are resolving a bitcode file with no blocks inside it
+          if (mainBlock != null)
+          {
+            mainBlock.addVariable(normalParameter.getVariable());
+          }
+          try
+          {
+            resolve(normalParameter.getType(), typeDefinition, compilationUnit);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+            typeResolveFailed = true;
+          }
         }
-        catch (ConceptualException e)
+        else if (parameter instanceof AutoAssignParameter)
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
-          typeResolveFailed = true;
+          AutoAssignParameter autoAssignParameter = (AutoAssignParameter) parameter;
+          Field field = typeDefinition.getField(autoAssignParameter.getName());
+          Property property = typeDefinition.getProperty(autoAssignParameter.getName());
+          if (field != null)
+          {
+            autoAssignParameter.setResolvedVariable(field.isStatic() ? field.getGlobalVariable() : field.getMemberVariable());
+            // the Field's type may have failed to resolve earlier
+            // since this is a difficult thing to check, just pretend that this parameter also failed to resolve if any other errors have happened
+            typeResolveFailed |= coalescedException != null;
+          }
+          else if (property != null)
+          {
+            autoAssignParameter.setResolvedVariable(property.getPseudoVariable());
+            // the Property's type may have failed to resolve earlier
+            // since this is a difficult thing to check, just pretend that this parameter also failed to resolve if any other errors have happened
+            typeResolveFailed |= coalescedException != null;
+          }
+          else
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Unable to resolve: " + autoAssignParameter.getName(), autoAssignParameter.getLexicalPhrase()));
+            typeResolveFailed = true;
+          }
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown Parameter type: " + parameter);
         }
       }
       for (NamedType thrownType : method.getCheckedThrownTypes())

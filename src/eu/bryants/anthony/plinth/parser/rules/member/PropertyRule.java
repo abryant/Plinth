@@ -6,6 +6,7 @@ import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.member.Property;
+import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
@@ -182,7 +183,7 @@ public class PropertyRule extends Rule<ParseType>
           setterParameter = propertyMethod.getParameter();
           if (setterParameter == null)
           {
-            setterParameter = new Parameter(propertyMethod.isParameterFinal(), type, propertyMethod.getParameterName(), propertyMethod.getParameterLexicalPhrase());
+            setterParameter = new NormalParameter(propertyMethod.isParameterFinal(), type, propertyMethod.getParameterName(), propertyMethod.getParameterLexicalPhrase());
           }
           setterThrownTypes = propertyMethod.getUncheckedThrownTypes();
           setterBlock = propertyMethod.getBlock();
@@ -198,7 +199,7 @@ public class PropertyRule extends Rule<ParseType>
           constructorParameter = propertyMethod.getParameter();
           if (constructorParameter == null)
           {
-            constructorParameter = new Parameter(propertyMethod.isParameterFinal(), type, propertyMethod.getParameterName(), propertyMethod.getParameterLexicalPhrase());
+            constructorParameter = new NormalParameter(propertyMethod.isParameterFinal(), type, propertyMethod.getParameterName(), propertyMethod.getParameterLexicalPhrase());
           }
           constructorThrownTypes = propertyMethod.getUncheckedThrownTypes();
           constructorBlock = propertyMethod.getBlock();

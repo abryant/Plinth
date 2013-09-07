@@ -1,7 +1,7 @@
 // Plinth Test
 // Compiler: MethodModifiers.pth: 10:3-28: A static method cannot be abstract
 // Compiler: MethodModifiers.pth: 11:3-47: An abstract method cannot be native
-// Compiler: MethodModifiers.pth: 12:3-20: An abstract method cannot have a body
+// Compiler: MethodModifiers.pth: 12:3-20: An abstract method cannot have a body or any auto-assign parameters
 // Compiler: MethodModifiers.pth: 19:3-21: A compound type cannot contain abstract methods
 // Compiler: MethodModifiers.pth: 24:3-21: Abstract methods can only be declared in abstract classes or interfaces
 

@@ -2,8 +2,24 @@ package foo.bar;
 
 class Test
 {
+  property string foo
+  getter
+  setter(@foo)
+  create(@foo);
+
+  create(@foo);
+
+  void setFoo(@foo)
+  {
+    foo += "!";
+  }
+
   static uint main([]string args) throws Error
   {
+    Test t = new Test("hello, world");
+    t.setFoo("hi");
+    stdout::println(t.foo);
+
     List<string> list = new ArrayList<string>();
     for string s in args
     {

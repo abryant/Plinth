@@ -926,7 +926,7 @@ public class InheritanceChecker
       }
       if (method.getBlock() != null)
       {
-        throw new ConceptualException("An abstract method cannot have a body", method.getLexicalPhrase());
+        throw new ConceptualException("An abstract method cannot have a body or any auto-assign parameters", method.getLexicalPhrase());
       }
       if (method.getContainingTypeDefinition() instanceof CompoundDefinition)
       {

@@ -8,8 +8,10 @@ import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
+import eu.bryants.anthony.plinth.ast.statement.Statement;
 import eu.bryants.anthony.plinth.ast.terminal.Name;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
@@ -235,6 +237,18 @@ public class MethodRule extends Rule<ParseType>
           throw new LanguageParseException("Unexpected modifier: Methods cannot be unbacked", modifier.getLexicalPhrase());
         default:
           throw new IllegalStateException("Unknown modifier: " + modifier);
+        }
+      }
+    }
+    // if we have any AutoAssignParameters, they implicitly add a block to the method if it didn't exist already
+    if (block == null)
+    {
+      for (Parameter p : parameters)
+      {
+        if (p instanceof AutoAssignParameter)
+        {
+          block = new Block(new Statement[0], null);
+          break;
         }
       }
     }
