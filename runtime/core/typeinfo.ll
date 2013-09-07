@@ -77,11 +77,11 @@ exit:
 }
 
 
-; Checks whether queryType matches specType, considering any type parameters inside each type to be replaced with their mapped versions from the corresponding TypeArgument mapper.
+; Checks whether queryType matches specType, considering any type parameters inside each type to be replaced with their mapped versions from the corresponding TypeArgumentMapper.
 ; If %ignoreNullability is true, the nullability of the top-level type being checked is ignored.
 ; If %ignoreImmutability is true, the data-immutability of the top-level type being checked is ignored.
 ; If %looselyMatchWildcards is false, this is an equivalence check. If it is true, wildcard type arguments in specType can match a range of different type arguments in queryType.
-; A TypeArgument mapper is a pure RTTI block for a NamedType, which contains values for the type arguments with given indices
+; A TypeArgumentMapper is a structure which stores the values of type parameters based on their indices. If a type parameter is encountered, its index is looked up and its mapped version is used instead.
 define protected i1 @plinth_check_type_matches(%RTTI* %queryType, %RTTI* %specType, %TypeArgumentMapper* %queryMapper, %TypeArgumentMapper* %specMapper, i1 %ignoreNullability, i1 %ignoreImmutability, i1 %looselyMatchWildcards) {
 entry:
   %sortQueryPtr = getelementptr %RTTI* %queryType, i32 0, i32 1
