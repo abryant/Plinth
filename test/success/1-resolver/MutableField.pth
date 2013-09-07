@@ -10,4 +10,5 @@ class Alpha
 
   final mutable Alpha a;
   mutable #Alpha b;
+  final #Alpha c;
 }
