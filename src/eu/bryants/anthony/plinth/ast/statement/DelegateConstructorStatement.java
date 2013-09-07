@@ -1,8 +1,8 @@
 package eu.bryants.anthony.plinth.ast.statement;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
-import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.metadata.ConstructorReference;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 
 /*
  * Created on 2 Nov 2012
@@ -14,11 +14,11 @@ import eu.bryants.anthony.plinth.ast.metadata.ConstructorReference;
 public class DelegateConstructorStatement extends Statement
 {
   private boolean isSuperConstructor;
-  private Expression[] arguments;
+  private Argument[] arguments;
 
   private ConstructorReference resolvedConstructorReference;
 
-  public DelegateConstructorStatement(boolean isSuperConstructor, Expression[] arguments, LexicalPhrase lexicalPhrase)
+  public DelegateConstructorStatement(boolean isSuperConstructor, Argument[] arguments, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.isSuperConstructor = isSuperConstructor;
@@ -36,7 +36,7 @@ public class DelegateConstructorStatement extends Statement
   /**
    * @return the arguments
    */
-  public Expression[] getArguments()
+  public Argument[] getArguments()
   {
     return arguments;
   }

@@ -357,17 +357,17 @@ PrimaryNotThis = IntegerLiteral | FloatingLiteral
 CreationExpression = NewKeyword NamedTypeNoModifiers Arguments | CreateKeyword NamedTypeNoModifiers Arguments
 FunctionCallExpression = PrimaryNotThis Arguments | QNameExpression Arguments
 
-// ================================================================================================== TRY SIMPLIFYING THIS:
-ExpressionList = ConditionalExpression                  Comma ExpressionList
-               | QName                                  Comma ExpressionList
-               | NestedQNameList                        Comma ExpressionList
-               | QName LAngle QName                     Comma ExpressionList
-               | QName LAngle NestedQNameList           Comma ExpressionList
-               | NestedQNameList LAngle QName           Comma ExpressionList
-               | NestedQNameList LAngle NestedQNameList Comma ExpressionList
-               | ConditionalExpression
+ExpressionList = ConditionalExpression
                | QNameOrLessThanExpression
-Arguments = LParen ExpressionList RParen | LParen RParen
+               | ExpressionList Comma ConditionalExpression
+               | ExpressionList Comma QNameOrLessThanExpression
+
+ArgumentList = ConditionalExpression
+             | QNameOrLessThanExpression
+             | ArgumentList Comma ConditionalExpression
+             | ArgumentList Comma QNameOrLessThanExpression
+
+Arguments = LParen ArgumentList RParen | LParen RParen
 
 Dimensions = LSquare Expression RSquare | Dimensions LSquare Expression RSquare
 

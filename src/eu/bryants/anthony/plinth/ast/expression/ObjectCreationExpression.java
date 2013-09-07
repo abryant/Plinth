@@ -1,6 +1,7 @@
 package eu.bryants.anthony.plinth.ast.expression;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 
 /*
@@ -13,7 +14,7 @@ import eu.bryants.anthony.plinth.parser.LanguageParseException;
 public class ObjectCreationExpression extends Expression
 {
 
-  public ObjectCreationExpression(Expression[] arguments, LexicalPhrase lexicalPhrase) throws LanguageParseException
+  public ObjectCreationExpression(Argument[] arguments, LexicalPhrase lexicalPhrase) throws LanguageParseException
   {
     super(lexicalPhrase);
     if (arguments != null && arguments.length > 0)

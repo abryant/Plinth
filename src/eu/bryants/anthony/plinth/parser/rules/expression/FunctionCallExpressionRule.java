@@ -6,6 +6,7 @@ import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.expression.FunctionCallExpression;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 
@@ -38,8 +39,8 @@ public class FunctionCallExpressionRule extends Rule<ParseType>
     {
       Expression expression = (Expression) args[0];
       @SuppressWarnings("unchecked")
-      ParseList<Expression> arguments = (ParseList<Expression>) args[1];
-      return new FunctionCallExpression(expression, arguments.toArray(new Expression[arguments.size()]),
+      ParseList<Argument> arguments = (ParseList<Argument>) args[1];
+      return new FunctionCallExpression(expression, arguments.toArray(new Argument[arguments.size()]),
                                         LexicalPhrase.combine(expression.getLexicalPhrase(), arguments.getLexicalPhrase()));
     }
     throw badTypeList();

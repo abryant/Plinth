@@ -2,6 +2,7 @@ package eu.bryants.anthony.plinth.ast.expression;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.metadata.ConstructorReference;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 
 /*
@@ -16,11 +17,11 @@ public class CreationExpression extends Expression
 
   private boolean isHeapAllocation;
   private NamedType createdType;
-  private Expression[] arguments;
+  private Argument[] arguments;
 
   private ConstructorReference resolvedConstructorReference;
 
-  public CreationExpression(boolean isHeapAllocation, NamedType createdType, Expression[] arguments, LexicalPhrase lexicalPhrase)
+  public CreationExpression(boolean isHeapAllocation, NamedType createdType, Argument[] arguments, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.isHeapAllocation = isHeapAllocation;
@@ -47,7 +48,7 @@ public class CreationExpression extends Expression
   /**
    * @return the arguments
    */
-  public Expression[] getArguments()
+  public Argument[] getArguments()
   {
     return arguments;
   }

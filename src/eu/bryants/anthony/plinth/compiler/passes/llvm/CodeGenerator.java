@@ -77,12 +77,14 @@ import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyPseudoVariable;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
 import eu.bryants.anthony.plinth.ast.metadata.Variable;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
+import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
 import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
@@ -2746,7 +2748,7 @@ public class CodeGenerator
       {
         Type[] parameterTypes = delegatedConstructorReference.getParameterTypes();
         Parameter[] realParameters = delegatedConstructorReference.getReferencedMember().getParameters();
-        Expression[] arguments = delegateConstructorStatement.getArguments();
+        Argument[] arguments = delegateConstructorStatement.getArguments();
 
         LLVMValueRef llvmConstructor = getConstructorFunction(delegatedConstructorReference.getReferencedMember());
         LLVMValueRef[] llvmArguments = new LLVMValueRef[1 + realParameters.length];
@@ -2755,8 +2757,17 @@ public class CodeGenerator
         TypeParameterAccessor delegateTypeAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, delegatedConstructorReference.getReferencedMember().getContainingTypeDefinition(), thisValue);
         for (int i = 0; i < realParameters.length; ++i)
         {
-          LLVMValueRef argument = buildExpression(arguments[i], builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
-          argument = typeHelper.convertTemporary(builder, landingPadContainer, argument, arguments[i].getType(), parameterTypes[i], false, typeParameterAccessor, typeParameterAccessor);
+          LLVMValueRef argument;
+          if (arguments[i] instanceof NormalArgument)
+          {
+            NormalArgument normalArgument = (NormalArgument) arguments[i];
+            argument = buildExpression(normalArgument.getExpression(), builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
+            argument = typeHelper.convertTemporary(builder, landingPadContainer, argument, normalArgument.getExpression().getType(), parameterTypes[i], false, typeParameterAccessor, typeParameterAccessor);
+          }
+          else
+          {
+            throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+          }
 
           llvmArguments[1 + i] = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, argument, parameterTypes[i], realParameters[i].getType(), typeParameterAccessor, delegateTypeAccessor);
         }
@@ -4688,7 +4699,7 @@ public class CodeGenerator
     if (expression instanceof CreationExpression)
     {
       CreationExpression creationExpression = (CreationExpression) expression;
-      Expression[] arguments = creationExpression.getArguments();
+      Argument[] arguments = creationExpression.getArguments();
       ConstructorReference constructorReference = creationExpression.getResolvedConstructorReference();
       Type[] parameterTypes = constructorReference.getParameterTypes();
 
@@ -4698,8 +4709,16 @@ public class CodeGenerator
       LLVMValueRef[] llvmArguments = new LLVMValueRef[1 + arguments.length];
       for (int i = 0; i < arguments.length; ++i)
       {
-        LLVMValueRef argument = buildExpression(arguments[i], builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
-        llvmArguments[i + 1] = typeHelper.convertTemporary(builder, landingPadContainer, argument, arguments[i].getType(), parameterTypes[i], false, typeParameterAccessor, typeParameterAccessor);
+        if (arguments[i] instanceof NormalArgument)
+        {
+          NormalArgument normalArgument = (NormalArgument) arguments[i];
+          LLVMValueRef argument = buildExpression(normalArgument.getExpression(), builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
+          llvmArguments[i + 1] = typeHelper.convertTemporary(builder, landingPadContainer, argument, normalArgument.getExpression().getType(), parameterTypes[i], false, typeParameterAccessor, typeParameterAccessor);
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+        }
       }
       NamedType type = creationExpression.getCreatedType();
       LLVMValueRef pointer;
@@ -5029,12 +5048,20 @@ public class CodeGenerator
         notNullCallee = typeHelper.convertTemporary(builder, landingPadContainer, callee, resolvedBaseExpression.getType(), calleeType, false, typeParameterAccessor, typeParameterAccessor);
       }
 
-      Expression[] arguments = functionExpression.getArguments();
+      Argument[] arguments = functionExpression.getArguments();
       LLVMValueRef[] values = new LLVMValueRef[arguments.length];
       for (int i = 0; i < arguments.length; i++)
       {
-        LLVMValueRef arg = buildExpression(arguments[i], builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
-        values[i] = typeHelper.convertTemporary(builder, landingPadContainer, arg, arguments[i].getType(), parameterTypes[i], false, typeParameterAccessor, typeParameterAccessor);
+        if (arguments[i] instanceof NormalArgument)
+        {
+          NormalArgument normalArgument = (NormalArgument) arguments[i];
+          LLVMValueRef arg = buildExpression(normalArgument.getExpression(), builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
+          values[i] = typeHelper.convertTemporary(builder, landingPadContainer, arg, normalArgument.getExpression().getType(), parameterTypes[i], false, typeParameterAccessor, typeParameterAccessor);
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+        }
       }
 
       LLVMValueRef result;

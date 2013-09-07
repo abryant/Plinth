@@ -65,6 +65,7 @@ import eu.bryants.anthony.plinth.ast.metadata.PackageNode;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
 import eu.bryants.anthony.plinth.ast.metadata.Variable;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
@@ -72,6 +73,7 @@ import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Import;
+import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
 import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
@@ -1454,16 +1456,23 @@ public class Resolver
     {
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
       CoalescedConceptualException coalescedException = null;
-      Expression[] arguments = delegateConstructorStatement.getArguments();
-      for (Expression argument : arguments)
+      Argument[] arguments = delegateConstructorStatement.getArguments();
+      for (Argument argument : arguments)
       {
-        try
+        if (argument instanceof NormalArgument)
         {
-          resolve(argument, enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
+          try
+          {
+            resolve(((NormalArgument) argument).getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
         }
-        catch (ConceptualException e)
+        else
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          throw new IllegalArgumentException("Unknown type of Argument: " + argument);
         }
       }
       NamedType constructorType;
@@ -2259,16 +2268,23 @@ public class Resolver
       {
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot create an instance of a type parameter", type.getLexicalPhrase()));
       }
-      Expression[] arguments = creationExpression.getArguments();
-      for (Expression argument : arguments)
+      Argument[] arguments = creationExpression.getArguments();
+      for (Argument argument : arguments)
       {
-        try
+        if (argument instanceof NormalArgument)
         {
-          resolve(argument, block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
+          try
+          {
+            resolve(((NormalArgument) argument).getExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
         }
-        catch (ConceptualException e)
+        else
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          throw new IllegalArgumentException("Unknown type of Argument: " + argument);
         }
       }
       if (coalescedException != null)
@@ -2402,16 +2418,24 @@ public class Resolver
       FunctionCallExpression expr = (FunctionCallExpression) expression;
       // resolve all of the sub-expressions
       CoalescedConceptualException coalescedException = null;
-      for (Expression e : expr.getArguments())
+      for (Argument argument : expr.getArguments())
       {
-        try
+        if (argument instanceof NormalArgument)
         {
-          resolve(e, block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
-          TypeChecker.checkTypes(e, enclosingDefinition, inStaticContext);
+          NormalArgument normalArgument = (NormalArgument) argument;
+          try
+          {
+            resolve(normalArgument.getExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
+            TypeChecker.checkTypes(normalArgument.getExpression(), enclosingDefinition, inStaticContext);
+          }
+          catch (ConceptualException exception)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, exception);
+          }
         }
-        catch (ConceptualException exception)
+        else
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, exception);
+          throw new IllegalArgumentException("Unknown type of Argument: " + argument);
         }
       }
       if (coalescedException != null)
@@ -3059,7 +3083,7 @@ public class Resolver
    * @param allowNullable - true to ignore the nullability of the parameter types in the equivalence check, false to check for strict equivalence
    * @param M - the Member type for the set of entries (this is never actually used)
    */
-  private <M extends MemberReference<?>> void filterParameterLists(Set<Entry<Type[], M>> paramTypeLists, Expression[] arguments, boolean ensureEquivalent, boolean allowNullable)
+  private <M extends MemberReference<?>> void filterParameterLists(Set<Entry<Type[], M>> paramTypeLists, Argument[] arguments, boolean ensureEquivalent, boolean allowNullable)
   {
     Iterator<Entry<Type[], M>> it = paramTypeLists.iterator();
     while (it.hasNext())
@@ -3072,7 +3096,15 @@ public class Resolver
         for (int i = 0; i < parameterTypes.length; i++)
         {
           Type parameterType = parameterTypes[i];
-          Type argumentType = arguments[i].getType();
+          Type argumentType;
+          if (arguments[i] instanceof NormalArgument)
+          {
+            argumentType = ((NormalArgument) arguments[i]).getExpression().getType();
+          }
+          else
+          {
+            throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+          }
           if (!parameterType.canAssign(argumentType))
           {
             typesMatch = false;
@@ -3105,12 +3137,19 @@ public class Resolver
    * @return the ConstructorReference resolved
    * @throws ConceptualException - if there was a conceptual problem resolving the Constructor
    */
-  private ConstructorReference resolveConstructor(final NamedType creationType, Expression[] arguments, LexicalPhrase callerLexicalPhrase, TypeDefinition enclosingDefinition, boolean inStaticContext) throws ConceptualException
+  private ConstructorReference resolveConstructor(final NamedType creationType, Argument[] arguments, LexicalPhrase callerLexicalPhrase, TypeDefinition enclosingDefinition, boolean inStaticContext) throws ConceptualException
   {
     Type[] argumentTypes = new Type[arguments.length];
     for (int i = 0; i < arguments.length; ++i)
     {
-      argumentTypes[i] = TypeChecker.checkTypes(arguments[i], enclosingDefinition, inStaticContext);
+      if (arguments[i] instanceof NormalArgument)
+      {
+        argumentTypes[i] = TypeChecker.checkTypes(((NormalArgument) arguments[i]).getExpression(), enclosingDefinition, inStaticContext);
+      }
+      else
+      {
+        throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+      }
     }
     GenericTypeSpecialiser genericTypeSpecialiser = new GenericTypeSpecialiser(creationType);
     // resolve the constructor being called

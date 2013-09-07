@@ -16,6 +16,7 @@ import eu.bryants.anthony.plinth.ast.expression.NullLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.ObjectCreationExpression;
 import eu.bryants.anthony.plinth.ast.expression.StringLiteralExpression;
 import eu.bryants.anthony.plinth.ast.expression.SuperVariableExpression;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.FloatingLiteral;
 import eu.bryants.anthony.plinth.ast.terminal.IntegerLiteral;
@@ -197,8 +198,8 @@ public class PrimaryNotThisRule extends Rule<ParseType>
     if (production == OBJECT_CREATION_PRODUCTION)
     {
       @SuppressWarnings("unchecked")
-      ParseList<Expression> argumentsList = (ParseList<Expression>) args[2];
-      return new ObjectCreationExpression(argumentsList.toArray(new Expression[argumentsList.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], argumentsList.getLexicalPhrase()));
+      ParseList<Argument> argumentsList = (ParseList<Argument>) args[2];
+      return new ObjectCreationExpression(argumentsList.toArray(new Argument[argumentsList.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], argumentsList.getLexicalPhrase()));
     }
     if (production == STRING_LITERAL_PRODUCTION)
     {

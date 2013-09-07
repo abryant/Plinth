@@ -4,7 +4,7 @@ import parser.ParseException;
 import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
-import eu.bryants.anthony.plinth.ast.expression.Expression;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 
@@ -19,8 +19,8 @@ public class ArgumentsRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> PRODUCTION         = new Production<ParseType>(ParseType.LPAREN, ParseType.EXPRESSION_LIST, ParseType.RPAREN);
-  private static final Production<ParseType> NO_ARGS_PRODUCTION = new Production<ParseType>(ParseType.LPAREN,                            ParseType.RPAREN);
+  private static final Production<ParseType> PRODUCTION         = new Production<ParseType>(ParseType.LPAREN, ParseType.ARGUMENT_LIST, ParseType.RPAREN);
+  private static final Production<ParseType> NO_ARGS_PRODUCTION = new Production<ParseType>(ParseType.LPAREN,                          ParseType.RPAREN);
 
   public ArgumentsRule()
   {
@@ -36,13 +36,13 @@ public class ArgumentsRule extends Rule<ParseType>
     if (production == PRODUCTION)
     {
       @SuppressWarnings("unchecked")
-      ParseList<Expression> list = (ParseList<Expression>) args[1];
+      ParseList<Argument> list = (ParseList<Argument>) args[1];
       list.setLexicalPhrase(LexicalPhrase.combine((LexicalPhrase) args[0], list.getLexicalPhrase(), (LexicalPhrase) args[2]));
       return list;
     }
     if (production == NO_ARGS_PRODUCTION)
     {
-      return new ParseList<Expression>(LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1]));
+      return new ParseList<Argument>(LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1]));
     }
     throw badTypeList();
   }

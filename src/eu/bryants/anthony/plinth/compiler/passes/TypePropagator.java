@@ -39,11 +39,13 @@ import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.metadata.ConstructorReference;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
+import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
 import eu.bryants.anthony.plinth.ast.statement.AssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Block;
@@ -178,11 +180,18 @@ public class TypePropagator
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
       ConstructorReference constructorReference = delegateConstructorStatement.getResolvedConstructorReference();
       Type[] parameterTypes = constructorReference == null ? new Type[0] : constructorReference.getParameterTypes();
-      Expression[] arguments = delegateConstructorStatement.getArguments();
+      Argument[] arguments = delegateConstructorStatement.getArguments();
       // propagate the parameter types to the arguments
       for (int i = 0; i < parameterTypes.length; ++i)
       {
-        propagateTypes(arguments[i], parameterTypes[i]);
+        if (arguments[i] instanceof NormalArgument)
+        {
+          propagateTypes(((NormalArgument) arguments[i]).getExpression(), parameterTypes[i]);
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+        }
       }
     }
     else if (statement instanceof ExpressionStatement)
@@ -461,14 +470,21 @@ public class TypePropagator
       CreationExpression creationExpression = (CreationExpression) expression;
       ConstructorReference resolvedConstructorReference = creationExpression.getResolvedConstructorReference();
       Type[] parameterTypes = resolvedConstructorReference.getParameterTypes();
-      Expression[] arguments = creationExpression.getArguments();
+      Argument[] arguments = creationExpression.getArguments();
       if (parameterTypes.length != arguments.length)
       {
         throw new IllegalStateException("A constructor call must have the same number of arguments as the constructor has parameters (" + parameterTypes.length + " parameters vs " + arguments.length + " arguments)");
       }
       for (int i = 0; i < parameterTypes.length; ++i)
       {
-        propagateTypes(arguments[i], parameterTypes[i]);
+        if (arguments[i] instanceof NormalArgument)
+        {
+          propagateTypes(((NormalArgument) arguments[i]).getExpression(), parameterTypes[i]);
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+        }
       }
     }
     else if (expression instanceof EqualityExpression)
@@ -504,7 +520,7 @@ public class TypePropagator
     else if (expression instanceof FunctionCallExpression)
     {
       FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
-      Expression[] arguments = functionCallExpression.getArguments();
+      Argument[] arguments = functionCallExpression.getArguments();
       Type[] parameterTypes = null;
       if (functionCallExpression.getResolvedMethodReference() != null)
       {
@@ -532,7 +548,14 @@ public class TypePropagator
       // propagate each of the argument types
       for (int i = 0; i < arguments.length; i++)
       {
-        propagateTypes(arguments[i], parameterTypes[i]);
+        if (arguments[i] instanceof NormalArgument)
+        {
+          propagateTypes(((NormalArgument) arguments[i]).getExpression(), parameterTypes[i]);
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+        }
       }
     }
     else if (expression instanceof InlineIfExpression)

@@ -62,11 +62,13 @@ import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
 import eu.bryants.anthony.plinth.ast.metadata.Variable;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
+import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
 import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
@@ -1254,7 +1256,7 @@ public class TypeChecker
       ConstructorReference constructorReference = delegateConstructorStatement.getResolvedConstructorReference();
 
       Type[] parameterTypes = constructorReference == null ? new Type[0] : constructorReference.getParameterTypes();
-      Expression[] arguments = delegateConstructorStatement.getArguments();
+      Argument[] arguments = delegateConstructorStatement.getArguments();
 
       if (arguments.length != parameterTypes.length)
       {
@@ -1274,17 +1276,25 @@ public class TypeChecker
       CoalescedConceptualException coalescedException = null;
       for (int i = 0; i < arguments.length; i++)
       {
-        try
+        if (arguments[i] instanceof NormalArgument)
         {
-          Type type = checkTypes(arguments[i], containingDefinition, inStaticContext);
-          if (!parameterTypes[i].canAssign(type))
+          NormalArgument normalArgument = (NormalArgument) arguments[i];
+          try
           {
-            throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", arguments[i].getLexicalPhrase());
+            Type type = checkTypes(normalArgument.getExpression(), containingDefinition, inStaticContext);
+            if (!parameterTypes[i].canAssign(type))
+            {
+              throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", normalArgument.getLexicalPhrase());
+            }
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
-        catch (ConceptualException e)
+        else
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
         }
       }
       if (coalescedException != null)
@@ -2288,7 +2298,7 @@ public class TypeChecker
           throw new ConceptualException("Cannot use the 'create' operator on '" + type + "', it must be on a compound definition", expression.getLexicalPhrase());
         }
       }
-      Expression[] arguments = creationExpression.getArguments();
+      Argument[] arguments = creationExpression.getArguments();
       ConstructorReference constructorReference = creationExpression.getResolvedConstructorReference();
       Type[] parameterTypes = constructorReference.getParameterTypes();
       if (arguments.length != parameterTypes.length)
@@ -2307,17 +2317,25 @@ public class TypeChecker
       CoalescedConceptualException coalescedException = null;
       for (int i = 0; i < arguments.length; ++i)
       {
-        try
+        if (arguments[i] instanceof NormalArgument)
         {
-          Type argumentType = checkTypes(arguments[i], containingDefinition, inStaticContext);
-          if (!parameterTypes[i].canAssign(argumentType))
+          NormalArgument normalArgument = (NormalArgument) arguments[i];
+          try
           {
-            throw new ConceptualException("Cannot pass an argument of type '" + argumentType + "' as a parameter of type '" + parameterTypes[i] + "'", arguments[i].getLexicalPhrase());
+            Type argumentType = checkTypes(normalArgument.getExpression(), containingDefinition, inStaticContext);
+            if (!parameterTypes[i].canAssign(argumentType))
+            {
+              throw new ConceptualException("Cannot pass an argument of type '" + argumentType + "' as a parameter of type '" + parameterTypes[i] + "'", normalArgument.getLexicalPhrase());
+            }
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
-        catch (ConceptualException e)
+        else
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
         }
       }
       if (coalescedException != null)
@@ -2519,7 +2537,7 @@ public class TypeChecker
     {
       FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
       CoalescedConceptualException coalescedException = null;
-      Expression[] arguments = functionCallExpression.getArguments();
+      Argument[] arguments = functionCallExpression.getArguments();
       Type[] parameterTypes;
       String name = null;
       Type resultType;
@@ -2592,17 +2610,25 @@ public class TypeChecker
 
       for (int i = 0; i < arguments.length; i++)
       {
-        try
+        if (arguments[i] instanceof NormalArgument)
         {
-          Type type = checkTypes(arguments[i], containingDefinition, inStaticContext);
-          if (!parameterTypes[i].canAssign(type))
+          NormalArgument normalArgument = (NormalArgument) arguments[i];
+          try
           {
-            throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", arguments[i].getLexicalPhrase());
+            Type type = checkTypes(normalArgument.getExpression(), containingDefinition, inStaticContext);
+            if (!parameterTypes[i].canAssign(type))
+            {
+              throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", normalArgument.getLexicalPhrase());
+            }
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
-        catch (ConceptualException e)
+        else
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
         }
       }
       if (coalescedException != null)

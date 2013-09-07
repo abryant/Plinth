@@ -5,7 +5,7 @@ import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.CreationExpression;
-import eu.bryants.anthony.plinth.ast.expression.Expression;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.parser.ParseType;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
@@ -39,8 +39,8 @@ public class CreationExpressionRule extends Rule<ParseType>
     {
       NamedType type = (NamedType) args[1];
       @SuppressWarnings("unchecked")
-      ParseList<Expression> arguments = (ParseList<Expression>) args[2];
-      return new CreationExpression(production == NEW_PRODUCTION, type, arguments.toArray(new Expression[arguments.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], type.getLexicalPhrase(), arguments.getLexicalPhrase()));
+      ParseList<Argument> arguments = (ParseList<Argument>) args[2];
+      return new CreationExpression(production == NEW_PRODUCTION, type, arguments.toArray(new Argument[arguments.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], type.getLexicalPhrase(), arguments.getLexicalPhrase()));
     }
     throw badTypeList();
   }

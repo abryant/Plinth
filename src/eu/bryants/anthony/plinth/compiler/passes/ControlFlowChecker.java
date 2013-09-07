@@ -60,12 +60,14 @@ import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyPseudoVariable;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
 import eu.bryants.anthony.plinth.ast.metadata.Variable;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
+import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
 import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
@@ -1704,15 +1706,22 @@ public class ControlFlowChecker
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot call a selfish delegate constructor from a not-selfish constructor", delegateConstructorStatement.getLexicalPhrase()));
       }
 
-      for (Expression argument : delegateConstructorStatement.getArguments())
+      for (Argument argument : delegateConstructorStatement.getArguments())
       {
-        try
+        if (argument instanceof NormalArgument)
         {
-          checkControlFlow(argument, enclosingTypeDefinition, state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          try
+          {
+            checkControlFlow(((NormalArgument) argument).getExpression(), enclosingTypeDefinition, state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
         }
-        catch (ConceptualException e)
+        else
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          throw new IllegalArgumentException("Unknown type of Argument: " + argument);
         }
       }
 
@@ -3176,15 +3185,22 @@ public class ControlFlowChecker
     {
       CreationExpression creationExpression = (CreationExpression) expression;
       CoalescedConceptualException coalescedException = null;
-      for (Expression argument : creationExpression.getArguments())
+      for (Argument argument : creationExpression.getArguments())
       {
-        try
+        if (argument instanceof NormalArgument)
         {
-          checkControlFlow(argument, enclosingTypeDefinition, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          try
+          {
+            checkControlFlow(((NormalArgument) argument).getExpression(), enclosingTypeDefinition, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
         }
-        catch (ConceptualException e)
+        else
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          throw new IllegalArgumentException("Unknown type of Argument: " + argument);
         }
       }
       if (inImmutableContext && !creationExpression.getResolvedConstructorReference().getReferencedMember().isImmutable())
@@ -3365,15 +3381,22 @@ public class ControlFlowChecker
         throw new IllegalStateException("Unresolved function call: " + functionCallExpression);
       }
       // check that the arguments are all initialised
-      for (Expression expr : functionCallExpression.getArguments())
+      for (Argument argument : functionCallExpression.getArguments())
       {
-        try
+        if (argument instanceof NormalArgument)
         {
-          checkControlFlow(expr, enclosingTypeDefinition, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          try
+          {
+            checkControlFlow(((NormalArgument) argument).getExpression(), enclosingTypeDefinition, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
         }
-        catch (ConceptualException e)
+        else
         {
-          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          throw new IllegalArgumentException("Unknown type of Argument: " + argument);
         }
       }
       if (coalescedException != null)

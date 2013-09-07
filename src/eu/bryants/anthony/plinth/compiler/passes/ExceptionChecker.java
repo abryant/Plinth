@@ -41,11 +41,13 @@ import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
+import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
 import eu.bryants.anthony.plinth.ast.statement.AssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Block;
@@ -260,9 +262,16 @@ public class ExceptionChecker
     else if (statement instanceof DelegateConstructorStatement)
     {
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
-      for (Expression argument : delegateConstructorStatement.getArguments())
+      for (Argument argument : delegateConstructorStatement.getArguments())
       {
-        findUncaughtExceptions(argument, uncaughtExceptions);
+        if (argument instanceof NormalArgument)
+        {
+          findUncaughtExceptions(((NormalArgument) argument).getExpression(), uncaughtExceptions);
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Argument: " + argument);
+        }
       }
       if (delegateConstructorStatement.getResolvedConstructorReference() != null)
       {
@@ -502,9 +511,16 @@ public class ExceptionChecker
     else if (expression instanceof CreationExpression)
     {
       CreationExpression creationExpression = (CreationExpression) expression;
-      for (Expression argument : creationExpression.getArguments())
+      for (Argument argument : creationExpression.getArguments())
       {
-        findUncaughtExceptions(argument, uncaughtExceptions);
+        if (argument instanceof NormalArgument)
+        {
+          findUncaughtExceptions(((NormalArgument) argument).getExpression(), uncaughtExceptions);
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Argument: " + argument);
+        }
       }
       for (NamedType thrownType : creationExpression.getResolvedConstructorReference().getCheckedThrownTypes())
       {
@@ -531,9 +547,16 @@ public class ExceptionChecker
     else if (expression instanceof FunctionCallExpression)
     {
       FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
-      for (Expression argument : functionCallExpression.getArguments())
+      for (Argument argument : functionCallExpression.getArguments())
       {
-        findUncaughtExceptions(argument, uncaughtExceptions);
+        if (argument instanceof NormalArgument)
+        {
+          findUncaughtExceptions(((NormalArgument) argument).getExpression(), uncaughtExceptions);
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Argument: " + argument);
+        }
       }
       if (functionCallExpression.getResolvedMethodReference() != null)
       {

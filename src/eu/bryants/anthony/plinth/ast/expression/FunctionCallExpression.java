@@ -2,6 +2,7 @@ package eu.bryants.anthony.plinth.ast.expression;
 
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 
 /*
  * Created on 2 Apr 2012
@@ -13,7 +14,7 @@ import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
 public class FunctionCallExpression extends Expression
 {
   private Expression functionExpression;
-  private Expression[] arguments;
+  private Argument[] arguments;
 
   // when this has been resolved (assuming there were no errors) we will have one of the following situations:
   // * just a resolvedBaseExpression, which has a function type
@@ -26,7 +27,7 @@ public class FunctionCallExpression extends Expression
   // if there is a resolved method and no resolved base expression, the function call may be resolved as non-virtual, this represents calls of the form 'super.method()'
   private boolean resolvedIsVirtual = true;
 
-  public FunctionCallExpression(Expression functionExpression, Expression[] arguments, LexicalPhrase lexicalPhrase)
+  public FunctionCallExpression(Expression functionExpression, Argument[] arguments, LexicalPhrase lexicalPhrase)
   {
     super(lexicalPhrase);
     this.functionExpression = functionExpression;
@@ -44,7 +45,7 @@ public class FunctionCallExpression extends Expression
   /**
    * @return the arguments
    */
-  public Expression[] getArguments()
+  public Argument[] getArguments()
   {
     return arguments;
   }

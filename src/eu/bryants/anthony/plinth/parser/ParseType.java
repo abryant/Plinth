@@ -30,7 +30,8 @@ public enum ParseType
   PROPERTY,                      // Property
 
   // Misc
-  ARGUMENTS,                     // ParseList<Expression>
+  ARGUMENTS,                     // ParseList<Argument>
+  ARGUMENT_LIST,                 // ParseList<Argument>
   ASSIGNEE,                      // Assignee
   ASSIGNEE_NO_QNAME,             // Assignee
   ASSIGNEE_LIST,                 // ParseList<Assignee>

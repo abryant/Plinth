@@ -6,6 +6,7 @@ import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.CastExpression;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
+import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.ast.statement.DelegateConstructorStatement;
 import eu.bryants.anthony.plinth.ast.statement.ExpressionStatement;
 import eu.bryants.anthony.plinth.ast.statement.ShorthandAssignStatement;
@@ -100,8 +101,8 @@ public class StatementRule extends Rule<ParseType>
     {
       boolean isSuperConstructor = production == DELEGATE_SUPER_CONSTRUCTOR_PRODUCTION;
       @SuppressWarnings("unchecked")
-      ParseList<Expression> arguments = (ParseList<Expression>) args[1];
-      return new DelegateConstructorStatement(isSuperConstructor, arguments.toArray(new Expression[arguments.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], arguments.getLexicalPhrase(), (LexicalPhrase) args[2]));
+      ParseList<Argument> arguments = (ParseList<Argument>) args[1];
+      return new DelegateConstructorStatement(isSuperConstructor, arguments.toArray(new Argument[arguments.size()]), LexicalPhrase.combine((LexicalPhrase) args[0], arguments.getLexicalPhrase(), (LexicalPhrase) args[2]));
     }
     if (production == THROW_PRODUCTION)
     {
