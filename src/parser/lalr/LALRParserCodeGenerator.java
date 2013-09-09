@@ -317,6 +317,7 @@ public class LALRParserCodeGenerator<T extends Enum<T>>
       }
       if (reduceActions != null)
       {
+        Map<Rule<T>, Map<Integer, List<T>>> coalescedActions = new HashMap<Rule<T>, Map<Integer, List<T>>>();
         for (Entry<T, ReduceAction<T>> entry : reduceActions.entrySet())
         {
           if (entry.getKey() == null)
@@ -324,8 +325,32 @@ public class LALRParserCodeGenerator<T extends Enum<T>>
             continue;
           }
           ReduceAction<T> action = entry.getValue();
-          out.println("  case " + entry.getKey().ordinal() + ":");
-          out.println("    return reduce(RULE_" + ruleNumbers.get(action.getRule()) + ", " + action.getProductionIndex() + ");");
+          Map<Integer, List<T>> productionMap = coalescedActions.get(action.getRule());
+          if (productionMap == null)
+          {
+            productionMap = new HashMap<Integer, List<T>>();
+            coalescedActions.put(action.getRule(), productionMap);
+          }
+          List<T> tokenTypeList = productionMap.get(action.getProductionIndex());
+          if (tokenTypeList == null)
+          {
+            tokenTypeList = new LinkedList<T>();
+            productionMap.put(action.getProductionIndex(), tokenTypeList);
+          }
+          tokenTypeList.add(entry.getKey());
+        }
+        for (Entry<Rule<T>, Map<Integer, List<T>>> ruleEntry : coalescedActions.entrySet())
+        {
+          for (Entry<Integer, List<T>> entry : ruleEntry.getValue().entrySet())
+          {
+            out.print(" ");
+            for (T tokenType : entry.getValue())
+            {
+              out.print(" case " + tokenType.ordinal() + ":");
+            }
+            out.println();
+            out.println("    return reduce(RULE_" + ruleNumbers.get(ruleEntry.getKey()) + ", " + entry.getKey() + ");");
+          }
         }
         possibleTokenTypes.addAll(reduceActions.keySet());
       }
