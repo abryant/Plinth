@@ -67,6 +67,7 @@ import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
 import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
@@ -807,6 +808,10 @@ public class TypeChecker
       for (Type t : functionType.getParameterTypes())
       {
         checkType(t, containingDefinition, inStaticContext);
+      }
+      for (DefaultParameter defaultParameter : functionType.getDefaultParameters())
+      {
+        checkType(defaultParameter.getType(), containingDefinition, inStaticContext);
       }
       checkType(functionType.getReturnType(), containingDefinition, inStaticContext);
       if (functionType.getThrownTypes() != null)
@@ -2219,7 +2224,7 @@ public class TypeChecker
         if (functionExprType.isImmutable() != ((FunctionType) castedType).isImmutable() ||
             functionExprType.getThrownTypes().length > 0)
         {
-          checkExprType = new FunctionType(functionExprType.isNullable(), ((FunctionType) castedType).isImmutable(), functionExprType.getReturnType(), functionExprType.getParameterTypes(), new NamedType[0], null);
+          checkExprType = new FunctionType(functionExprType.isNullable(), ((FunctionType) castedType).isImmutable(), functionExprType.getReturnType(), functionExprType.getParameterTypes(), functionExprType.getDefaultParameters(), new NamedType[0], null);
         }
       }
 
@@ -2504,7 +2509,8 @@ public class TypeChecker
       {
         // create a function type for this method
         MethodReference methodReference = (MethodReference) memberReference;
-        type = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), methodReference.getCheckedThrownTypes(), null);
+        {} // TODO: when default parameters are added to methods, they should be included here
+        type = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), new DefaultParameter[0], methodReference.getCheckedThrownTypes(), null);
       }
       else
       {
@@ -2539,6 +2545,7 @@ public class TypeChecker
       CoalescedConceptualException coalescedException = null;
       Argument[] arguments = functionCallExpression.getArguments();
       Type[] parameterTypes;
+      {} // TODO: handle default parameters properly here, once default arguments are added
       String name = null;
       Type resultType;
       if (functionCallExpression.getResolvedMethodReference() != null)
@@ -3193,8 +3200,9 @@ public class TypeChecker
         {
           MethodReference methodReference = (MethodReference) memberReference;
           // create a function type for this method
+          {} // TODO: when default parameters are added to methods, they should be included here
           FunctionType type = new FunctionType(false, methodReference.getReferencedMember().isImmutable(),
-                                               methodReference.getReturnType(), methodReference.getParameterTypes(),
+                                               methodReference.getReturnType(), methodReference.getParameterTypes(), new DefaultParameter[0],
                                                methodReference.getCheckedThrownTypes(),
                                                null);
           expression.setType(type);
@@ -3254,13 +3262,23 @@ public class TypeChecker
         }
         Type[] checkParams = ((FunctionType) checkType).getParameterTypes();
         Type[] expressionParams = ((FunctionType) expressionType).getParameterTypes();
-        if (checkParams.length != expressionParams.length)
+        DefaultParameter[] checkDefaultParams = ((FunctionType) checkType).getDefaultParameters();
+        DefaultParameter[] expressionDefaultParams = ((FunctionType) expressionType).getDefaultParameters();
+        if (checkParams.length != expressionParams.length || checkDefaultParams.length != expressionDefaultParams.length)
         {
           return false;
         }
         for (int i = 0; i < checkParams.length; ++i)
         {
           if (!checkParams[i].isRuntimeEquivalent(expressionParams[i]))
+          {
+            return false;
+          }
+        }
+        for (int i = 0; i < checkDefaultParams.length; ++i)
+        {
+          if (!checkDefaultParams[i].getName().equals(expressionDefaultParams[i].getName()) ||
+              !checkDefaultParams[i].getType().isRuntimeEquivalent(expressionDefaultParams[i].getType()))
           {
             return false;
           }
@@ -3795,7 +3813,7 @@ public class TypeChecker
       // alter one of the types to have the minimum nullability and immutability that we need, and give it the union of their thrown types
       // if the altered type cannot assign the other one, then altering the other type would not help,
       // since the only other variables in function.canAssign() are the parameter and return types, and the checking for those is symmetric
-      FunctionType alteredA = new FunctionType(nullability, immutability, functionA.getReturnType(), functionA.getParameterTypes(), combinedThrown.toArray(new NamedType[combinedThrown.size()]), null);
+      FunctionType alteredA = new FunctionType(nullability, immutability, functionA.getReturnType(), functionA.getParameterTypes(), functionA.getDefaultParameters(), combinedThrown.toArray(new NamedType[combinedThrown.size()]), null);
 
       if (alteredA.canAssign(b))
       {

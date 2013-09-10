@@ -104,15 +104,18 @@ AssigneeList = QName           Comma AssigneeList |
                AssigneeNoQName Comma AssigneeList |
                Assignee
 
-DeclarationAssigneeList = Name | Underscore | DeclarationAssigneeList Comma Name | DeclarationAssigneeList Comma Underscore
+DeclarationAssigneeList = Name | Underscore | Name Comma DeclarationAssigneeList | Underscore Comma DeclarationAssigneeList
+DeclarationAssigneeListNotSingleName = Name Comma Name | Underscore Comma Name | Underscore | Name Comma DeclarationAssigneeListNoSingleName | Underscore Comma DeclarationAssigneeListNoSingleName
 
-
-Assignment = Modifiers TypeNotQName    DeclarationAssigneeList Semicolon | Modifiers TypeNotQName    DeclarationAssigneeList Equals Expression Semicolon |
-                       TypeNotQName    DeclarationAssigneeList Semicolon |           TypeNotQName    DeclarationAssigneeList Equals Expression Semicolon |
-             Modifiers QName           DeclarationAssigneeList Semicolon | Modifiers QName           DeclarationAssigneeList Equals Expression Semicolon |
-                       QName           DeclarationAssigneeList Semicolon |           QName           DeclarationAssigneeList Equals Expression Semicolon |
-             Modifiers NestedQNameList DeclarationAssigneeList Semicolon | Modifiers NestedQNameList DeclarationAssigneeList Equals Expression Semicolon |
-                       NestedQNameList DeclarationAssigneeList Semicolon |           NestedQNameList DeclarationAssigneeList Equals Expression Semicolon |
+Assignment = Modifiers TypeNotQName    DeclarationAssigneeList Semicolon | Modifiers TypeNotQName    DeclarationAssigneeList              Equals Expression Semicolon |
+                       TypeNotQName    DeclarationAssigneeList Semicolon |           TypeNotQName    DeclarationAssigneeListNotSingleName Equals Expression Semicolon |
+             Modifiers QName           DeclarationAssigneeList Semicolon | Modifiers QName           DeclarationAssigneeList              Equals Expression Semicolon |
+                       QName           DeclarationAssigneeList Semicolon |           QName           DeclarationAssigneeListNotSingleName Equals Expression Semicolon |
+             Modifiers NestedQNameList DeclarationAssigneeList Semicolon | Modifiers NestedQNameList DeclarationAssigneeList              Equals Expression Semicolon |
+                       NestedQNameList DeclarationAssigneeList Semicolon |           NestedQNameList DeclarationAssigneeListNotSingleName Equals Expression Semicolon |
+             TypeNotQName    Name Equals Expression Semicolon |
+             QName           Name Equals Expression Semicolon |
+             NestedQNameList Name Equals Expression Semicolon |
              AssigneeList Equals Expression Semicolon
 BreakStatement = BreakKeyword Semicolon | BreakKeyword IntegerLiteral Semicolon
 ContinueStatement = ContinueKeyword Semicolon | ContinueKeyword IntegerLiteral Semicolon
@@ -179,10 +182,10 @@ BasicType = BooleanKeyword |                 QuestionMark BooleanKeyword
           | QuestionMark      LSquare RSquare TypeNoTrailingArgs
           |              Hash LSquare RSquare TypeNoTrailingArgs
           | QuestionMark Hash LSquare RSquare TypeNoTrailingArgs
-          | LBrace TypeList      Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace TypeList      Arrow ReturnType ThrowsClause RBrace
-          | LBrace TypeList Hash Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace TypeList Hash Arrow ReturnType ThrowsClause RBrace
-          | LBrace               Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace               Arrow ReturnType ThrowsClause RBrace
-          | LBrace          Hash Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace          Hash Arrow ReturnType ThrowsClause RBrace
+          | LBrace FunctionParameters      Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace FunctionParameters      Arrow ReturnType ThrowsClause RBrace
+          | LBrace FunctionParameters Hash Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace FunctionParameters Hash Arrow ReturnType ThrowsClause RBrace
+          | LBrace                         Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace                         Arrow ReturnType ThrowsClause RBrace
+          | LBrace                    Hash Arrow ReturnType ThrowsClause RBrace | QuestionMark LBrace                    Hash Arrow ReturnType ThrowsClause RBrace
           |                   ObjectKeyword
           | QuestionMark      ObjectKeyword
           |              Hash ObjectKeyword
@@ -193,6 +196,14 @@ BasicType = BooleanKeyword |                 QuestionMark BooleanKeyword
           | QuestionMark      QName
           |              Hash QName
           | QuestionMark Hash QName
+
+FunctionTypeDefaultParameter = TypeNotQName Name Equals Ellipsis | QName Name Equals Ellipsis | NestedQNameList Name Equals Ellipsis
+FunctionTypeDefaultParameterList = FunctionDefaultParameter | FunctionDefaultParameterList Comma FunctionDefaultParameter
+FunctionTypeParameters = TypeNotQName | QName | NestedQNameList
+                       | FunctionTypeDefaultParameterList
+                       | TypeNotQName    Comma FunctionTypeParameters
+                       | QName           Comma FunctionTypeParameters
+                       | NestedQNameList Comma FunctionTypeParameters
 
 TypeList = TypeListNotQName | QNameList
 TypeListNotQName = QName           Comma TypeListNotQName

@@ -38,9 +38,13 @@ import eu.bryants.anthony.plinth.parser.rules.misc.AssigneeListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.AssigneeNoQNameRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.AssigneeRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.CatchTypeListRule;
+import eu.bryants.anthony.plinth.parser.rules.misc.DeclarationAssigneeListNotSingleNameRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.DeclarationAssigneeListRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ForInitRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ForUpdateRule;
+import eu.bryants.anthony.plinth.parser.rules.misc.FunctionTypeDefaultParameterListRule;
+import eu.bryants.anthony.plinth.parser.rules.misc.FunctionTypeDefaultParameterRule;
+import eu.bryants.anthony.plinth.parser.rules.misc.FunctionTypeParametersRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ImplementsClauseRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.ImportsRule;
 import eu.bryants.anthony.plinth.parser.rules.misc.InterfaceListRule;
@@ -152,9 +156,13 @@ public class PlinthParseRules
     new AssigneeNoQNameRule(),
     new AssigneeRule(),
     new CatchTypeListRule(),
+    new DeclarationAssigneeListNotSingleNameRule(),
     new DeclarationAssigneeListRule(),
     new ForInitRule(),
     new ForUpdateRule(),
+    new FunctionTypeDefaultParameterListRule(),
+    new FunctionTypeDefaultParameterRule(),
+    new FunctionTypeParametersRule(),
     new ImplementsClauseRule(),
     new ImportsRule(),
     new InterfaceListRule(),

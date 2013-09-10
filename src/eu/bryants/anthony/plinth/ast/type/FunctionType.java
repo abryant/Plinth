@@ -1,5 +1,7 @@
 package eu.bryants.anthony.plinth.ast.type;
 
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -9,6 +11,7 @@ import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
 import eu.bryants.anthony.plinth.ast.metadata.GenericTypeSpecialiser;
 import eu.bryants.anthony.plinth.ast.metadata.MemberReference;
 import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 
 /*
  * Created on 21 May 2012
@@ -23,14 +26,33 @@ public class FunctionType extends Type
   private boolean isImmutable;
   private Type returnType;
   private Type[] parameterTypes;
+  private DefaultParameter[] defaultParameters;
   private NamedType[] thrownTypes;
 
-  public FunctionType(boolean nullable, boolean isImmutable, Type returnType, Type[] parameterTypes, NamedType[] thrownTypes, LexicalPhrase lexicalPhrase)
+  public FunctionType(boolean nullable, boolean isImmutable, Type returnType, Type[] parameterTypes, DefaultParameter[] defaultParameters, NamedType[] thrownTypes, LexicalPhrase lexicalPhrase)
   {
     super(nullable, lexicalPhrase);
     this.isImmutable = isImmutable;
     this.returnType = returnType;
     this.parameterTypes = parameterTypes;
+    for (DefaultParameter defaultParameter : defaultParameters)
+    {
+      if (defaultParameter.getExpression() != null)
+      {
+        throw new IllegalArgumentException("A FunctionType cannot accept DefaultParameters with filled-in expressions");
+      }
+    }
+    {} // TODO: make sure we don't accidentally sort a method's default parameters array when it shouldn't be
+    {} // (this might be fine, if default parameter arrays are always sorted)
+    Arrays.sort(defaultParameters, new Comparator<DefaultParameter>()
+    {
+      @Override
+      public int compare(DefaultParameter o1, DefaultParameter o2)
+      {
+        return o1.getName().compareTo(o2.getName());
+      }
+    });
+    this.defaultParameters = defaultParameters;
     this.thrownTypes = thrownTypes;
   }
 
@@ -56,6 +78,14 @@ public class FunctionType extends Type
   public Type[] getParameterTypes()
   {
     return parameterTypes;
+  }
+
+  /**
+   * @return the defaultParameters
+   */
+  public DefaultParameter[] getDefaultParameters()
+  {
+    return defaultParameters;
   }
 
   /**
@@ -98,13 +128,22 @@ public class FunctionType extends Type
         return false;
       }
       Type[] otherParameters = otherFunction.getParameterTypes();
-      if (parameterTypes.length != otherParameters.length)
+      DefaultParameter[] otherDefaultParameters = otherFunction.getDefaultParameters();
+      if (parameterTypes.length != otherParameters.length || defaultParameters.length != otherDefaultParameters.length)
       {
         return false;
       }
       for (int i = 0; i < parameterTypes.length; ++i)
       {
         if (!parameterTypes[i].isEquivalent(otherParameters[i]))
+        {
+          return false;
+        }
+      }
+      for (int i = 0; i < defaultParameters.length; ++i)
+      {
+        if (!defaultParameters[i].getName().equals(otherDefaultParameters[i].getName()) ||
+            !defaultParameters[i].getType().isEquivalent(otherDefaultParameters[i].getType()))
         {
           return false;
         }
@@ -161,13 +200,22 @@ public class FunctionType extends Type
       return false;
     }
     Type[] otherParameters = otherFunction.getParameterTypes();
-    if (parameterTypes.length != otherParameters.length)
+    DefaultParameter[] otherDefaultParameters = otherFunction.getDefaultParameters();
+    if (parameterTypes.length != otherParameters.length || defaultParameters.length != otherDefaultParameters.length)
     {
       return false;
     }
     for (int i = 0; i < parameterTypes.length; i++)
     {
       if (!parameterTypes[i].isEquivalent(otherParameters[i]))
+      {
+        return false;
+      }
+    }
+    for (int i = 0; i < defaultParameters.length; ++i)
+    {
+      if (!defaultParameters[i].getName().equals(otherDefaultParameters[i].getName()) ||
+          !defaultParameters[i].getType().isEquivalent(otherDefaultParameters[i].getType()))
       {
         return false;
       }
@@ -236,13 +284,22 @@ public class FunctionType extends Type
       return false;
     }
     Type[] otherParameters = otherFunction.getParameterTypes();
-    if (parameterTypes.length != otherParameters.length)
+    DefaultParameter[] otherDefaultParameters = otherFunction.getDefaultParameters();
+    if (parameterTypes.length != otherParameters.length || defaultParameters.length != otherDefaultParameters.length)
     {
       return false;
     }
     for (int i = 0; i < parameterTypes.length; i++)
     {
       if (!parameterTypes[i].isRuntimeEquivalent(otherParameters[i]))
+      {
+        return false;
+      }
+    }
+    for (int i = 0; i < defaultParameters.length; ++i)
+    {
+      if (!defaultParameters[i].getName().equals(otherDefaultParameters[i].getName()) ||
+          !defaultParameters[i].getType().isEquivalent(otherDefaultParameters[i].getType()))
       {
         return false;
       }
@@ -260,7 +317,7 @@ public class FunctionType extends Type
     Set<MemberReference<?>> memberSet = new HashSet<MemberReference<?>>();
     if (name.equals(BuiltinMethodType.TO_STRING.methodName))
     {
-      Type notNullThis = new FunctionType(false, isImmutable, returnType, parameterTypes, thrownTypes, null);
+      Type notNullThis = new FunctionType(false, isImmutable, returnType, parameterTypes, defaultParameters, thrownTypes, null);
       memberSet.add(new MethodReference(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING), GenericTypeSpecialiser.IDENTITY_SPECIALISER));
     }
     return memberSet;
@@ -287,6 +344,13 @@ public class FunctionType extends Type
     for (Type type : parameterTypes)
     {
       buffer.append(type.getMangledName());
+    }
+    for (DefaultParameter defaultParameter : defaultParameters)
+    {
+      buffer.append('_');
+      buffer.append(defaultParameter.getType().getMangledName());
+      buffer.append(defaultParameter.getName().getBytes().length);
+      buffer.append(defaultParameter.getName());
     }
     buffer.append('E');
     return buffer.toString();
@@ -316,7 +380,15 @@ public class FunctionType extends Type
     for (int i = 0; i < parameterTypes.length; i++)
     {
       buffer.append(parameterTypes[i]);
-      if (i != parameterTypes.length - 1)
+      if (i != parameterTypes.length - 1 || defaultParameters.length > 0)
+      {
+        buffer.append(", ");
+      }
+    }
+    for (int i = 0; i < defaultParameters.length; ++i)
+    {
+      buffer.append(defaultParameters[i]);
+      if (i != defaultParameters.length - 1)
       {
         buffer.append(", ");
       }

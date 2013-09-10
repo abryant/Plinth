@@ -28,6 +28,7 @@ import eu.bryants.anthony.plinth.ast.metadata.MemberFunctionType;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
 import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
@@ -364,13 +365,22 @@ public class TypeHelper
   // package protected and not private, because it needs to be accessible to CodeGenerator for buildNullCheck()
   LLVMTypeRef findRawFunctionPointerType(FunctionType functionType)
   {
-    LLVMTypeRef llvmFunctionReturnType = findNativeType(functionType.getReturnType(), false);
+    LLVMTypeRef llvmFunctionReturnType = findStandardType(functionType.getReturnType());
     Type[] parameterTypes = functionType.getParameterTypes();
-    LLVMTypeRef[] llvmParameterTypes = new LLVMTypeRef[parameterTypes.length + 1];
+    DefaultParameter[] defaultParameters = functionType.getDefaultParameters();
+    LLVMTypeRef[] llvmParameterTypes = new LLVMTypeRef[1 + parameterTypes.length + defaultParameters.length];
     llvmParameterTypes[0] = LLVM.LLVMPointerType(opaqueType, 0);
     for (int i = 0; i < parameterTypes.length; ++i)
     {
-      llvmParameterTypes[i + 1] = findNativeType(parameterTypes[i], false);
+      llvmParameterTypes[1 + i] = findStandardType(parameterTypes[i]);
+    }
+    for (int i = 0; i < defaultParameters.length; ++i)
+    {
+      // a default parameter is tupled with a boolean to indicate whether the default value has been overridden
+      LLVMTypeRef normalType = findStandardType(defaultParameters[i].getType());
+      LLVMTypeRef[] subTypes = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), normalType};
+      LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(subTypes, false, true), subTypes.length, false);
+      llvmParameterTypes[1 + parameterTypes.length + i] = structType;
     }
     LLVMTypeRef llvmFunctionType = LLVM.LLVMFunctionType(llvmFunctionReturnType, C.toNativePointerArray(llvmParameterTypes, false, true), llvmParameterTypes.length, false);
     return LLVM.LLVMPointerType(llvmFunctionType, 0);
@@ -1203,7 +1213,8 @@ public class TypeHelper
       realFunction = function;
     }
 
-    FunctionType functionType = new FunctionType(false, method.isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), methodReference.getCheckedThrownTypes(), null);
+    {} // TODO: when default parameters are added to methods, they should be included here
+    FunctionType functionType = new FunctionType(false, method.isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), new DefaultParameter[0], methodReference.getCheckedThrownTypes(), null);
     // make sure this function type doesn't reference any type parameters (or if it does, replace them with 'object')
     // otherwise, the RTTI would turn out wrong (due to typeParameterAccessor) and people would be able to cast
     // from object to a function of whatever the values of those type parameters are,
@@ -1619,6 +1630,9 @@ public class TypeHelper
     // otherwise, the RTTI would turn out wrong (due to typeParameterAccessor) and people would be able to cast
     // from object to a function of whatever the values of those type parameters are,
     // even though the function's native representation might not take whatever type those type parameters happen to be
+
+    // TODO: try to use the immutability from the value's RTTI struct in this new RTTI struct
+    //       (probably add this at the same time as doing the check about whether the existing value is already a (transitive) proxy to something of toType)
     LLVMValueRef rtti = rttiHelper.buildRTTICreation(builder, stripTypeParameters(toType), toAccessor);
 
     TypeDefinition fromMapperTypeDefinition = fromAccessor.getTypeDefinition();
@@ -1676,6 +1690,8 @@ public class TypeHelper
 
     Type[] fromParamTypes = fromType.getParameterTypes();
     Type[] toParamTypes = toType.getParameterTypes();
+    DefaultParameter[] fromDefaultParams = fromType.getDefaultParameters();
+    DefaultParameter[] toDefaultParams = toType.getDefaultParameters();
 
     if (fromParamTypes.length > toParamTypes.length)
     {
@@ -1686,11 +1702,18 @@ public class TypeHelper
       throw new IllegalArgumentException("Cannot convert from " + fromType + " to " + toType + " - return types conflict");
     }
 
-    LLVMTypeRef[] parameterTypes = new LLVMTypeRef[1 + toParamTypes.length];
+    LLVMTypeRef[] parameterTypes = new LLVMTypeRef[1 + toParamTypes.length + toDefaultParams.length];
     parameterTypes[0] = getOpaquePointer();
     for (int i = 0; i < toParamTypes.length; ++i)
     {
       parameterTypes[1 + i] = findStandardType(toParamTypes[i]);
+    }
+    for (int i = 0; i < toDefaultParams.length; ++i)
+    {
+      LLVMTypeRef defaultParamType = findStandardType(toDefaultParams[i].getType());
+      LLVMTypeRef[] subTypes = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), defaultParamType};
+      LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(subTypes, false, true), subTypes.length, false);
+      parameterTypes[1 + toParamTypes.length + i] = structType;
     }
     LLVMTypeRef returnType = findStandardType(toType.getReturnType());
 
@@ -1706,8 +1729,8 @@ public class TypeHelper
     LLVMTypeRef fromNativeType = findStandardType(fromType);
     LLVMTypeRef fromTypeMapperType = rttiHelper.getTypeArgumentMapperType(fromMapperNumTypeParams);
     LLVMTypeRef toTypeMapperType = rttiHelper.getTypeArgumentMapperType(toMapperNumTypeParams);
-    LLVMTypeRef[] subTypes = new LLVMTypeRef[] {fromNativeType, fromTypeMapperType, toTypeMapperType};
-    LLVMTypeRef opaqueValueType = LLVM.LLVMStructType(C.toNativePointerArray(subTypes, false, true), subTypes.length, false);
+    LLVMTypeRef[] opaqueSubTypes = new LLVMTypeRef[] {fromNativeType, fromTypeMapperType, toTypeMapperType};
+    LLVMTypeRef opaqueValueType = LLVM.LLVMStructType(C.toNativePointerArray(opaqueSubTypes, false, true), opaqueSubTypes.length, false);
     LLVMTypeRef opaquePointerType = LLVM.LLVMPointerType(opaqueValueType, 0);
 
     LLVMValueRef opaquePointer = LLVM.LLVMGetParam(proxyFunction, 0);
@@ -1719,7 +1742,7 @@ public class TypeHelper
     TypeParameterAccessor fromAccessor = new TypeParameterAccessor(builder, rttiHelper, fromMapperTypeDefinition, fromTypeMapper);
     TypeParameterAccessor toAccessor = new TypeParameterAccessor(builder, rttiHelper, toMapperTypeDefinition, toTypeMapper);
 
-    LLVMValueRef[] baseFunctionParameters = new LLVMValueRef[1 + fromParamTypes.length];
+    LLVMValueRef[] baseFunctionParameters = new LLVMValueRef[1 + fromParamTypes.length + fromDefaultParams.length];
     for (int i = 0; i < fromParamTypes.length; ++i)
     {
       LLVMValueRef parameter = LLVM.LLVMGetParam(proxyFunction, 1 + i);
@@ -1732,6 +1755,58 @@ public class TypeHelper
         LLVMValueRef converted = convertStandardToTemporary(builder, landingPadContainer, parameter, toParamTypes[i], fromParamTypes[i], toAccessor, fromAccessor);
         converted = convertTemporaryToStandard(builder, converted, fromParamTypes[i]);
         baseFunctionParameters[i + 1] = converted;
+      }
+    }
+    for (int i = 0; i < fromDefaultParams.length; ++i)
+    {
+      DefaultParameter fromDefaultParameter = fromDefaultParams[i];
+      // find the parameter index in toType, and look it up in proxyFunction
+      int toIndex = -1;
+      for (int j = 0; j < toDefaultParams.length; ++j)
+      {
+        if (toDefaultParams[j].getName().equals(fromDefaultParameter.getName()))
+        {
+          toIndex = j;
+          break;
+        }
+      }
+      LLVMTypeRef parameterType = findStandardType(fromDefaultParameter.getType());
+      LLVMTypeRef[] subTypes = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), parameterType};
+      LLVMTypeRef fromStructType = LLVM.LLVMStructType(C.toNativePointerArray(subTypes, false, true), subTypes.length, false);
+      if (toIndex == -1)
+      {
+        // toType has no default parameter with this name, so set it to its default value when we call from
+        baseFunctionParameters[1 + fromParamTypes.length + i] = LLVM.LLVMConstNull(fromStructType);
+        continue;
+      }
+      LLVMValueRef parameter = LLVM.LLVMGetParam(proxyFunction, 1 + toParamTypes.length + toIndex);
+      if (toDefaultParams[toIndex].getType().isEquivalent(fromDefaultParameter.getType()))
+      {
+        baseFunctionParameters[1 + fromParamTypes.length + i] = parameter;
+      }
+      else
+      {
+        // the default parameter may or may not have been filled in, but we need to convert it
+        // so branch on whether or not it has a value
+        LLVMValueRef hasValue = LLVM.LLVMBuildExtractValue(builder, parameter, 0, "");
+        LLVMBasicBlockRef continuationBlock = LLVM.LLVMAddBasicBlock(builder, "defaultParameterContinuation");
+        LLVMBasicBlockRef conversionBlock = LLVM.LLVMAddBasicBlock(builder, "defaultParameterConversion");
+        LLVMBasicBlockRef startBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildCondBr(builder, hasValue, conversionBlock, continuationBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, conversionBlock);
+        LLVMValueRef defaultValue = LLVM.LLVMBuildExtractValue(builder, parameter, 1, "");
+        LLVMValueRef converted = convertStandardToTemporary(builder, landingPadContainer, defaultValue, toDefaultParams[toIndex].getType(), fromDefaultParameter.getType(), toAccessor, fromAccessor);
+        converted = convertTemporaryToStandard(builder, converted, fromDefaultParameter.getType());
+        LLVMBasicBlockRef endConversionBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildBr(builder, continuationBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+        LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, fromStructType, "");
+        LLVMValueRef[] incomingValues = new LLVMValueRef[] {LLVM.LLVMConstNull(fromStructType), converted};
+        LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, endConversionBlock};
+        LLVM.LLVMAddIncoming(phiNode, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+        baseFunctionParameters[1 + fromParamTypes.length + i] = phiNode;
       }
     }
 
@@ -2343,13 +2418,23 @@ public class TypeHelper
       }
       Type[] fromParams = fromFunction.getParameterTypes();
       Type[] toParams = toFunction.getParameterTypes();
-      if (fromParams.length != toParams.length)
+      DefaultParameter[] fromDefaultParams = fromFunction.getDefaultParameters();
+      DefaultParameter[] toDefaultParams = toFunction.getDefaultParameters();
+      if (fromParams.length != toParams.length || fromDefaultParams.length != toDefaultParams.length)
       {
         return true;
       }
       for (int i = 0; i < fromParams.length; ++i)
       {
         if (checkRequiresConversion(toParams[i], fromParams[i], performChecks))
+        {
+          return true;
+        }
+      }
+      for (int i = 0; i < fromDefaultParams.length; ++i)
+      {
+        if (!fromDefaultParams[i].getName().equals(toDefaultParams[i].getName()) ||
+            checkRequiresConversion(toDefaultParams[i].getType(), fromDefaultParams[i].getType(), performChecks))
         {
           return true;
         }
@@ -2659,9 +2744,24 @@ public class TypeHelper
         paramTypes[i] = stripTypeParameters(oldParamTypes[i]);
         changed |= paramTypes[i] != oldParamTypes[i];
       }
+      DefaultParameter[] oldDefaultParameters = functionType.getDefaultParameters();
+      DefaultParameter[] newDefaultParameters = new DefaultParameter[oldDefaultParameters.length];
+      for (int i = 0; i < oldDefaultParameters.length; ++i)
+      {
+        Type newDefaultParamType = stripTypeParameters(oldDefaultParameters[i].getType());
+        if (newDefaultParamType == oldDefaultParameters[i].getType())
+        {
+          newDefaultParameters[i] = oldDefaultParameters[i];
+        }
+        else
+        {
+          newDefaultParameters[i] = new DefaultParameter(newDefaultParamType, oldDefaultParameters[i].getName(), oldDefaultParameters[i].getExpression(), null);
+          changed = true;
+        }
+      }
       if (changed)
       {
-        return new FunctionType(functionType.canBeNullable(), functionType.isImmutable(), returnType, paramTypes, functionType.getThrownTypes(), null);
+        return new FunctionType(functionType.canBeNullable(), functionType.isImmutable(), returnType, paramTypes, newDefaultParameters, functionType.getThrownTypes(), null);
       }
       return functionType;
     }
@@ -2762,7 +2862,6 @@ public class TypeHelper
     }
     if (from instanceof FunctionType && to instanceof FunctionType)
     {
-      // function casts are illegal unless the parameter and return types are the same, so they must have the same basic type
       if (!skipRuntimeChecks && from.canBeNullable() && !to.isNullable())
       {
         buildCastNullCheck(builder, landingPadContainer, value, from, to, toAccessor);
@@ -2799,13 +2898,20 @@ public class TypeHelper
       // if we tried to convert to object and back to another type, RTTI containing type parameters would cause breakages in the cast instanceof checks
       toFunction = (FunctionType) stripTypeParameters(toFunction);
 
-      boolean needsProxying = checkRequiresConversion(toFunction.getReturnType(), fromFunction.getReturnType(), true);
+      boolean needsProxying = checkRequiresConversion(fromFunction.getReturnType(), toFunction.getReturnType(), true);
       Type[] fromParamTypes = fromFunction.getParameterTypes();
       Type[] toParamTypes = toFunction.getParameterTypes();
-      needsProxying |= fromParamTypes.length != toParamTypes.length;
+      DefaultParameter[] fromDefaultParams = fromFunction.getDefaultParameters();
+      DefaultParameter[] toDefaultParams = toFunction.getDefaultParameters();
+      needsProxying |= fromParamTypes.length != toParamTypes.length | fromDefaultParams.length != toDefaultParams.length;
       for (int i = 0; !needsProxying & i < fromParamTypes.length; ++i)
       {
-        needsProxying |= checkRequiresConversion(fromParamTypes[i], toParamTypes[i], true);
+        needsProxying |= checkRequiresConversion(toParamTypes[i], fromParamTypes[i], true);
+      }
+      for (int i = 0; !needsProxying & i < fromDefaultParams.length; ++i)
+      {
+        needsProxying |= !fromDefaultParams[i].getName().equals(toDefaultParams[i].getName()) ||
+                         checkRequiresConversion(toDefaultParams[i].getType(), fromDefaultParams[i].getType(), true);
       }
       if (needsProxying)
       {

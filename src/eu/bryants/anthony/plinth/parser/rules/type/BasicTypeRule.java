@@ -7,6 +7,7 @@ import parser.ParseException;
 import parser.Production;
 import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
@@ -18,6 +19,7 @@ import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
+import eu.bryants.anthony.plinth.parser.parseAST.FunctionTypeParameterList;
 import eu.bryants.anthony.plinth.parser.parseAST.ParseList;
 import eu.bryants.anthony.plinth.parser.parseAST.QNameElement;
 import eu.bryants.anthony.plinth.parser.parseAST.ThrownExceptionType;
@@ -62,14 +64,14 @@ public class BasicTypeRule extends Rule<ParseType>
   private static final Production<ParseType> IMMUTABLE_ARRAY_PRODUCTION          = new Production<ParseType>(                         ParseType.HASH, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE_NO_TRAILING_ARGUMENTS);
   private static final Production<ParseType> NULLABLE_IMMUTABLE_ARRAY_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.HASH, ParseType.LSQUARE, ParseType.RSQUARE, ParseType.TYPE_NO_TRAILING_ARGUMENTS);
 
-  private static final Production<ParseType> FUNCTION_PRODUCTION                              = new Production<ParseType>(                         ParseType.LBRACE, ParseType.TYPE_LIST,                 ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
-  private static final Production<ParseType> NULLABLE_FUNCTION_PRODUCTION                     = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE, ParseType.TYPE_LIST,                 ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
-  private static final Production<ParseType> IMMUTABLE_FUNCTION_PRODUCTION                    = new Production<ParseType>(                         ParseType.LBRACE, ParseType.TYPE_LIST, ParseType.HASH, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
-  private static final Production<ParseType> NULLABLE_IMMUTABLE_FUNCTION_PRODUCTION           = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE, ParseType.TYPE_LIST, ParseType.HASH, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
-  private static final Production<ParseType> NO_PARAMS_FUNCTION_PRODUCTION                    = new Production<ParseType>(                         ParseType.LBRACE,                                      ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
-  private static final Production<ParseType> NULLABLE_NO_PARAMS_FUNCTION_PRODUCTION           = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE,                                      ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
-  private static final Production<ParseType> IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION          = new Production<ParseType>(                         ParseType.LBRACE,                      ParseType.HASH, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
-  private static final Production<ParseType> NULLABLE_IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE,                      ParseType.HASH, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
+  private static final Production<ParseType> FUNCTION_PRODUCTION                              = new Production<ParseType>(                         ParseType.LBRACE, ParseType.FUNCTION_TYPE_PARAMETERS,                 ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
+  private static final Production<ParseType> NULLABLE_FUNCTION_PRODUCTION                     = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE, ParseType.FUNCTION_TYPE_PARAMETERS,                 ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
+  private static final Production<ParseType> IMMUTABLE_FUNCTION_PRODUCTION                    = new Production<ParseType>(                         ParseType.LBRACE, ParseType.FUNCTION_TYPE_PARAMETERS, ParseType.HASH, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
+  private static final Production<ParseType> NULLABLE_IMMUTABLE_FUNCTION_PRODUCTION           = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE, ParseType.FUNCTION_TYPE_PARAMETERS, ParseType.HASH, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
+  private static final Production<ParseType> NO_PARAMS_FUNCTION_PRODUCTION                    = new Production<ParseType>(                         ParseType.LBRACE,                                                     ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
+  private static final Production<ParseType> NULLABLE_NO_PARAMS_FUNCTION_PRODUCTION           = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE,                                                     ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
+  private static final Production<ParseType> IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION          = new Production<ParseType>(                         ParseType.LBRACE,                                     ParseType.HASH, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
+  private static final Production<ParseType> NULLABLE_IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.LBRACE,                                     ParseType.HASH, ParseType.ARROW, ParseType.RETURN_TYPE, ParseType.THROWS_CLAUSE, ParseType.RBRACE);
 
   private static final Production<ParseType> OBJECT_PRODUCTION = new Production<ParseType>(ParseType.OBJECT_KEYWORD);
   private static final Production<ParseType> NULLABLE_OBJECT_PRODUCTION = new Production<ParseType>(ParseType.QUESTION_MARK, ParseType.OBJECT_KEYWORD);
@@ -166,87 +168,79 @@ public class BasicTypeRule extends Rule<ParseType>
 
     if (production == FUNCTION_PRODUCTION)
     {
-      @SuppressWarnings("unchecked")
-      ParseList<Type> list = (ParseList<Type>) args[1];
+      FunctionTypeParameterList params = (FunctionTypeParameterList) args[1];
+      ParseList<Type> nonDefaultParamTypes = params.getNonDefaultTypes();
       Type returnType = (Type) args[3];
-      Type[] paramTypes = list.toArray(new Type[list.size()]);
       @SuppressWarnings("unchecked")
       ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[4];
       NamedType[] thrownTypes = processThrowsClause(throwsList);
-      return new FunctionType(false, false, returnType, paramTypes, thrownTypes,
-                              LexicalPhrase.combine((LexicalPhrase) args[0], list.getLexicalPhrase(), (LexicalPhrase) args[2], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[5]));
+      return new FunctionType(false, false, returnType, nonDefaultParamTypes.toArray(new Type[nonDefaultParamTypes.size()]), params.getDefaultParameters(), thrownTypes,
+                              LexicalPhrase.combine((LexicalPhrase) args[0], params.getLexicalPhrase(), (LexicalPhrase) args[2], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[5]));
     }
     if (production == NULLABLE_FUNCTION_PRODUCTION)
     {
-      @SuppressWarnings("unchecked")
-      ParseList<Type> list = (ParseList<Type>) args[2];
+      FunctionTypeParameterList params = (FunctionTypeParameterList) args[2];
+      ParseList<Type> nonDefaultParamTypes = params.getNonDefaultTypes();
       Type returnType = (Type) args[4];
-      Type[] paramTypes = list.toArray(new Type[list.size()]);
       @SuppressWarnings("unchecked")
       ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[5];
       NamedType[] thrownTypes = processThrowsClause(throwsList);
-      return new FunctionType(true, false, returnType, paramTypes, thrownTypes,
-                              LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], list.getLexicalPhrase(), (LexicalPhrase) args[3], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[6]));
+      return new FunctionType(true, false, returnType, nonDefaultParamTypes.toArray(new Type[nonDefaultParamTypes.size()]), params.getDefaultParameters(), thrownTypes,
+                              LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], params.getLexicalPhrase(), (LexicalPhrase) args[3], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[6]));
     }
     if (production == IMMUTABLE_FUNCTION_PRODUCTION)
     {
-      @SuppressWarnings("unchecked")
-      ParseList<Type> list = (ParseList<Type>) args[1];
+      FunctionTypeParameterList params = (FunctionTypeParameterList) args[1];
+      ParseList<Type> nonDefaultParamTypes = params.getNonDefaultTypes();
       Type returnType = (Type) args[4];
-      Type[] paramTypes = list.toArray(new Type[list.size()]);
       @SuppressWarnings("unchecked")
       ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[5];
       NamedType[] thrownTypes = processThrowsClause(throwsList);
-      return new FunctionType(false, true, returnType, paramTypes, thrownTypes,
-                              LexicalPhrase.combine((LexicalPhrase) args[0], list.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[6]));
+      return new FunctionType(false, true, returnType, nonDefaultParamTypes.toArray(new Type[nonDefaultParamTypes.size()]), params.getDefaultParameters(), thrownTypes,
+                              LexicalPhrase.combine((LexicalPhrase) args[0], params.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[6]));
     }
     if (production == NULLABLE_IMMUTABLE_FUNCTION_PRODUCTION)
     {
-      @SuppressWarnings("unchecked")
-      ParseList<Type> list = (ParseList<Type>) args[2];
+      FunctionTypeParameterList params = (FunctionTypeParameterList) args[2];
+      ParseList<Type> nonDefaultParamTypes = params.getNonDefaultTypes();
       Type returnType = (Type) args[5];
-      Type[] paramTypes = list.toArray(new Type[list.size()]);
       @SuppressWarnings("unchecked")
       ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[6];
       NamedType[] thrownTypes = processThrowsClause(throwsList);
-      return new FunctionType(true, true, returnType, paramTypes, thrownTypes,
-                              LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], list.getLexicalPhrase(), (LexicalPhrase) args[3], (LexicalPhrase) args[4], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[7]));
+      return new FunctionType(true, true, returnType, nonDefaultParamTypes.toArray(new Type[nonDefaultParamTypes.size()]), params.getDefaultParameters(), thrownTypes,
+                              LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], params.getLexicalPhrase(), (LexicalPhrase) args[3], (LexicalPhrase) args[4], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[7]));
     }
     if (production == NO_PARAMS_FUNCTION_PRODUCTION)
     {
       Type returnType = (Type) args[2];
-      Type[] paramTypes = new Type[0];
       @SuppressWarnings("unchecked")
       ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[3];
       NamedType[] thrownTypes = processThrowsClause(throwsList);
-      return new FunctionType(false, false, returnType, paramTypes, thrownTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[4]));
+      return new FunctionType(false, false, returnType, new Type[0], new DefaultParameter[0], thrownTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[4]));
     }
     if (production == NULLABLE_NO_PARAMS_FUNCTION_PRODUCTION)
     {
       Type returnType = (Type) args[3];
-      Type[] paramTypes = new Type[0];
       @SuppressWarnings("unchecked")
       ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[4];
       NamedType[] thrownTypes = processThrowsClause(throwsList);
-      return new FunctionType(true, false, returnType, paramTypes, thrownTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[5]));
+      return new FunctionType(true, false, returnType, new Type[0], new DefaultParameter[0], thrownTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[5]));
     }
     if (production == IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION)
     {
       Type returnType = (Type) args[3];
-      Type[] paramTypes = new Type[0];
       @SuppressWarnings("unchecked")
       ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[4];
       NamedType[] thrownTypes = processThrowsClause(throwsList);
-      return new FunctionType(false, true, returnType, paramTypes, thrownTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[5]));
+      return new FunctionType(false, true, returnType, new Type[0], new DefaultParameter[0], thrownTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[5]));
     }
     if (production == NULLABLE_IMMUTABLE_NO_PARAMS_FUNCTION_PRODUCTION)
     {
       Type returnType = (Type) args[4];
-      Type[] paramTypes = new Type[0];
       @SuppressWarnings("unchecked")
       ParseList<ThrownExceptionType> throwsList = (ParseList<ThrownExceptionType>) args[5];
       NamedType[] thrownTypes = processThrowsClause(throwsList);
-      return new FunctionType(true, true, returnType, paramTypes, thrownTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], (LexicalPhrase) args[3], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[6]));
+      return new FunctionType(true, true, returnType, new Type[0], new DefaultParameter[0], thrownTypes, LexicalPhrase.combine((LexicalPhrase) args[0], (LexicalPhrase) args[1], (LexicalPhrase) args[2], (LexicalPhrase) args[3], returnType.getLexicalPhrase(), throwsList.getLexicalPhrase(), (LexicalPhrase) args[6]));
     }
 
     if (production == OBJECT_PRODUCTION)

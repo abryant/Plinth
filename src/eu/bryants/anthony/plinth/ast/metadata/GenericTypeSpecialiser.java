@@ -1,6 +1,7 @@
 package eu.bryants.anthony.plinth.ast.metadata;
 
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
@@ -72,6 +73,21 @@ public final class GenericTypeSpecialiser
       {
         newParameterTypes[i] = getSpecialisedType(oldParameterTypes[i]);
       }
+      DefaultParameter[] oldDefaultParameters = functionType.getDefaultParameters();
+      DefaultParameter[] newDefaultParameters = new DefaultParameter[oldDefaultParameters.length];
+      for (int i = 0; i < oldDefaultParameters.length; ++i)
+      {
+        Type oldType = oldDefaultParameters[i].getType();
+        Type newType = getSpecialisedType(oldType);
+        if (oldType == newType)
+        {
+          newDefaultParameters[i] = oldDefaultParameters[i];
+        }
+        else
+        {
+          newDefaultParameters[i] = new DefaultParameter(newType, oldDefaultParameters[i].getName(), oldDefaultParameters[i].getExpression(), null);
+        }
+      }
       Type returnType = getSpecialisedType(functionType.getReturnType());
       NamedType[] oldThrownTypes = functionType.getThrownTypes();
       NamedType[] newThrownTypes = new NamedType[oldThrownTypes.length];
@@ -80,7 +96,7 @@ public final class GenericTypeSpecialiser
         // we can cast the specialised type to a NamedType here because only NamedTypes can implement Throwable
         newThrownTypes[i] = (NamedType) getSpecialisedType(oldThrownTypes[i]);
       }
-      return new FunctionType(functionType.isNullable(), functionType.isImmutable(), returnType, newParameterTypes, newThrownTypes, null);
+      return new FunctionType(functionType.isNullable(), functionType.isImmutable(), returnType, newParameterTypes, newDefaultParameters, newThrownTypes, null);
     }
     if (type instanceof NamedType)
     {

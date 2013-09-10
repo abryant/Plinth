@@ -29,6 +29,7 @@ import eu.bryants.anthony.plinth.ast.metadata.MemberFunction;
 import eu.bryants.anthony.plinth.ast.metadata.MemberFunctionType;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
 import eu.bryants.anthony.plinth.ast.metadata.VirtualFunction;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
@@ -803,7 +804,7 @@ public class MetadataLoader
         throw new MalformedMetadataException("A parameter must be represented by a metadata node");
       }
       LLVMValueRef[] parameterSubNodes = readOperands(parameterNodes[i]);
-      if (parameterSubNodes.length != 2)
+      if (parameterSubNodes.length != 3)
       {
         throw new MalformedMetadataException("A parameter's metadata node must have the correct number of sub-nodes");
       }
@@ -813,7 +814,15 @@ public class MetadataLoader
       {
         throw new MalformedMetadataException("A parameter must have a valid name in its metadata node");
       }
-      parameters[i] = new NormalParameter(false, type, name, null);
+      boolean isDefault = readBooleanValue(parameterSubNodes[2], "parameter", "default");
+      if (isDefault)
+      {
+        parameters[i] = new DefaultParameter(type, name, null, null);
+      }
+      else
+      {
+        parameters[i] = new NormalParameter(false, type, name, null);
+      }
     }
     return parameters;
   }
@@ -900,7 +909,7 @@ public class MetadataLoader
     }
     if (sortOfType.equals("function"))
     {
-      if (values.length != 6)
+      if (values.length != 7)
       {
         throw new MalformedMetadataException("A function type's metadata node must have the correct number of sub-nodes");
       }
@@ -917,8 +926,18 @@ public class MetadataLoader
       {
         parameterTypes[i] = loadType(parameterTypeNodes[i]);
       }
-      NamedType[] thrownTypes = loadThrownTypes(values[5]);
-      return new FunctionType(nullable, immutable, returnType, parameterTypes, thrownTypes, null);
+      Parameter[] parameters = loadParameters(values[5]);
+      DefaultParameter[] defaultParameters = new DefaultParameter[parameters.length];
+      for (int i = 0; i < parameters.length; ++i)
+      {
+        if (!(parameters[i] instanceof DefaultParameter))
+        {
+          throw new MalformedMetadataException("A function type's default parameter list may only contain default parameters");
+        }
+        defaultParameters[i] = (DefaultParameter) parameters[i];
+      }
+      NamedType[] thrownTypes = loadThrownTypes(values[6]);
+      return new FunctionType(nullable, immutable, returnType, parameterTypes, defaultParameters, thrownTypes, null);
     }
     if (sortOfType.equals("named"))
     {

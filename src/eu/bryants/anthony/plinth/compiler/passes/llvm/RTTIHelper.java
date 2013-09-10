@@ -12,6 +12,7 @@ import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.metadata.GenericTypeSpecialiser;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
@@ -211,14 +212,28 @@ public class RTTIHelper
       LLVMValueRef immutable = LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), functionType.isImmutable() ? 1 : 0, false);
       LLVMValueRef returnType = getRTTI(functionType.getReturnType());
       Type[] parameterTypes = functionType.getParameterTypes();
+      DefaultParameter[] defaultParameters = functionType.getDefaultParameters();
       LLVMValueRef numParameters = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), parameterTypes.length, false);
-      LLVMValueRef[] parameterRTTIs = new LLVMValueRef[parameterTypes.length];
+      LLVMValueRef numDefaultParameters = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), defaultParameters.length, false);
+      // this array stores three lists of pointers, to: the parameter RTTI blocks, the default parameter RTTI blocks, and the default parameter name strings
+      LLVMValueRef[] parameterRTTIsAndDefaultNames = new LLVMValueRef[parameterTypes.length + defaultParameters.length + defaultParameters.length];
       for (int i = 0; i < parameterTypes.length; ++i)
       {
-        parameterRTTIs[i] = getRTTI(parameterTypes[i]);
+        LLVMValueRef rtti = getRTTI(parameterTypes[i]);
+        parameterRTTIsAndDefaultNames[i] = LLVM.LLVMConstBitCast(rtti, LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0));
       }
-      LLVMValueRef parameterArray = LLVM.LLVMConstArray(getGenericRTTIType(), C.toNativePointerArray(parameterRTTIs, false, true), parameterRTTIs.length);
-      LLVMValueRef[] values = new LLVMValueRef[] {typeSearchList, sortId, nullable, immutable, returnType, numParameters, parameterArray};
+      for (int i = 0; i < defaultParameters.length; ++i)
+      {
+        LLVMValueRef rtti = getRTTI(defaultParameters[i].getType());
+        parameterRTTIsAndDefaultNames[parameterTypes.length + i] = LLVM.LLVMConstBitCast(rtti, LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0));
+      }
+      for (int i = 0; i < defaultParameters.length; ++i)
+      {
+        LLVMValueRef nameValue = codeGenerator.addStringConstant(defaultParameters[i].getName());
+        parameterRTTIsAndDefaultNames[i] = LLVM.LLVMConstBitCast(nameValue, LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0));
+      }
+      LLVMValueRef pointerArray = LLVM.LLVMConstArray(LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), C.toNativePointerArray(parameterRTTIsAndDefaultNames, false, true), parameterRTTIsAndDefaultNames.length);
+      LLVMValueRef[] values = new LLVMValueRef[] {typeSearchList, sortId, nullable, immutable, returnType, numParameters, numDefaultParameters, pointerArray};
       return LLVM.LLVMConstStruct(C.toNativePointerArray(values, false, true), values.length, false);
     }
     if (type instanceof NamedType)
@@ -401,12 +416,15 @@ public class RTTIHelper
     if (type instanceof FunctionType)
     {
       Type[] parameterTypes = ((FunctionType) type).getParameterTypes();
+      DefaultParameter[] defaultParameters = ((FunctionType) type).getDefaultParameters();
       LLVMTypeRef nullableType = LLVM.LLVMInt1Type();
       LLVMTypeRef immutableType = LLVM.LLVMInt1Type();
       LLVMTypeRef returnTypeType = getGenericRTTIType();
       LLVMTypeRef numParametersType = LLVM.LLVMInt32Type();
-      LLVMTypeRef parameterArrayType = LLVM.LLVMArrayType(getGenericRTTIType(), parameterTypes.length);
-      LLVMTypeRef[] types = new LLVMTypeRef[] {typeSearchListType, sortIdType, nullableType, immutableType, returnTypeType, numParametersType, parameterArrayType};
+      LLVMTypeRef numDefaultParametersType = LLVM.LLVMInt32Type();
+      // this array stores three lists of pointers, to: the parameter RTTI blocks, the default parameter RTTI blocks, and the default parameter name strings
+      LLVMTypeRef pointerArrayType = LLVM.LLVMArrayType(LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), parameterTypes.length + defaultParameters.length + defaultParameters.length);
+      LLVMTypeRef[] types = new LLVMTypeRef[] {typeSearchListType, sortIdType, nullableType, immutableType, returnTypeType, numParametersType, numDefaultParametersType, pointerArrayType};
       return LLVM.LLVMStructType(C.toNativePointerArray(types, false, true), types.length, false);
     }
     if (type instanceof NamedType)
@@ -809,27 +827,46 @@ public class RTTIHelper
         FunctionType checkFunctionType = (FunctionType) checkType;
         Type[] expressionParameterTypes = expressionFunctionType.getParameterTypes();
         Type[] checkParameterTypes = checkFunctionType.getParameterTypes();
-        if (expressionParameterTypes.length == checkParameterTypes.length)
+        DefaultParameter[] expressionDefaultParameters = expressionFunctionType.getDefaultParameters();
+        DefaultParameter[] checkDefaultParameters = checkFunctionType.getDefaultParameters();
+        if (expressionParameterTypes.length == checkParameterTypes.length && expressionDefaultParameters.length == checkDefaultParameters.length)
         {
-          LLVMValueRef equivalentSubTypes = buildTypeMatchingCheck(builder, expressionFunctionType.getReturnType(), checkFunctionType.getReturnType(), expressionAccessor, checkAccessor, false, false);
-
-          for (int i = 0; i < expressionParameterTypes.length; ++i)
+          boolean defaultNamesMatch = true;
+          for (int i = 0; i < expressionDefaultParameters.length; ++i)
           {
-            LLVMValueRef paramsEquivalent = buildTypeMatchingCheck(builder, expressionParameterTypes[i], checkParameterTypes[i], expressionAccessor, checkAccessor, false, false);
-            equivalentSubTypes = LLVM.LLVMBuildAnd(builder, equivalentSubTypes, paramsEquivalent, "");
+            if (!expressionDefaultParameters[i].getName().equals(checkDefaultParameters[i].getName()))
+            {
+              defaultNamesMatch = false;
+              break;
+            }
           }
-
-          LLVMValueRef result = equivalentSubTypes;
-          if (!expressionFunctionType.isImmutable() && checkFunctionType.isImmutable())
+          if (defaultNamesMatch)
           {
-            // the result depends on the immutability of the actual function in the value, so check its RTTI
-            LLVMValueRef rttiPointer = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
-            rttiPointer = LLVM.LLVMBuildBitCast(builder, rttiPointer, LLVM.LLVMPointerType(getRTTIStructType(expressionFunctionType), 0), "");
-            LLVMValueRef immutabilityPointer = LLVM.LLVMBuildStructGEP(builder, rttiPointer, 3, "");
-            LLVMValueRef immutabilityMatches = LLVM.LLVMBuildLoad(builder, immutabilityPointer, "");
-            result = LLVM.LLVMBuildAnd(builder, result, immutabilityMatches, "");
+            LLVMValueRef equivalentSubTypes = buildTypeMatchingCheck(builder, expressionFunctionType.getReturnType(), checkFunctionType.getReturnType(), expressionAccessor, checkAccessor, false, false);
+
+            for (int i = 0; i < expressionParameterTypes.length; ++i)
+            {
+              LLVMValueRef paramsEquivalent = buildTypeMatchingCheck(builder, expressionParameterTypes[i], checkParameterTypes[i], expressionAccessor, checkAccessor, false, false);
+              equivalentSubTypes = LLVM.LLVMBuildAnd(builder, equivalentSubTypes, paramsEquivalent, "");
+            }
+            for (int i = 0; i < expressionDefaultParameters.length; ++i)
+            {
+              LLVMValueRef paramsEquivalent = buildTypeMatchingCheck(builder, expressionDefaultParameters[i].getType(), checkDefaultParameters[i].getType(), expressionAccessor, checkAccessor, false, false);
+              equivalentSubTypes = LLVM.LLVMBuildAnd(builder, equivalentSubTypes, paramsEquivalent, "");
+            }
+
+            LLVMValueRef result = equivalentSubTypes;
+            if (!expressionFunctionType.isImmutable() && checkFunctionType.isImmutable())
+            {
+              // the result depends on the immutability of the actual function in the value, so check its RTTI
+              LLVMValueRef rttiPointer = LLVM.LLVMBuildExtractValue(builder, value, 0, "");
+              rttiPointer = LLVM.LLVMBuildBitCast(builder, rttiPointer, LLVM.LLVMPointerType(getRTTIStructType(expressionFunctionType), 0), "");
+              LLVMValueRef immutabilityPointer = LLVM.LLVMBuildStructGEP(builder, rttiPointer, 3, "");
+              LLVMValueRef immutabilityMatches = LLVM.LLVMBuildLoad(builder, immutabilityPointer, "");
+              result = LLVM.LLVMBuildAnd(builder, result, immutabilityMatches, "");
+            }
+            return result;
           }
-          return result;
         }
       }
       return LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false);
@@ -1075,6 +1112,7 @@ public class RTTIHelper
     {
       FunctionType functionType = (FunctionType) checkType;
       Type[] parameterTypes = functionType.getParameterTypes();
+      DefaultParameter[] defaultParameters = functionType.getDefaultParameters();
       // check the always-present header data
       LLVMValueRef nullabilityMatches;
       if (ignoreTypeModifiers)
@@ -1096,11 +1134,15 @@ public class RTTIHelper
       LLVMValueRef numParametersPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 5, "");
       LLVMValueRef numParametersValue = LLVM.LLVMBuildLoad(builder, numParametersPointer, "");
       LLVMValueRef numParametersMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, numParametersValue, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), parameterTypes.length, false), "");
+      LLVMValueRef numDefaultParamsPointer = LLVM.LLVMBuildStructGEP(builder, castedRTTIPointer, 6, "");
+      LLVMValueRef numDefaultParamsValue = LLVM.LLVMBuildLoad(builder, numDefaultParamsPointer, "");
+      LLVMValueRef numDefaultParamsMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, numDefaultParamsValue, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), defaultParameters.length, false), "");
       LLVMValueRef nullabilityImmutabilityMatches = LLVM.LLVMBuildAnd(builder, nullabilityMatches, immutabilityMatches, "");
-      LLVMValueRef matches = LLVM.LLVMBuildAnd(builder, returnTypeMatches, numParametersMatches, "");
+      LLVMValueRef parameterCountsMatch = LLVM.LLVMBuildAnd(builder, numParametersMatches, numDefaultParamsMatches, "");
+      LLVMValueRef matches = LLVM.LLVMBuildAnd(builder, returnTypeMatches, parameterCountsMatch, "");
       matches = LLVM.LLVMBuildAnd(builder, nullabilityImmutabilityMatches, matches, "");
 
-      if (parameterTypes.length == 0)
+      if (parameterTypes.length == 0 && defaultParameters.length == 0)
       {
         // there are no parameters to check, so return whether or not the header data matched
         resultValue = matches;
@@ -1116,16 +1158,20 @@ public class RTTIHelper
         LLVMBasicBlockRef checkParametersStartBlock = LLVM.LLVMGetInsertBlock(builder);
         LLVM.LLVMBuildCondBr(builder, matches, checkParametersBlock, checkParametersContinuationBlock);
 
+        LLVM.LLVMPositionBuilderAtEnd(builder, checkParametersContinuationBlock);
+        LLVMValueRef parametersPhi = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt1Type(), "");
+
         LLVM.LLVMPositionBuilderAtEnd(builder, checkParametersBlock);
         // the RTTI block has already been casted to the right struct for this number of parameters, so just index through it
         LLVMValueRef currentMatches = null;
         for (int i = 0; i < parameterTypes.length; ++i)
         {
           LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
-                                                       LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 6, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 7, false),
                                                        LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), i, false)};
           LLVMValueRef paramTypePointer = LLVM.LLVMBuildGEP(builder, castedRTTIPointer, C.toNativePointerArray(indices, false, true), indices.length, "");
           LLVMValueRef paramType = LLVM.LLVMBuildLoad(builder, paramTypePointer, "");
+          paramType = LLVM.LLVMBuildBitCast(builder, paramType, getGenericRTTIType(), "");
           LLVMValueRef paramTypeMatches = buildTypeInfoCheck(builder, paramType, parameterTypes[i], checkAccessor, false, false);
           if (currentMatches == null)
           {
@@ -1136,11 +1182,64 @@ public class RTTIHelper
             currentMatches = LLVM.LLVMBuildAnd(builder, currentMatches, paramTypeMatches, "");
           }
         }
+        for (int i = 0; i < defaultParameters.length; ++i)
+        {
+          LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 7, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), parameterTypes.length + i, false)};
+          LLVMValueRef paramTypePointer = LLVM.LLVMBuildGEP(builder, castedRTTIPointer, C.toNativePointerArray(indices, false, true), indices.length, "");
+          LLVMValueRef paramType = LLVM.LLVMBuildLoad(builder, paramTypePointer, "");
+          paramType = LLVM.LLVMBuildBitCast(builder, paramType, getGenericRTTIType(), "");
+          LLVMValueRef paramTypeMatches = buildTypeInfoCheck(builder, paramType, defaultParameters[i].getType(), checkAccessor, false, false);
+          if (currentMatches == null)
+          {
+            currentMatches = paramTypeMatches;
+          }
+          else
+          {
+            currentMatches = LLVM.LLVMBuildAnd(builder, currentMatches, paramTypeMatches, "");
+          }
+        }
+        for (int i = 0; i < defaultParameters.length; ++i)
+        {
+          LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 7, false),
+                                                       LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), parameterTypes.length + defaultParameters.length + i, false)};
+          LLVMValueRef namePointer = LLVM.LLVMBuildGEP(builder, castedRTTIPointer, C.toNativePointerArray(indices, false, true), indices.length, "");
+          LLVMValueRef name = LLVM.LLVMBuildLoad(builder, namePointer, "");
+          name = LLVM.LLVMBuildBitCast(builder, name, typeHelper.findRawStringType(), "");
+          LLVMValueRef nameLengthPtr = typeHelper.getArrayLengthPointer(builder, name);
+          LLVMValueRef nameLength = LLVM.LLVMBuildLoad(builder, nameLengthPtr, "");
+
+          LLVMValueRef checkNameString = codeGenerator.addStringConstant(defaultParameters[i].getName());
+          LLVMValueRef checkNameLengthPtr = typeHelper.getArrayLengthPointer(builder, checkNameString);
+          LLVMValueRef checkNameLength = LLVM.LLVMBuildLoad(builder, checkNameLengthPtr, "");
+
+          LLVMValueRef nameLengthMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, nameLength, checkNameLength, "");
+
+          LLVMBasicBlockRef nameCheckBlock = LLVM.LLVMAddBasicBlock(builder, "typeInfoCheckFunctionDefaultParameterName");
+
+          LLVMBasicBlockRef currentBlock = LLVM.LLVMGetInsertBlock(builder);
+          LLVM.LLVMBuildCondBr(builder, nameLengthMatches, nameCheckBlock, checkParametersContinuationBlock);
+
+          LLVMValueRef[] incomingValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false)};
+          LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {currentBlock};
+          LLVM.LLVMAddIncoming(parametersPhi, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+
+          LLVM.LLVMPositionBuilderAtEnd(builder, nameCheckBlock);
+          LLVMValueRef firstBytePointer = typeHelper.getNonProxiedArrayElementPointer(builder, name, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false));
+          LLVMValueRef checkFirstBytePointer = typeHelper.getNonProxiedArrayElementPointer(builder, checkNameString, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false));
+          LLVMValueRef strncmpFunction = getStringComparisonFunction();
+          LLVMValueRef[] strncmpArguments = new LLVMValueRef[] {firstBytePointer, checkFirstBytePointer, checkNameLength};
+          LLVMValueRef strncmpResult = LLVM.LLVMBuildCall(builder, strncmpFunction, C.toNativePointerArray(strncmpArguments, false, true), strncmpArguments.length, "");
+          LLVMValueRef nameMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, strncmpResult, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false), "");
+
+          currentMatches = LLVM.LLVMBuildAnd(builder, currentMatches, nameMatches, "");
+        }
         LLVMBasicBlockRef endCheckParametersBlock = LLVM.LLVMGetInsertBlock(builder);
         LLVM.LLVMBuildBr(builder, checkParametersContinuationBlock);
 
         LLVM.LLVMPositionBuilderAtEnd(builder, checkParametersContinuationBlock);
-        LLVMValueRef parametersPhi = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt1Type(), "");
         LLVMValueRef[] parametersIncomingValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false), currentMatches};
         LLVMBasicBlockRef[] parametersIncomingBlocks = new LLVMBasicBlockRef[] {checkParametersStartBlock, endCheckParametersBlock};
         LLVM.LLVMAddIncoming(parametersPhi, C.toNativePointerArray(parametersIncomingValues, false, true), C.toNativePointerArray(parametersIncomingBlocks, false, true), parametersIncomingValues.length);
@@ -1522,14 +1621,40 @@ public class RTTIHelper
       LLVMValueRef numParamsPtr = LLVM.LLVMBuildStructGEP(builder, pointer, 5, "");
       LLVM.LLVMBuildStore(builder, numParams, numParamsPtr);
 
+      DefaultParameter[] defaultParameters = functionType.getDefaultParameters();
+      LLVMValueRef numDefaultParams = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), defaultParameters.length, false);
+      LLVMValueRef numDefaultParamsPtr = LLVM.LLVMBuildStructGEP(builder, pointer, 6, "");
+      LLVM.LLVMBuildStore(builder, numDefaultParams, numDefaultParamsPtr);
+
       for (int i = 0; i < parameterTypes.length; ++i)
       {
         LLVMValueRef parameterRTTI = buildRTTICreation(builder, parameterTypes[i], typeParameterAccessor);
+        parameterRTTI = LLVM.LLVMBuildBitCast(builder, parameterRTTI, LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), "");
         LLVMValueRef[] parameterIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
-                                                              LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 6, false),
+                                                              LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 7, false),
                                                               LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), i, false)};
         LLVMValueRef parameterRTTIPtr = LLVM.LLVMBuildGEP(builder, pointer, C.toNativePointerArray(parameterIndices, false, true), parameterIndices.length, "");
         LLVM.LLVMBuildStore(builder, parameterRTTI, parameterRTTIPtr);
+      }
+      for (int i = 0; i < defaultParameters.length; ++i)
+      {
+        LLVMValueRef parameterRTTI = buildRTTICreation(builder, defaultParameters[i].getType(), typeParameterAccessor);
+        parameterRTTI = LLVM.LLVMBuildBitCast(builder, parameterRTTI, LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), "");
+        LLVMValueRef[] parameterIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                              LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 7, false),
+                                                              LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), parameterTypes.length + i, false)};
+        LLVMValueRef parameterRTTIPtr = LLVM.LLVMBuildGEP(builder, pointer, C.toNativePointerArray(parameterIndices, false, true), parameterIndices.length, "");
+        LLVM.LLVMBuildStore(builder, parameterRTTI, parameterRTTIPtr);
+      }
+      for (int i = 0; i < defaultParameters.length; ++i)
+      {
+        LLVMValueRef nameString = codeGenerator.addStringConstant(defaultParameters[i].getName());
+        nameString = LLVM.LLVMBuildBitCast(builder, nameString, LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), "");
+        LLVMValueRef[] nameIndices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false),
+                                                         LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 7, false),
+                                                         LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), parameterTypes.length + defaultParameters.length + i, false)};
+        LLVMValueRef namePtr = LLVM.LLVMBuildGEP(builder, pointer, C.toNativePointerArray(nameIndices, false, true), nameIndices.length, "");
+        LLVM.LLVMBuildStore(builder, nameString, namePtr);
       }
     }
     else if (type instanceof NamedType)
@@ -1809,6 +1934,13 @@ public class RTTIHelper
       for (Type t : functionType.getParameterTypes())
       {
         if (containsTypeParameters(t))
+        {
+          return true;
+        }
+      }
+      for (DefaultParameter defaultParameter : functionType.getDefaultParameters())
+      {
+        if (containsTypeParameters(defaultParameter.getType()))
         {
           return true;
         }

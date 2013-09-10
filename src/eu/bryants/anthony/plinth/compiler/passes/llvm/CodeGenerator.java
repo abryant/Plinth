@@ -83,6 +83,7 @@ import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
 import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
@@ -4170,19 +4171,18 @@ public class CodeGenerator
       {
         FunctionType functionType = (FunctionType) initialiserType;
         Type[] parameterTypes = functionType.getParameterTypes();
+        DefaultParameter[] defaultParameters = functionType.getDefaultParameters();
         LLVMValueRef initialiserCallee = LLVM.LLVMBuildExtractValue(builder, initialiserValue, 1, "");
         LLVMValueRef initialiserFunction = LLVM.LLVMBuildExtractValue(builder, initialiserValue, 2, "");
-        LLVMValueRef[] initialiserParams;
+        LLVMValueRef[] initialiserParams = new LLVMValueRef[1 + parameterTypes.length + defaultParameters.length];
+        initialiserParams[0] = initialiserCallee;
         if (parameterTypes.length == 0)
         {
           // we don't need to specify any lengths
-          initialiserParams = new LLVMValueRef[] {initialiserCallee};
         }
         else if (parameterTypes.length == llvmLengths.length)
         {
           // we need to specify all of the lengths
-          initialiserParams = new LLVMValueRef[1 + parameterTypes.length];
-          initialiserParams[0] = initialiserCallee;
           for (int i = 0; i < parameterTypes.length; ++i)
           {
             initialiserParams[1 + i] = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, initialisationPhiNodes[i], ArrayLengthMember.ARRAY_LENGTH_TYPE, parameterTypes[i], typeParameterAccessor, typeParameterAccessor);
@@ -4191,6 +4191,14 @@ public class CodeGenerator
         else
         {
           throw new IllegalArgumentException("An initialiser function must take either all of the length arguments, or no arguments at all");
+        }
+        // pass all of the default arguments in, using their default value
+        for (int i = 0; i < defaultParameters.length; ++i)
+        {
+          LLVMTypeRef defaultParamType = typeHelper.findStandardType(defaultParameters[i].getType());
+          LLVMTypeRef[] subTypes = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), defaultParamType};
+          LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(subTypes, false, true), subTypes.length, false);
+          initialiserParams[1 + parameterTypes.length + i] = LLVM.LLVMConstNull(structType);
         }
 
         // call the initialiser function
@@ -4924,7 +4932,8 @@ public class CodeGenerator
           }
 
           result = typeHelper.extractMethodFunction(builder, landingPadContainer, notNullValue, notNullType, methodReference, false, typeParameterAccessor);
-          FunctionType resultFunctionType = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), methodReference.getCheckedThrownTypes(), null);
+          {} // TODO: when default parameters are added to methods, they should be included here
+          FunctionType resultFunctionType = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), new DefaultParameter[0], methodReference.getCheckedThrownTypes(), null);
           result = typeHelper.convertTemporary(builder, landingPadContainer, result, resultFunctionType, fieldAccessExpression.getType(), false, typeParameterAccessor, typeParameterAccessor);
         }
         else
@@ -4987,7 +4996,8 @@ public class CodeGenerator
 
         LLVMValueRef callee = LLVM.LLVMConstNull(typeHelper.getOpaquePointer());
         LLVMValueRef result = typeHelper.extractMethodFunction(builder, landingPadContainer, callee, null, methodReference, false, typeParameterAccessor);
-        FunctionType resultFunctionType = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), methodReference.getCheckedThrownTypes(), null);
+        {} // TODO: when default parameters are added to methods, they should be included here
+        FunctionType resultFunctionType = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), new DefaultParameter[0], methodReference.getCheckedThrownTypes(), null);
         return typeHelper.convertTemporary(builder, landingPadContainer, result, resultFunctionType, fieldAccessExpression.getType(), false, typeParameterAccessor, typeParameterAccessor);
       }
       throw new IllegalArgumentException("Unknown member type for a FieldAccessExpression: " + memberReference);
@@ -5005,6 +5015,7 @@ public class CodeGenerator
       Expression resolvedBaseExpression = functionExpression.getResolvedBaseExpression();
 
       Type[] parameterTypes;
+      {} // TODO: handle default parameters properly, once default arguments exist
       Type returnType;
       if (resolvedMethodReference != null)
       {
@@ -5540,7 +5551,8 @@ public class CodeGenerator
         boolean isNonVirtual = variableExpression instanceof SuperVariableExpression;
 
         LLVMValueRef result = typeHelper.extractMethodFunction(builder, landingPadContainer, callee, calleeType, methodReference, isNonVirtual, typeParameterAccessor);
-        FunctionType resultFunctionType = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), methodReference.getCheckedThrownTypes(), null);
+        {} // TODO: when default parameters are added to methods, they should be included here
+        FunctionType resultFunctionType = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), new DefaultParameter[0], methodReference.getCheckedThrownTypes(), null);
         return typeHelper.convertTemporary(builder, landingPadContainer, result, resultFunctionType, variableExpression.getType(), false, typeParameterAccessor, typeParameterAccessor);
       }
     }

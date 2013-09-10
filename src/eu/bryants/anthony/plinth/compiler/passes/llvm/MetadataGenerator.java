@@ -15,6 +15,7 @@ import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.member.Property;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
@@ -240,14 +241,15 @@ public class MetadataGenerator
     return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
   }
 
-  private static LLVMValueRef generateParameters(Parameter[] parameters)
+  private static <P extends Parameter> LLVMValueRef generateParameters(P[] parameters)
   {
     LLVMValueRef[] parameterNodes = new LLVMValueRef[parameters.length];
     for (int i = 0; i < parameters.length; ++i)
     {
       LLVMValueRef typeNode = generateType(parameters[i].getType());
       LLVMValueRef nameNode = createMDString(parameters[i].getName());
-      LLVMValueRef[] parameterValues = new LLVMValueRef[] {typeNode, nameNode};
+      LLVMValueRef isDefaultNode = createMDString(parameters[i] instanceof DefaultParameter ? "default" : "not-default");
+      LLVMValueRef[] parameterValues = new LLVMValueRef[] {typeNode, nameNode, isDefaultNode};
       parameterNodes[i] = LLVM.LLVMMDNode(C.toNativePointerArray(parameterValues, false, true), parameterValues.length);
     }
     return LLVM.LLVMMDNode(C.toNativePointerArray(parameterNodes, false, true), parameterNodes.length);
@@ -304,8 +306,10 @@ public class MetadataGenerator
         parameterTypeNodes[i] = generateType(parameterTypes[i]);
       }
       LLVMValueRef parameterTypesNode = LLVM.LLVMMDNode(C.toNativePointerArray(parameterTypeNodes, false, true), parameterTypeNodes.length);
+      DefaultParameter[] defaultParameters = functionType.getDefaultParameters();
+      LLVMValueRef defaultParametersNode = generateParameters(defaultParameters);
       LLVMValueRef thrownTypesNode = generateThrownTypes(functionType.getThrownTypes());
-      LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, immutableNode, returnTypeNode, parameterTypesNode, thrownTypesNode};
+      LLVMValueRef[] values = new LLVMValueRef[] {sortNode, nullableNode, immutableNode, returnTypeNode, parameterTypesNode, defaultParametersNode, thrownTypesNode};
       return LLVM.LLVMMDNode(C.toNativePointerArray(values, false, true), values.length);
     }
     if (type instanceof NamedType)

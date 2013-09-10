@@ -36,6 +36,7 @@ public enum ParseType
   ASSIGNEE_NO_QNAME,             // Assignee
   ASSIGNEE_LIST,                 // ParseList<Assignee>
   DECLARATION_ASSIGNEE_LIST,     // ParseList<Assignee>
+  DECLARATION_ASSIGNEE_LIST_NOT_SINGLE_NAME, // ParseList<Assignee>
   CATCH_TYPE_LIST,               // ParseList<Type>
   PROPERTY_METHOD_LIST,          // ParseList<PropertyMethod>
   PROPERTY_METHOD,               // PropertyMethod
@@ -43,6 +44,9 @@ public enum ParseType
   PARAMETER_LIST,                // ParseList<Parameter>
   FOR_INIT,                      // ParseContainer<Statement> (possibly containing null)
   FOR_UPDATE,                    // Statement or null
+  FUNCTION_TYPE_DEFAULT_PARAMETER, // DefaultParameter
+  FUNCTION_TYPE_DEFAULT_PARAMETER_LIST, // ParseList<DefaultParameter>
+  FUNCTION_TYPE_PARAMETERS,      // FunctionTypeParameterList
   IMPLEMENTS_CLAUSE,             // ParseList<NamedType> or null
   INTERFACE_LIST,                // ParseList<NamedType>
   MODIFIERS,                     // ParseList<Modifier>
@@ -155,6 +159,7 @@ public enum ParseType
   DOUBLE_RANGLE,
   DOUBLE_RANGLE_EQUALS,
   DOT,
+  ELLIPSIS,
   EQUALS,
   EXCLAIMATION_MARK,
   EXCLAIMATION_MARK_EQUALS,

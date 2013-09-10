@@ -522,6 +522,7 @@ public class TypePropagator
       FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
       Argument[] arguments = functionCallExpression.getArguments();
       Type[] parameterTypes = null;
+      {} // TODO: propagate default parameter types properly, once default arguments exist
       if (functionCallExpression.getResolvedMethodReference() != null)
       {
         if (functionCallExpression.getResolvedBaseExpression() != null)

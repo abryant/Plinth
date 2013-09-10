@@ -7,7 +7,9 @@ import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.expression.Expression;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.QName;
+import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
 import eu.bryants.anthony.plinth.ast.statement.AssignStatement;
+import eu.bryants.anthony.plinth.ast.terminal.Name;
 import eu.bryants.anthony.plinth.ast.type.Type;
 import eu.bryants.anthony.plinth.parser.LanguageParseException;
 import eu.bryants.anthony.plinth.parser.ParseType;
@@ -29,23 +31,26 @@ public class AssignStatementRule extends Rule<ParseType>
   private static final Production<ParseType> ASSIGN_PRODUCTION                                  = new Production<ParseType>(ParseType.ASSIGNEE_LIST, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
   private static final Production<ParseType> DECLARATION_PRODUCTION                             = new Production<ParseType>(                     ParseType.TYPE_NOT_QNAME,    ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.SEMICOLON);
   private static final Production<ParseType> MODIFIERS_DECLARATION_PRODUCTION                   = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE_NOT_QNAME,    ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.SEMICOLON);
-  private static final Production<ParseType> DEFINTION_PRODUCTION                               = new Production<ParseType>(                     ParseType.TYPE_NOT_QNAME,    ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> DEFINTION_PRODUCTION                               = new Production<ParseType>(                     ParseType.TYPE_NOT_QNAME,    ParseType.DECLARATION_ASSIGNEE_LIST_NOT_SINGLE_NAME, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> SINGLE_DEFINTION_PRODUCTION                        = new Production<ParseType>(                     ParseType.TYPE_NOT_QNAME,    ParseType.NAME,                      ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
   private static final Production<ParseType> MODIFIERS_DEFINTION_PRODUCTION                     = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE_NOT_QNAME,    ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
   private static final Production<ParseType> QNAME_DECLARATION_PRODUCTION                       = new Production<ParseType>(                     ParseType.QNAME,             ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.SEMICOLON);
   private static final Production<ParseType> QNAME_MODIFIERS_DECLARATION_PRODUCTION             = new Production<ParseType>(ParseType.MODIFIERS, ParseType.QNAME,             ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.SEMICOLON);
-  private static final Production<ParseType> QNAME_DEFINTION_PRODUCTION                         = new Production<ParseType>(                     ParseType.QNAME,             ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> QNAME_DEFINTION_PRODUCTION                         = new Production<ParseType>(                     ParseType.QNAME,             ParseType.DECLARATION_ASSIGNEE_LIST_NOT_SINGLE_NAME, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> QNAME_SINGLE_DEFINTION_PRODUCTION                  = new Production<ParseType>(                     ParseType.QNAME,             ParseType.NAME,                      ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
   private static final Production<ParseType> QNAME_MODIFIERS_DEFINTION_PRODUCTION               = new Production<ParseType>(ParseType.MODIFIERS, ParseType.QNAME,             ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
   private static final Production<ParseType> NESTED_QNAME_LIST_DECLARATION_PRODUCTION           = new Production<ParseType>(                     ParseType.NESTED_QNAME_LIST, ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.SEMICOLON);
   private static final Production<ParseType> NESTED_QNAME_LIST_MODIFIERS_DECLARATION_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NESTED_QNAME_LIST, ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.SEMICOLON);
-  private static final Production<ParseType> NESTED_QNAME_LIST_DEFINTION_PRODUCTION             = new Production<ParseType>(                     ParseType.NESTED_QNAME_LIST, ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> NESTED_QNAME_LIST_DEFINTION_PRODUCTION             = new Production<ParseType>(                     ParseType.NESTED_QNAME_LIST, ParseType.DECLARATION_ASSIGNEE_LIST_NOT_SINGLE_NAME, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
+  private static final Production<ParseType> NESTED_QNAME_LIST_SINGLE_DEFINTION_PRODUCTION      = new Production<ParseType>(                     ParseType.NESTED_QNAME_LIST, ParseType.NAME,                      ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
   private static final Production<ParseType> NESTED_QNAME_LIST_MODIFIERS_DEFINTION_PRODUCTION   = new Production<ParseType>(ParseType.MODIFIERS, ParseType.NESTED_QNAME_LIST, ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.EQUALS, ParseType.EXPRESSION, ParseType.SEMICOLON);
 
   public AssignStatementRule()
   {
     super(ParseType.ASSIGN_STATEMENT, ASSIGN_PRODUCTION,
-                                      DECLARATION_PRODUCTION, MODIFIERS_DECLARATION_PRODUCTION, DEFINTION_PRODUCTION, MODIFIERS_DEFINTION_PRODUCTION,
-                                      QNAME_DECLARATION_PRODUCTION, QNAME_DEFINTION_PRODUCTION, QNAME_MODIFIERS_DECLARATION_PRODUCTION, QNAME_MODIFIERS_DEFINTION_PRODUCTION,
-                                      NESTED_QNAME_LIST_DECLARATION_PRODUCTION, NESTED_QNAME_LIST_DEFINTION_PRODUCTION, NESTED_QNAME_LIST_MODIFIERS_DECLARATION_PRODUCTION, NESTED_QNAME_LIST_MODIFIERS_DEFINTION_PRODUCTION);
+                                      DECLARATION_PRODUCTION, MODIFIERS_DECLARATION_PRODUCTION, DEFINTION_PRODUCTION, SINGLE_DEFINTION_PRODUCTION, MODIFIERS_DEFINTION_PRODUCTION,
+                                      QNAME_DECLARATION_PRODUCTION, QNAME_MODIFIERS_DECLARATION_PRODUCTION, QNAME_DEFINTION_PRODUCTION, QNAME_SINGLE_DEFINTION_PRODUCTION, QNAME_MODIFIERS_DEFINTION_PRODUCTION,
+                                      NESTED_QNAME_LIST_DECLARATION_PRODUCTION, NESTED_QNAME_LIST_MODIFIERS_DECLARATION_PRODUCTION, NESTED_QNAME_LIST_DEFINTION_PRODUCTION, NESTED_QNAME_LIST_SINGLE_DEFINTION_PRODUCTION, NESTED_QNAME_LIST_MODIFIERS_DEFINTION_PRODUCTION);
   }
 
   /**
@@ -61,6 +66,28 @@ public class AssignStatementRule extends Rule<ParseType>
       Expression expression = (Expression) args[2];
       return new AssignStatement(false, null, assignees.toArray(new Assignee[assignees.size()]), expression,
                                  LexicalPhrase.combine(assignees.getLexicalPhrase(), (LexicalPhrase) args[1], expression.getLexicalPhrase(), (LexicalPhrase) args[3]));
+    }
+    if (production == SINGLE_DEFINTION_PRODUCTION || production == QNAME_SINGLE_DEFINTION_PRODUCTION || production == NESTED_QNAME_LIST_SINGLE_DEFINTION_PRODUCTION)
+    {
+      Type type;
+      if (production == SINGLE_DEFINTION_PRODUCTION)
+      {
+        type = (Type) args[0];
+      }
+      else if (production == QNAME_SINGLE_DEFINTION_PRODUCTION)
+      {
+        QName qname = (QName) args[0];
+        type = new QNameElement(qname, qname.getLexicalPhrase()).convertToType();
+      }
+      else // if (production == NESTED_QNAME_LIST_SINGLE_DEFINTION_PRODUCTION)
+      {
+        QNameElement element = (QNameElement) args[0];
+        type = element.convertToType();
+      }
+      Name name = (Name) args[1];
+      Expression expression = (Expression) args[3];
+      Assignee assignee = new VariableAssignee(name.getName(), name.getLexicalPhrase());
+      return new AssignStatement(false, type, new Assignee[] {assignee}, expression, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], expression.getLexicalPhrase(), (LexicalPhrase) args[4]));
     }
 
     Type type;

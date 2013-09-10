@@ -433,20 +433,24 @@ tupleLoopCheck:
   br i1 %tupleLoopContinue, label %tupleLoop, label %success
 
 function:
-  %queryFunction = bitcast %RTTI* %realQueryType to {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}*
-  %specFunction = bitcast %RTTI* %realSpecType to {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}*
-  %queryFunctionNullabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %queryFunction, i32 0, i32 2
-  %queryFunctionImmutabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %queryFunction, i32 0, i32 3
-  %queryFunctionNumParametersPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %queryFunction, i32 0, i32 5
-  %specFunctionNullabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specFunction, i32 0, i32 2
-  %specFunctionImmutabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specFunction, i32 0, i32 3
-  %specFunctionNumParametersPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specFunction, i32 0, i32 5
+  %queryFunction = bitcast %RTTI* %realQueryType to {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}*
+  %specFunction = bitcast %RTTI* %realSpecType to {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}*
+  %queryFunctionNullabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %queryFunction, i32 0, i32 2
+  %queryFunctionImmutabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %queryFunction, i32 0, i32 3
+  %queryFunctionNumParametersPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %queryFunction, i32 0, i32 5
+  %queryFunctionNumDefaultParamsPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %queryFunction, i32 0, i32 6
+  %specFunctionNullabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specFunction, i32 0, i32 2
+  %specFunctionImmutabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specFunction, i32 0, i32 3
+  %specFunctionNumParametersPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specFunction, i32 0, i32 5
+  %specFunctionNumDefaultParamsPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specFunction, i32 0, i32 6
   %queryFunctionNullability = load i1* %queryFunctionNullabilityPtr
   %queryFunctionImmutability = load i1* %queryFunctionImmutabilityPtr
   %queryFunctionNumParameters = load i32* %queryFunctionNumParametersPtr
+  %queryFunctionNumDefaultParams = load i32* %queryFunctionNumDefaultParamsPtr
   %specFunctionNullability = load i1* %specFunctionNullabilityPtr
   %specFunctionImmutability = load i1* %specFunctionImmutabilityPtr
   %specFunctionNumParameters = load i32* %specFunctionNumParametersPtr
+  %specFunctionNumDefaultParams = load i32* %specFunctionNumDefaultParamsPtr
   %realQueryFunctionNullability = or i1 %queryFunctionNullability, %queryForcedNullability
   %realSpecFunctionNullability = or i1 %specFunctionNullability, %forcedSpecNullability
   ; NOTE: function immutability cannot be forced, since it is not a form of data-immutability
@@ -454,35 +458,72 @@ function:
   %functionNullabilityMatches = or i1 %functionEqualNullability, %ignoreNullability
   %functionEqualImmutability = icmp eq i1 %queryFunctionImmutability, %specFunctionImmutability
   %functionEqualNumParameters = icmp eq i32 %queryFunctionNumParameters, %specFunctionNumParameters
+  %functionEqualNumDefaultParams = icmp eq i32 %queryFunctionNumDefaultParams, %specFunctionNumDefaultParams
   %functionNullabilityImmutability = and i1 %functionNullabilityMatches, %functionEqualImmutability
-  %functionPreliminaryResult = and i1 %functionNullabilityImmutability, %functionEqualNumParameters
+  %functionEqualParameterCounts = and i1 %functionEqualNumParameters, %functionEqualNumDefaultParams
+  %functionPreliminaryResult = and i1 %functionNullabilityImmutability, %functionEqualParameterCounts
   br i1 %functionPreliminaryResult, label %functionReturnTypeCheck, label %failure
 
 functionReturnTypeCheck:
-  %queryFunctionReturnTypePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %queryFunction, i32 0, i32 4
-  %specFunctionReturnTypePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specFunction, i32 0, i32 4
+  %queryFunctionReturnTypePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %queryFunction, i32 0, i32 4
+  %specFunctionReturnTypePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specFunction, i32 0, i32 4
   %queryFunctionReturnType = load %RTTI** %queryFunctionReturnTypePtr
   %specFunctionReturnType = load %RTTI** %specFunctionReturnTypePtr
   %functionEqualReturnTypes = call i1 @plinth_check_type_matches(%RTTI* %queryFunctionReturnType, %RTTI* %specFunctionReturnType, %TypeArgumentMapper* %queryMapper, %TypeArgumentMapper* %specMapper, i1 false, i1 false, i1 false)
   br i1 %functionEqualReturnTypes, label %functionLoopStart, label %failure
 
 functionLoopStart:
-  %skipFunctionLoop = icmp eq i32 %queryFunctionNumParameters, 0
-  br i1 %skipFunctionLoop, label %success, label %functionLoop
+  %functionTotalNumParameters = add i32 %queryFunctionNumParameters, %queryFunctionNumDefaultParams
+  %skipFunctionLoop = icmp eq i32 %functionTotalNumParameters, 0
+  br i1 %skipFunctionLoop, label %functionNameLoopStart, label %functionLoop
 
 functionLoop:
   %functionLoopCounter = phi i32 [0, %functionLoopStart], [%nextFunctionLoopCounter, %functionLoopCheck]
-  %queryFunctionParameterTypePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %queryFunction, i32 0, i32 6, i32 %functionLoopCounter
-  %specFunctionParameterTypePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specFunction, i32 0, i32 6, i32 %functionLoopCounter
-  %queryFunctionParameterType = load %RTTI** %queryFunctionParameterTypePtr
-  %specFunctionParameterType = load %RTTI** %specFunctionParameterTypePtr
-  %functionElementComparison = call i1 @plinth_check_type_matches(%RTTI* %queryFunctionParameterType, %RTTI* %specFunctionParameterType, %TypeArgumentMapper* %queryMapper, %TypeArgumentMapper* %specMapper, i1 false, i1 false, i1 false)
+  %queryFunctionParameterTypePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %queryFunction, i32 0, i32 7, i32 %functionLoopCounter
+  %specFunctionParameterTypePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specFunction, i32 0, i32 7, i32 %functionLoopCounter
+  %queryFunctionParameterType = load i8** %queryFunctionParameterTypePtr
+  %queryFunctionCastedParameterType = bitcast i8* %queryFunctionParameterType to %RTTI*
+  %specFunctionParameterType = load i8** %specFunctionParameterTypePtr
+  %specFunctionCastedParameterType = bitcast i8* %specFunctionParameterType to %RTTI*
+  %functionElementComparison = call i1 @plinth_check_type_matches(%RTTI* %queryFunctionCastedParameterType, %RTTI* %specFunctionCastedParameterType, %TypeArgumentMapper* %queryMapper, %TypeArgumentMapper* %specMapper, i1 false, i1 false, i1 false)
   br i1 %functionElementComparison, label %functionLoopCheck, label %failure
 
 functionLoopCheck:
   %nextFunctionLoopCounter = add i32 %functionLoopCounter, 1
-  %functionLoopContinue = icmp ult i32 %nextFunctionLoopCounter, %queryFunctionNumParameters
-  br i1 %functionLoopContinue, label %functionLoop, label %success
+  %functionLoopContinue = icmp ult i32 %nextFunctionLoopCounter, %functionTotalNumParameters
+  br i1 %functionLoopContinue, label %functionLoop, label %functionNameLoopStart
+
+functionNameLoopStart:
+  %functionTotalPointers = add i32 %functionTotalNumParameters, %queryFunctionNumDefaultParams
+  %skipFunctionNameLoop = icmp eq i32 %queryFunctionNumDefaultParams, 0
+  br i1 %skipFunctionNameLoop, label %success, label %functionNameLoop
+
+functionNameLoop:
+  %functionNameLoopCounter = phi i32 [%functionTotalNumParameters, %functionNameLoopStart], [%nextFunctionNameLoopCounter, %functionNameLoopCheck]
+  %queryFunctionDefaultParamNamePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %queryFunction, i32 0, i32 7, i32 %functionNameLoopCounter
+  %specFunctionDefaultParamNamePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specFunction, i32 0, i32 7, i32 %functionNameLoopCounter
+  %queryFunctionDefaultParamName = load i8** %queryFunctionDefaultParamNamePtr
+  %specFunctionDefaultParamName = load i8** %specFunctionDefaultParamNamePtr
+  %queryFunctionCastedDefaultParamName =  bitcast i8* %queryFunctionDefaultParamName to %RawString*
+  %specFunctionCastedDefaultParamName =  bitcast i8* %specFunctionDefaultParamName to %RawString*
+  %queryFunctionParamNameLengthPtr = getelementptr %RawString* %queryFunctionCastedDefaultParamName, i32 0, i32 2
+  %specFunctionParamNameLengthPtr = getelementptr %RawString* %specFunctionCastedDefaultParamName, i32 0, i32 2
+  %queryFunctionParamNameLength = load i32* %queryFunctionParamNameLengthPtr
+  %specFunctionParamNameLength = load i32* %specFunctionParamNameLengthPtr
+  %functionParamNameLengthsMatch = icmp eq i32 %queryFunctionParamNameLength, %specFunctionParamNameLength
+  br i1 %functionParamNameLengthsMatch, label %functionNameCheck, label %failure
+
+functionNameCheck:
+  %queryFunctionParamNameBytes = getelementptr %RawString* %queryFunctionCastedDefaultParamName, i32 0, i32 5, i32 0
+  %specFunctionParamNameBytes = getelementptr %RawString* %specFunctionCastedDefaultParamName, i32 0, i32 5, i32 0
+  %functionParamNameCompareResult = call i32 @strncmp(i8* %queryFunctionParamNameBytes, i8* %specFunctionParamNameBytes, i32 %queryFunctionParamNameLength)
+  %functionParamNamesMatch = icmp eq i32 %functionParamNameCompareResult, 0
+  br i1 %functionParamNamesMatch, label %functionNameLoopCheck, label %failure
+
+functionNameLoopCheck:
+  %nextFunctionNameLoopCounter = add i32 %functionNameLoopCounter, 1
+  %functionNameLoopContinue = icmp ult i32 %nextFunctionNameLoopCounter, %functionTotalPointers
+  br i1 %functionNameLoopContinue, label %functionNameLoop, label %success
 
 named:
   %queryNamed = bitcast %RTTI* %realQueryType to {%TypeSearchList*, i8, i1, i1, %RawString*, %TypeArgumentMapper}*
@@ -793,7 +834,7 @@ returnSpecialisedTuple:
   ret %RTTI* %castedSpecialisedTuple
 
 function:
-  %functionRTTI = bitcast %RTTI* %type to {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}*
+  %functionRTTI = bitcast %RTTI* %type to {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}*
   ; try not to waste any allocations here - pseudo code for processing functions is:
   ; RTTI* returnType = functionRTTI.returnType
   ; RTTI* specialisedReturnType = @plinth_get_specialised_type_info(returnType)
@@ -801,9 +842,9 @@ function:
   ; uint firstDifferingIndex = 0
   ; if (returnType == specialisedReturnType)
   ; {
-  ;   for (uint i = 0; i < functionRTTI.num_params; ++i)
+  ;   for (uint i = 0; i < functionRTTI.num_params + functionRTTI.num_default_params; ++i)
   ;   {
-  ;     RTTI* paramType = functionRTTI.paramTypes[i]
+  ;     RTTI* paramType = functionRTTI.pointers[i]
   ;     RTTI* specialisedParamType = @plinth_get_specialised_type_info(paramType)
   ;     if (paramType != specialisedParamType)
   ;     {
@@ -823,107 +864,136 @@ function:
   ; specialisedFunction.immutability = functionRTTI.immutability
   ; specialisedFunction.returnType = specialisedReturnType
   ; specialisedFunction.num_params = functionRTTI.num_params
+  ; specialisedFunction.num_default_params = functionRTTI.num_default_params
   ; uint firstSpecialisationIndex = 0
   ; if (firstDifferingParam != null)
   ; {
-  ;   specialisedFunction.paramTypes[firstDifferingIndex] = firstDifferingParam
+  ;   specialisedFunction.pointers[firstDifferingIndex] = firstDifferingParam
   ;   for (uint j = 0; j < firstDifferingIndex; ++j)
   ;   {
-  ;     specialisedFunction.paramTypes[j] = functionRTTI.paramTypes[j]
+  ;     specialisedFunction.pointers[j] = functionRTTI.pointers[j]
   ;   }
   ;   firstSpecialisationIndex = firstDifferingIndex + 1
   ; }
-  ; for (uint k = firstSpecialisationIndex; k < functionRTTI.num_params; ++k)
+  ; for (uint k = firstSpecialisationIndex; k < functionRTTI.num_params + functionRTTI.num_default_params; ++k)
   ; {
-  ;   specialisedFunction.paramTypes[k] = @plinth_get_specialised_type_info(functionRTTI.paramTypes[k])
+  ;   specialisedFunction.pointers[k] = @plinth_get_specialised_type_info(functionRTTI.pointers[k])
+  ; }
+  ; for (uint l = functionRTTI.num_params + functionRTTI.num_default_params; ++l)
+  ; {
+  ;   specialisedFunction.pointers[l] = functionRTTI.pointers[l]
   ; }
   ; return specialisedFunction
-  %functionReturnTypePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %functionRTTI, i32 0, i32 4
+  %functionReturnTypePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %functionRTTI, i32 0, i32 4
   %functionReturnType = load %RTTI** %functionReturnTypePtr
   %specialisedFunctionReturnType = call %RTTI* @plinth_get_specialised_type_info(%RTTI* %functionReturnType, %TypeArgumentMapper* %mapper)
-  %functionNumParamsPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %functionRTTI, i32 0, i32 5
+  %functionNumParamsPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %functionRTTI, i32 0, i32 5
   %functionNumParams = load i32* %functionNumParamsPtr
+  %functionNumDefaultParamsPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %functionRTTI, i32 0, i32 6
+  %functionNumDefaultParams = load i32* %functionNumDefaultParamsPtr
+  %functionTotalNumParams = add i32 %functionNumParams, %functionNumDefaultParams
+  %functionNumPointers = add i32 %functionTotalNumParams, %functionNumDefaultParams
   %functionReturnTypeDiffers = icmp ne %RTTI* %functionReturnType, %specialisedFunctionReturnType
   br i1 %functionReturnTypeDiffers, label %createSpecialisedFunction, label %checkFunctionParamTypes
 
 checkFunctionParamTypes:
-  %functionHasParams = icmp ne i32 0, %functionNumParams
+  %functionHasParams = icmp ne i32 0, %functionTotalNumParams
   br i1 %functionHasParams, label %checkFunctionParamTypesLoop, label %noChange
 
 checkFunctionParamTypesLoop:
   %checkFunctionParamTypesIndex = phi i32 [0, %checkFunctionParamTypes], [%nextCheckFunctionParamTypesIndex, %checkFunctionParamTypesLoopCheck]
-  %functionParamTypePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %functionRTTI, i32 0, i32 6, i32 %checkFunctionParamTypesIndex
-  %functionParamType = load %RTTI** %functionParamTypePtr
-  %specialisedFunctionParamType = call %RTTI* @plinth_get_specialised_type_info(%RTTI* %functionParamType, %TypeArgumentMapper* %mapper)
-  %functionParamTypeDiffers = icmp ne %RTTI* %functionParamType, %specialisedFunctionParamType
+  %functionParamTypePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %functionRTTI, i32 0, i32 7, i32 %checkFunctionParamTypesIndex
+  %functionParamType = load i8** %functionParamTypePtr
+  %functionCastedParamType = bitcast i8* %functionParamType to %RTTI* 
+  %specialisedFunctionParamType = call %RTTI* @plinth_get_specialised_type_info(%RTTI* %functionCastedParamType, %TypeArgumentMapper* %mapper)
+  %functionParamTypeDiffers = icmp ne %RTTI* %functionCastedParamType, %specialisedFunctionParamType
   br i1 %functionParamTypeDiffers, label %createSpecialisedFunction, label %checkFunctionParamTypesLoopCheck
 
 checkFunctionParamTypesLoopCheck:
   %nextCheckFunctionParamTypesIndex = add i32 %checkFunctionParamTypesIndex, 1
-  %checkFunctionParamTypesHasNext = icmp ult i32 %nextCheckFunctionParamTypesIndex, %functionNumParams
+  %checkFunctionParamTypesHasNext = icmp ult i32 %nextCheckFunctionParamTypesIndex, %functionTotalNumParams
   br i1 %checkFunctionParamTypesHasNext, label %checkFunctionParamTypesLoop, label %noChange
 
 createSpecialisedFunction:
   %firstDifferingFunctionParam = phi %RTTI* [null, %function], [%specialisedFunctionParamType, %checkFunctionParamTypesLoop]
   %firstDifferingFunctionParamIndex = phi i32 [0, %function], [%checkFunctionParamTypesIndex, %checkFunctionParamTypesLoop]
-  %functionRTTISizePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* null, i32 0, i32 6, i32 %functionNumParams
-  %functionRTTISize = ptrtoint %RTTI** %functionRTTISizePtr to i32
+  %functionRTTISizePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* null, i32 0, i32 7, i32 %functionNumPointers
+  %functionRTTISize = ptrtoint i8** %functionRTTISizePtr to i32
   %functionAlloc = call i8* @calloc(i32 %functionRTTISize, i32 1)
-  %specialisedFunction = bitcast i8* %functionAlloc to {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}*
-  %functionTypeSearchListPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specialisedFunction, i32 0, i32 0
+  %specialisedFunction = bitcast i8* %functionAlloc to {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}*
+  %functionTypeSearchListPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specialisedFunction, i32 0, i32 0
   store %TypeSearchList* %oldTypeSearchList, %TypeSearchList** %functionTypeSearchListPtr
-  %functionSortIdPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specialisedFunction, i32 0, i32 1
+  %functionSortIdPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specialisedFunction, i32 0, i32 1
   store i8 5, i8* %functionSortIdPtr
-  %oldFunctionNullabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %functionRTTI, i32 0, i32 2
+  %oldFunctionNullabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %functionRTTI, i32 0, i32 2
   %functionNullability = load i1* %oldFunctionNullabilityPtr
-  %newFunctionNullabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specialisedFunction, i32 0, i32 2
+  %newFunctionNullabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specialisedFunction, i32 0, i32 2
   store i1 %functionNullability, i1* %newFunctionNullabilityPtr
-  %oldFunctionImmutabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %functionRTTI, i32 0, i32 3
+  %oldFunctionImmutabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %functionRTTI, i32 0, i32 3
   %functionImmutability = load i1* %oldFunctionImmutabilityPtr
-  %newFunctionImmutabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specialisedFunction, i32 0, i32 3
+  %newFunctionImmutabilityPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specialisedFunction, i32 0, i32 3
   store i1 %functionImmutability, i1* %newFunctionImmutabilityPtr
-  %newFunctionReturnTypePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specialisedFunction, i32 0, i32 4
+  %newFunctionReturnTypePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specialisedFunction, i32 0, i32 4
   store %RTTI* %specialisedFunctionReturnType, %RTTI** %newFunctionReturnTypePtr
-  %newFunctionNumParamsPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specialisedFunction, i32 0, i32 5
+  %newFunctionNumParamsPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specialisedFunction, i32 0, i32 5
   store i32 %functionNumParams, i32* %newFunctionNumParamsPtr
+  %newFunctionNumDefaultParamsPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specialisedFunction, i32 0, i32 6
+  store i32 %functionNumDefaultParams, i32* %newFunctionNumDefaultParamsPtr
   %hasFirstDifferingFunctionParam = icmp ne %RTTI* %firstDifferingFunctionParam, null
   br i1 %hasFirstDifferingFunctionParam, label %copyFirstDifferingFunctionParam, label %specialiseFunctionParams
 
 copyFirstDifferingFunctionParam:
-  %firstDifferingFunctionParamPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specialisedFunction, i32 0, i32 6, i32 %firstDifferingFunctionParamIndex
-  store %RTTI* %firstDifferingFunctionParam, %RTTI** %firstDifferingFunctionParamPtr
+  %firstDifferingFunctionParamPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specialisedFunction, i32 0, i32 7, i32 %firstDifferingFunctionParamIndex
+  %castedFirstDifferingFunctionParam = bitcast %RTTI* %firstDifferingFunctionParam to i8*
+  store i8* %castedFirstDifferingFunctionParam, i8** %firstDifferingFunctionParamPtr
   %functionHasPreviousParams = icmp ult i32 0, %firstDifferingFunctionParamIndex
   %afterFirstDifferingFunctionParamIndex = add i32 %firstDifferingFunctionParamIndex, 1
   br i1 %functionHasPreviousParams, label %copyFunctionPreviousParams, label %specialiseFunctionParams
 
 copyFunctionPreviousParams:
   %functionCopyPreviousParamsIndex = phi i32 [0, %copyFirstDifferingFunctionParam], [%nextFunctionCopyPreviousParamsIndex, %copyFunctionPreviousParams]
-  %oldFunctionParamPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %functionRTTI, i32 0, i32 6, i32 %functionCopyPreviousParamsIndex
-  %copiedFunctionParam = load %RTTI** %oldFunctionParamPtr
-  %copiedFunctionParamPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specialisedFunction, i32 0, i32 6, i32 %functionCopyPreviousParamsIndex
-  store %RTTI* %copiedFunctionParam, %RTTI** %copiedFunctionParamPtr
+  %oldFunctionParamPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %functionRTTI, i32 0, i32 7, i32 %functionCopyPreviousParamsIndex
+  %copiedFunctionParam = load i8** %oldFunctionParamPtr
+  %copiedFunctionParamPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specialisedFunction, i32 0, i32 7, i32 %functionCopyPreviousParamsIndex
+  store i8* %copiedFunctionParam, i8** %copiedFunctionParamPtr
   %nextFunctionCopyPreviousParamsIndex = add i32 %functionCopyPreviousParamsIndex, 1
   %functionCopyHasNextParam = icmp ult i32 %nextFunctionCopyPreviousParamsIndex, %firstDifferingFunctionParamIndex
   br i1 %functionCopyHasNextParam, label %copyFunctionPreviousParams, label %specialiseFunctionParams
 
 specialiseFunctionParams:
   %specialiseFunctionParamsStartIndex = phi i32 [0, %createSpecialisedFunction], [%afterFirstDifferingFunctionParamIndex, %copyFirstDifferingFunctionParam], [%afterFirstDifferingFunctionParamIndex, %copyFunctionPreviousParams]
-  %functionHasRemainingParams = icmp ult i32 %specialiseFunctionParamsStartIndex, %functionNumParams
-  br i1 %functionHasRemainingParams, label %specialiseFunctionParamsLoop, label %returnSpecialisedFunction
+  %functionHasRemainingParams = icmp ult i32 %specialiseFunctionParamsStartIndex, %functionTotalNumParams
+  br i1 %functionHasRemainingParams, label %specialiseFunctionParamsLoop, label %copyFunctionDefaultParamNames
 
 specialiseFunctionParamsLoop:
   %specialiseFunctionParamsIndex = phi i32 [%specialiseFunctionParamsStartIndex, %specialiseFunctionParams], [%nextSpecialiseFunctionParamsIndex, %specialiseFunctionParamsLoop]
-  %nonSpecialisedFunctionParamPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %functionRTTI, i32 0, i32 6, i32 %specialiseFunctionParamsIndex
-  %nonSpecialisedFunctionParam = load %RTTI** %nonSpecialisedFunctionParamPtr
-  %specialisedFunctionParam = call %RTTI* @plinth_get_specialised_type_info(%RTTI* %nonSpecialisedFunctionParam, %TypeArgumentMapper* %mapper)
-  %newFunctionParamPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specialisedFunction, i32 0, i32 6, i32 %specialiseFunctionParamsIndex
-  store %RTTI* %specialisedFunctionParam, %RTTI** %newFunctionParamPtr
+  %nonSpecialisedFunctionParamPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %functionRTTI, i32 0, i32 7, i32 %specialiseFunctionParamsIndex
+  %nonSpecialisedFunctionParam = load i8** %nonSpecialisedFunctionParamPtr
+  %castedNonSpecialisedFunctionParam = bitcast i8* %nonSpecialisedFunctionParam to %RTTI*
+  %specialisedFunctionParam = call %RTTI* @plinth_get_specialised_type_info(%RTTI* %castedNonSpecialisedFunctionParam, %TypeArgumentMapper* %mapper)
+  %castedSpecialisedFunctionParam = bitcast %RTTI* %specialisedFunctionParam to i8*
+  %newFunctionParamPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specialisedFunction, i32 0, i32 7, i32 %specialiseFunctionParamsIndex
+  store i8* %castedSpecialisedFunctionParam, i8** %newFunctionParamPtr
   %nextSpecialiseFunctionParamsIndex = add i32 %specialiseFunctionParamsIndex, 1
-  %specialiseFunctionParamsHasNext = icmp ult i32 %nextSpecialiseFunctionParamsIndex, %functionNumParams
-  br i1 %specialiseFunctionParamsHasNext, label %specialiseFunctionParamsLoop, label %returnSpecialisedFunction
+  %specialiseFunctionParamsHasNext = icmp ult i32 %nextSpecialiseFunctionParamsIndex, %functionTotalNumParams
+  br i1 %specialiseFunctionParamsHasNext, label %specialiseFunctionParamsLoop, label %copyFunctionDefaultParamNames
+
+copyFunctionDefaultParamNames:
+  %functionHasDefaultParams = icmp ne i32 %functionNumDefaultParams, 0
+  br i1 %functionHasDefaultParams, label %copyFunctionDefaultParamNamesLoop, label %returnSpecialisedFunction
+
+copyFunctionDefaultParamNamesLoop:
+  %copyFunctionDefaultParamNamesIndex = phi i32 [%functionTotalNumParams, %copyFunctionDefaultParamNames], [%nextCopyFunctionDefaultParamNamesIndex, %copyFunctionDefaultParamNamesLoop]
+  %functionDefaultParamNamePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %functionRTTI, i32 0, i32 7, i32 %copyFunctionDefaultParamNamesIndex
+  %functionDefaultParamName = load i8** %functionDefaultParamNamePtr
+  %specialisedFunctionDefaultParamNamePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specialisedFunction, i32 0, i32 7, i32 %copyFunctionDefaultParamNamesIndex
+  store i8* %functionDefaultParamName, i8** %specialisedFunctionDefaultParamNamePtr
+  %nextCopyFunctionDefaultParamNamesIndex = add i32 %copyFunctionDefaultParamNamesIndex, 1
+  %copyFunctionDefaultParamNamesHasNext = icmp ult i32 %nextCopyFunctionDefaultParamNamesIndex, %functionNumPointers
+  br i1 %copyFunctionDefaultParamNamesHasNext, label %copyFunctionDefaultParamNamesLoop, label %returnSpecialisedFunction
 
 returnSpecialisedFunction:
-  %castedSpecialisedFunction = bitcast {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %specialisedFunction to %RTTI*
+  %castedSpecialisedFunction = bitcast {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %specialisedFunction to %RTTI*
   ret %RTTI* %castedSpecialisedFunction
 
 named:
@@ -1244,11 +1314,15 @@ alterTuple:
   br label %generalAlterNullable
 
 alterFunction:
-  %functionRTTI = bitcast %RTTI* %type to {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}*
-  %functionNumParametersPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* %functionRTTI, i32 0, i32 5
+  %functionRTTI = bitcast %RTTI* %type to {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}*
+  %functionNumParametersPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %functionRTTI, i32 0, i32 5
   %functionNumParameters = load i32* %functionNumParametersPtr
-  %functionSizePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, [0 x %RTTI*]}* null, i32 0, i32 6, i32 %functionNumParameters
-  %functionSize = ptrtoint %RTTI** %functionSizePtr to i32
+  %functionNumDefaultParamsPtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* %functionRTTI, i32 0, i32 6
+  %functionNumDefaultParams = load i32* %functionNumDefaultParamsPtr
+  %functionTotalNumParameters = add i32 %functionNumParameters, %functionNumDefaultParams
+  %functionNumPointers = add i32 %functionTotalNumParameters, %functionNumDefaultParams
+  %functionSizePtr = getelementptr {%TypeSearchList*, i8, i1, i1, %RTTI*, i32, i32, [0 x i8*]}* null, i32 0, i32 7, i32 %functionNumPointers
+  %functionSize = ptrtoint i8** %functionSizePtr to i32
   br label %generalAlterNullable
 
 alterNamed:

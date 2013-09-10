@@ -218,7 +218,7 @@ public abstract class Type
     if (type instanceof FunctionType)
     {
       FunctionType functionType = (FunctionType) type;
-      return new FunctionType(nullable, functionType.isImmutable(), functionType.getReturnType(), functionType.getParameterTypes(), functionType.getThrownTypes(), null);
+      return new FunctionType(nullable, functionType.isImmutable(), functionType.getReturnType(), functionType.getParameterTypes(), functionType.getDefaultParameters(), functionType.getThrownTypes(), null);
     }
     if (type instanceof NamedType)
     {

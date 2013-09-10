@@ -841,6 +841,15 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
     }
     if (nextChar == '.')
     {
+      int secondChar = reader.read(1);
+      if (secondChar == '.')
+      {
+        int thirdChar = reader.read(2);
+        if (thirdChar == '.')
+        {
+          return makeSymbolToken(ParseType.ELLIPSIS, 3);
+        }
+      }
       return makeSymbolToken(ParseType.DOT, 1);
     }
     if (nextChar == '=')

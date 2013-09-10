@@ -71,6 +71,7 @@ import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Import;
 import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
@@ -979,6 +980,23 @@ public class Resolver
         try
         {
           resolve(parameterType, enclosingDefinition, compilationUnit);
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+      }
+      Set<String> defaultNames = new HashSet<String>();
+      for (DefaultParameter defaultParameter : functionType.getDefaultParameters())
+      {
+        if (defaultNames.contains(defaultParameter.getName()))
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Duplicate default parameter: " + defaultParameter.getName(), defaultParameter.getLexicalPhrase()));
+        }
+        defaultNames.add(defaultParameter.getName());
+        try
+        {
+          resolve(defaultParameter.getType(), enclosingDefinition, compilationUnit);
         }
         catch (ConceptualException e)
         {
@@ -3061,7 +3079,8 @@ public class Resolver
         if (member instanceof MethodReference)
         {
           MethodReference methodReference = (MethodReference) member;
-          FunctionType functionType = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), methodReference.getCheckedThrownTypes(), null);
+          {} // TODO: when default parameters are added to methods, they should be included here
+          FunctionType functionType = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), new DefaultParameter[0], methodReference.getCheckedThrownTypes(), null);
           if (!typeHint.canAssign(functionType))
           {
             it.remove();

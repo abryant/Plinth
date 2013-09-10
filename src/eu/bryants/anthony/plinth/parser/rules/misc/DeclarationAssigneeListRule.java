@@ -24,8 +24,8 @@ public class DeclarationAssigneeListRule extends Rule<ParseType>
 
   private static final Production<ParseType> START_NAME_PRODUCTION = new Production<ParseType>(ParseType.NAME);
   private static final Production<ParseType> START_BLANK_PRODUCTION = new Production<ParseType>(ParseType.UNDERSCORE);
-  private static final Production<ParseType> CONTINUATION_NAME_PRODUCTION = new Production<ParseType>(ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.COMMA, ParseType.NAME);
-  private static final Production<ParseType> CONTINUATION_BLANK_PRODUCTION = new Production<ParseType>(ParseType.DECLARATION_ASSIGNEE_LIST, ParseType.COMMA, ParseType.UNDERSCORE);
+  private static final Production<ParseType> CONTINUATION_NAME_PRODUCTION = new Production<ParseType>(ParseType.NAME, ParseType.COMMA, ParseType.DECLARATION_ASSIGNEE_LIST);
+  private static final Production<ParseType> CONTINUATION_BLANK_PRODUCTION = new Production<ParseType>(ParseType.UNDERSCORE, ParseType.COMMA, ParseType.DECLARATION_ASSIGNEE_LIST);
 
   public DeclarationAssigneeListRule()
   {
@@ -51,19 +51,19 @@ public class DeclarationAssigneeListRule extends Rule<ParseType>
     }
     if (production == CONTINUATION_NAME_PRODUCTION)
     {
+      Name name = (Name) args[0];
       @SuppressWarnings("unchecked")
-      ParseList<Assignee> list = (ParseList<Assignee>) args[0];
-      Name name = (Name) args[2];
+      ParseList<Assignee> list = (ParseList<Assignee>) args[2];
       Assignee assignee = new VariableAssignee(name.getName(), name.getLexicalPhrase());
-      list.addLast(assignee, LexicalPhrase.combine(list.getLexicalPhrase(), (LexicalPhrase) args[1], assignee.getLexicalPhrase()));
+      list.addFirst(assignee, LexicalPhrase.combine(assignee.getLexicalPhrase(), (LexicalPhrase) args[1], list.getLexicalPhrase()));
       return list;
     }
     if (production == CONTINUATION_BLANK_PRODUCTION)
     {
+      Assignee assignee = new BlankAssignee((LexicalPhrase) args[0]);
       @SuppressWarnings("unchecked")
-      ParseList<Assignee> list = (ParseList<Assignee>) args[0];
-      Assignee assignee = new BlankAssignee((LexicalPhrase) args[2]);
-      list.addLast(assignee, LexicalPhrase.combine(list.getLexicalPhrase(), (LexicalPhrase) args[1], assignee.getLexicalPhrase()));
+      ParseList<Assignee> list = (ParseList<Assignee>) args[2];
+      list.addFirst(assignee, LexicalPhrase.combine(assignee.getLexicalPhrase(), (LexicalPhrase) args[1], list.getLexicalPhrase()));
       return list;
     }
     throw badTypeList();
