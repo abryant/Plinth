@@ -97,7 +97,6 @@ public class MethodReference extends MemberReference<Method>
 
   /**
    * A disambiguator for method calls, which allows methods which are semantically equivalent (i.e. have the same name and types) can be easily distinguished.
-   * It also allows methods to be sorted into a predictable order, by implementing comparable.
    * @author Anthony Bryant
    */
   public class Disambiguator
