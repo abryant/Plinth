@@ -1,6 +1,14 @@
 package eu.bryants.anthony.plinth.ast.metadata;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
+import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.Type;
@@ -18,6 +26,7 @@ public class MethodReference extends MemberReference<Method>
 
   private Type returnType;
   private Type[] parameterTypes;
+  private DefaultParameter[] defaultParameters;
   private NamedType[] checkedThrownTypes;
 
   private Disambiguator disambiguator = new Disambiguator();
@@ -38,11 +47,40 @@ public class MethodReference extends MemberReference<Method>
 
     returnType = genericTypeSpecialiser.getSpecialisedType(referencedMethod.getReturnType());
     Parameter[] genericParameters = referencedMethod.getParameters();
-    parameterTypes = new Type[genericParameters.length];
+    List<Type> specialisedTypes = new ArrayList<Type>();
+    List<DefaultParameter> specialisedDefaultParameters = new ArrayList<DefaultParameter>();
     for (int i = 0; i < genericParameters.length; ++i)
     {
-      parameterTypes[i] = genericTypeSpecialiser.getSpecialisedType(genericParameters[i].getType());
+      if (genericParameters[i] instanceof NormalParameter || genericParameters[i] instanceof AutoAssignParameter)
+      {
+        specialisedTypes.add(genericTypeSpecialiser.getSpecialisedType(genericParameters[i].getType()));
+      }
+      else if (genericParameters[i] instanceof DefaultParameter)
+      {
+        DefaultParameter existingParameter = (DefaultParameter) genericParameters[i];
+        Type specialisedType = genericTypeSpecialiser.getSpecialisedType(existingParameter.getType());
+        // create a new DefaultParameter which doesn't have an Expression
+        DefaultParameter specialisedParameter = new DefaultParameter(existingParameter.isFinal(), specialisedType, genericParameters[i].getName(), null, null);
+        specialisedParameter.setIndex(existingParameter.getIndex());
+        specialisedDefaultParameters.add(specialisedParameter);
+      }
+      else
+      {
+        throw new IllegalArgumentException("Unknown Parameter type: " + genericParameters[i]);
+      }
     }
+    parameterTypes = specialisedTypes.toArray(new Type[specialisedTypes.size()]);
+    defaultParameters = specialisedDefaultParameters.toArray(new DefaultParameter[specialisedDefaultParameters.size()]);
+    // sort the default parameters by name
+    Arrays.sort(defaultParameters, new Comparator<DefaultParameter>()
+    {
+      @Override
+      public int compare(DefaultParameter o1, DefaultParameter o2)
+      {
+        return o1.getName().compareTo(o2.getName());
+      }
+    });
+
     NamedType[] genericCheckedThrownTypes = referencedMethod.getCheckedThrownTypes();
     checkedThrownTypes = new NamedType[genericCheckedThrownTypes.length];
     for (int i = 0; i < genericCheckedThrownTypes.length; ++i)
@@ -77,6 +115,14 @@ public class MethodReference extends MemberReference<Method>
   public Type[] getParameterTypes()
   {
     return parameterTypes;
+  }
+
+  /**
+   * @return the defaultParameters
+   */
+  public DefaultParameter[] getDefaultParameters()
+  {
+    return defaultParameters;
   }
 
   /**
@@ -134,6 +180,10 @@ public class MethodReference extends MemberReference<Method>
       {
         buffer.append(parameterTypes[i].getMangledName());
       }
+      for (int i = 0; i < defaultParameters.length; ++i)
+      {
+        buffer.append(defaultParameters[i].getMangledName());
+      }
       return buffer.toString();
     }
 
@@ -155,13 +205,26 @@ public class MethodReference extends MemberReference<Method>
     public boolean matches(Disambiguator other)
     {
       MethodReference otherReference = other.getMethodReference();
-      if (isStatic() != other.isStatic() || !returnType.isRuntimeEquivalent(otherReference.returnType) || !getName().equals(other.getName()) || parameterTypes.length != otherReference.parameterTypes.length)
+      if (isStatic() != other.isStatic() ||
+          !returnType.isRuntimeEquivalent(otherReference.returnType) ||
+          !getName().equals(other.getName()) ||
+          parameterTypes.length != otherReference.parameterTypes.length ||
+          defaultParameters.length != otherReference.defaultParameters.length)
       {
         return false;
       }
       for (int i = 0; i < parameterTypes.length; ++i)
       {
         if (!parameterTypes[i].isRuntimeEquivalent(otherReference.parameterTypes[i]))
+        {
+          return false;
+        }
+      }
+      for (int i = 0; i < defaultParameters.length; ++i)
+      {
+        if (!defaultParameters[i].getType().isRuntimeEquivalent(otherReference.defaultParameters[i].getType()) ||
+            defaultParameters[i].getIndex() != otherReference.defaultParameters[i].getIndex() ||
+            !defaultParameters[i].getName().equals(otherReference.defaultParameters[i].getName()))
         {
           return false;
         }

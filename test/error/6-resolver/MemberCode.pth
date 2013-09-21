@@ -1,19 +1,22 @@
 // Plinth Test
-// Compiler: MemberCode.pth: 22:5-10: Unable to resolve "alpha"
-// Compiler: MemberCode.pth: 25:12-17: Unable to resolve "bravo"
-// Compiler: MemberCode.pth: 27:21-28: Unable to resolve "charlie"
-// Compiler: MemberCode.pth: 30:5-10: Unable to resolve "delta"
-// Compiler: MemberCode.pth: 36:5-9: Unable to resolve "echo"
-// Compiler: MemberCode.pth: 40:5-12: Unable to resolve "foxtrot"
-// Compiler: MemberCode.pth: 44:5-9: Unable to resolve "golf"
-// Compiler: MemberCode.pth: 49:5-10: Unable to resolve "hotel"
-// Compiler: MemberCode.pth: 52:20-25: Unable to resolve "india"
-// Compiler: MemberCode.pth: 54:29-35: Unable to resolve "juliet"
-// Compiler: MemberCode.pth: 58:5-9: Unable to resolve "kilo"
-// Compiler: MemberCode.pth: 64:5-9: Unable to resolve "lima"
-// Compiler: MemberCode.pth: 68:5-9: Unable to resolve "mike"
-// Compiler: MemberCode.pth: 72:5-13: Unable to resolve "november"
-// Compiler: MemberCode.pth: 77:5-10: Unable to resolve "oscar"
+// Compiler: MemberCode.pth: 25:5-10: Unable to resolve "alpha"
+// Compiler: MemberCode.pth: 28:12-17: Unable to resolve "bravo"
+// Compiler: MemberCode.pth: 30:21-28: Unable to resolve "charlie"
+// Compiler: MemberCode.pth: 33:5-10: Unable to resolve "delta"
+// Compiler: MemberCode.pth: 39:5-9: Unable to resolve "echo"
+// Compiler: MemberCode.pth: 43:5-12: Unable to resolve "foxtrot"
+// Compiler: MemberCode.pth: 47:5-9: Unable to resolve "golf"
+// Compiler: MemberCode.pth: 52:5-10: Unable to resolve "hotel"
+// Compiler: MemberCode.pth: 55:20-25: Unable to resolve "india"
+// Compiler: MemberCode.pth: 57:29-35: Unable to resolve "juliet"
+// Compiler: MemberCode.pth: 61:5-9: Unable to resolve "kilo"
+// Compiler: MemberCode.pth: 67:5-9: Unable to resolve "lima"
+// Compiler: MemberCode.pth: 71:5-9: Unable to resolve "mike"
+// Compiler: MemberCode.pth: 75:5-13: Unable to resolve "november"
+// Compiler: MemberCode.pth: 80:5-10: Unable to resolve "oscar"
+// Compiler: MemberCode.pth: 83:27-31: Unable to resolve "papa"
+// Compiler: MemberCode.pth: 85:34-40: Unable to resolve "quebec"
+// Compiler: MemberCode.pth: 88:48-53: Unable to resolve "romeo"
 
 class Test
 {
@@ -75,5 +78,14 @@ class Test
   static void staticMethod()
   {
     oscar();
+  }
+
+  create(uint a, uint x = papa());
+
+  void defaultParameter(uint x = quebec())
+  {
+  }
+  static void staticDefaultParameter(ulong x = romeo())
+  {
   }
 }

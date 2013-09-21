@@ -1,7 +1,11 @@
 package eu.bryants.anthony.plinth.ast.member;
 
+import java.util.Arrays;
+import java.util.Comparator;
+
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
@@ -33,18 +37,50 @@ public class Constructor extends Member
     this.isImmutable = isImmutable;
     this.isSelfish = isSelfish;
     this.sinceSpecifier = sinceSpecifier;
+
     this.parameters = parameters;
-    for (int i = 0; i < parameters.length; i++)
+    // we need to determine the indices of the parameters for the constructor ABI,
+    // for default parameters, this requires sorting them by name
+    // however, we don't want to sort our Parameter[] by name, as it would lose all of the
+    // information about the order of evaluation for the DefaultParameters' expressions
+    // instead, sort a copy of the array, and use that ordering to set index properties on the Parameter objects
+    Parameter[] sortedParameters = new Parameter[parameters.length];
+    System.arraycopy(parameters, 0, sortedParameters, 0, parameters.length);
+    // perform a stable sort, that will only reorder the DefaultParameters into the correct name order,
+    // and will keep all other parameters in the order that they originally occurred in the parameters array
+    // note: this sort will put all default parameters at the end of the sorted array
+    //       this is fine, as the parameter indices we are setting here will not be used until after the resolver
+    //       has checked that the user didn't specify any non-default parameters after the first default parameter
+    Arrays.sort(sortedParameters, new Comparator<Parameter>()
     {
-      parameters[i].setIndex(i);
+      @Override
+      public int compare(Parameter o1, Parameter o2)
+      {
+        if (o1 instanceof DefaultParameter && o2 instanceof DefaultParameter)
+        {
+          return ((DefaultParameter) o1).getName().compareTo(((DefaultParameter) o2).getName());
+        }
+        if ((o1 instanceof DefaultParameter) != (o2 instanceof DefaultParameter))
+        {
+          // DefaultParameters always go at the end
+          return (o1 instanceof DefaultParameter) ? 1 : -1;
+        }
+        return 0;
+      }
+    });
+    // now that we've sorted the default parameters by name, we can assign indices to all of the parameters
+    for (int i = 0; i < sortedParameters.length; ++i)
+    {
+      sortedParameters[i].setIndex(i);
     }
+
     this.checkedThrownTypes = checkedThrownTypes;
     this.uncheckedThrownTypes = uncheckedThrownTypes;
     this.block = block;
   }
 
   /**
-   * This methods sets the immutability of this Constructor. It should only be used when adding the Constructor to an immutable type.
+   * This method sets the immutability of this Constructor. It should only be used when adding the Constructor to an immutable type.
    * @param isImmutable - true if this Constructor should be immutable, false otherwise
    */
   public void setImmutable(boolean isImmutable)
@@ -160,7 +196,7 @@ public class Constructor extends Member
     buffer.append('_');
     for (Parameter parameter : parameters)
     {
-      buffer.append(parameter.getType().getMangledName());
+      buffer.append(parameter.getMangledName());
     }
     return buffer.toString();
   }

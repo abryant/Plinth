@@ -1,0 +1,25 @@
+// Plinth Test
+// Compiler: PropertyParameters.pth: 10:10-22: Unable to resolve: nonExistant
+// Compiler: PropertyParameters.pth: 13:10-20: A property setter cannot take a default parameter
+// Compiler: PropertyParameters.pth: 18:10-22: Unable to resolve: nonExistant
+// Compiler: PropertyParameters.pth: 21:10-20: A property constructor cannot take a default parameter
+
+class Test
+{
+  property uint alpha
+  setter(@nonExistant);
+
+  property uint bravo
+  setter(uint a = 1)
+  {
+  };
+
+  property uint charlie
+  create(@nonExistant);
+
+  property uint delta
+  create(uint b = 2)
+  {
+  };
+}
+

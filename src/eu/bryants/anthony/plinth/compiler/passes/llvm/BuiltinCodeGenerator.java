@@ -1,5 +1,6 @@
 package eu.bryants.anthony.plinth.compiler.passes.llvm;
 
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -142,10 +143,10 @@ public class BuiltinCodeGenerator
 
     Parameter[] parameters = method.getParameters();
     LLVM.LLVMSetValueName(LLVM.LLVMGetParam(llvmFunc, 0), method.isStatic() ? "unused" : "this");
-    for (int i = 0; i < parameters.length; ++i)
+    for (Parameter parameter : parameters)
     {
-      LLVMValueRef parameter = LLVM.LLVMGetParam(llvmFunc, i + 1);
-      LLVM.LLVMSetValueName(parameter, parameters[i].getName());
+      LLVMValueRef llvmParameter = LLVM.LLVMGetParam(llvmFunc, 1 + parameter.getIndex());
+      LLVM.LLVMSetValueName(llvmParameter, parameter.getName());
     }
 
     return llvmFunc;
@@ -472,7 +473,7 @@ public class BuiltinCodeGenerator
     // but it's fine in this case, because we're just using it to get a Disambiguator
     Disambiguator toStringMethodDisambiguator = new MethodReference(new BuiltinMethod(notNullBaseType, BuiltinMethodType.TO_STRING), GenericTypeSpecialiser.IDENTITY_SPECIALISER).getDisambiguator();
     MethodReference toStringMethod = notNullBaseType.getMethod(toStringMethodDisambiguator);
-    LLVMValueRef notNullElementString = typeHelper.buildMethodCall(builder, landingPadContainer, notNullElement, notNullBaseType, toStringMethod, new LLVMValueRef[0], typeParameterAccessor);
+    LLVMValueRef notNullElementString = typeHelper.buildMethodCall(builder, landingPadContainer, notNullElement, notNullBaseType, toStringMethod, new HashMap<Parameter, LLVM.LLVMValueRef>(), typeParameterAccessor);
     notNullElementString = typeHelper.convertTemporaryToStandard(builder, notNullElementString, SpecialTypeHandler.STRING_TYPE);
 
     if (baseType.canBeNullable())
@@ -664,7 +665,7 @@ public class BuiltinCodeGenerator
         // but it's fine in this case, because we're just using it to get a Disambiguator
         Disambiguator toStringMethodDisambiguator = new MethodReference(new BuiltinMethod(notNullSubType, BuiltinMethodType.TO_STRING), GenericTypeSpecialiser.IDENTITY_SPECIALISER).getDisambiguator();
         MethodReference toStringMethodReference = notNullSubType.getMethod(toStringMethodDisambiguator);
-        LLVMValueRef llvmTypeString = typeHelper.buildMethodCall(builder, landingPadContainer, notNullSubValue, notNullSubType, toStringMethodReference, new LLVMValueRef[0], typeParameterAccessor);
+        LLVMValueRef llvmTypeString = typeHelper.buildMethodCall(builder, landingPadContainer, notNullSubValue, notNullSubType, toStringMethodReference, new HashMap<Parameter, LLVMValueRef>(), typeParameterAccessor);
         llvmTypeString = typeHelper.convertTemporaryToStandard(builder, llvmTypeString, SpecialTypeHandler.STRING_TYPE);
 
         if (subTypes[i].canBeNullable())

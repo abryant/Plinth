@@ -1,0 +1,33 @@
+// Plinth Test
+// Compiler: MethodParameters.pth: 11:21-27: Duplicate parameter: x
+// Compiler: MethodParameters.pth: 16:22-24: Duplicate parameter: y
+// Compiler: MethodParameters.pth: 18:22-32: Duplicate parameter: z
+// Compiler: MethodParameters.pth: 22:26-32: A normal parameter cannot come after a default parameter
+// Compiler: MethodParameters.pth: 26:26-28: An auto-assign parameter cannot come after a default parameter
+// Compiler: MethodParameters.pth: 30:14-26: Unable to resolve: nonExistant
+
+class Test
+{
+  void test(uint x, Test x)
+  {
+  }
+
+  uint y;
+  void test2(uint y, @y);
+
+  void test3(uint z, uint z = 4)
+  {
+  }
+
+  void test4(uint a = 1, uint b)
+  {
+  }
+
+  void test5(uint c = 2, @y)
+  {
+  }
+
+  void test6(@nonExistant)
+  {
+  }
+}

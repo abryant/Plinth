@@ -6,6 +6,8 @@ import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Method;
+import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
+import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
@@ -105,15 +107,19 @@ public class SpecialTypeHandler
     for (Constructor constructor : typeDefinition.getUniqueConstructors())
     {
       Parameter[] parameters = constructor.getParameters();
-      if (parameters.length == 1 && parameters[0].getType().isEquivalent(arrayType))
+      if (parameters.length == 1 &&
+          (parameters[0] instanceof NormalParameter || parameters[0] instanceof AutoAssignParameter) &&
+          parameters[0].getType().isEquivalent(arrayType))
       {
         stringArrayConstructor = constructor;
       }
-      if (parameters.length == 2 && parameters[0].getType().isEquivalent(STRING_TYPE) && parameters[1].getType().isEquivalent(STRING_TYPE))
+      if (parameters.length == 2 &&
+          (parameters[0] instanceof NormalParameter || parameters[0] instanceof AutoAssignParameter) && parameters[0].getType().isEquivalent(STRING_TYPE) &&
+          (parameters[1] instanceof NormalParameter || parameters[1] instanceof AutoAssignParameter) && parameters[1].getType().isEquivalent(STRING_TYPE))
       {
         stringConcatenationConstructor = constructor;
       }
-      if (parameters.length == 1 && parameters[0].getType().isEquivalent(stringArrayType))
+      if (parameters.length == 1 && (parameters[0] instanceof NormalParameter || parameters[0] instanceof AutoAssignParameter) && parameters[0].getType().isEquivalent(stringArrayType))
       {
         stringArrayConcatenationConstructor = constructor;
       }
@@ -125,33 +131,49 @@ public class SpecialTypeHandler
         continue;
       }
       Parameter[] parameters = method.getParameters();
-      if (parameters.length == 1 && parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null)))
+      if (parameters.length == 1 &&
+          (parameters[0] instanceof NormalParameter || parameters[0] instanceof AutoAssignParameter) &&
+          parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null)))
       {
         stringValueOfBoolean = method;
       }
-      if (parameters.length == 1 && parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.LONG, null)))
+      if (parameters.length == 1 &&
+          (parameters[0] instanceof NormalParameter || parameters[0] instanceof AutoAssignParameter) &&
+          parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.LONG, null)))
       {
         stringValueOfLong = method;
       }
-      if (parameters.length == 1 && parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.ULONG, null)))
+      if (parameters.length == 1 &&
+          (parameters[0] instanceof NormalParameter || parameters[0] instanceof AutoAssignParameter) &&
+          parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.ULONG, null)))
       {
         stringValueOfUlong = method;
       }
-      if (parameters.length == 2 && parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.LONG, null)) &&
-                                    parameters[1].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.UINT, null)))
+      if (parameters.length == 2 &&
+          (parameters[0] instanceof NormalParameter || parameters[0] instanceof AutoAssignParameter) &&
+          parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.LONG, null)) &&
+          (parameters[1] instanceof NormalParameter || parameters[1] instanceof AutoAssignParameter) &&
+          parameters[1].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.UINT, null)))
       {
         stringValueOfLongRadix = method;
       }
-      if (parameters.length == 2 && parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.ULONG, null)) &&
-                                    parameters[1].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.UINT, null)))
+      if (parameters.length == 2 &&
+          (parameters[0] instanceof NormalParameter || parameters[0] instanceof AutoAssignParameter) &&
+          parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.ULONG, null)) &&
+          (parameters[1] instanceof NormalParameter || parameters[1] instanceof AutoAssignParameter) &&
+          parameters[1].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.UINT, null)))
       {
         stringValueOfUlongRadix = method;
       }
-      if (parameters.length == 1 && parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.FLOAT, null)))
+      if (parameters.length == 1 &&
+          (parameters[0] instanceof NormalParameter || parameters[0] instanceof AutoAssignParameter) &&
+          parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.FLOAT, null)))
       {
         stringValueOfFloat = method;
       }
-      if (parameters.length == 1 && parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.DOUBLE, null)))
+      if (parameters.length == 1 &&
+          (parameters[0] instanceof NormalParameter || parameters[0] instanceof AutoAssignParameter) &&
+          parameters[0].getType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.DOUBLE, null)))
       {
         stringValueOfDouble = method;
       }
@@ -212,9 +234,10 @@ public class SpecialTypeHandler
     for (Constructor constructor : typeDefinition.getUniqueConstructors())
     {
       Parameter[] parameters = constructor.getParameters();
-      if (parameters.length == 3 && parameters[0].getType().isEquivalent(STRING_TYPE) &&
-                                    parameters[1].getType().isEquivalent(STRING_TYPE) &&
-                                    parameters[2].getType().isEquivalent(nullableStringType))
+      if (parameters.length == 3 &&
+          (parameters[0] instanceof NormalParameter || parameters[0] instanceof AutoAssignParameter) && parameters[0].getType().isEquivalent(STRING_TYPE) &&
+          (parameters[1] instanceof NormalParameter || parameters[1] instanceof AutoAssignParameter) && parameters[1].getType().isEquivalent(STRING_TYPE) &&
+          (parameters[2] instanceof NormalParameter || parameters[2] instanceof AutoAssignParameter) && parameters[2].getType().isEquivalent(nullableStringType))
       {
         castErrorTypesReasonConstructor = constructor;
         break;
@@ -252,8 +275,9 @@ public class SpecialTypeHandler
     for (Constructor constructor : typeDefinition.getUniqueConstructors())
     {
       Parameter[] parameters = constructor.getParameters();
-      if (parameters.length == 2 && parameters[0].getType().isEquivalent(uintType) &&
-                                    parameters[1].getType().isEquivalent(uintType))
+      if (parameters.length == 2 &&
+          (parameters[0] instanceof NormalParameter || parameters[0] instanceof AutoAssignParameter) && parameters[0].getType().isEquivalent(uintType) &&
+          (parameters[1] instanceof NormalParameter || parameters[1] instanceof AutoAssignParameter) && parameters[1].getType().isEquivalent(uintType))
       {
         indexErrorIndexSizeConstructor = constructor;
         break;
@@ -362,8 +386,9 @@ public class SpecialTypeHandler
       if (method.isStatic() && method.getName().equals(MAIN_METHOD_NAME) && method.getReturnType().isEquivalent(new PrimitiveType(false, PrimitiveTypeType.UINT, null)))
       {
         Parameter[] parameters = method.getParameters();
-        if (parameters.length == 1 && (parameters[0].getType().isEquivalent(argsType) ||
-                                       parameters[0].getType().isEquivalent(immutableArgsType)))
+        if (parameters.length == 1 &&
+            (parameters[0] instanceof NormalParameter || parameters[0] instanceof AutoAssignParameter) &&
+            (parameters[0].getType().isEquivalent(argsType) || parameters[0].getType().isEquivalent(immutableArgsType)))
         {
           mainMethod = method;
           break;

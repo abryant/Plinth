@@ -58,6 +58,7 @@ public final class GenericTypeSpecialiser
     {
       return type;
     }
+    // TODO: check whether this actually needs to create a new Type if the getSpecialisedType() call returns the same object as was input
     if (type instanceof ArrayType)
     {
       ArrayType arrayType = (ArrayType) type;
@@ -85,7 +86,7 @@ public final class GenericTypeSpecialiser
         }
         else
         {
-          newDefaultParameters[i] = new DefaultParameter(newType, oldDefaultParameters[i].getName(), oldDefaultParameters[i].getExpression(), null);
+          newDefaultParameters[i] = new DefaultParameter(oldDefaultParameters[i].isFinal(), newType, oldDefaultParameters[i].getName(), oldDefaultParameters[i].getExpression(), null);
         }
       }
       Type returnType = getSpecialisedType(functionType.getReturnType());

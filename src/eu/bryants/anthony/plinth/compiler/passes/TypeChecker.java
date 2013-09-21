@@ -65,6 +65,7 @@ import eu.bryants.anthony.plinth.ast.metadata.Variable;
 import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
+import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
 import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
@@ -411,6 +412,25 @@ public class TypeChecker
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
+        else if (parameter instanceof AutoAssignParameter)
+        {
+          // do nothing
+        }
+        else if (parameter instanceof DefaultParameter)
+        {
+          try
+          {
+            checkType(parameter.getType(), typeDefinition, false);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Parameter: " + parameter);
+        }
       }
       for (NamedType thrownType : constructor.getCheckedThrownTypes())
       {
@@ -466,6 +486,25 @@ public class TypeChecker
           {
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
+        }
+        else if (parameter instanceof AutoAssignParameter)
+        {
+          // do nothing
+        }
+        else if (parameter instanceof DefaultParameter)
+        {
+          try
+          {
+            checkType(parameter.getType(), typeDefinition, method.isStatic());
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Parameter: " + parameter);
         }
       }
       for (NamedType thrownType : method.getCheckedThrownTypes())
@@ -542,6 +581,24 @@ public class TypeChecker
           }
         }
       }
+      for (Parameter parameter : constructor.getParameters())
+      {
+        if (parameter instanceof DefaultParameter)
+        {
+          try
+          {
+            Type expressionType = checkTypes(((DefaultParameter) parameter).getExpression(), typeDefinition, false);
+            if (!parameter.getType().canAssign(expressionType))
+            {
+              throw new ConceptualException("Cannot assign an expression of type " + expressionType + " to a default parameter of type " + parameter.getType(), parameter.getLexicalPhrase());
+            }
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+      }
       try
       {
         checkTypes(constructor.getBlock(), VoidType.VOID_TYPE, typeDefinition, false);
@@ -577,6 +634,24 @@ public class TypeChecker
     {
       if (method.getBlock() != null)
       {
+        for (Parameter parameter : method.getParameters())
+        {
+          if (parameter instanceof DefaultParameter)
+          {
+            try
+            {
+              Type expressionType = checkTypes(((DefaultParameter) parameter).getExpression(), typeDefinition, method.isStatic());
+              if (!parameter.getType().canAssign(expressionType))
+              {
+                throw new ConceptualException("Cannot assign an expression of type " + expressionType + " to a default parameter of type " + parameter.getType(), parameter.getLexicalPhrase());
+              }
+            }
+            catch (ConceptualException e)
+            {
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+            }
+          }
+        }
         try
         {
           checkTypes(method.getBlock(), method.getReturnType(), typeDefinition, method.isStatic());
@@ -1262,7 +1337,7 @@ public class TypeChecker
 
       Type[] parameterTypes = constructorReference == null ? new Type[0] : constructorReference.getParameterTypes();
       Argument[] arguments = delegateConstructorStatement.getArguments();
-
+      {} // TODO: add support for default arguments here
       if (arguments.length != parameterTypes.length)
       {
         StringBuffer buffer = new StringBuffer();
@@ -2067,6 +2142,7 @@ public class TypeChecker
           if (isInitialiserFunction)
           {
             Type[] paramTypes = ((FunctionType) type).getParameterTypes();
+            // note: we ignore default parameters here, and just leave them with their default values
             if (paramTypes.length != 0 && paramTypes.length != dimensionExpressions.length)
             {
               // the only valid initialiser functions are those which take no parameters, and those which take a number of parameters equal to the number of created dimensions
@@ -2304,6 +2380,7 @@ public class TypeChecker
         }
       }
       Argument[] arguments = creationExpression.getArguments();
+      {} // TODO: add support for default arguments here
       ConstructorReference constructorReference = creationExpression.getResolvedConstructorReference();
       Type[] parameterTypes = constructorReference.getParameterTypes();
       if (arguments.length != parameterTypes.length)
@@ -2509,8 +2586,7 @@ public class TypeChecker
       {
         // create a function type for this method
         MethodReference methodReference = (MethodReference) memberReference;
-        {} // TODO: when default parameters are added to methods, they should be included here
-        type = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), new DefaultParameter[0], methodReference.getCheckedThrownTypes(), null);
+        type = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), methodReference.getDefaultParameters(), methodReference.getCheckedThrownTypes(), null);
       }
       else
       {
@@ -3200,9 +3276,8 @@ public class TypeChecker
         {
           MethodReference methodReference = (MethodReference) memberReference;
           // create a function type for this method
-          {} // TODO: when default parameters are added to methods, they should be included here
           FunctionType type = new FunctionType(false, methodReference.getReferencedMember().isImmutable(),
-                                               methodReference.getReturnType(), methodReference.getParameterTypes(), new DefaultParameter[0],
+                                               methodReference.getReturnType(), methodReference.getParameterTypes(), methodReference.getDefaultParameters(),
                                                methodReference.getCheckedThrownTypes(),
                                                null);
           expression.setType(type);

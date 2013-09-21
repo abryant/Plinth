@@ -193,7 +193,7 @@ public class MemberFunction extends VirtualFunction
 
     for (int i = 0; i < parameters1.length & i < parameters2.length; ++i)
     {
-      int paramComparison = parameters1[i].getType().getMangledName().compareTo(parameters2[i].getType().getMangledName());
+      int paramComparison = parameters1[i].getMangledName().compareTo(parameters2[i].getMangledName());
       if (paramComparison != 0)
       {
         return paramComparison;

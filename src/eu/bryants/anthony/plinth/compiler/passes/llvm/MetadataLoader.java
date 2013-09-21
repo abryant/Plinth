@@ -817,7 +817,7 @@ public class MetadataLoader
       boolean isDefault = readBooleanValue(parameterSubNodes[2], "parameter", "default");
       if (isDefault)
       {
-        parameters[i] = new DefaultParameter(type, name, null, null);
+        parameters[i] = new DefaultParameter(false, type, name, null, null);
       }
       else
       {

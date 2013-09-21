@@ -1,0 +1,25 @@
+// Plinth Test
+// Compiler: ConstructorParameters.pth: 11:18-25: Duplicate parameter: x
+// Compiler: ConstructorParameters.pth: 16:14-20: Duplicate parameter: y
+// Compiler: ConstructorParameters.pth: 18:19-29: Duplicate parameter: z
+// Compiler: ConstructorParameters.pth: 20:22-29: A normal parameter cannot come after a default parameter
+// Compiler: ConstructorParameters.pth: 22:22-24: An auto-assign parameter cannot come after a default parameter
+// Compiler: ConstructorParameters.pth: 24:10-22: Unable to resolve: nonExistant
+
+class Test
+{
+  create(uint x, ulong x)
+  {
+  }
+
+  uint y;
+  create(@y, uint y);
+
+  create(short z, uint z = 1);
+
+  create(uint a = 1, ubyte b);
+
+  create(uint c = 2, @y);
+
+  create(@nonExistant);
+}

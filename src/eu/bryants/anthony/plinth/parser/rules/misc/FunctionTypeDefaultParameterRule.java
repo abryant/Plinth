@@ -41,7 +41,7 @@ public class FunctionTypeDefaultParameterRule extends Rule<ParseType>
     {
       Type type = (Type) args[0];
       Name name = (Name) args[1];
-      return new DefaultParameter(type, name.getName(), null, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3]));
+      return new DefaultParameter(false, type, name.getName(), null, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3]));
     }
     if (production == QNAME_PRODUCTION)
     {
@@ -49,14 +49,14 @@ public class FunctionTypeDefaultParameterRule extends Rule<ParseType>
       QNameElement qnameElement = new QNameElement(qname, qname.getLexicalPhrase());
       Type type = qnameElement.convertToType();
       Name name = (Name) args[1];
-      return new DefaultParameter(type, name.getName(), null, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3]));
+      return new DefaultParameter(false, type, name.getName(), null, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3]));
     }
     if (production == NESTED_QNAME_LIST_PRODUCTION)
     {
       QNameElement qnameElement = (QNameElement) args[0];
       Type type = qnameElement.convertToType();
       Name name = (Name) args[1];
-      return new DefaultParameter(type, name.getName(), null, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3]));
+      return new DefaultParameter(false, type, name.getName(), null, LexicalPhrase.combine(type.getLexicalPhrase(), name.getLexicalPhrase(), (LexicalPhrase) args[2], (LexicalPhrase) args[3]));
     }
     throw badTypeList();
   }

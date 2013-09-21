@@ -19,6 +19,9 @@ class Alpha
   create(boolean b, @x);
   create(@x, string s);
 
+  create(ulong a, uint b = 5);
+  create(string s, uint a = 1, string b = "");
+
   void test(uint x, Alpha y)
   {
   }
@@ -27,6 +30,10 @@ class Alpha
   }
   void test(@x, string y);
   void test(@s, @x);
+  void test(@s, string str = "");
+  void test(uint a, string str = "", uint foo = 1)
+  {
+  }
   static void test(uint x, uint y)
   {
   }
@@ -34,5 +41,9 @@ class Alpha
   {
   }
   static void test(@s);
+  static void test(@s, string str = "");
+  static void test(ulong y, uint x = 2, string str = "")
+  {
+  }
 }
 

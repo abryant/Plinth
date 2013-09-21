@@ -21,6 +21,9 @@ import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
 import eu.bryants.anthony.plinth.ast.metadata.OverrideFunction;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.VirtualFunction;
+import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
+import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.QName;
 import eu.bryants.anthony.plinth.ast.terminal.SinceSpecifier;
@@ -287,9 +290,37 @@ public abstract class TypeDefinition
     for (Constructor constructor : getAllConstructors())
     {
       StringBuffer disambiguatorBuffer = new StringBuffer();
+      List<DefaultParameter> defaultParams = new ArrayList<DefaultParameter>();
       for (Parameter p : constructor.getParameters())
       {
-        disambiguatorBuffer.append(p.getType().getMangledName());
+        if (p instanceof NormalParameter)
+        {
+          disambiguatorBuffer.append(p.getType().getMangledName());
+        }
+        else if (p instanceof AutoAssignParameter)
+        {
+          disambiguatorBuffer.append(p.getType().getMangledName());
+        }
+        else if (p instanceof DefaultParameter)
+        {
+          defaultParams.add((DefaultParameter) p);
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Parameter: " + p);
+        }
+      }
+      Collections.sort(defaultParams, new Comparator<DefaultParameter>()
+      {
+        @Override
+        public int compare(DefaultParameter o1, DefaultParameter o2)
+        {
+          return o1.getName().compareTo(o2.getName());
+        }
+      });
+      for (DefaultParameter p : defaultParams)
+      {
+        disambiguatorBuffer.append(p.getMangledName());
       }
       String disambiguator = disambiguatorBuffer.toString();
       Constructor existing = constructors.get(disambiguator);

@@ -13,6 +13,8 @@ class Test
     test();
   }
 
+  create(uint a, uint x = test());
+
   uint x = test();
 
   {
@@ -36,6 +38,9 @@ class Test
   void method()
   {
     test();
+  }
+  void defaultParameter(uint x = test())
+  {
   }
 
   static uint sx = test();
@@ -66,6 +71,9 @@ class Test
   static void staticMethod()
   {
     test();
+  }
+  static void staticDefaultParameter(uint x = test())
+  {
   }
 }
 

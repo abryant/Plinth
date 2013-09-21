@@ -58,6 +58,15 @@ public class AutoAssignParameter extends Parameter
    * {@inheritDoc}
    */
   @Override
+  public String getMangledName()
+  {
+    return getType().getMangledName();
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public String toString()
   {
     return "@" + getName();

@@ -25,6 +25,9 @@ import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
 import eu.bryants.anthony.plinth.ast.metadata.OverrideFunction;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
 import eu.bryants.anthony.plinth.ast.metadata.VirtualFunction;
+import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
+import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
@@ -529,27 +532,130 @@ public class VirtualFunctionHandler
 
     TypeParameterAccessor concreteTypeAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, typeDefinition, thisValue);
 
-    Parameter[] inheritedParameters = inheritedMethod.getParameters();
-    Type[] implementationParameterTypes = implementationReference.getParameterTypes();
-    LLVMValueRef[] arguments = new LLVMValueRef[implementationParameterTypes.length];
-    for (int i = 0; i < implementationParameterTypes.length; ++i)
+    LLVMValueRef callee = thisValue;
+    Type calleeType = thisType;
+    if (implementationReference.getContainingType() != null)
     {
-      // convert from this inherited parameter's type to the implementation reference's type
-      LLVMValueRef parameter = LLVM.LLVMGetParam(proxyFunction, parameterOffset + i);
-      arguments[i] = typeHelper.convertStandardToTemporary(builder, landingPadContainer, parameter, inheritedParameters[i].getType(), implementationParameterTypes[i], inheritedTypeAccessor, concreteTypeAccessor);
+      Type newCalleeType = implementationReference.getContainingType();
+      callee = typeHelper.convertTemporary(builder, landingPadContainer, callee, calleeType, newCalleeType, false, concreteTypeAccessor, concreteTypeAccessor);
+      calleeType = newCalleeType;
+    }
+    else
+    {
+      // there is no containing type definition, so assume this is a builtin method
+      Type newCalleeType = ((BuiltinMethod) implementationReference.getReferencedMember()).getBaseType();
+      // since this is a builtin method, it cannot contain type parameters from any context but the MethodReference's context
+      // so we can convert it with the same TypeParameterAccessor as in the other case
+      callee = typeHelper.convertTemporary(builder, landingPadContainer, callee, calleeType, newCalleeType, false, concreteTypeAccessor, concreteTypeAccessor);
+      calleeType = newCalleeType;
     }
 
-    LLVMValueRef result = typeHelper.buildMethodCall(builder, landingPadContainer, thisValue, thisType, implementationReference, arguments, concreteTypeAccessor);
+    Method implementationMethod = implementationReference.getReferencedMember();
+    Parameter[] implementationParameters = implementationMethod.getParameters();
+    LLVMValueRef function = codeGenerator.lookupMethodFunction(builder, landingPadContainer, callee, calleeType, implementationReference, false, concreteTypeAccessor);
+    LLVMValueRef[] realArguments;
+    int implementationOffset;
+    if (implementationMethod.getContainingTypeDefinition() instanceof InterfaceDefinition)
+    {
+      // interfaces need type argument RTTI blocks to be passed in as parameters
+      NamedType containingType = implementationReference.getContainingType();
+      realArguments = typeHelper.buildInterfaceArgListPreamble(builder, callee, containingType, concreteTypeAccessor, implementationParameters.length);
 
-    Type returnType = inheritedMethod.getReturnType();
-    if (returnType instanceof VoidType)
+      Type[] typeArguments = containingType.getTypeArguments();
+      implementationOffset = 1 + (typeArguments == null ? 0 : typeArguments.length);
+    }
+    else
+    {
+      realArguments = new LLVMValueRef[1 + implementationParameters.length];
+      realArguments[0] = callee;
+      implementationOffset = 1;
+    }
+    TypeParameterAccessor implementationAccessor = concreteTypeAccessor;
+    if (implementationReference.getContainingType() != null)
+    {
+      if (implementationMethod.getContainingTypeDefinition() instanceof InterfaceDefinition)
+      {
+        implementationAccessor = new TypeParameterAccessor(builder, rttiHelper, callee, implementationReference.getContainingType(), concreteTypeAccessor);
+      }
+      else
+      {
+        implementationAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, implementationMethod.getContainingTypeDefinition(), callee);
+      }
+    }
+
+    Map<Integer, Parameter> inheritedParametersByIndex = new HashMap<Integer, Parameter>();
+    for (Parameter p : inheritedMethod.getParameters())
+    {
+      inheritedParametersByIndex.put(p.getIndex(), p);
+    }
+    Type[] implementationReferenceParameterTypes = implementationReference.getParameterTypes();
+    DefaultParameter[] implementationReferenceDefaultParameters = implementationReference.getDefaultParameters();
+
+    for (Parameter parameter : implementationParameters)
+    {
+      Parameter inheritedParameter = inheritedParametersByIndex.get(parameter.getIndex());
+      if (parameter instanceof NormalParameter || parameter instanceof AutoAssignParameter)
+      {
+        Type implementationReferenceParameterType = implementationReferenceParameterTypes[parameter.getIndex()];
+        LLVMValueRef parameterValue = LLVM.LLVMGetParam(proxyFunction, parameterOffset + inheritedParameter.getIndex());
+        LLVMValueRef argumentValue = typeHelper.convertStandardToTemporary(builder, landingPadContainer, parameterValue, inheritedParameter.getType(), implementationReferenceParameterType, inheritedTypeAccessor, concreteTypeAccessor);
+        argumentValue = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, argumentValue, implementationReferenceParameterType, parameter.getType(), concreteTypeAccessor, implementationAccessor);
+        realArguments[implementationOffset + parameter.getIndex()] = argumentValue;
+      }
+      else if (parameter instanceof DefaultParameter)
+      {
+        DefaultParameter implementationReferenceDefaultParameter = implementationReferenceDefaultParameters[parameter.getIndex() - implementationReferenceParameterTypes.length];
+        if (implementationReferenceDefaultParameter.getIndex() != parameter.getIndex())
+        {
+          throw new IllegalArgumentException("Bad parameter indices on implementation Method: " + implementationMethod);
+        }
+        LLVMValueRef parameterValue = LLVM.LLVMGetParam(proxyFunction, parameterOffset + inheritedParameter.getIndex());
+        LLVMValueRef hasValue = LLVM.LLVMBuildExtractValue(builder, parameterValue, 0, "");
+        LLVMBasicBlockRef startBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVMBasicBlockRef defaultContinuationBlock = LLVM.LLVMAddBasicBlock(builder, "defaultParameterContinuation");
+        LLVMBasicBlockRef defaultConversionBlock = LLVM.LLVMAddBasicBlock(builder, "defaultParameterConversion");
+        LLVM.LLVMBuildCondBr(builder, hasValue, defaultConversionBlock, defaultContinuationBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, defaultConversionBlock);
+        LLVMValueRef nonDefaultValue = LLVM.LLVMBuildExtractValue(builder, parameterValue, 1, "");
+        LLVMValueRef convertedValue = typeHelper.convertStandardToTemporary(builder, landingPadContainer, nonDefaultValue, inheritedParameter.getType(), implementationReferenceDefaultParameter.getType(), inheritedTypeAccessor, concreteTypeAccessor);
+        convertedValue = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, convertedValue, implementationReferenceDefaultParameter.getType(), parameter.getType(), concreteTypeAccessor, implementationAccessor);
+
+        LLVMTypeRef[] subTypes = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), typeHelper.findStandardType(parameter.getType())};
+        LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(subTypes, false, true), subTypes.length, false);
+        LLVMValueRef nonDefaultArgument = LLVM.LLVMGetUndef(structType);
+        nonDefaultArgument = LLVM.LLVMBuildInsertValue(builder, nonDefaultArgument, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false), 0, "");
+        nonDefaultArgument = LLVM.LLVMBuildInsertValue(builder, nonDefaultArgument, convertedValue, 1, "");
+        LLVMBasicBlockRef endConversionBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildBr(builder, defaultContinuationBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, defaultContinuationBlock);
+        LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, structType, "");
+        LLVMValueRef[] incomingValues = new LLVMValueRef[] {LLVM.LLVMConstNull(structType), nonDefaultArgument};
+        LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, endConversionBlock};
+        LLVM.LLVMAddIncoming(phiNode, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+        realArguments[implementationOffset + parameter.getIndex()] = phiNode;
+      }
+      else
+      {
+        throw new IllegalArgumentException("Unknown type of Parameter: " + parameter);
+      }
+    }
+
+    // note: we can't use typeHelper.buildMethodCall() here, because the default parameters can't be passed in properly
+    // (the LLVMValueRefs need to be passed in a temporary type representation iff they exist, but at compile time we don't know whether or not they exist)
+    LLVMBasicBlockRef invokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "methodImplementationInvokeContinue");
+    LLVMValueRef result = LLVM.LLVMBuildInvoke(builder, function, C.toNativePointerArray(realArguments, false, true), realArguments.length, invokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
+    LLVM.LLVMPositionBuilderAtEnd(builder, invokeContinueBlock);
+
+    if (inheritedMethod.getReturnType() instanceof VoidType)
     {
       LLVM.LLVMBuildRetVoid(builder);
     }
     else
     {
-      // convert the return value to the inherited method's return type
-      result = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, result, implementationReference.getReturnType(), returnType, concreteTypeAccessor, inheritedTypeAccessor);
+      result = typeHelper.convertStandardToTemporary(builder, landingPadContainer, result, implementationMethod.getReturnType(), implementationReference.getReturnType(), implementationAccessor, concreteTypeAccessor);
+      result = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, result, implementationReference.getReturnType(), inheritedMethod.getReturnType(), concreteTypeAccessor, inheritedTypeAccessor);
       LLVM.LLVMBuildRet(builder, result);
     }
 

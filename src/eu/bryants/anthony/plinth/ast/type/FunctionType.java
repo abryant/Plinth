@@ -42,8 +42,6 @@ public class FunctionType extends Type
         throw new IllegalArgumentException("A FunctionType cannot accept DefaultParameters with filled-in expressions");
       }
     }
-    {} // TODO: make sure we don't accidentally sort a method's default parameters array when it shouldn't be
-    {} // (this might be fine, if default parameter arrays are always sorted)
     Arrays.sort(defaultParameters, new Comparator<DefaultParameter>()
     {
       @Override
@@ -345,12 +343,10 @@ public class FunctionType extends Type
     {
       buffer.append(type.getMangledName());
     }
+    buffer.append('_');
     for (DefaultParameter defaultParameter : defaultParameters)
     {
-      buffer.append('_');
-      buffer.append(defaultParameter.getType().getMangledName());
-      buffer.append(defaultParameter.getName().getBytes().length);
-      buffer.append(defaultParameter.getName());
+      buffer.append(defaultParameter.getMangledName());
     }
     buffer.append('E');
     return buffer.toString();

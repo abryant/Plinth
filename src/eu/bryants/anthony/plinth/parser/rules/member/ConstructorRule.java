@@ -31,10 +31,10 @@ public class ConstructorRule extends Rule<ParseType>
 {
   private static final long serialVersionUID = 1L;
 
-  private static final Production<ParseType> MODIFIERS_PRODUCTION           = new Production<ParseType>(ParseType.MODIFIERS, ParseType.CREATE_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
-  private static final Production<ParseType> PRODUCTION                     = new Production<ParseType>(                     ParseType.CREATE_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
-  private static final Production<ParseType> MODIFIERS_SEMICOLON_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.CREATE_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
-  private static final Production<ParseType> SEMICOLON_PRODUCTION           = new Production<ParseType>(                     ParseType.CREATE_KEYWORD, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
+  private static final Production<ParseType> MODIFIERS_PRODUCTION           = new Production<ParseType>(ParseType.MODIFIERS, ParseType.CREATE_KEYWORD, ParseType.PARAMETERS, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> PRODUCTION                     = new Production<ParseType>(                     ParseType.CREATE_KEYWORD, ParseType.PARAMETERS, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_SEMICOLON_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.CREATE_KEYWORD, ParseType.PARAMETERS, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
+  private static final Production<ParseType> SEMICOLON_PRODUCTION           = new Production<ParseType>(                     ParseType.CREATE_KEYWORD, ParseType.PARAMETERS, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
 
   public ConstructorRule()
   {

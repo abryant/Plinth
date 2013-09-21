@@ -9,6 +9,7 @@ import parser.Rule;
 import eu.bryants.anthony.plinth.ast.LexicalPhrase;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.statement.Block;
 import eu.bryants.anthony.plinth.ast.statement.Statement;
@@ -38,14 +39,14 @@ public class MethodRule extends Rule<ParseType>
 
   // do not use RETURN_TYPE here, as it causes shift-reduce conflicts with field declarations
   // basically, given "A b" we couldn't tell if A was a TYPE or a RETURN_TYPE without further information
-  private static final Production<ParseType> PRODUCTION                            = new Production<ParseType>(                     ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
-  private static final Production<ParseType> VOID_PRODUCTION                       = new Production<ParseType>(                     ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
-  private static final Production<ParseType> MODIFIERS_PRODUCTION                  = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
-  private static final Production<ParseType> MODIFIERS_VOID_PRODUCTION             = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
-  private static final Production<ParseType> DECLARATION_PRODUCTION                = new Production<ParseType>(                     ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
-  private static final Production<ParseType> VOID_DECLARATION_PRODUCTION           = new Production<ParseType>(                     ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
-  private static final Production<ParseType> MODIFIERS_DECLARATION_PRODUCTION      = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
-  private static final Production<ParseType> MODIFIERS_VOID_DECLARATION_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETER_LIST, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
+  private static final Production<ParseType> PRODUCTION                            = new Production<ParseType>(                     ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETERS, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> VOID_PRODUCTION                       = new Production<ParseType>(                     ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETERS, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_PRODUCTION                  = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETERS, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> MODIFIERS_VOID_PRODUCTION             = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETERS, ParseType.THROWS_CLAUSE, ParseType.BLOCK);
+  private static final Production<ParseType> DECLARATION_PRODUCTION                = new Production<ParseType>(                     ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETERS, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
+  private static final Production<ParseType> VOID_DECLARATION_PRODUCTION           = new Production<ParseType>(                     ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETERS, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
+  private static final Production<ParseType> MODIFIERS_DECLARATION_PRODUCTION      = new Production<ParseType>(ParseType.MODIFIERS, ParseType.TYPE,         ParseType.NAME, ParseType.PARAMETERS, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
+  private static final Production<ParseType> MODIFIERS_VOID_DECLARATION_PRODUCTION = new Production<ParseType>(ParseType.MODIFIERS, ParseType.VOID_KEYWORD, ParseType.NAME, ParseType.PARAMETERS, ParseType.THROWS_CLAUSE, ParseType.SEMICOLON);
 
   public MethodRule()
   {
@@ -241,15 +242,24 @@ public class MethodRule extends Rule<ParseType>
       }
     }
     // if we have any AutoAssignParameters, they implicitly add a block to the method if it didn't exist already
+    // also, if we don't have a block already, disallow DefaultParameters
     if (block == null)
     {
+      boolean addBlock = false;
       for (Parameter p : parameters)
       {
         if (p instanceof AutoAssignParameter)
         {
-          block = new Block(new Statement[0], null);
-          break;
+          addBlock = true;
         }
+        else if (p instanceof DefaultParameter)
+        {
+          throw new LanguageParseException("A method without a body cannot have default parameters", p.getLexicalPhrase());
+        }
+      }
+      if (addBlock)
+      {
+        block = new Block(new Statement[0], null);
       }
     }
     return new Method(returnType, name, isAbstract, isStatic, isImmutable, nativeName, sinceSpecifier, parameters, checkedThrownTypes, uncheckedThrownTypes, block, lexicalPhrase);

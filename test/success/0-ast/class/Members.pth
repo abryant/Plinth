@@ -9,11 +9,17 @@ class Alpha
   void m()
   {
   }
+  void foo(uint x = 1)
+  {
+  }
 
   static byte a;
   static property short b;
   static ?Alpha c;
   static void m()
+  {
+  }
+  static void foo(uint x = 2)
   {
   }
 }

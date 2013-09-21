@@ -66,6 +66,7 @@ import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
 import eu.bryants.anthony.plinth.ast.misc.NormalParameter;
@@ -523,6 +524,20 @@ public class ControlFlowChecker
           throw new IllegalArgumentException("An auto-assign parameter should only be allowed to assign to a field or a property! the variable was: " + var);
         }
       }
+      else if (parameter instanceof DefaultParameter)
+      {
+        DefaultParameter defaultParameter = (DefaultParameter) parameter;
+        try
+        {
+          checkControlFlow(defaultParameter.getExpression(), constructor.getContainingTypeDefinition(), state.variables.initialised, state.variables.initialiserState, true, constructor.isSelfish(), false, constructor.isImmutable());
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+        state.variables.initialised.add(defaultParameter.getVariable());
+        state.variables.possiblyInitialised.add(defaultParameter.getVariable());
+      }
       else
       {
         throw new IllegalArgumentException("Unknown type of Parameter: " + parameter);
@@ -675,6 +690,20 @@ public class ControlFlowChecker
           throw new IllegalArgumentException("An auto-assign parameter should only be allowed to assign to a field or a property! the variable was: " + var);
         }
       }
+      else if (parameter instanceof DefaultParameter)
+      {
+        DefaultParameter defaultParameter = (DefaultParameter) parameter;
+        try
+        {
+          checkControlFlow(defaultParameter.getExpression(), method.getContainingTypeDefinition(), state.variables.initialised, state.variables.initialiserState, false, false, method.isStatic(), method.isImmutable());
+        }
+        catch (ConceptualException e)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+        }
+        state.variables.initialised.add(defaultParameter.getVariable());
+        state.variables.possiblyInitialised.add(defaultParameter.getVariable());
+      }
       else
       {
         throw new IllegalArgumentException("Unknown type of Parameter: " + parameter);
@@ -820,6 +849,10 @@ public class ControlFlowChecker
             {
               throw new IllegalArgumentException("An auto-assign parameter should only be allowed to assign to a field or a property! the variable was: " + var);
             }
+          }
+          else if (setterParameter instanceof DefaultParameter)
+          {
+            throw new IllegalArgumentException("A property setter cannot take a default parameter");
           }
           else
           {
@@ -1048,6 +1081,10 @@ public class ControlFlowChecker
             {
               throw new IllegalArgumentException("An auto-assign parameter should only be allowed to assign to a field or a property! the variable was: " + var);
             }
+          }
+          else if (constructorParameter instanceof DefaultParameter)
+          {
+            throw new IllegalArgumentException("A property constructor cannot take a default parameter");
           }
           else
           {

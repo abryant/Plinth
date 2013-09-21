@@ -44,8 +44,10 @@ import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
+import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
 import eu.bryants.anthony.plinth.ast.statement.AssignStatement;
 import eu.bryants.anthony.plinth.ast.statement.Block;
@@ -110,12 +112,26 @@ public class TypePropagator
     }
     for (Constructor constructor : typeDefinition.getAllConstructors())
     {
+      for (Parameter parameter : constructor.getParameters())
+      {
+        if (parameter instanceof DefaultParameter)
+        {
+          propagateTypes(((DefaultParameter) parameter).getExpression(), parameter.getType());
+        }
+      }
       propagateTypes(constructor.getBlock(), new VoidType(null));
     }
     for (Method method : typeDefinition.getAllMethods())
     {
       if (method.getBlock() != null)
       {
+        for (Parameter parameter : method.getParameters())
+        {
+          if (parameter instanceof DefaultParameter)
+          {
+            propagateTypes(((DefaultParameter) parameter).getExpression(), parameter.getType());
+          }
+        }
         propagateTypes(method.getBlock(), method.getReturnType());
       }
     }
@@ -180,6 +196,7 @@ public class TypePropagator
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
       ConstructorReference constructorReference = delegateConstructorStatement.getResolvedConstructorReference();
       Type[] parameterTypes = constructorReference == null ? new Type[0] : constructorReference.getParameterTypes();
+      {} // TODO: add support for default arguments here
       Argument[] arguments = delegateConstructorStatement.getArguments();
       // propagate the parameter types to the arguments
       for (int i = 0; i < parameterTypes.length; ++i)
@@ -469,6 +486,7 @@ public class TypePropagator
     {
       CreationExpression creationExpression = (CreationExpression) expression;
       ConstructorReference resolvedConstructorReference = creationExpression.getResolvedConstructorReference();
+      {} // TODO: add support for default arguments here
       Type[] parameterTypes = resolvedConstructorReference.getParameterTypes();
       Argument[] arguments = creationExpression.getArguments();
       if (parameterTypes.length != arguments.length)

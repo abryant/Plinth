@@ -47,6 +47,15 @@ public class NormalParameter extends Parameter
    * {@inheritDoc}
    */
   @Override
+  public String getMangledName()
+  {
+    return getType().getMangledName();
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public String toString()
   {
     return (isFinal ? "final " : "") + getType() + " " + getName();

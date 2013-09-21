@@ -21,6 +21,7 @@ import eu.bryants.anthony.plinth.ast.metadata.MemberFunctionType;
 import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
 import eu.bryants.anthony.plinth.ast.metadata.OverrideFunction;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
+import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.Type;
@@ -874,6 +875,7 @@ public class InheritanceChecker
     Set<String> disambiguators = new HashSet<String>();
     for (int i = 0; i < constructorReferences.length; ++i)
     {
+      // note: we explicitly don't check DefaultParameters here, as they do not contribute to a constructor's signature for the purposes of duplicate checking
       Type[] parameterTypes = constructorReferences[i].getParameterTypes();
       StringBuffer buffer = new StringBuffer();
       for (Type t : parameterTypes)
@@ -992,6 +994,7 @@ public class InheritanceChecker
   private static String buildMethodDisambiguatorString(MethodReference method)
   {
     Type[] parameterTypes = method.getParameterTypes();
+    DefaultParameter[] defaultParameters = method.getDefaultParameters();
     StringBuffer buffer = new StringBuffer();
     buffer.append(method.getReturnType());
     buffer.append(' ');
@@ -1000,7 +1003,18 @@ public class InheritanceChecker
     for (int i = 0; i < parameterTypes.length; ++i)
     {
       buffer.append(parameterTypes[i]);
-      if (i != parameterTypes.length - 1)
+      if (i != parameterTypes.length - 1 || defaultParameters.length > 0)
+      {
+        buffer.append(", ");
+      }
+    }
+    for (int i = 0; i < defaultParameters.length; ++i)
+    {
+      buffer.append(defaultParameters[i].getType());
+      buffer.append(' ');
+      buffer.append(defaultParameters[i].getName());
+      buffer.append("=...");
+      if (i != defaultParameters.length - 1)
       {
         buffer.append(", ");
       }

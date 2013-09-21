@@ -71,4 +71,9 @@ public abstract class Parameter
   {
     this.index = index;
   }
+
+  /**
+   * @return the mangled name of this parameter
+   */
+  public abstract String getMangledName();
 }

@@ -90,9 +90,9 @@ public abstract class Type
   public abstract Set<MemberReference<?>> getMembers(String name);
 
   /**
-   * Finds the method in this type with the specified disambiguator.
+   * Finds the MethodReference in this type with the specified Disambiguator.
    * @param disambiguator - the Disambiguator to search for
-   * @return the Method found, or null if no method exists with the specified signature
+   * @return the MethodReference found, or null if no method exists with the specified signature
    */
   public MethodReference getMethod(Disambiguator disambiguator)
   {

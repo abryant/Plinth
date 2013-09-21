@@ -1,0 +1,8 @@
+// Plinth Test
+// Compiler: MethodDefaultParameter.pth: 6:12-22: A method without a body cannot have default parameters
+
+class Test
+{
+  void foo(uint x = 1);
+}
+

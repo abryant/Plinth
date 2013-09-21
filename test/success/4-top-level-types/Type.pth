@@ -65,5 +65,10 @@ class Delta
   Charlie<?string> a;
   Charlie<?uint> b;
   Charlie<ulong> c;
+
+  create(@a, @b, @c, Bravo<Alpha> bravo, ?Charlie<short> charlie = null);
+  void test(Charlie<byte> c, ?Bravo<Alpha> b = null)
+  {
+  }
 }
 

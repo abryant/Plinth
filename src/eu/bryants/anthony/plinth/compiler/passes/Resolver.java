@@ -460,6 +460,10 @@ public class Resolver
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Unable to resolve: " + autoAssignParameter.getName(), autoAssignParameter.getLexicalPhrase()));
           }
         }
+        else if (setterParameter instanceof DefaultParameter)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A property setter cannot take a default parameter", setterParameter.getLexicalPhrase()));
+        }
         else
         {
           throw new IllegalArgumentException("Unknown Parameter type: " + setterParameter);
@@ -518,6 +522,10 @@ public class Resolver
           {
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Unable to resolve: " + autoAssignParameter.getName(), autoAssignParameter.getLexicalPhrase()));
           }
+        }
+        else if (constructorParameter instanceof DefaultParameter)
+        {
+          coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A property constructor cannot take a default parameter", constructorParameter.getLexicalPhrase()));
         }
         else
         {
@@ -585,6 +593,7 @@ public class Resolver
       disambiguatorBuffer.append('_');
       boolean parameterTypeResolveFailed = false;
       Set<String> usedParameterNames = new HashSet<String>();
+      boolean foundDefaultParameter = false;
       for (Parameter parameter : constructor.getParameters())
       {
         if (usedParameterNames.contains(parameter.getName()))
@@ -595,6 +604,10 @@ public class Resolver
 
         if (parameter instanceof NormalParameter)
         {
+          if (foundDefaultParameter)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A normal parameter cannot come after a default parameter", parameter.getLexicalPhrase()));
+          }
           NormalParameter normalParameter = (NormalParameter) parameter;
           // mainBlock can be null if we are resolving a bitcode file with no blocks inside it
           if (mainBlock != null)
@@ -613,6 +626,10 @@ public class Resolver
         }
         else if (parameter instanceof AutoAssignParameter)
         {
+          if (foundDefaultParameter)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("An auto-assign parameter cannot come after a default parameter", parameter.getLexicalPhrase()));
+          }
           AutoAssignParameter autoAssignParameter = (AutoAssignParameter) parameter;
           Field field = typeDefinition.getField(autoAssignParameter.getName());
           Property property = typeDefinition.getProperty(autoAssignParameter.getName());
@@ -636,11 +653,33 @@ public class Resolver
             parameterTypeResolveFailed = true;
           }
         }
+        else if (parameter instanceof DefaultParameter)
+        {
+          foundDefaultParameter = true;
+          DefaultParameter defaultParameter = (DefaultParameter) parameter;
+          // mainBlock can be null if we are resolving a bitcode file with no blocks inside it
+          if (mainBlock != null)
+          {
+            mainBlock.addVariable(defaultParameter.getVariable());
+          }
+          try
+          {
+            resolve(defaultParameter.getType(), typeDefinition, compilationUnit);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+            parameterTypeResolveFailed = true;
+          }
+        }
         else
         {
           throw new IllegalArgumentException("Unknown Parameter type: " + parameter);
         }
-        if (!parameterTypeResolveFailed)
+        // for constructors, the disambiguator we use to check for duplicates doesn't include default parameters
+        // this is to make sure that you can't declare two constructors which can look exactly the same when called
+        // (for methods, we don't have this problem because we can use a cast to provide a function type hint which specifies the default parameters)
+        if (!parameterTypeResolveFailed && !(parameter instanceof DefaultParameter))
         {
           disambiguatorBuffer.append(parameter.getType().getMangledName());
         }
@@ -697,6 +736,7 @@ public class Resolver
 
       Parameter[] parameters = method.getParameters();
       Set<String> usedParameterNames = new HashSet<String>();
+      boolean foundDefaultParameter = false;
       for (Parameter parameter : parameters)
       {
         if (usedParameterNames.contains(parameter.getName()))
@@ -707,6 +747,10 @@ public class Resolver
 
         if (parameter instanceof NormalParameter)
         {
+          if (foundDefaultParameter)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A normal parameter cannot come after a default parameter", parameter.getLexicalPhrase()));
+          }
           NormalParameter normalParameter = (NormalParameter) parameter;
           // mainBlock can be null if we are resolving a bitcode file with no blocks inside it
           if (mainBlock != null)
@@ -725,6 +769,10 @@ public class Resolver
         }
         else if (parameter instanceof AutoAssignParameter)
         {
+          if (foundDefaultParameter)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("An auto-assign parameter cannot come after a default parameter", parameter.getLexicalPhrase()));
+          }
           AutoAssignParameter autoAssignParameter = (AutoAssignParameter) parameter;
           Field field = typeDefinition.getField(autoAssignParameter.getName());
           Property property = typeDefinition.getProperty(autoAssignParameter.getName());
@@ -745,6 +793,25 @@ public class Resolver
           else
           {
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Unable to resolve: " + autoAssignParameter.getName(), autoAssignParameter.getLexicalPhrase()));
+            typeResolveFailed = true;
+          }
+        }
+        else if (parameter instanceof DefaultParameter)
+        {
+          foundDefaultParameter = true;
+          DefaultParameter defaultParameter = (DefaultParameter) parameter;
+          // mainBlock can be null if we are resolving a bitcode file with no blocks inside it
+          if (mainBlock != null)
+          {
+            mainBlock.addVariable(defaultParameter.getVariable());
+          }
+          try
+          {
+            resolve(defaultParameter.getType(), typeDefinition, compilationUnit);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
             typeResolveFailed = true;
           }
         }
@@ -857,6 +924,20 @@ public class Resolver
       {
         hasImmutableConstructors = true;
       }
+      for (Parameter parameter : constructor.getParameters())
+      {
+        if (parameter instanceof DefaultParameter)
+        {
+          try
+          {
+            resolve(((DefaultParameter) parameter).getExpression(), constructor.getBlock(), typeDefinition, compilationUnit, false, constructor.isImmutable(), null);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+      }
       try
       {
         resolveTopLevelBlock(constructor.getBlock(), typeDefinition, compilationUnit, false, constructor.isImmutable(), false, null);
@@ -948,6 +1029,20 @@ public class Resolver
     {
       if (method.getBlock() != null)
       {
+        for (Parameter parameter : method.getParameters())
+        {
+          if (parameter instanceof DefaultParameter)
+          {
+            try
+            {
+              resolve(((DefaultParameter) parameter).getExpression(), method.getBlock(), typeDefinition, compilationUnit, method.isStatic(), method.isImmutable(), null);
+            }
+            catch (ConceptualException e)
+            {
+              coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+            }
+          }
+        }
         try
         {
           resolveTopLevelBlock(method.getBlock(), typeDefinition, compilationUnit, method.isStatic(), method.isImmutable(), false, null);
@@ -2510,7 +2605,7 @@ public class Resolver
           if (testExpression instanceof VariableExpression)
           {
             VariableExpression variableExpression = (VariableExpression) testExpression;
-            if (variableExpression.getResolvedMemberReference() instanceof MethodReference) // "null instanceof Something" is always false
+            if (variableExpression.getResolvedMemberReference() instanceof MethodReference) // "null instanceof Something" is always false, so we don't care if there isn't a resolvedMemberReference
             {
               // the base resolved to a Method, so just resolve this FunctionCallExpression to the same Method
               expr.setResolvedMethodReference((MethodReference) variableExpression.getResolvedMemberReference());
@@ -2552,6 +2647,7 @@ public class Resolver
         functionExpression = ((BracketedExpression) functionExpression).getExpression();
       }
 
+      {} // TODO: handle default arguments here
       Map<Type[], MethodReference> paramTypeLists = new LinkedHashMap<Type[], MethodReference>();
       Map<Type[], MethodReference> hintedParamLists = new LinkedHashMap<Type[], MethodReference>();
       Map<MethodReference, Expression> methodBaseExpressions = new HashMap<MethodReference, Expression>();
@@ -3079,8 +3175,7 @@ public class Resolver
         if (member instanceof MethodReference)
         {
           MethodReference methodReference = (MethodReference) member;
-          {} // TODO: when default parameters are added to methods, they should be included here
-          FunctionType functionType = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), new DefaultParameter[0], methodReference.getCheckedThrownTypes(), null);
+          FunctionType functionType = new FunctionType(false, methodReference.getReferencedMember().isImmutable(), methodReference.getReturnType(), methodReference.getParameterTypes(), methodReference.getDefaultParameters(), methodReference.getCheckedThrownTypes(), null);
           if (!typeHint.canAssign(functionType))
           {
             it.remove();
@@ -3104,6 +3199,7 @@ public class Resolver
    */
   private <M extends MemberReference<?>> void filterParameterLists(Set<Entry<Type[], M>> paramTypeLists, Argument[] arguments, boolean ensureEquivalent, boolean allowNullable)
   {
+    {} // TODO: handle default arguments here
     Iterator<Entry<Type[], M>> it = paramTypeLists.iterator();
     while (it.hasNext())
     {
@@ -3158,6 +3254,7 @@ public class Resolver
    */
   private ConstructorReference resolveConstructor(final NamedType creationType, Argument[] arguments, LexicalPhrase callerLexicalPhrase, TypeDefinition enclosingDefinition, boolean inStaticContext) throws ConceptualException
   {
+    {} // TODO: add support for default arguments, and match them up to DefaultParameters (within filterParameterLists())
     Type[] argumentTypes = new Type[arguments.length];
     for (int i = 0; i < arguments.length; ++i)
     {

@@ -114,7 +114,7 @@ public class BuiltinMethod extends Method
     buffer.append('_');
     for (Parameter p : getParameters())
     {
-      buffer.append(p.getType().getMangledName());
+      buffer.append(p.getMangledName());
     }
     return buffer.toString();
   }
