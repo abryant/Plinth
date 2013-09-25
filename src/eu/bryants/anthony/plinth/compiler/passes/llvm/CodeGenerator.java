@@ -7,7 +7,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
 import nativelib.c.C;
@@ -84,6 +83,7 @@ import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
+import eu.bryants.anthony.plinth.ast.misc.DefaultArgument;
 import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
@@ -2872,31 +2872,84 @@ public class CodeGenerator
       if (delegatedConstructorReference != null)
       {
         Type[] parameterTypes = delegatedConstructorReference.getParameterTypes();
-        {} // TODO: add support for default arguments here
-        Parameter[] realParameters = delegatedConstructorReference.getReferencedMember().getParameters();
+        Map<String, DefaultParameter> referenceDefaultParametersByName = new HashMap<String, DefaultParameter>();
+        for (DefaultParameter defaultParameter : delegatedConstructorReference.getDefaultParameters())
+        {
+          referenceDefaultParametersByName.put(defaultParameter.getName(), defaultParameter);
+        }
+
         Argument[] arguments = delegateConstructorStatement.getArguments();
 
+        LLVMValueRef[] llvmNormalArguments = new LLVMValueRef[parameterTypes.length];
+        Map<String, LLVMValueRef> llvmDefaultArguments = new HashMap<String, LLVMValueRef>();
+        for (int i = 0; i < arguments.length; ++i)
+        {
+          if (arguments[i] instanceof NormalArgument)
+          {
+            NormalArgument normalArgument = (NormalArgument) arguments[i];
+            LLVMValueRef llvmArgument = buildExpression(normalArgument.getExpression(), builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
+            llvmNormalArguments[i] = typeHelper.convertTemporary(builder, landingPadContainer, llvmArgument, normalArgument.getExpression().getType(), parameterTypes[i], false, typeParameterAccessor, typeParameterAccessor);
+          }
+          else if (arguments[i] instanceof DefaultArgument)
+          {
+            DefaultArgument defaultArgument = (DefaultArgument) arguments[i];
+            DefaultParameter referenceDefaultParameter = referenceDefaultParametersByName.get(defaultArgument.getName());
+            if (referenceDefaultParameter == null)
+            {
+              throw new IllegalArgumentException("DefaultArgument does not correspond to a DefaultParameter: " + defaultArgument);
+            }
+            LLVMValueRef llvmArgument = buildExpression(defaultArgument.getExpression(), builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
+            llvmArgument = typeHelper.convertTemporary(builder, landingPadContainer, llvmArgument, defaultArgument.getExpression().getType(), referenceDefaultParameter.getType(), false, typeParameterAccessor, typeParameterAccessor);
+            llvmDefaultArguments.put(defaultArgument.getName(), llvmArgument);
+          }
+          else
+          {
+            throw new IllegalArgumentException("Unknown Argument type: " + arguments[i]);
+          }
+        }
+
+        Parameter[] realParameters = delegatedConstructorReference.getReferencedMember().getParameters();
         LLVMValueRef llvmConstructor = getConstructorFunction(delegatedConstructorReference.getReferencedMember());
         LLVMValueRef[] llvmArguments = new LLVMValueRef[1 + realParameters.length];
         // convert the thisValue to the delegated constructor's type, since if this is a super(...) constructor, the native type representation will be different
         llvmArguments[0] = typeHelper.convertTemporary(builder, landingPadContainer, thisValue, new NamedType(false, false, false, typeDefinition), delegatedConstructorReference.getContainingType(), false, typeParameterAccessor, typeParameterAccessor);
         TypeParameterAccessor delegateTypeAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, delegatedConstructorReference.getReferencedMember().getContainingTypeDefinition(), thisValue);
-        for (int i = 0; i < realParameters.length; ++i)
+
+        for (Parameter parameter : realParameters)
         {
-          LLVMValueRef argument;
-          if (arguments[i] instanceof NormalArgument)
+          LLVMValueRef argumentValue;
+          if (parameter instanceof NormalParameter || parameter instanceof AutoAssignParameter)
           {
-            NormalArgument normalArgument = (NormalArgument) arguments[i];
-            argument = buildExpression(normalArgument.getExpression(), builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
-            argument = typeHelper.convertTemporary(builder, landingPadContainer, argument, normalArgument.getExpression().getType(), parameterTypes[i], false, typeParameterAccessor, typeParameterAccessor);
+            argumentValue = llvmNormalArguments[parameter.getIndex()];
+            argumentValue = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, argumentValue, parameterTypes[parameter.getIndex()], parameter.getType(), typeParameterAccessor, delegateTypeAccessor);
+          }
+          else if (parameter instanceof DefaultParameter)
+          {
+            DefaultParameter defaultParameter = (DefaultParameter) parameter;
+            LLVMValueRef defaultArgumentValue = llvmDefaultArguments.get(defaultParameter.getName());
+
+            LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), typeHelper.findStandardType(parameter.getType())};
+            LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
+            if (defaultArgumentValue == null)
+            {
+              argumentValue = LLVM.LLVMConstNull(structType);
+            }
+            else
+            {
+              DefaultParameter referenceDefaultParameter = referenceDefaultParametersByName.get(defaultParameter.getName());
+              defaultArgumentValue = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, defaultArgumentValue, referenceDefaultParameter.getType(), parameter.getType(), typeParameterAccessor, delegateTypeAccessor);
+              argumentValue = LLVM.LLVMGetUndef(structType);
+              argumentValue = LLVM.LLVMBuildInsertValue(builder, argumentValue, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false), 0, "");
+              argumentValue = LLVM.LLVMBuildInsertValue(builder, argumentValue, defaultArgumentValue, 1, "");
+            }
           }
           else
           {
-            throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+            throw new IllegalArgumentException("Unknown type of Parameter: " + parameter);
           }
-
-          llvmArguments[1 + i] = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, argument, parameterTypes[i], realParameters[i].getType(), typeParameterAccessor, delegateTypeAccessor);
+          llvmArguments[1 + parameter.getIndex()] = argumentValue;
         }
+
         LLVMBasicBlockRef constructorInvokeContinueBlock = LLVM.LLVMAddBasicBlock(builder, "delegateConstructorInvokeContinue");
         LLVM.LLVMBuildInvoke(builder, llvmConstructor, C.toNativePointerArray(llvmArguments, false, true), llvmArguments.length, constructorInvokeContinueBlock, landingPadContainer.getLandingPadBlock(), "");
         LLVM.LLVMPositionBuilderAtEnd(builder, constructorInvokeContinueBlock);
@@ -4836,25 +4889,43 @@ public class CodeGenerator
       Argument[] arguments = creationExpression.getArguments();
       ConstructorReference constructorReference = creationExpression.getResolvedConstructorReference();
       Type[] parameterTypes = constructorReference.getParameterTypes();
+      Map<String, DefaultParameter> referenceDefaultParametersByName = new HashMap<String, DefaultParameter>();
+      for (DefaultParameter defaultParameter : constructorReference.getDefaultParameters())
+      {
+        referenceDefaultParametersByName.put(defaultParameter.getName(), defaultParameter);
+      }
 
-      Constructor constructor = constructorReference.getReferencedMember();
-      {} // TODO: add support for default arguments here
-      Parameter[] realParameters = constructor.getParameters();
-
-      LLVMValueRef[] llvmArguments = new LLVMValueRef[1 + arguments.length];
+      LLVMValueRef[] llvmNormalArguments = new LLVMValueRef[parameterTypes.length];
+      Map<String, LLVMValueRef> defaultArgumentValues = new HashMap<String, LLVMValueRef>();
       for (int i = 0; i < arguments.length; ++i)
       {
         if (arguments[i] instanceof NormalArgument)
         {
           NormalArgument normalArgument = (NormalArgument) arguments[i];
-          LLVMValueRef argument = buildExpression(normalArgument.getExpression(), builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
-          llvmArguments[i + 1] = typeHelper.convertTemporary(builder, landingPadContainer, argument, normalArgument.getExpression().getType(), parameterTypes[i], false, typeParameterAccessor, typeParameterAccessor);
+          LLVMValueRef argumentValue = buildExpression(normalArgument.getExpression(), builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
+          argumentValue = typeHelper.convertTemporary(builder, landingPadContainer, argumentValue, normalArgument.getExpression().getType(), parameterTypes[i], false, typeParameterAccessor, typeParameterAccessor);
+          llvmNormalArguments[i] = argumentValue;
+        }
+        else if (arguments[i] instanceof DefaultArgument)
+        {
+          DefaultArgument defaultArgument = (DefaultArgument) arguments[i];
+          DefaultParameter referenceDefaultParameter = referenceDefaultParametersByName.get(defaultArgument.getName());
+          if (referenceDefaultParameter == null)
+          {
+            throw new IllegalArgumentException("DefaultArgument does not correspond to a DefaultParameter: " + defaultArgument);
+          }
+          LLVMValueRef argumentValue = buildExpression(defaultArgument.getExpression(), builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
+          argumentValue = typeHelper.convertTemporary(builder, landingPadContainer, argumentValue, defaultArgument.getExpression().getType(), referenceDefaultParameter.getType(), false, typeParameterAccessor, typeParameterAccessor);
+          defaultArgumentValues.put(defaultArgument.getName(), argumentValue);
         }
         else
         {
           throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
         }
       }
+
+      Constructor constructor = constructorReference.getReferencedMember();
+      LLVMValueRef[] llvmArguments = new LLVMValueRef[1 + constructor.getParameters().length];
       NamedType type = creationExpression.getCreatedType();
       LLVMValueRef pointer;
       if (creationExpression.isHeapAllocation())
@@ -4891,9 +4962,39 @@ public class CodeGenerator
       TypeParameterAccessor createdTypeAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, constructor.getContainingTypeDefinition(), pointer);
       llvmArguments[0] = pointer;
       // convert the arguments to the actual types expected by the constructor function
-      for (int i = 0; i < arguments.length; ++i)
+      for (Parameter parameter : constructor.getParameters())
       {
-        llvmArguments[i + 1] = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, llvmArguments[i + 1], parameterTypes[i], realParameters[i].getType(), typeParameterAccessor, createdTypeAccessor);
+        LLVMValueRef argumentValue;
+        if (parameter instanceof NormalParameter || parameter instanceof AutoAssignParameter)
+        {
+          argumentValue = llvmNormalArguments[parameter.getIndex()];
+          argumentValue = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, argumentValue, parameterTypes[parameter.getIndex()], parameter.getType(), typeParameterAccessor, createdTypeAccessor);
+        }
+        else if (parameter instanceof DefaultParameter)
+        {
+          DefaultParameter defaultParameter = (DefaultParameter) parameter;
+          LLVMValueRef defaultArgumentValue = defaultArgumentValues.get(defaultParameter.getName());
+
+          LLVMTypeRef[] structSubTypes = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), typeHelper.findStandardType(defaultParameter.getType())};
+          LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(structSubTypes, false, true), structSubTypes.length, false);
+          if (defaultArgumentValue == null)
+          {
+            argumentValue = LLVM.LLVMConstNull(structType);
+          }
+          else
+          {
+            DefaultParameter referenceDefaultParameter = referenceDefaultParametersByName.get(defaultParameter.getName());
+            defaultArgumentValue = typeHelper.convertTemporaryToStandard(builder, landingPadContainer, defaultArgumentValue, referenceDefaultParameter.getType(), parameter.getType(), typeParameterAccessor, createdTypeAccessor);
+            argumentValue = LLVM.LLVMGetUndef(structType);
+            argumentValue = LLVM.LLVMBuildInsertValue(builder, argumentValue, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false), 0, "");
+            argumentValue = LLVM.LLVMBuildInsertValue(builder, argumentValue, defaultArgumentValue, 1, "");
+          }
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Parameter: " + parameter);
+        }
+        llvmArguments[1 + parameter.getIndex()] = argumentValue;
       }
 
       // get the constructor and call it
@@ -5159,6 +5260,11 @@ public class CodeGenerator
       {
         throw new IllegalArgumentException("Unresolved function call expression: " + functionExpression);
       }
+      Map<String, DefaultParameter> defaultParametersByName = new HashMap<String, DefaultParameter>();
+      for (DefaultParameter defaultParameter : defaultParameters)
+      {
+        defaultParametersByName.put(defaultParameter.getName(), defaultParameter);
+      }
 
       LLVMValueRef callee = null;
       Type calleeType = null;
@@ -5188,7 +5294,7 @@ public class CodeGenerator
 
       Argument[] arguments = functionExpression.getArguments();
       LLVMValueRef[] normalArgumentValues = new LLVMValueRef[parameterTypes.length];
-      Map<DefaultParameter, LLVMValueRef> defaultArgumentValues = new HashMap<DefaultParameter, LLVMValueRef>();
+      Map<String, LLVMValueRef> defaultArgumentValues = new HashMap<String, LLVMValueRef>();
       for (int i = 0; i < arguments.length; i++)
       {
         if (arguments[i] instanceof NormalArgument)
@@ -5197,9 +5303,20 @@ public class CodeGenerator
           LLVMValueRef arg = buildExpression(normalArgument.getExpression(), builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
           normalArgumentValues[i] = typeHelper.convertTemporary(builder, landingPadContainer, arg, normalArgument.getExpression().getType(), parameterTypes[i], false, typeParameterAccessor, typeParameterAccessor);
         }
+        else if (arguments[i] instanceof DefaultArgument)
+        {
+          DefaultArgument defaultArgument = (DefaultArgument) arguments[i];
+          DefaultParameter defaultParameter = defaultParametersByName.get(defaultArgument.getName());
+          if (defaultParameter == null)
+          {
+            throw new IllegalArgumentException("DefaultArgument does not correspond to a DefaultParameter: " + defaultArgument);
+          }
+          LLVMValueRef argumentValue = buildExpression(defaultArgument.getExpression(), builder, thisValue, variables, landingPadContainer, typeParameterAccessor);
+          argumentValue = typeHelper.convertTemporary(builder, landingPadContainer, argumentValue, defaultArgument.getExpression().getType(), defaultParameter.getType(), false, typeParameterAccessor, typeParameterAccessor);
+          defaultArgumentValues.put(defaultArgument.getName(), argumentValue);
+        }
         else
         {
-          {} // TODO: handle default arguments (possibly change defaultArgumentValues to use the name as the key)
           throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
         }
       }
@@ -5221,29 +5338,26 @@ public class CodeGenerator
           realCalleeType = calleeType != null ? calleeType : new NamedType(false, false, false, typeDefinition);
         }
 
-        Parameter[] methodParameters = method.getParameters();
         Map<Parameter, LLVMValueRef> argumentMap = new HashMap<Parameter, LLVMValueRef>();
-        for (int i = 0; i < normalArgumentValues.length; ++i)
+        for (Parameter parameter : method.getParameters())
         {
-          argumentMap.put(methodParameters[i], normalArgumentValues[i]);
-        }
-        // for DefaultParameters, we have a map from the MethodReference's DefaultParameters to the LLVM values of the parameters,
-        // so now we need to convert this map to be based on the underlying Method's DefaultParameters, as buildMethodCall() expects
-        Map<Integer, DefaultParameter> methodDefaultParameters = new HashMap<Integer, DefaultParameter>();
-        for (Parameter p : methodParameters)
-        {
-          if (p instanceof DefaultParameter)
+          if (parameter instanceof NormalParameter || parameter instanceof AutoAssignParameter)
           {
-            methodDefaultParameters.put(p.getIndex(), (DefaultParameter) p);
+            argumentMap.put(parameter, normalArgumentValues[parameter.getIndex()]);
+          }
+          else if (parameter instanceof DefaultParameter)
+          {
+            LLVMValueRef defaultValue = defaultArgumentValues.get(parameter.getName());
+            if (defaultValue != null)
+            {
+              argumentMap.put(parameter, defaultValue);
+            }
+          }
+          else
+          {
+            throw new IllegalArgumentException("Unknown Parameter type: " + parameter);
           }
         }
-        for (Entry<DefaultParameter, LLVMValueRef> entry : defaultArgumentValues.entrySet())
-        {
-          DefaultParameter referenceDefaultParameter = entry.getKey();
-          DefaultParameter methodDefaultParameter = methodDefaultParameters.get(referenceDefaultParameter.getIndex());
-          argumentMap.put(methodDefaultParameter, entry.getValue());
-        }
-
         result = typeHelper.buildMethodCall(builder, landingPadContainer, realCallee, realCalleeType, resolvedMethodReference, argumentMap, typeParameterAccessor);
       }
       else if (resolvedBaseExpression != null)
@@ -5261,7 +5375,7 @@ public class CodeGenerator
         {
           // note: we don't use defaultParameters[i].getIndex() here, since these DefaultParameters are from a FunctionType, which doesn't have indices set on its DefaultParameters
           Type defaultParameterType = defaultParameters[i].getType();
-          LLVMValueRef argumentValue = defaultArgumentValues.get(defaultParameters[i]);
+          LLVMValueRef argumentValue = defaultArgumentValues.get(defaultParameters[i].getName());
           LLVMTypeRef[] subTypes = new LLVMTypeRef[] {LLVM.LLVMInt1Type(), typeHelper.findStandardType(defaultParameterType)};
           LLVMTypeRef structType = LLVM.LLVMStructType(C.toNativePointerArray(subTypes, false, true), subTypes.length, false);
           if (argumentValue == null)

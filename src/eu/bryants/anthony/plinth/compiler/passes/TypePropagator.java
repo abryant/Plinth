@@ -1,5 +1,8 @@
 package eu.bryants.anthony.plinth.compiler.passes;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.expression.ArithmeticExpression;
 import eu.bryants.anthony.plinth.ast.expression.ArrayAccessExpression;
@@ -38,12 +41,14 @@ import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.member.Property;
 import eu.bryants.anthony.plinth.ast.metadata.ConstructorReference;
 import eu.bryants.anthony.plinth.ast.metadata.FieldInitialiser;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
 import eu.bryants.anthony.plinth.ast.misc.Argument;
 import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
+import eu.bryants.anthony.plinth.ast.misc.DefaultArgument;
 import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
@@ -196,18 +201,50 @@ public class TypePropagator
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
       ConstructorReference constructorReference = delegateConstructorStatement.getResolvedConstructorReference();
       Type[] parameterTypes = constructorReference == null ? new Type[0] : constructorReference.getParameterTypes();
-      {} // TODO: add support for default arguments here
+      DefaultParameter[] defaultParameters = constructorReference == null ? new DefaultParameter[0] : constructorReference.getDefaultParameters();
       Argument[] arguments = delegateConstructorStatement.getArguments();
-      // propagate the parameter types to the arguments
+
+      // propagate the parameter types to the normal arguments
       for (int i = 0; i < parameterTypes.length; ++i)
       {
         if (arguments[i] instanceof NormalArgument)
         {
           propagateTypes(((NormalArgument) arguments[i]).getExpression(), parameterTypes[i]);
         }
+        else if (arguments[i] instanceof DefaultArgument)
+        {
+          throw new IllegalArgumentException("Cannot propagate a normal parameter's type to a default argument: " + arguments[i]);
+        }
         else
         {
           throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+        }
+      }
+
+      // propagate the default parameter types to the default arguments
+      Map<String, DefaultArgument> defaultArgumentsByName = new HashMap<String, DefaultArgument>();
+      for (int i = parameterTypes.length; i < arguments.length; ++i)
+      {
+        if (arguments[i] instanceof NormalArgument)
+        {
+          throw new IllegalArgumentException("Found too many normal arguments: " + arguments[i]);
+        }
+        else if (arguments[i] instanceof DefaultArgument)
+        {
+          DefaultArgument defaultArgument = (DefaultArgument) arguments[i];
+          defaultArgumentsByName.put(defaultArgument.getName(), defaultArgument);
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+        }
+      }
+      for (DefaultParameter defaultParameter : defaultParameters)
+      {
+        DefaultArgument defaultArgument = defaultArgumentsByName.get(defaultParameter.getName());
+        if (defaultArgument != null)
+        {
+          propagateTypes(defaultArgument.getExpression(), defaultParameter.getType());
         }
       }
     }
@@ -486,22 +523,51 @@ public class TypePropagator
     {
       CreationExpression creationExpression = (CreationExpression) expression;
       ConstructorReference resolvedConstructorReference = creationExpression.getResolvedConstructorReference();
-      {} // TODO: add support for default arguments here
       Type[] parameterTypes = resolvedConstructorReference.getParameterTypes();
+      DefaultParameter[] defaultParameters = resolvedConstructorReference.getDefaultParameters();
       Argument[] arguments = creationExpression.getArguments();
-      if (parameterTypes.length != arguments.length)
-      {
-        throw new IllegalStateException("A constructor call must have the same number of arguments as the constructor has parameters (" + parameterTypes.length + " parameters vs " + arguments.length + " arguments)");
-      }
+
+      // propagate the parameter types to the normal arguments
       for (int i = 0; i < parameterTypes.length; ++i)
       {
         if (arguments[i] instanceof NormalArgument)
         {
           propagateTypes(((NormalArgument) arguments[i]).getExpression(), parameterTypes[i]);
         }
+        else if (arguments[i] instanceof DefaultArgument)
+        {
+          throw new IllegalArgumentException("Cannot propagate a normal parameter's type to a default argument: " + arguments[i]);
+        }
         else
         {
           throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+        }
+      }
+
+      // propagate the default parameter types to the default arguments
+      Map<String, DefaultArgument> defaultArgumentsByName = new HashMap<String, DefaultArgument>();
+      for (int i = parameterTypes.length; i < arguments.length; ++i)
+      {
+        if (arguments[i] instanceof NormalArgument)
+        {
+          throw new IllegalArgumentException("Found too many normal arguments: " + arguments[i]);
+        }
+        else if (arguments[i] instanceof DefaultArgument)
+        {
+          DefaultArgument defaultArgument = (DefaultArgument) arguments[i];
+          defaultArgumentsByName.put(defaultArgument.getName(), defaultArgument);
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+        }
+      }
+      for (DefaultParameter defaultParameter : defaultParameters)
+      {
+        DefaultArgument defaultArgument = defaultArgumentsByName.get(defaultParameter.getName());
+        if (defaultArgument != null)
+        {
+          propagateTypes(defaultArgument.getExpression(), defaultParameter.getType());
         }
       }
     }
@@ -539,8 +605,8 @@ public class TypePropagator
     {
       FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
       Argument[] arguments = functionCallExpression.getArguments();
-      Type[] parameterTypes = null;
-      {} // TODO: propagate default parameter types properly, once default arguments exist
+      Type[] parameterTypes;
+      DefaultParameter[] defaultParameters;
       if (functionCallExpression.getResolvedMethodReference() != null)
       {
         if (functionCallExpression.getResolvedBaseExpression() != null)
@@ -548,7 +614,9 @@ public class TypePropagator
           // propagate with the expression's type here, since the TypeChecker has already made sure it has the specified field (and we have no better type to use)
           propagateTypes(functionCallExpression.getResolvedBaseExpression(), functionCallExpression.getResolvedBaseExpression().getType());
         }
-        parameterTypes = functionCallExpression.getResolvedMethodReference().getParameterTypes();
+        MethodReference methodReference = functionCallExpression.getResolvedMethodReference();
+        parameterTypes = methodReference.getParameterTypes();
+        defaultParameters = methodReference.getDefaultParameters();
       }
       else if (functionCallExpression.getResolvedBaseExpression() != null)
       {
@@ -558,22 +626,54 @@ public class TypePropagator
         propagateTypes(baseExpression, baseType);
 
         parameterTypes = ((FunctionType) baseType).getParameterTypes();
+        defaultParameters = ((FunctionType) baseType).getDefaultParameters();
       }
       else
       {
         throw new IllegalArgumentException("Unresolved function call: " + functionCallExpression);
       }
 
-      // propagate each of the argument types
-      for (int i = 0; i < arguments.length; i++)
+      // propagate the parameter types to the normal arguments
+      for (int i = 0; i < parameterTypes.length; ++i)
       {
         if (arguments[i] instanceof NormalArgument)
         {
           propagateTypes(((NormalArgument) arguments[i]).getExpression(), parameterTypes[i]);
         }
+        else if (arguments[i] instanceof DefaultArgument)
+        {
+          throw new IllegalArgumentException("Cannot propagate a normal parameter's type to a default argument: " + arguments[i]);
+        }
         else
         {
           throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+        }
+      }
+
+      // propagate the default parameter types to the default arguments
+      Map<String, DefaultArgument> defaultArgumentsByName = new HashMap<String, DefaultArgument>();
+      for (int i = parameterTypes.length; i < arguments.length; ++i)
+      {
+        if (arguments[i] instanceof NormalArgument)
+        {
+          throw new IllegalArgumentException("Found too many normal arguments: " + arguments[i]);
+        }
+        else if (arguments[i] instanceof DefaultArgument)
+        {
+          DefaultArgument defaultArgument = (DefaultArgument) arguments[i];
+          defaultArgumentsByName.put(defaultArgument.getName(), defaultArgument);
+        }
+        else
+        {
+          throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+        }
+      }
+      for (DefaultParameter defaultParameter : defaultParameters)
+      {
+        DefaultArgument defaultArgument = defaultArgumentsByName.get(defaultParameter.getName());
+        if (defaultArgument != null)
+        {
+          propagateTypes(defaultArgument.getExpression(), defaultParameter.getType());
         }
       }
     }

@@ -5,11 +5,10 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
@@ -71,6 +70,7 @@ import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
+import eu.bryants.anthony.plinth.ast.misc.DefaultArgument;
 import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Import;
@@ -1570,13 +1570,35 @@ public class Resolver
       DelegateConstructorStatement delegateConstructorStatement = (DelegateConstructorStatement) statement;
       CoalescedConceptualException coalescedException = null;
       Argument[] arguments = delegateConstructorStatement.getArguments();
+      Set<String> foundDefaultNames = new HashSet<String>();
       for (Argument argument : arguments)
       {
         if (argument instanceof NormalArgument)
         {
+          if (!foundDefaultNames.isEmpty())
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A normal argument cannot come after a default argument", argument.getLexicalPhrase()));
+          }
           try
           {
             resolve(((NormalArgument) argument).getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+        else if (argument instanceof DefaultArgument)
+        {
+          DefaultArgument defaultArgument = (DefaultArgument) argument;
+          if (foundDefaultNames.contains(defaultArgument.getName()))
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot specify the same default argument twice: " + defaultArgument.getName(), defaultArgument.getLexicalPhrase()));
+          }
+          foundDefaultNames.add(defaultArgument.getName());
+          try
+          {
+            resolve(defaultArgument.getExpression(), enclosingBlock, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
           }
           catch (ConceptualException e)
           {
@@ -2382,13 +2404,35 @@ public class Resolver
         coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot create an instance of a type parameter", type.getLexicalPhrase()));
       }
       Argument[] arguments = creationExpression.getArguments();
+      Set<String> foundDefaultNames = new HashSet<String>();
       for (Argument argument : arguments)
       {
         if (argument instanceof NormalArgument)
         {
+          if (!foundDefaultNames.isEmpty())
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A normal argument cannot come after a default argument", argument.getLexicalPhrase()));
+          }
           try
           {
             resolve(((NormalArgument) argument).getExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+        else if (argument instanceof DefaultArgument)
+        {
+          DefaultArgument defaultArgument = (DefaultArgument) argument;
+          if (foundDefaultNames.contains(defaultArgument.getName()))
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot specify the same default argument twice: " + defaultArgument.getName(), defaultArgument.getLexicalPhrase()));
+          }
+          foundDefaultNames.add(defaultArgument.getName());
+          try
+          {
+            resolve(defaultArgument.getExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
           }
           catch (ConceptualException e)
           {
@@ -2528,13 +2572,19 @@ public class Resolver
     }
     else if (expression instanceof FunctionCallExpression)
     {
-      FunctionCallExpression expr = (FunctionCallExpression) expression;
+      FunctionCallExpression functionCallExpression = (FunctionCallExpression) expression;
       // resolve all of the sub-expressions
       CoalescedConceptualException coalescedException = null;
-      for (Argument argument : expr.getArguments())
+      Set<String> foundDefaultNames = new HashSet<String>();
+      Argument[] arguments = functionCallExpression.getArguments();
+      for (Argument argument : arguments)
       {
         if (argument instanceof NormalArgument)
         {
+          if (!foundDefaultNames.isEmpty())
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("A normal argument cannot come after a default argument", argument.getLexicalPhrase()));
+          }
           NormalArgument normalArgument = (NormalArgument) argument;
           try
           {
@@ -2544,6 +2594,24 @@ public class Resolver
           catch (ConceptualException exception)
           {
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, exception);
+          }
+        }
+        else if (argument instanceof DefaultArgument)
+        {
+          DefaultArgument defaultArgument = (DefaultArgument) argument;
+          if (foundDefaultNames.contains(defaultArgument.getName()))
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("Cannot specify the same default argument twice: " + defaultArgument.getName(), defaultArgument.getLexicalPhrase()));
+          }
+          foundDefaultNames.add(defaultArgument.getName());
+          try
+          {
+            resolve(defaultArgument.getExpression(), block, enclosingDefinition, compilationUnit, inStaticContext, inImmutableContext, enclosingProperty);
+            TypeChecker.checkTypes(defaultArgument.getExpression(), enclosingDefinition, inStaticContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
         else
@@ -2556,7 +2624,7 @@ public class Resolver
         throw coalescedException;
       }
 
-      Expression functionExpression = expr.getFunctionExpression();
+      Expression functionExpression = functionCallExpression.getFunctionExpression();
 
       // before resolving the functionExpression, add hints for any FieldAccessExpressions or VariableExpressions that are directly inside it
       Expression subExpression = functionExpression;
@@ -2608,11 +2676,11 @@ public class Resolver
             if (variableExpression.getResolvedMemberReference() instanceof MethodReference) // "null instanceof Something" is always false, so we don't care if there isn't a resolvedMemberReference
             {
               // the base resolved to a Method, so just resolve this FunctionCallExpression to the same Method
-              expr.setResolvedMethodReference((MethodReference) variableExpression.getResolvedMemberReference());
+              functionCallExpression.setResolvedMethodReference((MethodReference) variableExpression.getResolvedMemberReference());
               if (variableExpression instanceof SuperVariableExpression)
               {
                 // this function call is of the form 'super.method()', so make it non-virtual
-                expr.setResolvedIsVirtual(false);
+                functionCallExpression.setResolvedIsVirtual(false);
               }
               return;
             }
@@ -2624,13 +2692,13 @@ public class Resolver
             if (resolvedMemberReference instanceof MethodReference)
             {
               // the base resolved to a Method, so just resolve this FunctionCallExpression to the same Method
-              expr.setResolvedMethodReference((MethodReference) resolvedMemberReference);
-              expr.setResolvedBaseExpression(fieldAccessExpression.getBaseExpression()); // this will be null for static field accesses
-              expr.setResolvedNullTraversal(fieldAccessExpression.isNullTraversing());
+              functionCallExpression.setResolvedMethodReference((MethodReference) resolvedMemberReference);
+              functionCallExpression.setResolvedBaseExpression(fieldAccessExpression.getBaseExpression()); // this will be null for static field accesses
+              functionCallExpression.setResolvedNullTraversal(fieldAccessExpression.isNullTraversing());
               return;
             }
           }
-          expr.setResolvedBaseExpression(functionExpression);
+          functionCallExpression.setResolvedBaseExpression(functionExpression);
           return;
         }
         throw new ConceptualException("Cannot call a non-function-typed value", functionExpression.getLexicalPhrase());
@@ -2647,9 +2715,8 @@ public class Resolver
         functionExpression = ((BracketedExpression) functionExpression).getExpression();
       }
 
-      {} // TODO: handle default arguments here
-      Map<Type[], MethodReference> paramTypeLists = new LinkedHashMap<Type[], MethodReference>();
-      Map<Type[], MethodReference> hintedParamLists = new LinkedHashMap<Type[], MethodReference>();
+      Set<MethodReference> possibleMethodReferences = new LinkedHashSet<MethodReference>();
+      Set<MethodReference> hintedMethodReferences = new LinkedHashSet<MethodReference>();
       Map<MethodReference, Expression> methodBaseExpressions = new HashMap<MethodReference, Expression>();
       boolean isSuperAccess = false;
       if (functionExpression instanceof VariableExpression)
@@ -2668,11 +2735,10 @@ public class Resolver
             if (m instanceof MethodReference)
             {
               MethodReference methodReference = (MethodReference) m;
-              Type[] parameterTypes = methodReference.getParameterTypes();
-              paramTypeLists.put(parameterTypes, methodReference);
+              possibleMethodReferences.add(methodReference);
               if (hintedMemberSet.contains(methodReference))
               {
-                hintedParamLists.put(parameterTypes, methodReference);
+                hintedMethodReferences.add(methodReference);
               }
               // leave methodBaseExpressions with a null value for this method, as we have no base expression
             }
@@ -2682,7 +2748,7 @@ public class Resolver
       else if (functionExpression instanceof FieldAccessExpression)
       {
         FieldAccessExpression fieldAccessExpression = (FieldAccessExpression) functionExpression;
-        expr.setResolvedNullTraversal(fieldAccessExpression.isNullTraversing());
+        functionCallExpression.setResolvedNullTraversal(fieldAccessExpression.isNullTraversing());
 
         try
         {
@@ -2721,10 +2787,10 @@ public class Resolver
             if (member instanceof MethodReference && ((MethodReference) member).getReferencedMember().isStatic() == baseIsStatic)
             {
               MethodReference methodReference = (MethodReference) member;
-              paramTypeLists.put(methodReference.getParameterTypes(), methodReference);
+              possibleMethodReferences.add(methodReference);
               if (hintedMemberSet.contains(methodReference))
               {
-                hintedParamLists.put(methodReference.getParameterTypes(), methodReference);
+                hintedMethodReferences.add(methodReference);
               }
               methodBaseExpressions.put(methodReference, baseExpression);
             }
@@ -2741,65 +2807,65 @@ public class Resolver
       }
 
       // filter out parameter lists which are not assign-compatible with the arguments
-      filterParameterLists(hintedParamLists.entrySet(), expr.getArguments(), false, false);
+      filterParameterLists(hintedMethodReferences, arguments, false, false);
       // if there are multiple parameter lists, try to narrow it down to one that is equivalent to the argument list
-      if (hintedParamLists.size() > 1)
+      if (hintedMethodReferences.size() > 1)
       {
         // first, try filtering for argument type equivalence, but ignoring nullability
-        Map<Type[], MethodReference> equivalenceFilteredHintedParamLists = new LinkedHashMap<Type[], MethodReference>(hintedParamLists);
-        filterParameterLists(equivalenceFilteredHintedParamLists.entrySet(), expr.getArguments(), true, true);
+        Set<MethodReference> equivalenceFilteredHintedParamLists = new LinkedHashSet<MethodReference>(hintedMethodReferences);
+        filterParameterLists(equivalenceFilteredHintedParamLists, arguments, true, true);
 
         if (!equivalenceFilteredHintedParamLists.isEmpty())
         {
-          hintedParamLists = equivalenceFilteredHintedParamLists;
-          if (hintedParamLists.size() > 1)
+          hintedMethodReferences = equivalenceFilteredHintedParamLists;
+          if (hintedMethodReferences.size() > 1)
           {
             // the equivalence filter was not enough, so try a nullability filter as well
-            Map<Type[], MethodReference> nullabilityFilteredHintedParamLists = new LinkedHashMap<Type[], MethodReference>(hintedParamLists);
-            filterParameterLists(nullabilityFilteredHintedParamLists.entrySet(), expr.getArguments(), true, false);
+            Set<MethodReference> nullabilityFilteredHintedParamLists = new LinkedHashSet<MethodReference>(hintedMethodReferences);
+            filterParameterLists(nullabilityFilteredHintedParamLists, arguments, true, false);
 
             if (!nullabilityFilteredHintedParamLists.isEmpty())
             {
-              hintedParamLists = nullabilityFilteredHintedParamLists;
+              hintedMethodReferences = nullabilityFilteredHintedParamLists;
             }
           }
         }
       }
-      if (hintedParamLists.size() == 1)
+      if (hintedMethodReferences.size() == 1)
       {
-        paramTypeLists = hintedParamLists;
+        possibleMethodReferences = hintedMethodReferences;
       }
       else
       {
         // try the same thing without using hintedParamLists
-        filterParameterLists(paramTypeLists.entrySet(), expr.getArguments(), false, false);
-        if (paramTypeLists.size() > 1)
+        filterParameterLists(possibleMethodReferences, arguments, false, false);
+        if (possibleMethodReferences.size() > 1)
         {
-          Map<Type[], MethodReference> equivalenceFilteredParamTypeLists = new LinkedHashMap<Type[], MethodReference>(paramTypeLists);
-          filterParameterLists(equivalenceFilteredParamTypeLists.entrySet(), expr.getArguments(), true, true);
+          Set<MethodReference> equivalenceFilteredParamTypeLists = new LinkedHashSet<MethodReference>(possibleMethodReferences);
+          filterParameterLists(equivalenceFilteredParamTypeLists, arguments, true, true);
 
           if (!equivalenceFilteredParamTypeLists.isEmpty())
           {
-            paramTypeLists = equivalenceFilteredParamTypeLists;
-            if (paramTypeLists.size() > 1)
+            possibleMethodReferences = equivalenceFilteredParamTypeLists;
+            if (possibleMethodReferences.size() > 1)
             {
-              Map<Type[], MethodReference> nullabilityFilteredParamTypeLists = new LinkedHashMap<Type[], MethodReference>(paramTypeLists);
-              filterParameterLists(nullabilityFilteredParamTypeLists.entrySet(), expr.getArguments(), true, false);
+              Set<MethodReference> nullabilityFilteredParamTypeLists = new LinkedHashSet<MethodReference>(possibleMethodReferences);
+              filterParameterLists(nullabilityFilteredParamTypeLists, arguments, true, false);
 
               if (!nullabilityFilteredParamTypeLists.isEmpty())
               {
-                paramTypeLists = nullabilityFilteredParamTypeLists;
+                possibleMethodReferences = nullabilityFilteredParamTypeLists;
               }
             }
           }
         }
       }
 
-      if (paramTypeLists.size() > 1)
+      if (possibleMethodReferences.size() > 1)
       {
-        throw new ConceptualException("Ambiguous method call, there are at least two applicable methods which take these arguments", expr.getLexicalPhrase());
+        throw new ConceptualException("Ambiguous method call, there are at least two applicable methods which take these arguments", functionCallExpression.getLexicalPhrase());
       }
-      if (paramTypeLists.isEmpty())
+      if (possibleMethodReferences.isEmpty())
       {
         // we didn't find anything, so rethrow the exception from earlier
         if (cachedException instanceof NameNotResolvedException)
@@ -2809,14 +2875,14 @@ public class Resolver
         throw (ConceptualException) cachedException;
       }
 
-      Entry<Type[], MethodReference> entry = paramTypeLists.entrySet().iterator().next();
-      expr.setResolvedMethodReference(entry.getValue());
+      MethodReference resolved = possibleMethodReferences.iterator().next();
+      functionCallExpression.setResolvedMethodReference(resolved);
       // if the method call had no base expression, e.g. it was a VariableExpression being called, this will just set it to null
-      expr.setResolvedBaseExpression(methodBaseExpressions.get(entry.getValue()));
+      functionCallExpression.setResolvedBaseExpression(methodBaseExpressions.get(resolved));
       if (isSuperAccess)
       {
         // this function call is of the form 'super.method()', so make it non-virtual
-        expr.setResolvedIsVirtual(false);
+        functionCallExpression.setResolvedIsVirtual(false);
       }
     }
     else if (expression instanceof InlineIfExpression)
@@ -3188,50 +3254,117 @@ public class Resolver
   }
 
   /**
-   * Filters a set of parameter type lists based on which lists can be assigned from the specified arguments.
+   * Filters a set of constructor/method references based on which of them have parameters which can be assigned from the specified arguments.
    * If ensureEquivalent is true, then this method will also remove all parameter type lists which are not equivalent to the argument types.
    * If allowNullable is true, then the equivalency check ignores the nullability of the parameter types.
    * @param paramTypeLists - the set of parameter type lists to filter
    * @param arguments - the arguments to filter the parameter type lists based on
    * @param ensureEquivalent - true to filter out parameter type lists which do not have equivalent types to the arguments, false to just check whether they are assign-compatible
    * @param allowNullable - true to ignore the nullability of the parameter types in the equivalence check, false to check for strict equivalence
-   * @param M - the Member type for the set of entries (this is never actually used)
+   * @param M - the Member type for the set of entries
    */
-  private <M extends MemberReference<?>> void filterParameterLists(Set<Entry<Type[], M>> paramTypeLists, Argument[] arguments, boolean ensureEquivalent, boolean allowNullable)
+  private <M extends MemberReference<?>> void filterParameterLists(Set<M> paramTypeLists, Argument[] arguments, boolean ensureEquivalent, boolean allowNullable)
   {
-    {} // TODO: handle default arguments here
-    Iterator<Entry<Type[], M>> it = paramTypeLists.iterator();
+    Iterator<M> it = paramTypeLists.iterator();
     while (it.hasNext())
     {
-      Entry<Type[], M> entry = it.next();
-      Type[] parameterTypes = entry.getKey();
-      boolean typesMatch = parameterTypes.length == arguments.length;
-      if (typesMatch)
+      M entry = it.next();
+      Type[] parameterTypes;
+      DefaultParameter[] defaultParameters;
+      if (entry instanceof ConstructorReference)
       {
-        for (int i = 0; i < parameterTypes.length; i++)
+        parameterTypes = ((ConstructorReference) entry).getParameterTypes();
+        defaultParameters = ((ConstructorReference) entry).getDefaultParameters();
+      }
+      else if (entry instanceof MethodReference)
+      {
+        parameterTypes = ((MethodReference) entry).getParameterTypes();
+        defaultParameters = ((MethodReference) entry).getDefaultParameters();
+      }
+      else
+      {
+        throw new IllegalArgumentException("Unknown type of MemberReference: " + entry);
+      }
+
+      if (arguments.length < parameterTypes.length || arguments.length > parameterTypes.length + defaultParameters.length)
+      {
+        it.remove();
+        continue;
+      }
+
+      boolean typesMatch = true;
+      for (int i = 0; i < parameterTypes.length; ++i)
+      {
+        if (arguments[i] instanceof DefaultArgument)
         {
-          Type parameterType = parameterTypes[i];
-          Type argumentType;
-          if (arguments[i] instanceof NormalArgument)
-          {
-            argumentType = ((NormalArgument) arguments[i]).getExpression().getType();
-          }
-          else
-          {
-            throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
-          }
-          if (!parameterType.canAssign(argumentType))
-          {
-            typesMatch = false;
-            break;
-          }
-          if (ensureEquivalent && !(parameterType.isEquivalent(argumentType) ||
-                                    (argumentType instanceof NullType && parameterType.isNullable()) ||
-                                    (allowNullable && parameterType.isEquivalent(Type.findTypeWithNullability(argumentType, true)))))
-          {
-            typesMatch = false;
-            break;
-          }
+          // a DefaultArgument cannot match a normal parameter
+          typesMatch = false;
+          break;
+        }
+        if (!(arguments[i] instanceof NormalArgument))
+        {
+          throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+        }
+        Type argumentType = ((NormalArgument) arguments[i]).getExpression().getType();
+        Type parameterType = parameterTypes[i];
+        if (!parameterType.canAssign(argumentType))
+        {
+          typesMatch = false;
+          break;
+        }
+        if (ensureEquivalent && !(parameterType.isEquivalent(argumentType) ||
+                                  (argumentType instanceof NullType && parameterType.isNullable()) ||
+                                  (allowNullable && parameterType.isEquivalent(Type.findTypeWithNullability(argumentType, true)))))
+        {
+          typesMatch = false;
+          break;
+        }
+      }
+      if (!typesMatch)
+      {
+        it.remove();
+        continue;
+      }
+
+      Map<String, DefaultParameter> defaultsByName = new HashMap<String, DefaultParameter>();
+      for (DefaultParameter defaultParameter : defaultParameters)
+      {
+        defaultsByName.put(defaultParameter.getName(), defaultParameter);
+      }
+
+      for (int i = parameterTypes.length; i < arguments.length; ++i)
+      {
+        Argument argument = arguments[i];
+        if (argument instanceof NormalArgument)
+        {
+          // a NormalArgument cannot match a default parameter
+          typesMatch = false;
+          break;
+        }
+        if (!(argument instanceof DefaultArgument))
+        {
+          throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
+        }
+        DefaultArgument defaultArgument = (DefaultArgument) argument;
+        DefaultParameter parameter = defaultsByName.get(defaultArgument.getName());
+        if (parameter == null)
+        {
+          typesMatch = false;
+          break;
+        }
+        Type argumentType = defaultArgument.getExpression().getType();
+        Type parameterType = parameter.getType();
+        if (!parameterType.canAssign(argumentType))
+        {
+          typesMatch = false;
+          break;
+        }
+        if (ensureEquivalent && !(parameterType.isEquivalent(argumentType) ||
+                                  (argumentType instanceof NullType && parameterType.isNullable()) ||
+                                  (allowNullable && parameterType.isEquivalent(Type.findTypeWithNullability(argumentType, true)))))
+        {
+          typesMatch = false;
+          break;
         }
       }
       if (!typesMatch)
@@ -3243,7 +3376,9 @@ public class Resolver
 
   /**
    * Resolves a constructor call from the specified target type and argument list.
-   * This method runs the type checker on each of the arguments in order to determine their types, so it needs to know the enclosing TypeDefinition and whether or not we are in a static context.
+   * This method runs the type checker on each of the arguments in order to determine their types,
+   * so the arguments must already have been resolved, and the enclosing TypeDefinition and
+   * whether or not we are in a static context must be passed as parameters to this method.
    * @param creationType - the type which contains the constructor being called
    * @param arguments - the arguments being passed to the constructor
    * @param callerLexicalPhrase - the LexicalPhrase of the caller, to be used in any errors generated
@@ -3254,13 +3389,15 @@ public class Resolver
    */
   private ConstructorReference resolveConstructor(final NamedType creationType, Argument[] arguments, LexicalPhrase callerLexicalPhrase, TypeDefinition enclosingDefinition, boolean inStaticContext) throws ConceptualException
   {
-    {} // TODO: add support for default arguments, and match them up to DefaultParameters (within filterParameterLists())
-    Type[] argumentTypes = new Type[arguments.length];
     for (int i = 0; i < arguments.length; ++i)
     {
       if (arguments[i] instanceof NormalArgument)
       {
-        argumentTypes[i] = TypeChecker.checkTypes(((NormalArgument) arguments[i]).getExpression(), enclosingDefinition, inStaticContext);
+        TypeChecker.checkTypes(((NormalArgument) arguments[i]).getExpression(), enclosingDefinition, inStaticContext);
+      }
+      else if (arguments[i] instanceof DefaultArgument)
+      {
+        TypeChecker.checkTypes(((DefaultArgument) arguments[i]).getExpression(), enclosingDefinition, inStaticContext);
       }
       else
       {
@@ -3272,48 +3409,48 @@ public class Resolver
     TypeDefinition typeDefinition = creationType.getResolvedTypeDefinition();
     Collection<Constructor> constructors = typeDefinition.getUniqueConstructors();
     ConstructorReference[] constructorReferences = new ConstructorReference[constructors.size()];
-    Map<Type[], ConstructorReference> parameterTypeLists = new LinkedHashMap<Type[], ConstructorReference>();
+    Set<ConstructorReference> possibleConstructors = new LinkedHashSet<ConstructorReference>();
     int index = 0;
     for (Constructor constructor : constructors)
     {
       constructorReferences[index] = new ConstructorReference(constructor, genericTypeSpecialiser);
-      parameterTypeLists.put(constructorReferences[index].getParameterTypes(), constructorReferences[index]);
+      possibleConstructors.add(constructorReferences[index]);
       index++;
     }
 
-    filterParameterLists(parameterTypeLists.entrySet(), arguments, false, false);
+    filterParameterLists(possibleConstructors, arguments, false, false);
 
     // if there are multiple parameter lists, try to narrow it down to one that is equivalent to the argument list
-    if (parameterTypeLists.size() > 1)
+    if (possibleConstructors.size() > 1)
     {
       // first, try filtering for argument type equivalence, but ignoring nullability
-      Map<Type[], ConstructorReference> equivalenceFiltered = new LinkedHashMap<Type[], ConstructorReference>(parameterTypeLists);
-      filterParameterLists(equivalenceFiltered.entrySet(), arguments, true, true);
+      Set<ConstructorReference> equivalenceFiltered = new LinkedHashSet<ConstructorReference>(possibleConstructors);
+      filterParameterLists(equivalenceFiltered, arguments, true, true);
 
       if (!equivalenceFiltered.isEmpty())
       {
-        parameterTypeLists = equivalenceFiltered;
-        if (parameterTypeLists.size() > 1)
+        possibleConstructors = equivalenceFiltered;
+        if (possibleConstructors.size() > 1)
         {
           // the equivalence filter was not enough, so try a nullability filter as well
-          Map<Type[], ConstructorReference> nullabilityEquivalenceFiltered = new LinkedHashMap<Type[], ConstructorReference>(parameterTypeLists);
-          filterParameterLists(nullabilityEquivalenceFiltered.entrySet(), arguments, true, false);
+          Set<ConstructorReference> nullabilityEquivalenceFiltered = new LinkedHashSet<ConstructorReference>(possibleConstructors);
+          filterParameterLists(nullabilityEquivalenceFiltered, arguments, true, false);
 
           if (!nullabilityEquivalenceFiltered.isEmpty())
           {
-            parameterTypeLists = nullabilityEquivalenceFiltered;
+            possibleConstructors = nullabilityEquivalenceFiltered;
           }
         }
       }
     }
 
-    if (parameterTypeLists.size() > 1)
+    if (possibleConstructors.size() > 1)
     {
       throw new ConceptualException("Ambiguous constructor call, there are at least two applicable constructors which take these arguments", callerLexicalPhrase);
     }
-    if (!parameterTypeLists.isEmpty())
+    if (!possibleConstructors.isEmpty())
     {
-      return parameterTypeLists.entrySet().iterator().next().getValue();
+      return possibleConstructors.iterator().next();
     }
     // since we failed to resolve the constructor, pick the most relevant one so that the type checker can point out exactly why it failed to match
     ConstructorReference mostRelevantConstructorReference = null;
@@ -3322,11 +3459,44 @@ public class Resolver
     {
       // try to maximise the index of the first parameter that doesn't match
       Type[] parameterTypes = constructorReference.getParameterTypes();
-      if (parameterTypes.length == arguments.length)
+      DefaultParameter[] defaultParameters = constructorReference.getDefaultParameters();
+      if (arguments.length < parameterTypes.length || arguments.length > parameterTypes.length + defaultParameters.length)
       {
-        for (int i = 0; i < parameterTypes.length; ++i)
+        continue;
+      }
+      Map<String, DefaultParameter> defaultsByName = new HashMap<String, DefaultParameter>();
+      for (DefaultParameter defaultParameter : defaultParameters)
+      {
+        defaultsByName.put(defaultParameter.getName(), defaultParameter);
+      }
+      for (int i = 0; i < arguments.length; ++i)
+      {
+        if (i < parameterTypes.length)
         {
-          if (!parameterTypes[i].canAssign(argumentTypes[i]))
+          if (!(arguments[i] instanceof NormalArgument) ||
+              !parameterTypes[i].canAssign(((NormalArgument) arguments[i]).getExpression().getType()))
+          {
+            if (i + 1 > mostRelevantArgCount)
+            {
+              mostRelevantConstructorReference = constructorReference;
+              mostRelevantArgCount = i + 1;
+            }
+            break;
+          }
+        }
+        else
+        {
+          boolean couldWork = false;
+          if (arguments[i] instanceof DefaultArgument)
+          {
+            DefaultParameter defaultParameter = defaultsByName.get(((DefaultArgument) arguments[i]).getName());
+            if (defaultParameter != null &&
+                defaultParameter.getType().canAssign(((DefaultArgument) arguments[i]).getExpression().getType()))
+            {
+              couldWork = true;
+            }
+          }
+          if (!couldWork)
           {
             if (i + 1 > mostRelevantArgCount)
             {

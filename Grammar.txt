@@ -379,8 +379,12 @@ ExpressionList = ConditionalExpression
 
 ArgumentList = ConditionalExpression
              | QNameOrLessThanExpression
+             | Name Equals ConditionalExpression
+             | Name Equals QNameOrLessThanExpression
              | ArgumentList Comma ConditionalExpression
              | ArgumentList Comma QNameOrLessThanExpression
+             | ArgumentList Comma Name Equals ConditionalExpression
+             | ArgumentList Comma Name Equals QNameOrLessThanExpression
 
 Arguments = LParen ArgumentList RParen | LParen RParen
 

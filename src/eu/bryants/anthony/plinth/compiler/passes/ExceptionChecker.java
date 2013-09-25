@@ -46,6 +46,7 @@ import eu.bryants.anthony.plinth.ast.misc.ArrayElementAssignee;
 import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
+import eu.bryants.anthony.plinth.ast.misc.DefaultArgument;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
 import eu.bryants.anthony.plinth.ast.misc.VariableAssignee;
@@ -267,6 +268,10 @@ public class ExceptionChecker
         if (argument instanceof NormalArgument)
         {
           findUncaughtExceptions(((NormalArgument) argument).getExpression(), uncaughtExceptions);
+        }
+        else if (argument instanceof DefaultArgument)
+        {
+          findUncaughtExceptions(((DefaultArgument) argument).getExpression(), uncaughtExceptions);
         }
         else
         {
@@ -517,6 +522,10 @@ public class ExceptionChecker
         {
           findUncaughtExceptions(((NormalArgument) argument).getExpression(), uncaughtExceptions);
         }
+        else if (argument instanceof DefaultArgument)
+        {
+          findUncaughtExceptions(((DefaultArgument) argument).getExpression(), uncaughtExceptions);
+        }
         else
         {
           throw new IllegalArgumentException("Unknown type of Argument: " + argument);
@@ -552,6 +561,10 @@ public class ExceptionChecker
         if (argument instanceof NormalArgument)
         {
           findUncaughtExceptions(((NormalArgument) argument).getExpression(), uncaughtExceptions);
+        }
+        else if (argument instanceof DefaultArgument)
+        {
+          findUncaughtExceptions(((DefaultArgument) argument).getExpression(), uncaughtExceptions);
         }
         else
         {

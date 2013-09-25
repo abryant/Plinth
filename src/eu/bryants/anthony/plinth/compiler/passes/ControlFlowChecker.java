@@ -66,6 +66,7 @@ import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
+import eu.bryants.anthony.plinth.ast.misc.DefaultArgument;
 import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
@@ -1756,6 +1757,17 @@ public class ControlFlowChecker
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
+        else if (argument instanceof DefaultArgument)
+        {
+          try
+          {
+            checkControlFlow(((DefaultArgument) argument).getExpression(), enclosingTypeDefinition, state.variables.initialised, state.variables.initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
         else
         {
           throw new IllegalArgumentException("Unknown type of Argument: " + argument);
@@ -3235,6 +3247,17 @@ public class ControlFlowChecker
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
+        else if (argument instanceof DefaultArgument)
+        {
+          try
+          {
+            checkControlFlow(((DefaultArgument) argument).getExpression(), enclosingTypeDefinition, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
         else
         {
           throw new IllegalArgumentException("Unknown type of Argument: " + argument);
@@ -3425,6 +3448,17 @@ public class ControlFlowChecker
           try
           {
             checkControlFlow(((NormalArgument) argument).getExpression(), enclosingTypeDefinition, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+        else if (argument instanceof DefaultArgument)
+        {
+          try
+          {
+            checkControlFlow(((DefaultArgument) argument).getExpression(), enclosingTypeDefinition, initialisedVariables, initialiserState, inConstructor, inSelfishContext, inStaticContext, inImmutableContext);
           }
           catch (ConceptualException e)
           {

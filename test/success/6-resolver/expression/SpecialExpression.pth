@@ -9,6 +9,13 @@ class Test
   property uint prop;
   static property uint staticProp;
 
+  create(?uint x, ?string a = "")
+  {
+  }
+  create(?string s)
+  {
+  }
+
   void alpha(uint x)
   {
   }
@@ -38,6 +45,20 @@ class Test
   {
   }
 
+  void foxtrot(uint x, string a = "", string b = "")
+  {
+  }
+  static void foxtrot(uint x, string a = "", string b = "")
+  {
+  }
+
+  void golf(uint x, string a = "")
+  {
+  }
+  void golf(uint x, ?string a = null)
+  {
+  }
+
   void foo(Test t)
   {
     // field access
@@ -53,6 +74,12 @@ class Test
     _ = cast<{uint -> void}> Test::delta;
     _ = t.echo;
     _ = Test::echo;
+
+    // creation
+    new Test(1);
+    new Test("");
+    new Test(5, a = null);
+    new Test(5, a = "");
 
     // function call
     uint x = 0;
@@ -76,6 +103,21 @@ class Test
     t.echo(x);
     nt?.echo(x);
     Test::echo(x);
+    t.foxtrot(1, b = "b", a = "a");
+    nt?.foxtrot(1, b = "b", a = "a");
+    Test::foxtrot(1, b = "b", a = "a");
+    t.foxtrot(1);
+    nt?.foxtrot(1);
+    Test::foxtrot(1);
+    t.foxtrot(1, a = "a");
+    nt?.foxtrot(1, a = "a");
+    Test::foxtrot(1, a = "a");
+    t.foxtrot(1, b = "b");
+    nt?.foxtrot(1, b = "b");
+    Test::foxtrot(1, b = "b");
+    golf(1, a = null);
+    (cast<{uint, string a=... -> void}> golf)(2);
+    (cast<{uint, ?string a=... -> void}> t.golf)(2, a = "");
 
     // variable access
     _ = field;

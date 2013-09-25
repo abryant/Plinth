@@ -1,28 +1,48 @@
 // Plinth Test
-// Compiler: SpecialExpression.pth: 25:13: Cannot create an instance of a type parameter
-// Compiler: SpecialExpression.pth: 26:9-23: Cannot access the array length member statically
-// Compiler: SpecialExpression.pth: 27:9-20: No such static member "alpha" for type Test
-// Compiler: SpecialExpression.pth: 28:9-20: No such static member "bravo" for type Test
-// Compiler: SpecialExpression.pth: 29:9-21: No such non-static member "charlie" for type Test<T>
-// Compiler: SpecialExpression.pth: 30:9-19: No such non-static member "delta" for type Test<T>
-// Compiler: SpecialExpression.pth: 31:9-18: Multiple non-static members have the name 'echo'
-// Compiler: SpecialExpression.pth: 32:9-22: Multiple static members have the name 'foxtrot'
-// Compiler: SpecialExpression.pth: 33:9-11: Cannot call a non-function-typed value
-// Compiler: SpecialExpression.pth: 34:9-19: Ambiguous method call, there are at least two applicable methods which take these arguments
-// Compiler: SpecialExpression.pth: 35:9-13: Multiple members have the name 'echo'
-// Compiler: SpecialExpression.pth: 36:9-16: Multiple members have the name 'foxtrot'
-// Compiler: SpecialExpression.pth: 37:9-13: Unable to resolve "golf"
-// Compiler: SpecialExpression.pth: 38:9-20: Unable to resolve "super.hotel"
+// Compiler: SpecialExpression.pth: 41:13: Cannot create an instance of a type parameter
+// Compiler: SpecialExpression.pth: 42:33-35: A normal argument cannot come after a default argument
+// Compiler: SpecialExpression.pth: 43:37-45: Cannot specify the same default argument twice: a
+// Compiler: SpecialExpression.pth: 44:9-31: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
+// Compiler: SpecialExpression.pth: 45:9-18: Cannot create 'Foo' - it has no constructors
+// Compiler: SpecialExpression.pth: 46:9-23: Cannot access the array length member statically
+// Compiler: SpecialExpression.pth: 47:9-20: No such static member "alpha" for type Test
+// Compiler: SpecialExpression.pth: 48:9-20: No such static member "bravo" for type Test
+// Compiler: SpecialExpression.pth: 49:9-21: No such non-static member "charlie" for type Test<T>
+// Compiler: SpecialExpression.pth: 50:9-19: No such non-static member "delta" for type Test<T>
+// Compiler: SpecialExpression.pth: 51:9-18: Multiple non-static members have the name 'echo'
+// Compiler: SpecialExpression.pth: 52:9-22: Multiple static members have the name 'foxtrot'
+// Compiler: SpecialExpression.pth: 53:9-11: Cannot call a non-function-typed value
+// Compiler: SpecialExpression.pth: 54:9-19: Ambiguous method call, there are at least two applicable methods which take these arguments
+// Compiler: SpecialExpression.pth: 55:9-13: Multiple members have the name 'echo'
+// Compiler: SpecialExpression.pth: 56:9-16: Multiple members have the name 'foxtrot'
+// Compiler: SpecialExpression.pth: 57:9-13: Unable to resolve "golf"
+// Compiler: SpecialExpression.pth: 58:9-20: Unable to resolve "super.hotel"
+// Compiler: SpecialExpression.pth: 59:25: A normal argument cannot come after a default argument
+// Compiler: SpecialExpression.pth: 60:28-36: Cannot specify the same default argument twice: a
+// Compiler: SpecialExpression.pth: 61:9-33: Ambiguous method call, there are at least two applicable methods which take these arguments
+// Compiler: SpecialExpression.pth: 62:9-14: Multiple members have the name 'india'
 
 class Test<T>
 {
   uint bravo;
   static uint delta;
 
+  create(?uint x, ?string a = "")
+  {
+  }
+
+  create(?string s)
+  {
+  }
+
   void foo()
   {
     uint x;
     x = new T();
+    x = new Test<uint>(a = "a", "");
+    x = new Test<ulong>("", a = "", a = null);
+    x = new Test<string>(null);
+    x = new Foo();
     x = []uint::length;
     x = Test::alpha;
     x = Test::bravo;
@@ -36,6 +56,10 @@ class Test<T>
     x = foxtrot;
     x = golf;
     x = super.hotel;
+    x = india(a = null, 1);
+    x = india(1, a = null, a = null);
+    x = india(1, b = "", a = "");
+    x = india(1, a = null, c = "");
   }
 
   void echo(?string s)
@@ -51,5 +75,17 @@ class Test<T>
   static void foxtrot(uint x)
   {
   }
+
+  void india(uint x, string a = "a", string b = "b")
+  {
+  }
+
+  void india(uint x, ?string a = null, string b = "b")
+  {
+  }
+}
+
+class Foo
+{
 }
 

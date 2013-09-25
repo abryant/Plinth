@@ -7,17 +7,33 @@ class Test
   setter(@foo)
   create(@foo);
 
-  create(@foo);
-
-  void setFoo(@foo)
+  selfish create(@foo, uint x = 1, string s = "test: ")
   {
-    foo += "!";
+    for uint i in x
+    {
+      foo += s;
+    }
+  }
+
+  selfish create()
+  {
+    this("created. ", x = 0);
+  }
+
+  void setFoo(string s = "test", uint x = 1)
+  {
+    for uint i in x
+    {
+      foo += s;
+    }
   }
 
   static uint main([]string args) throws Error
   {
-    Test t = new Test("hello, world");
-    t.setFoo("hi");
+    Test t = new Test();
+    {string s=..., uint x=... -> void} func = t.setFoo;
+    func(x = 2, s = "yes ");
+    func(s = "done");
     stdout::println(t.foo);
 
     List<string> list = new ArrayList<string>();

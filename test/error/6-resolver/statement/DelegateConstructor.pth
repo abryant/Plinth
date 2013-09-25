@@ -1,13 +1,17 @@
 // Plinth Test
-// Compiler: DelegateConstructor.pth: 16:5-13: Cannot call a super(...) constructor from a compound type
-// Compiler: DelegateConstructor.pth: 24:5-13: A super(...) constructor can only be called from inside a class definition
-// Compiler: DelegateConstructor.pth: 53:5-13: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
-// Compiler: DelegateConstructor.pth: 55:5-22: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
-// Compiler: DelegateConstructor.pth: 57:5-16: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
-// Compiler: DelegateConstructor.pth: 65:5-14: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
-// Compiler: DelegateConstructor.pth: 66:5-23: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
-// Compiler: DelegateConstructor.pth: 67:5-17: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
-// Compiler: DelegateConstructor.pth: 78:5-13: Cannot create 'Echo' - it has no constructors
+// Compiler: DelegateConstructor.pth: 20:5-13: Cannot call a super(...) constructor from a compound type
+// Compiler: DelegateConstructor.pth: 28:5-13: A super(...) constructor can only be called from inside a class definition
+// Compiler: DelegateConstructor.pth: 60:5-13: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
+// Compiler: DelegateConstructor.pth: 62:5-22: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
+// Compiler: DelegateConstructor.pth: 64:5-16: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
+// Compiler: DelegateConstructor.pth: 66:20-35: A normal argument cannot come after a default argument
+// Compiler: DelegateConstructor.pth: 67:44-52: Cannot specify the same default argument twice: o
+// Compiler: DelegateConstructor.pth: 75:5-14: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
+// Compiler: DelegateConstructor.pth: 76:5-23: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
+// Compiler: DelegateConstructor.pth: 77:5-17: Ambiguous constructor call, there are at least two applicable constructors which take these arguments
+// Compiler: DelegateConstructor.pth: 79:21-35: A normal argument cannot come after a default argument
+// Compiler: DelegateConstructor.pth: 80:45-53: Cannot specify the same default argument twice: o
+// Compiler: DelegateConstructor.pth: 91:5-13: Cannot create 'Echo' - it has no constructors
 
 compound alpha
 {
@@ -46,6 +50,9 @@ class Charlie
   create(?Throwable t)
   {
   }
+  create([]string args, ?object o = null)
+  {
+  }
 
   create()
   {
@@ -55,6 +62,9 @@ class Charlie
     this("hi", "hi");
     // test two completely equivalent argument lists (null acts as if it is equivalent to both stdout and Throwable here)
     this(null);
+
+    this(o = null, new []string {});
+    this(new []string{}, o = new object(), o = null);
   }
 }
 
@@ -65,6 +75,9 @@ class Delta extends Charlie
     super(2);
     super("hi", "hi");
     super(null);
+
+    super(o = null, new []string{});
+    super(new []string{}, o = new object(), o = null);
   }
 }
 

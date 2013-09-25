@@ -3,10 +3,12 @@ package eu.bryants.anthony.plinth.compiler.passes;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import eu.bryants.anthony.plinth.ast.ClassDefinition;
@@ -68,6 +70,7 @@ import eu.bryants.anthony.plinth.ast.misc.Assignee;
 import eu.bryants.anthony.plinth.ast.misc.AutoAssignParameter;
 import eu.bryants.anthony.plinth.ast.misc.BlankAssignee;
 import eu.bryants.anthony.plinth.ast.misc.CatchClause;
+import eu.bryants.anthony.plinth.ast.misc.DefaultArgument;
 import eu.bryants.anthony.plinth.ast.misc.DefaultParameter;
 import eu.bryants.anthony.plinth.ast.misc.FieldAssignee;
 import eu.bryants.anthony.plinth.ast.misc.NormalArgument;
@@ -1336,35 +1339,67 @@ public class TypeChecker
       ConstructorReference constructorReference = delegateConstructorStatement.getResolvedConstructorReference();
 
       Type[] parameterTypes = constructorReference == null ? new Type[0] : constructorReference.getParameterTypes();
+      DefaultParameter[] defaultParameters = constructorReference == null ? new DefaultParameter[0] : constructorReference.getDefaultParameters();
       Argument[] arguments = delegateConstructorStatement.getArguments();
-      {} // TODO: add support for default arguments here
-      if (arguments.length != parameterTypes.length)
+
+      // since the resolver has already run over this, we know that:
+      // * all of the normal arguments come before any of the default arguments
+      // * no two default arguments have the same name
+      Map<String, DefaultArgument> defaultArgumentsByName = new HashMap<String, DefaultArgument>();
+      int numNormalArguments = 0;
+      for (int i = 0; i < arguments.length; ++i)
+      {
+        if (arguments[i] instanceof DefaultArgument)
+        {
+          DefaultArgument defaultArgument = (DefaultArgument) arguments[i];
+          defaultArgumentsByName.put(defaultArgument.getName(), defaultArgument);
+        }
+        else
+        {
+          numNormalArguments = i + 1;
+        }
+      }
+      int numDefaultArgs = arguments.length - numNormalArguments;
+      if (numNormalArguments != parameterTypes.length || numDefaultArgs > defaultParameters.length)
       {
         StringBuffer buffer = new StringBuffer();
         for (int i = 0; i < parameterTypes.length; i++)
         {
           buffer.append(parameterTypes[i]);
-          if (i != parameterTypes.length - 1)
+          if (i != parameterTypes.length - 1 || defaultParameters.length > 0)
+          {
+            buffer.append(", ");
+          }
+        }
+        for (int i = 0; i < defaultParameters.length; ++i)
+        {
+          buffer.append(defaultParameters[i].getType());
+          buffer.append(' ');
+          buffer.append(defaultParameters[i].getName());
+          buffer.append("=...");
+          if (i != defaultParameters.length - 1)
           {
             buffer.append(", ");
           }
         }
         String typeName = constructorReference == null ? "object" : constructorReference.getReferencedMember().getContainingTypeDefinition().getQualifiedName().toString();
-        throw new ConceptualException("The constructor '" + typeName + "(" + buffer + ")' is not defined to take " + arguments.length + " arguments", delegateConstructorStatement.getLexicalPhrase());
+        throw new ConceptualException("The constructor '" + typeName + "(" + buffer + ")' is not defined to take " +
+                                      numNormalArguments + " argument" + (numNormalArguments == 1 ? "" : "s") +
+                                      (numDefaultArgs > 0 ? " and " + numDefaultArgs + " default argument" + (numDefaultArgs == 1 ? "" : "s") : ""), delegateConstructorStatement.getLexicalPhrase());
       }
 
       CoalescedConceptualException coalescedException = null;
-      for (int i = 0; i < arguments.length; i++)
+      for (int i = 0; i < parameterTypes.length; ++i)
       {
         if (arguments[i] instanceof NormalArgument)
         {
           NormalArgument normalArgument = (NormalArgument) arguments[i];
           try
           {
-            Type type = checkTypes(normalArgument.getExpression(), containingDefinition, inStaticContext);
-            if (!parameterTypes[i].canAssign(type))
+            Type argumentType = checkTypes(normalArgument.getExpression(), containingDefinition, inStaticContext);
+            if (!parameterTypes[i].canAssign(argumentType))
             {
-              throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", normalArgument.getLexicalPhrase());
+              throw new ConceptualException("Cannot pass an argument of type '" + argumentType + "' as a parameter of type '" + parameterTypes[i] + "'", normalArgument.getLexicalPhrase());
             }
           }
           catch (ConceptualException e)
@@ -1372,11 +1407,69 @@ public class TypeChecker
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
+        else if (arguments[i] instanceof DefaultArgument)
+        {
+          throw new IllegalStateException("Found a DefaultArgument where we had already determined there wasn't one!");
+        }
         else
         {
           throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
         }
       }
+
+      for (DefaultParameter defaultParameter : defaultParameters)
+      {
+        DefaultArgument defaultArgument = defaultArgumentsByName.remove(defaultParameter.getName());
+        if (defaultArgument != null)
+        {
+          // this default parameter has been specified, so check the types
+          try
+          {
+            Type argumentType = checkTypes(defaultArgument.getExpression(), containingDefinition, inStaticContext);
+            if (!defaultParameter.getType().canAssign(argumentType))
+            {
+              throw new ConceptualException("Cannot pass an argument of type '" + argumentType + "' as a parameter of type '" + defaultParameter.getType() + "'", defaultArgument.getLexicalPhrase());
+            }
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+      }
+      // if the defaultArgumentsByName map is not empty now, then some arguments were specified that don't correspond to parameters
+      String typeName = null;
+      StringBuffer parametersBuffer = null;
+      if (!defaultArgumentsByName.isEmpty())
+      {
+        typeName = constructorReference == null ? "object" : constructorReference.getReferencedMember().getContainingTypeDefinition().getQualifiedName().toString();
+        parametersBuffer = new StringBuffer();
+        for (int i = 0; i < parameterTypes.length; i++)
+        {
+          parametersBuffer.append(parameterTypes[i]);
+          if (i != parameterTypes.length - 1 || defaultParameters.length > 0)
+          {
+            parametersBuffer.append(", ");
+          }
+        }
+        for (int i = 0; i < defaultParameters.length; ++i)
+        {
+          parametersBuffer.append(defaultParameters[i].getType());
+          parametersBuffer.append(' ');
+          parametersBuffer.append(defaultParameters[i].getName());
+          parametersBuffer.append("=...");
+          if (i != defaultParameters.length - 1)
+          {
+            parametersBuffer.append(", ");
+          }
+        }
+      }
+      for (DefaultArgument unknownArgument : defaultArgumentsByName.values())
+      {
+        ConceptualException e = new ConceptualException("The constructor '" + typeName + "(" + parametersBuffer + ")' is not defined to take a default argument named '" + unknownArgument.getName() + "'", unknownArgument.getLexicalPhrase());
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+
       if (coalescedException != null)
       {
         throw coalescedException;
@@ -2380,24 +2473,58 @@ public class TypeChecker
         }
       }
       Argument[] arguments = creationExpression.getArguments();
-      {} // TODO: add support for default arguments here
+
       ConstructorReference constructorReference = creationExpression.getResolvedConstructorReference();
       Type[] parameterTypes = constructorReference.getParameterTypes();
-      if (arguments.length != parameterTypes.length)
+      DefaultParameter[] defaultParameters = constructorReference.getDefaultParameters();
+
+      // since the resolver has already run over this, we know that:
+      // * all of the normal arguments come before any of the default arguments
+      // * no two default arguments have the same name
+      Map<String, DefaultArgument> defaultArgumentsByName = new HashMap<String, DefaultArgument>();
+      int numNormalArguments = 0;
+      for (int i = 0; i < arguments.length; ++i)
+      {
+        if (arguments[i] instanceof DefaultArgument)
+        {
+          DefaultArgument defaultArgument = (DefaultArgument) arguments[i];
+          defaultArgumentsByName.put(defaultArgument.getName(), defaultArgument);
+        }
+        else
+        {
+          numNormalArguments = i + 1;
+        }
+      }
+      int numDefaultArgs = arguments.length - numNormalArguments;
+      if (numNormalArguments != parameterTypes.length || numDefaultArgs > defaultParameters.length)
       {
         StringBuffer buffer = new StringBuffer();
         for (int i = 0; i < parameterTypes.length; i++)
         {
           buffer.append(parameterTypes[i]);
-          if (i != parameterTypes.length - 1)
+          if (i != parameterTypes.length - 1 || defaultParameters.length > 0)
           {
             buffer.append(", ");
           }
         }
-        throw new ConceptualException("The constructor '" + constructorReference.getReferencedMember().getContainingTypeDefinition().getQualifiedName() + "(" + buffer + ")' is not defined to take " + arguments.length + " argument" + (arguments.length == 1 ? "" : "s"), creationExpression.getLexicalPhrase());
+        for (int i = 0; i < defaultParameters.length; ++i)
+        {
+          buffer.append(defaultParameters[i].getType());
+          buffer.append(' ');
+          buffer.append(defaultParameters[i].getName());
+          buffer.append("=...");
+          if (i != defaultParameters.length - 1)
+          {
+            buffer.append(", ");
+          }
+        }
+        throw new ConceptualException("The constructor '" + constructorReference.getReferencedMember().getContainingTypeDefinition().getQualifiedName() + "(" + buffer + ")' is not defined to take " +
+                                      numNormalArguments + " argument" + (numNormalArguments == 1 ? "" : "s") +
+                                      (numDefaultArgs > 0 ? " and " + numDefaultArgs + " default argument" + (numDefaultArgs == 1 ? "" : "s") : ""), creationExpression.getLexicalPhrase());
       }
+
       CoalescedConceptualException coalescedException = null;
-      for (int i = 0; i < arguments.length; ++i)
+      for (int i = 0; i < parameterTypes.length; ++i)
       {
         if (arguments[i] instanceof NormalArgument)
         {
@@ -2415,11 +2542,68 @@ public class TypeChecker
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
+        else if (arguments[i] instanceof DefaultArgument)
+        {
+          throw new IllegalStateException("Found a DefaultArgument where we had already determined there wasn't one!");
+        }
         else
         {
           throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
         }
       }
+
+      for (DefaultParameter defaultParameter : defaultParameters)
+      {
+        DefaultArgument defaultArgument = defaultArgumentsByName.remove(defaultParameter.getName());
+        if (defaultArgument != null)
+        {
+          // this default parameter has been specified, so check the types
+          try
+          {
+            Type argumentType = checkTypes(defaultArgument.getExpression(), containingDefinition, inStaticContext);
+            if (!defaultParameter.getType().canAssign(argumentType))
+            {
+              throw new ConceptualException("Cannot pass an argument of type '" + argumentType + "' as a parameter of type '" + defaultParameter.getType() + "'", defaultArgument.getLexicalPhrase());
+            }
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+      }
+      // if the defaultArgumentsByName map is not empty now, then some arguments were specified that don't correspond to parameters
+      StringBuffer parametersBuffer = null;
+      if (!defaultArgumentsByName.isEmpty())
+      {
+        parametersBuffer = new StringBuffer();
+        for (int i = 0; i < parameterTypes.length; i++)
+        {
+          parametersBuffer.append(parameterTypes[i]);
+          if (i != parameterTypes.length - 1 || defaultParameters.length > 0)
+          {
+            parametersBuffer.append(", ");
+          }
+        }
+        for (int i = 0; i < defaultParameters.length; ++i)
+        {
+          parametersBuffer.append(defaultParameters[i].getType());
+          parametersBuffer.append(' ');
+          parametersBuffer.append(defaultParameters[i].getName());
+          parametersBuffer.append("=...");
+          if (i != defaultParameters.length - 1)
+          {
+            parametersBuffer.append(", ");
+          }
+        }
+      }
+      for (DefaultArgument unknownArgument : defaultArgumentsByName.values())
+      {
+        ConceptualException e = new ConceptualException("The constructor '" + constructorReference.getReferencedMember().getContainingTypeDefinition().getQualifiedName() +
+                                                        "(" + parametersBuffer + ")' is not defined to take a default argument named '" + unknownArgument.getName() + "'", unknownArgument.getLexicalPhrase());
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+
       if (coalescedException != null)
       {
         throw coalescedException;
@@ -2621,7 +2805,7 @@ public class TypeChecker
       CoalescedConceptualException coalescedException = null;
       Argument[] arguments = functionCallExpression.getArguments();
       Type[] parameterTypes;
-      {} // TODO: handle default parameters properly here, once default arguments are added
+      DefaultParameter[] defaultParameters;
       String name = null;
       Type resultType;
       if (functionCallExpression.getResolvedMethodReference() != null)
@@ -2647,14 +2831,16 @@ public class TypeChecker
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
-        parameterTypes = functionCallExpression.getResolvedMethodReference().getParameterTypes();
-        resultType = functionCallExpression.getResolvedMethodReference().getReturnType();
+        MethodReference methodReference = functionCallExpression.getResolvedMethodReference();
+        parameterTypes = methodReference.getParameterTypes();
+        defaultParameters = methodReference.getDefaultParameters();
+        resultType = methodReference.getReturnType();
         if (functionCallExpression.getResolvedNullTraversal() && !(resultType instanceof VoidType))
         {
           // this is a null traversing method call, so make the result type nullable
           resultType = Type.findTypeWithNullability(resultType, true);
         }
-        name = functionCallExpression.getResolvedMethodReference().getReferencedMember().getName();
+        name = methodReference.getReferencedMember().getName();
       }
       else if (functionCallExpression.getResolvedBaseExpression() != null)
       {
@@ -2668,40 +2854,75 @@ public class TypeChecker
         {
           throw new ConceptualException("Cannot call something which is not a function type or a method", functionCallExpression.getLexicalPhrase());
         }
-        parameterTypes = ((FunctionType) baseType).getParameterTypes();
-        resultType = ((FunctionType) baseType).getReturnType();
+        FunctionType baseFunctionType = (FunctionType) baseType;
+        parameterTypes = baseFunctionType.getParameterTypes();
+        defaultParameters = baseFunctionType.getDefaultParameters();
+        resultType = baseFunctionType.getReturnType();
       }
       else
       {
         throw new IllegalArgumentException("Unresolved function call: " + functionCallExpression);
       }
 
-      if (arguments.length != parameterTypes.length)
+
+      // since the resolver has already run over this, we know that:
+      // * all of the normal arguments come before any of the default arguments
+      // * no two default arguments have the same name
+      Map<String, DefaultArgument> defaultArgumentsByName = new HashMap<String, DefaultArgument>();
+      int numNormalArguments = 0;
+      for (int i = 0; i < arguments.length; ++i)
+      {
+        if (arguments[i] instanceof DefaultArgument)
+        {
+          DefaultArgument defaultArgument = (DefaultArgument) arguments[i];
+          defaultArgumentsByName.put(defaultArgument.getName(), defaultArgument);
+        }
+        else
+        {
+          numNormalArguments = i + 1;
+        }
+      }
+      int numDefaultArgs = arguments.length - numNormalArguments;
+      if (numNormalArguments != parameterTypes.length || numDefaultArgs > defaultParameters.length)
       {
         StringBuffer buffer = new StringBuffer();
         for (int i = 0; i < parameterTypes.length; i++)
         {
           buffer.append(parameterTypes[i]);
-          if (i != parameterTypes.length - 1)
+          if (i != parameterTypes.length - 1 || defaultParameters.length > 0)
           {
             buffer.append(", ");
           }
         }
-        coalescedException = CoalescedConceptualException.coalesce(coalescedException, new ConceptualException("The function '" + (name == null ? "" : name) + "(" + buffer + ")' is not defined to take " + arguments.length + " argument" + (arguments.length == 1 ? "" : "s"), functionCallExpression.getLexicalPhrase()));
-        throw coalescedException;
+        for (int i = 0; i < defaultParameters.length; ++i)
+        {
+          buffer.append(defaultParameters[i].getType());
+          buffer.append(' ');
+          buffer.append(defaultParameters[i].getName());
+          buffer.append("=...");
+          if (i != defaultParameters.length - 1)
+          {
+            buffer.append(", ");
+          }
+        }
+
+        ConceptualException e = new ConceptualException("The function '" + (name == null ? "" : name) + "(" + buffer + ")' is not defined to take " +
+                                                        numNormalArguments + " argument" + (numNormalArguments == 1 ? "" : "s") +
+                                                        (numDefaultArgs > 0 ? " and " + numDefaultArgs + " default argument" + (numDefaultArgs == 1 ? "" : "s") : ""), functionCallExpression.getLexicalPhrase());
+        throw CoalescedConceptualException.coalesce(coalescedException, e);
       }
 
-      for (int i = 0; i < arguments.length; i++)
+      for (int i = 0; i < parameterTypes.length; ++i)
       {
         if (arguments[i] instanceof NormalArgument)
         {
           NormalArgument normalArgument = (NormalArgument) arguments[i];
           try
           {
-            Type type = checkTypes(normalArgument.getExpression(), containingDefinition, inStaticContext);
-            if (!parameterTypes[i].canAssign(type))
+            Type argumentType = checkTypes(normalArgument.getExpression(), containingDefinition, inStaticContext);
+            if (!parameterTypes[i].canAssign(argumentType))
             {
-              throw new ConceptualException("Cannot pass an argument of type '" + type + "' as a parameter of type '" + parameterTypes[i] + "'", normalArgument.getLexicalPhrase());
+              throw new ConceptualException("Cannot pass an argument of type '" + argumentType + "' as a parameter of type '" + parameterTypes[i] + "'", normalArgument.getLexicalPhrase());
             }
           }
           catch (ConceptualException e)
@@ -2709,11 +2930,67 @@ public class TypeChecker
             coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
           }
         }
+        else if (arguments[i] instanceof DefaultArgument)
+        {
+          throw new IllegalStateException("Found a DefaultArgument where we had already determined there wasn't one!");
+        }
         else
         {
           throw new IllegalArgumentException("Unknown type of Argument: " + arguments[i]);
         }
       }
+
+      for (DefaultParameter defaultParameter : defaultParameters)
+      {
+        DefaultArgument defaultArgument = defaultArgumentsByName.remove(defaultParameter.getName());
+        if (defaultArgument != null)
+        {
+          // this default parameter has been specified, so check the types
+          try
+          {
+            Type argumentType = checkTypes(defaultArgument.getExpression(), containingDefinition, inStaticContext);
+            if (!defaultParameter.getType().canAssign(argumentType))
+            {
+              throw new ConceptualException("Cannot pass an argument of type '" + argumentType + "' as a parameter of type '" + defaultParameter.getType() + "'", defaultArgument.getLexicalPhrase());
+            }
+          }
+          catch (ConceptualException e)
+          {
+            coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+          }
+        }
+      }
+      // if the defaultArgumentsByName map is not empty now, then some arguments were specified that don't correspond to parameters
+      StringBuffer parametersBuffer = null;
+      if (!defaultArgumentsByName.isEmpty())
+      {
+        parametersBuffer = new StringBuffer();
+        for (int i = 0; i < parameterTypes.length; i++)
+        {
+          parametersBuffer.append(parameterTypes[i]);
+          if (i != parameterTypes.length - 1 || defaultParameters.length > 0)
+          {
+            parametersBuffer.append(", ");
+          }
+        }
+        for (int i = 0; i < defaultParameters.length; ++i)
+        {
+          parametersBuffer.append(defaultParameters[i].getType());
+          parametersBuffer.append(' ');
+          parametersBuffer.append(defaultParameters[i].getName());
+          parametersBuffer.append("=...");
+          if (i != defaultParameters.length - 1)
+          {
+            parametersBuffer.append(", ");
+          }
+        }
+      }
+      for (DefaultArgument unknownArgument : defaultArgumentsByName.values())
+      {
+        ConceptualException e = new ConceptualException("The function '" + (name == null ? "" : name) + "(" + parametersBuffer + ")' is not defined to take a default argument named '" + unknownArgument.getName() + "'", unknownArgument.getLexicalPhrase());
+        coalescedException = CoalescedConceptualException.coalesce(coalescedException, e);
+      }
+
       if (coalescedException != null)
       {
         throw coalescedException;

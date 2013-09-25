@@ -230,7 +230,7 @@ public class RTTIHelper
       for (int i = 0; i < defaultParameters.length; ++i)
       {
         LLVMValueRef nameValue = codeGenerator.addStringConstant(defaultParameters[i].getName());
-        parameterRTTIsAndDefaultNames[i] = LLVM.LLVMConstBitCast(nameValue, LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0));
+        parameterRTTIsAndDefaultNames[parameterTypes.length + defaultParameters.length + i] = LLVM.LLVMConstBitCast(nameValue, LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0));
       }
       LLVMValueRef pointerArray = LLVM.LLVMConstArray(LLVM.LLVMPointerType(LLVM.LLVMInt8Type(), 0), C.toNativePointerArray(parameterRTTIsAndDefaultNames, false, true), parameterRTTIsAndDefaultNames.length);
       LLVMValueRef[] values = new LLVMValueRef[] {typeSearchList, sortId, nullable, immutable, returnType, numParameters, numDefaultParameters, pointerArray};
