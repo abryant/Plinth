@@ -142,7 +142,7 @@ public class MethodReference extends MemberReference<Method>
   }
 
   /**
-   * A disambiguator for method calls, which allows methods which are semantically equivalent (i.e. have the same name and types) can be easily distinguished.
+   * A disambiguator for method calls, which allows methods which are semantically equivalent (i.e. have the same name and types) to be easily distinguished.
    * @author Anthony Bryant
    */
   public class Disambiguator
