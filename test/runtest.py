@@ -192,22 +192,29 @@ def run_program(test):
 
 
   output_lines = stdout.decode('utf-8').splitlines(True)
+  output_failure = False
   if test.outLines != None:
     if len(output_lines) != len(test.outLines):
       print("Fail: " + test.filename)
       print("  Number of output lines differs (expected: " + str(len(test.outLines)) + " but got: " + str(len(output_lines)) + ")")
-      shutil.rmtree(work_dir)
-      sys.exit(3)
-    for i in range(len(output_lines)):
-      if output_lines[i] != test.outLines[i]:
-        print("Fail: " + test.filename)
-        print("  Output line differs. Expected:")
-        print("    " + test.outLines[i], end="")
-        print("  But got:")
-        print("    " + output_lines[i], end="")
-        shutil.rmtree(work_dir)
-        sys.exit(3)
+      output_failure = True
+    else:
+      for i in range(len(output_lines)):
+        if output_lines[i] != test.outLines[i]:
+          print("Fail: " + test.filename)
+          print("  Output line {} differs. Expected:".format(i+1))
+          print("    " + test.outLines[i], end="")
+          print("  But got:")
+          print("    " + output_lines[i], end="")
+          output_failure = True
+          break
 
+  if output_failure:
+    print("  Actual program output was:")
+    for i in range(len(output_lines)):
+      print("  > " + output_lines[i], end="")
+    shutil.rmtree(work_dir)
+    sys.exit(3)
 
 if __name__ == "__main__":
   filename = sys.argv[1]
