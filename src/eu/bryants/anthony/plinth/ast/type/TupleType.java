@@ -178,6 +178,11 @@ public class TupleType extends Type
       Type notNullThis = new TupleType(false, subTypes, null);
       memberSet.add(new MethodReference(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING), GenericTypeSpecialiser.IDENTITY_SPECIALISER));
     }
+    if (name.equals(BuiltinMethodType.EQUALS.methodName))
+    {
+      Type notNullThis = new TupleType(false, subTypes, null);
+      memberSet.add(new MethodReference(new BuiltinMethod(notNullThis, BuiltinMethodType.EQUALS), GenericTypeSpecialiser.IDENTITY_SPECIALISER));
+    }
     return memberSet;
   }
 

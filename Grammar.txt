@@ -317,6 +317,10 @@ EqualityExpression = ExpressionNotLessThanQName
                    | ExpressionNotLessThanQName DoubleEquals          QNameOrLessThanExpression  | QNameOrLessThanExpression DoubleEquals          QNameOrLessThanExpression
                    | ExpressionNotLessThanQName ExclamationMarkEquals ExpressionNotLessThanQName | QNameOrLessThanExpression ExclamationMarkEquals ExpressionNotLessThanQName
                    | ExpressionNotLessThanQName ExclamationMarkEquals QNameOrLessThanExpression  | QNameOrLessThanExpression ExclamationMarkEquals QNameOrLessThanExpression
+                   | ExpressionNotLessThanQName TripleEquals                ExpressionNotLessThanQName | QNameOrLessThanExpression TripleEquals                ExpressionNotLessThanQName
+                   | ExpressionNotLessThanQName TripleEquals                QNameOrLessThanExpression  | QNameOrLessThanExpression TripleEquals                QNameOrLessThanExpression
+                   | ExpressionNotLessThanQName ExclamationMarkDoubleEquals ExpressionNotLessThanQName | QNameOrLessThanExpression ExclamationMarkDoubleEquals ExpressionNotLessThanQName
+                   | ExpressionNotLessThanQName ExclamationMarkDoubleEquals QNameOrLessThanExpression  | QNameOrLessThanExpression ExclamationMarkDoubleEquals QNameOrLessThanExpression
 QNameOrLessThanExpression = QNameExpression | ComparisonExpressionLessThanQName
 ComparisonExpressionLessThanQName = QName LAngle QName
                                   | QName LAngle NestedQNameList

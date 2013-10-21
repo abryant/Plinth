@@ -172,6 +172,11 @@ public class ArrayType extends Type
       ArrayType notNullThis = new ArrayType(false, explicitlyImmutable, contextuallyImmutable, baseType, null);
       set.add(new MethodReference(new BuiltinMethod(notNullThis, BuiltinMethodType.TO_STRING), GenericTypeSpecialiser.IDENTITY_SPECIALISER));
     }
+    if (name.equals(BuiltinMethodType.EQUALS.methodName))
+    {
+      ArrayType notNullThis = new ArrayType(false, explicitlyImmutable, contextuallyImmutable, baseType, null);
+      set.add(new MethodReference(new BuiltinMethod(notNullThis, BuiltinMethodType.EQUALS), GenericTypeSpecialiser.IDENTITY_SPECIALISER));
+    }
     return set;
   }
 

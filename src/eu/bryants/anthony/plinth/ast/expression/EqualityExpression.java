@@ -17,6 +17,8 @@ public class EqualityExpression extends Expression
   {
     EQUAL("=="),
     NOT_EQUAL("!="),
+    IDENTICALLY_EQUAL("==="),
+    NOT_IDENTICALLY_EQUAL("!=="),
     ;
 
     private String stringRepresentation;

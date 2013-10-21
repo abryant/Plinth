@@ -163,6 +163,7 @@ public enum ParseType
   EQUALS,
   EXCLAIMATION_MARK,
   EXCLAIMATION_MARK_EQUALS,
+  EXCLAIMATION_MARK_DOUBLE_EQUALS,
   FORWARD_SLASH,
   FORWARD_SLASH_EQUALS,
   HASH,
@@ -191,6 +192,7 @@ public enum ParseType
   STAR,
   STAR_EQUALS,
   TILDE,
+  TRIPLE_EQUALS,
   UNDERSCORE,
 
   // keywords (values for these should all be LexicalPhrase)

@@ -1047,12 +1047,12 @@ public class RTTIHelper
    * @param builder - the LLVMBuilderRef to build the check with
    * @param rttiPointer - the pointer to the RTTI to check
    * @param checkType - the Type to check against
-   * @param checkAccessor - the TypeParameterAccessor to look up the type parameters of checkType in
+   * @param checkAccessor - the TypeParameterAccessor to look up the type parameters of checkType in, or null if the type parameters should not be mapped
    * @param ignoreTypeModifiers - false for the top-level type modifiers (nullability and immutability) should be checked, true if they should only be checked on nested types
    * @param looselyMatchWildcards - true if wildcard types should be matched loosely, false otherwise
    * @return a LLVMValueRef representing an i1 (boolean), which will be true iff the RTTI pointer represents the checkType
    */
-  private LLVMValueRef buildTypeInfoCheck(LLVMBuilderRef builder, LLVMValueRef rttiPointer, Type checkType, TypeParameterAccessor checkAccessor, boolean ignoreTypeModifiers, boolean looselyMatchWildcards)
+  LLVMValueRef buildTypeInfoCheck(LLVMBuilderRef builder, LLVMValueRef rttiPointer, Type checkType, TypeParameterAccessor checkAccessor, boolean ignoreTypeModifiers, boolean looselyMatchWildcards)
   {
     if ((checkType instanceof NamedType && ((NamedType) checkType).getResolvedTypeParameter() != null) ||
         checkType instanceof WildcardType)
@@ -1060,8 +1060,8 @@ public class RTTIHelper
       // call plinth_check_type_matches
       LLVMValueRef checkTypeMatchesFunction = getCheckTypeMatchesFunction();
       LLVMValueRef checkRTTI = getRTTI(checkType);
-      LLVMValueRef checkTypeArgumentMapper = checkAccessor.getTypeArgumentMapper();
       LLVMValueRef nullMapper = LLVM.LLVMConstNull(getGenericTypeArgumentMapperType());
+      LLVMValueRef checkTypeArgumentMapper = checkAccessor == null ? nullMapper : checkAccessor.getTypeArgumentMapper();
       LLVMValueRef ignoreTypeModifiersValue = LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), ignoreTypeModifiers ? 1 : 0, false);
       LLVMValueRef looselyMatchWildcardsValue = LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), looselyMatchWildcards ? 1 : 0, false);
 

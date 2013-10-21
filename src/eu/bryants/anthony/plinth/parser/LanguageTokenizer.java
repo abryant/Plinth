@@ -857,6 +857,11 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       int secondChar = reader.read(1);
       if (secondChar == '=')
       {
+        int thirdChar = reader.read(2);
+        if (thirdChar == '=')
+        {
+          return makeSymbolToken(ParseType.TRIPLE_EQUALS, 3);
+        }
         return makeSymbolToken(ParseType.DOUBLE_EQUALS, 2);
       }
       return makeSymbolToken(ParseType.EQUALS, 1);
@@ -866,6 +871,11 @@ public class LanguageTokenizer extends Tokenizer<ParseType>
       int secondChar = reader.read(1);
       if (secondChar == '=')
       {
+        int thirdChar = reader.read(2);
+        if (thirdChar == '=')
+        {
+          return makeSymbolToken(ParseType.EXCLAIMATION_MARK_DOUBLE_EQUALS, 3);
+        }
         return makeSymbolToken(ParseType.EXCLAIMATION_MARK_EQUALS, 2);
       }
       return makeSymbolToken(ParseType.EXCLAIMATION_MARK, 1);

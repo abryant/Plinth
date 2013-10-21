@@ -53,10 +53,19 @@ immutable compound string
   {
     return this;
   }
+  immutable boolean equals(?#object o)
+  {
+    if !(o instanceof string)
+    {
+      return false;
+    }
+    string other = cast<string> o;
+    return bytes == other.bytes;
+  }
 
   static string valueOf(boolean b)
   {
-    return "<boolean>";
+    return b ? "true" : "false";
   }
   static string valueOf(long value)
   {
@@ -89,20 +98,36 @@ interface Throwable
   static native "plinth_print_uncaught_exception" void printUncaughtException(object uncaught)
   {
     stdout::println("Aborting due to an uncaught exception...");
+    Throwable th = cast<Throwable> uncaught;
+    th.print();
   }
+
+  void print();
 }
 
 class CastError implements Throwable
 {
+  string message;
   create(string fromType, string toType, ?string reason)
   {
+    message = "Cannot cast from " + fromType + " to " + toType + (reason == null ? "" : ": " + reason);
+  }
+  void print()
+  {
+    stdout::println(message);
   }
 }
 
 class IndexError implements Throwable
 {
+  string message;
   create(uint index, uint size)
   {
+    message = "Index out of bounds: " + index + " (must be less than " + size + ")";
+  }
+  void print()
+  {
+    stdout::println(message);
   }
 }
 

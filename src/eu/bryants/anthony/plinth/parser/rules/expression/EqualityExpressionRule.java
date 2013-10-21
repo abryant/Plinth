@@ -29,12 +29,22 @@ public class EqualityExpressionRule extends Rule<ParseType>
   private static final Production<ParseType> NOT_EQUAL_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.EXPRESSION_NOT_LESS_THAN_QNAME, ParseType.EXCLAIMATION_MARK_EQUALS, ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
   private static final Production<ParseType> QNAME_NOT_EQUAL_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION,  ParseType.EXCLAIMATION_MARK_EQUALS, ParseType.EXPRESSION_NOT_LESS_THAN_QNAME);
   private static final Production<ParseType> QNAME_NOT_EQUAL_QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION,  ParseType.EXCLAIMATION_MARK_EQUALS, ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
+  private static final Production<ParseType> IDENTICALLY_EQUAL_PRODUCTION                 = new Production<ParseType>(ParseType.EXPRESSION_NOT_LESS_THAN_QNAME, ParseType.TRIPLE_EQUALS,                   ParseType.EXPRESSION_NOT_LESS_THAN_QNAME);
+  private static final Production<ParseType> IDENTICALLY_EQUAL_QNAME_PRODUCTION           = new Production<ParseType>(ParseType.EXPRESSION_NOT_LESS_THAN_QNAME, ParseType.TRIPLE_EQUALS,                   ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
+  private static final Production<ParseType> QNAME_IDENTICALLY_EQUAL_PRODUCTION           = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION,  ParseType.TRIPLE_EQUALS,                   ParseType.EXPRESSION_NOT_LESS_THAN_QNAME);
+  private static final Production<ParseType> QNAME_IDENTICALLY_EQUAL_QNAME_PRODUCTION     = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION,  ParseType.TRIPLE_EQUALS,                   ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
+  private static final Production<ParseType> NOT_IDENTICALLY_EQUAL_PRODUCTION             = new Production<ParseType>(ParseType.EXPRESSION_NOT_LESS_THAN_QNAME, ParseType.EXCLAIMATION_MARK_DOUBLE_EQUALS, ParseType.EXPRESSION_NOT_LESS_THAN_QNAME);
+  private static final Production<ParseType> NOT_IDENTICALLY_EQUAL_QNAME_PRODUCTION       = new Production<ParseType>(ParseType.EXPRESSION_NOT_LESS_THAN_QNAME, ParseType.EXCLAIMATION_MARK_DOUBLE_EQUALS, ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
+  private static final Production<ParseType> QNAME_NOT_IDENTICALLY_EQUAL_PRODUCTION       = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION,  ParseType.EXCLAIMATION_MARK_DOUBLE_EQUALS, ParseType.EXPRESSION_NOT_LESS_THAN_QNAME);
+  private static final Production<ParseType> QNAME_NOT_IDENTICALLY_EQUAL_QNAME_PRODUCTION = new Production<ParseType>(ParseType.QNAME_OR_LESS_THAN_EXPRESSION,  ParseType.EXCLAIMATION_MARK_DOUBLE_EQUALS, ParseType.QNAME_OR_LESS_THAN_EXPRESSION);
 
   public EqualityExpressionRule()
   {
     super(ParseType.EQUALITY_EXPRESSION, PRODUCTION,
                                          EQUAL_PRODUCTION,     EQUAL_QNAME_PRODUCTION,     QNAME_EQUAL_PRODUCTION,     QNAME_EQUAL_QNAME_PRODUCTION,
-                                         NOT_EQUAL_PRODUCTION, NOT_EQUAL_QNAME_PRODUCTION, QNAME_NOT_EQUAL_PRODUCTION, QNAME_NOT_EQUAL_QNAME_PRODUCTION);
+                                         NOT_EQUAL_PRODUCTION, NOT_EQUAL_QNAME_PRODUCTION, QNAME_NOT_EQUAL_PRODUCTION, QNAME_NOT_EQUAL_QNAME_PRODUCTION,
+                                         IDENTICALLY_EQUAL_PRODUCTION,     IDENTICALLY_EQUAL_QNAME_PRODUCTION,     QNAME_IDENTICALLY_EQUAL_PRODUCTION,     QNAME_IDENTICALLY_EQUAL_QNAME_PRODUCTION,
+                                         NOT_IDENTICALLY_EQUAL_PRODUCTION, NOT_IDENTICALLY_EQUAL_QNAME_PRODUCTION, QNAME_NOT_IDENTICALLY_EQUAL_PRODUCTION, QNAME_NOT_IDENTICALLY_EQUAL_QNAME_PRODUCTION);
   }
 
   /**
@@ -62,6 +72,22 @@ public class EqualityExpressionRule extends Rule<ParseType>
       Expression right = (Expression) args[2];
       LexicalPhrase lexicalPhrase = LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase());
       return new EqualityExpression(left, right, EqualityOperator.NOT_EQUAL, lexicalPhrase);
+    }
+    if (production == IDENTICALLY_EQUAL_PRODUCTION       || production == IDENTICALLY_EQUAL_QNAME_PRODUCTION ||
+        production == QNAME_IDENTICALLY_EQUAL_PRODUCTION || production == QNAME_IDENTICALLY_EQUAL_QNAME_PRODUCTION)
+    {
+      Expression left = (Expression) args[0];
+      Expression right = (Expression) args[2];
+      LexicalPhrase lexicalPhrase = LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase());
+      return new EqualityExpression(left, right, EqualityOperator.IDENTICALLY_EQUAL, lexicalPhrase);
+    }
+    if (production == NOT_IDENTICALLY_EQUAL_PRODUCTION       || production == NOT_IDENTICALLY_EQUAL_QNAME_PRODUCTION ||
+        production == QNAME_NOT_IDENTICALLY_EQUAL_PRODUCTION || production == QNAME_NOT_IDENTICALLY_EQUAL_QNAME_PRODUCTION)
+    {
+      Expression left = (Expression) args[0];
+      Expression right = (Expression) args[2];
+      LexicalPhrase lexicalPhrase = LexicalPhrase.combine(left.getLexicalPhrase(), (LexicalPhrase) args[1], right.getLexicalPhrase());
+      return new EqualityExpression(left, right, EqualityOperator.NOT_IDENTICALLY_EQUAL, lexicalPhrase);
     }
     throw badTypeList();
   }

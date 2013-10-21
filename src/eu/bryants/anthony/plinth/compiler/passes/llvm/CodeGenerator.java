@@ -57,6 +57,7 @@ import eu.bryants.anthony.plinth.ast.expression.TupleIndexExpression;
 import eu.bryants.anthony.plinth.ast.expression.VariableExpression;
 import eu.bryants.anthony.plinth.ast.member.ArrayLengthMember;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
+import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
 import eu.bryants.anthony.plinth.ast.member.Constructor;
 import eu.bryants.anthony.plinth.ast.member.Field;
 import eu.bryants.anthony.plinth.ast.member.Initialiser;
@@ -73,6 +74,7 @@ import eu.bryants.anthony.plinth.ast.metadata.MemberFunctionType;
 import eu.bryants.anthony.plinth.ast.metadata.MemberReference;
 import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
 import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
+import eu.bryants.anthony.plinth.ast.metadata.MethodReference.Disambiguator;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyInitialiser;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyPseudoVariable;
 import eu.bryants.anthony.plinth.ast.metadata.PropertyReference;
@@ -4145,8 +4147,10 @@ public class CodeGenerator
       switch (operator)
       {
       case EQUAL:
+      case IDENTICALLY_EQUAL:
         return LLVM.LLVMRealPredicate.LLVMRealOEQ;
       case NOT_EQUAL:
+      case NOT_IDENTICALLY_EQUAL:
         return LLVM.LLVMRealPredicate.LLVMRealONE;
       }
     }
@@ -4155,8 +4159,10 @@ public class CodeGenerator
       switch (operator)
       {
       case EQUAL:
+      case IDENTICALLY_EQUAL:
         return LLVM.LLVMIntPredicate.LLVMIntEQ;
       case NOT_EQUAL:
+      case NOT_IDENTICALLY_EQUAL:
         return LLVM.LLVMIntPredicate.LLVMIntNE;
       }
     }
@@ -4498,17 +4504,90 @@ public class CodeGenerator
   /**
    * Builds the LLVM statements for an equality check between the specified two values, which are both of the specified type.
    * The equality check either checks whether the values are equal, or not equal, depending on the EqualityOperator provided.
+   * @param builder - the LLVMBuilderRef to build instructions with
+   * @param landingPadContainer - the LandingPadContainer that contains the landing pad to unwind to in case of an exception
    * @param left - the left LLVMValueRef in the comparison, in a temporary native representation
    * @param right - the right LLVMValueRef in the comparison, in a temporary native representation
    * @param type - the Type of both of the values - both of the values should be converted to this type before this function is called
    * @param operator - the EqualityOperator which determines which way to compare the values (e.g. EQUAL results in a 1 iff the values are equal)
    * @return an LLVMValueRef for an i1, which will be 1 if the check returns true, or 0 if the check returns false
    */
-  private LLVMValueRef buildEqualityCheck(LLVMBuilderRef builder, LLVMValueRef left, LLVMValueRef right, Type type, EqualityOperator operator)
+  LLVMValueRef buildEqualityCheck(LLVMBuilderRef builder, LandingPadContainer landingPadContainer, LLVMValueRef left, LLVMValueRef right, Type type, EqualityOperator operator)
   {
     if (type instanceof ArrayType)
     {
-      return LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), left, right, "");
+      if (operator == EqualityOperator.IDENTICALLY_EQUAL || operator == EqualityOperator.NOT_IDENTICALLY_EQUAL)
+      {
+        // identically equal checks ('===' and '!==') just compare the array's pointer, not the elements inside it
+        return LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), left, right, "");
+      }
+
+      LLVMBasicBlockRef arrayCheckContinuationBlock = LLVM.LLVMAddBasicBlock(builder, "checkArrayContinuation");
+      LLVMBasicBlockRef nullityCheckStartBlock = null;
+      LLVMValueRef nullityComparison = null;
+      if (type.canBeNullable())
+      {
+        LLVMValueRef leftIsNotNull = LLVM.LLVMBuildIsNotNull(builder, left, "");
+        LLVMValueRef rightIsNotNull = LLVM.LLVMBuildIsNotNull(builder, right, "");
+        nullityComparison = LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), leftIsNotNull, rightIsNotNull, "");
+        LLVMValueRef bothNotNull = LLVM.LLVMBuildAnd(builder, leftIsNotNull, rightIsNotNull, "");
+        LLVMBasicBlockRef notNullBlock = LLVM.LLVMAddBasicBlock(builder, "checkArrayNotNull");
+        nullityCheckStartBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildCondBr(builder, bothNotNull, notNullBlock, arrayCheckContinuationBlock);
+
+        LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
+      }
+
+      ArrayType arrayType = (ArrayType) type;
+      LLVMValueRef leftLengthPtr = typeHelper.getArrayLengthPointer(builder, left);
+      LLVMValueRef rightLengthPtr = typeHelper.getArrayLengthPointer(builder, right);
+      LLVMValueRef leftLength = LLVM.LLVMBuildLoad(builder, leftLengthPtr, "");
+      LLVMValueRef rightLength = LLVM.LLVMBuildLoad(builder, rightLengthPtr, "");
+      LLVMValueRef lengthComparison = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, leftLength, rightLength, "");
+      LLVMBasicBlockRef arrayCheckLoop = LLVM.LLVMAddBasicBlock(builder, "checkArrayElementLoop");
+      LLVMBasicBlockRef startBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildCondBr(builder, lengthComparison, arrayCheckLoop, arrayCheckContinuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, arrayCheckLoop);
+      LLVMValueRef loopCounterPhi = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt32Type(), "");
+      LLVMValueRef leftElement = typeHelper.buildRetrieveArrayElement(builder, landingPadContainer, left, loopCounterPhi);
+      LLVMValueRef rightElement = typeHelper.buildRetrieveArrayElement(builder, landingPadContainer, right, loopCounterPhi);
+      LLVMValueRef equal = buildEqualityCheck(builder, landingPadContainer, leftElement, rightElement, arrayType.getBaseType(), EqualityOperator.EQUAL);
+      LLVMBasicBlockRef loopCheckBlock = LLVM.LLVMAddBasicBlock(builder, "checkArrayElementLoopCheck");
+      LLVMBasicBlockRef endLoopBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildCondBr(builder, equal, loopCheckBlock, arrayCheckContinuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, loopCheckBlock);
+      LLVMValueRef nextLoopCounterValue = LLVM.LLVMBuildAdd(builder, loopCounterPhi, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false), "");
+      LLVMValueRef loopContinue = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntULT, nextLoopCounterValue, leftLength, "");
+      LLVM.LLVMBuildCondBr(builder, loopContinue, arrayCheckLoop, arrayCheckContinuationBlock);
+
+      LLVMValueRef[] loopCounterIncomingValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false), nextLoopCounterValue};
+      LLVMBasicBlockRef[] loopCounterIncomingBlocks = new LLVMBasicBlockRef[] {startBlock, loopCheckBlock};
+      LLVM.LLVMAddIncoming(loopCounterPhi, C.toNativePointerArray(loopCounterIncomingValues, false, true), C.toNativePointerArray(loopCounterIncomingBlocks, false, true), loopCounterIncomingValues.length);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, arrayCheckContinuationBlock);
+      LLVMValueRef resultPhi = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt1Type(), "");
+      LLVMValueRef trueValue = LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false);
+      LLVMValueRef falseValue = LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false);
+      if (type.canBeNullable())
+      {
+        LLVMValueRef[] nullityIncomingValues = new LLVMValueRef[] {nullityComparison};
+        LLVMBasicBlockRef[] nullityIncomingBlocks = new LLVMBasicBlockRef[] {nullityCheckStartBlock};
+        LLVM.LLVMAddIncoming(resultPhi, C.toNativePointerArray(nullityIncomingValues, false, true), C.toNativePointerArray(nullityIncomingBlocks, false, true), nullityIncomingValues.length);
+      }
+      LLVMValueRef[] resultIncomingValues;
+      if (operator == EqualityOperator.EQUAL)
+      {
+        resultIncomingValues = new LLVMValueRef[] {falseValue, falseValue, trueValue};
+      }
+      else // if (operator == EqualityOperator.NOT_EQUAL)
+      {
+        resultIncomingValues = new LLVMValueRef[] {trueValue, trueValue, falseValue};
+      }
+      LLVMBasicBlockRef[] resultIncomingBlocks = new LLVMBasicBlockRef[] {startBlock, endLoopBlock, loopCheckBlock};
+      LLVM.LLVMAddIncoming(resultPhi, C.toNativePointerArray(resultIncomingValues, false, true), C.toNativePointerArray(resultIncomingBlocks, false, true), resultIncomingValues.length);
+      return resultPhi;
     }
     if (type instanceof FunctionType)
     {
@@ -4518,11 +4597,11 @@ public class CodeGenerator
       LLVMValueRef leftFunction = LLVM.LLVMBuildExtractValue(builder, left, 2, "");
       LLVMValueRef rightFunction = LLVM.LLVMBuildExtractValue(builder, right, 2, "");
       LLVMValueRef functionComparison = LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), leftFunction, rightFunction, "");
-      if (operator == EqualityOperator.EQUAL)
+      if (operator == EqualityOperator.EQUAL || operator == EqualityOperator.IDENTICALLY_EQUAL)
       {
         return LLVM.LLVMBuildAnd(builder, opaqueComparison, functionComparison, "");
       }
-      if (operator == EqualityOperator.NOT_EQUAL)
+      if (operator == EqualityOperator.NOT_EQUAL || operator == EqualityOperator.NOT_IDENTICALLY_EQUAL)
       {
         return LLVM.LLVMBuildOr(builder, opaqueComparison, functionComparison, "");
       }
@@ -4533,7 +4612,65 @@ public class CodeGenerator
       TypeDefinition typeDefinition = ((NamedType) type).getResolvedTypeDefinition();
       if (typeDefinition instanceof ClassDefinition)
       {
-        return LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), left, right, "");
+        if (operator == EqualityOperator.IDENTICALLY_EQUAL || operator == EqualityOperator.NOT_IDENTICALLY_EQUAL)
+        {
+          return LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), left, right, "");
+        }
+
+        LLVMValueRef nullityComparison = null;
+        LLVMBasicBlockRef startBlock = null;
+        LLVMBasicBlockRef finalBlock = null;
+        if (type.canBeNullable())
+        {
+          LLVMValueRef leftNullity = LLVM.LLVMBuildIsNotNull(builder, left, "");
+          LLVMValueRef rightNullity = LLVM.LLVMBuildIsNotNull(builder, right, "");
+          nullityComparison = LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), leftNullity, rightNullity, "");
+          LLVMValueRef bothNotNull = LLVM.LLVMBuildAnd(builder, leftNullity, rightNullity, "");
+
+          startBlock = LLVM.LLVMGetInsertBlock(builder);
+          finalBlock = LLVM.LLVMAddBasicBlock(builder, "equality_final");
+          LLVMBasicBlockRef comparisonBlock = LLVM.LLVMAddBasicBlock(builder, "equality_comparevalues");
+
+          LLVM.LLVMBuildCondBr(builder, bothNotNull, comparisonBlock, finalBlock);
+          LLVM.LLVMPositionBuilderAtEnd(builder, comparisonBlock);
+        }
+
+        Disambiguator equalsDisambiguator = new MethodReference(new BuiltinMethod(new ObjectType(false, false, null), BuiltinMethodType.EQUALS), GenericTypeSpecialiser.IDENTITY_SPECIALISER).getDisambiguator();
+        MethodReference equalsMethodReference = type.getMethod(equalsDisambiguator);
+        if (equalsMethodReference == null)
+        {
+          throw new IllegalArgumentException("Could not find the equals() method on " + type);
+        }
+        // Find a simplified version of the type, which doesn't include any of the existing type arguments,
+        // so that instead we can extract the real ones from the object's RTTI block at runtime.
+        // The reason we do this instead of just using a contextual TypeParameterAccessor with the
+        // existing type is that builtin methods (e.g. array::equals()) may need to generate an equality
+        // check without having any information about the context that the type being compared was created in
+        // (i.e. we may not always have a TypeParameterAccessor for type).
+        NamedType simplifiedType = new NamedType(false, true, true, typeDefinition);
+        TypeParameterAccessor rightTypeAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, typeDefinition, right);
+        LLVMValueRef convertedRight = typeHelper.convertTemporary(builder, landingPadContainer, right, simplifiedType, new ObjectType(true, true, null), false, rightTypeAccessor, null);
+        Map<Parameter, LLVMValueRef> arguments = new HashMap<Parameter, LLVMValueRef>();
+        arguments.put(equalsMethodReference.getReferencedMember().getParameters()[0], convertedRight);
+        TypeParameterAccessor leftTypeAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, typeDefinition, left);
+        LLVMValueRef result = typeHelper.buildMethodCall(builder, landingPadContainer, left, simplifiedType, equalsMethodReference, arguments, leftTypeAccessor);
+        if (operator == EqualityOperator.NOT_EQUAL)
+        {
+          result = LLVM.LLVMBuildNot(builder, result, "");
+        }
+
+        if (type.canBeNullable())
+        {
+          LLVMBasicBlockRef endComparisonBlock = LLVM.LLVMGetInsertBlock(builder);
+          LLVM.LLVMBuildBr(builder, finalBlock);
+          LLVM.LLVMPositionBuilderAtEnd(builder, finalBlock);
+          LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt1Type(), "");
+          LLVMValueRef[] incomingValues = new LLVMValueRef[] {nullityComparison, result};
+          LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, endComparisonBlock};
+          LLVM.LLVMAddIncoming(phiNode, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+          return phiNode;
+        }
+        return result;
       }
       if (typeDefinition instanceof CompoundDefinition)
       {
@@ -4556,49 +4693,79 @@ public class CodeGenerator
           LLVM.LLVMPositionBuilderAtEnd(builder, comparisonBlock);
         }
 
-        // compare each of the member variables from the left and right values
-        MemberVariable[] memberVariables = ((CompoundDefinition) typeDefinition).getMemberVariables();
-        LLVMValueRef[] compareResults = new LLVMValueRef[memberVariables.length];
-        for (int i = 0; i < memberVariables.length; ++i)
+        LLVMValueRef result;
+        if (operator == EqualityOperator.EQUAL || operator == EqualityOperator.NOT_EQUAL)
         {
-          Type variableType = memberVariables[i].getType();
-          LLVMValueRef[] indices = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), 0, false),
-                                                       LLVM.LLVMConstInt(LLVM.LLVMIntType(PrimitiveTypeType.UINT.getBitCount()), i, false)};
-          LLVMValueRef leftField = LLVM.LLVMBuildGEP(builder, left, C.toNativePointerArray(indices, false, true), indices.length, "");
-          LLVMValueRef rightField = LLVM.LLVMBuildGEP(builder, right, C.toNativePointerArray(indices, false, true), indices.length, "");
-          LLVMValueRef leftValue = LLVM.LLVMBuildLoad(builder, leftField, "");
-          LLVMValueRef rightValue = LLVM.LLVMBuildLoad(builder, rightField, "");
-          leftValue = typeHelper.convertStandardToTemporary(builder, leftValue, variableType);
-          rightValue = typeHelper.convertStandardToTemporary(builder, rightValue, variableType);
-          compareResults[i] = buildEqualityCheck(builder, leftValue, rightValue, variableType, operator);
-        }
-
-        // AND or OR the list together, using a binary tree
-        int multiple = 1;
-        while (multiple < memberVariables.length)
-        {
-          for (int i = 0; i < memberVariables.length; i += 2 * multiple)
+          Disambiguator equalsDisambiguator = new MethodReference(new BuiltinMethod(new ObjectType(false, false, null), BuiltinMethodType.EQUALS), GenericTypeSpecialiser.IDENTITY_SPECIALISER).getDisambiguator();
+          MethodReference equalsMethodReference = type.getMethod(equalsDisambiguator);
+          if (equalsMethodReference == null)
           {
-            LLVMValueRef first = compareResults[i];
-            if (i + multiple >= memberVariables.length)
-            {
-              continue;
-            }
-            LLVMValueRef second = compareResults[i + multiple];
-            LLVMValueRef result = null;
-            if (operator == EqualityOperator.EQUAL)
-            {
-              result = LLVM.LLVMBuildAnd(builder, first, second, "");
-            }
-            else if (operator == EqualityOperator.NOT_EQUAL)
-            {
-              result = LLVM.LLVMBuildOr(builder, first, second, "");
-            }
-            compareResults[i] = result;
+            throw new IllegalArgumentException("Could not find the equals() method on " + type);
           }
-          multiple *= 2;
+          // find a simplified version of the type, which doesn't include any of the existing type arguments, so that instead we can extract the real ones from the object's RTTI block at runtime
+          NamedType simplifiedType = new NamedType(false, true, true, typeDefinition);
+          TypeParameterAccessor rightTypeAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, typeDefinition, right);
+          LLVMValueRef convertedRight = typeHelper.convertTemporary(builder, landingPadContainer, right, simplifiedType, new ObjectType(true, true, null), false, rightTypeAccessor, null);
+          Map<Parameter, LLVMValueRef> arguments = new HashMap<Parameter, LLVMValueRef>();
+          arguments.put(equalsMethodReference.getReferencedMember().getParameters()[0], convertedRight);
+          TypeParameterAccessor leftTypeAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, typeDefinition, left);
+          result = typeHelper.buildMethodCall(builder, landingPadContainer, left, simplifiedType, equalsMethodReference, arguments, leftTypeAccessor);
+          if (operator == EqualityOperator.NOT_EQUAL)
+          {
+            result = LLVM.LLVMBuildNot(builder, result, "");
+          }
         }
-        LLVMValueRef normalComparison = compareResults[0];
+        else // if (operator == EqualityOperator.IDENTICALLY_EQUAL || operator == EqualityOperator.NOT_IDENTICALLY_EQUAL)
+        {
+          // compare each of the member variables from the left and right values
+          MemberVariable[] memberVariables = ((CompoundDefinition) typeDefinition).getMemberVariables();
+          LLVMValueRef[] compareResults = new LLVMValueRef[memberVariables.length];
+          for (int i = 0; i < memberVariables.length; ++i)
+          {
+            Type variableType = memberVariables[i].getType();
+            LLVMValueRef leftField = typeHelper.getMemberPointer(builder, left, memberVariables[i]);
+            LLVMValueRef rightField = typeHelper.getMemberPointer(builder, right, memberVariables[i]);
+            LLVMValueRef leftValue = LLVM.LLVMBuildLoad(builder, leftField, "");
+            LLVMValueRef rightValue = LLVM.LLVMBuildLoad(builder, rightField, "");
+            leftValue = typeHelper.convertStandardToTemporary(builder, leftValue, variableType);
+            rightValue = typeHelper.convertStandardToTemporary(builder, rightValue, variableType);
+            compareResults[i] = buildEqualityCheck(builder, landingPadContainer, leftValue, rightValue, variableType, operator);
+          }
+
+          // AND or OR the list together, using a binary tree
+          int multiple = 1;
+          while (multiple < memberVariables.length)
+          {
+            for (int i = 0; i < memberVariables.length; i += 2 * multiple)
+            {
+              LLVMValueRef first = compareResults[i];
+              if (i + multiple >= memberVariables.length)
+              {
+                continue;
+              }
+              LLVMValueRef second = compareResults[i + multiple];
+              LLVMValueRef compareResult = null;
+              if (operator == EqualityOperator.EQUAL || operator == EqualityOperator.IDENTICALLY_EQUAL)
+              {
+                compareResult = LLVM.LLVMBuildAnd(builder, first, second, "");
+              }
+              else if (operator == EqualityOperator.NOT_EQUAL || operator == EqualityOperator.NOT_IDENTICALLY_EQUAL)
+              {
+                compareResult = LLVM.LLVMBuildOr(builder, first, second, "");
+              }
+              compareResults[i] = compareResult;
+            }
+            multiple *= 2;
+          }
+          if (memberVariables.length == 0)
+          {
+            result = LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), (operator == EqualityOperator.EQUAL || operator == EqualityOperator.IDENTICALLY_EQUAL) ? 1 : 0, false);
+          }
+          else
+          {
+            result = compareResults[0];
+          }
+        }
 
         if (type.canBeNullable())
         {
@@ -4606,19 +4773,19 @@ public class CodeGenerator
           LLVM.LLVMBuildBr(builder, finalBlock);
           LLVM.LLVMPositionBuilderAtEnd(builder, finalBlock);
           LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt1Type(), "");
-          LLVMValueRef[] incomingValues = new LLVMValueRef[] {nullityComparison, normalComparison};
+          LLVMValueRef[] incomingValues = new LLVMValueRef[] {nullityComparison, result};
           LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, endComparisonBlock};
           LLVM.LLVMAddIncoming(phiNode, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
           return phiNode;
         }
-        return normalComparison;
+        return result;
       }
       if (typeDefinition instanceof InterfaceDefinition)
       {
-        // extract the object pointer from each of the interface representations, and check whether they are equal
+        // extract the object pointer from each of the interface representations, and check whether the objects are equal with the same operator
         LLVMValueRef leftObject = LLVM.LLVMBuildExtractValue(builder, left, 1, "");
         LLVMValueRef rightObject = LLVM.LLVMBuildExtractValue(builder, right, 1, "");
-        return LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), leftObject, rightObject, "");
+        return buildEqualityCheck(builder, landingPadContainer, leftObject, rightObject, new ObjectType(type.isNullable(), ((NamedType) type).canBeExplicitlyImmutable(), null), operator);
       }
     }
     if (type instanceof NullType)
@@ -4630,8 +4797,60 @@ public class CodeGenerator
         (type instanceof NamedType && ((NamedType) type).getResolvedTypeParameter() != null) ||
         type instanceof WildcardType)
     {
-      // compare the two pointers
-      return LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), left, right, "");
+      if (operator == EqualityOperator.IDENTICALLY_EQUAL || operator == EqualityOperator.NOT_IDENTICALLY_EQUAL)
+      {
+        // compare the two pointers
+        return LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), left, right, "");
+      }
+
+      // we don't want to compare anything if one of the objects is null, so we need to branch and only compare them if they are both not-null
+      LLVMValueRef nullityComparison = null;
+      LLVMBasicBlockRef startBlock = null;
+      LLVMBasicBlockRef finalBlock = null;
+      if (type.canBeNullable())
+      {
+        LLVMValueRef leftNullity = LLVM.LLVMBuildIsNotNull(builder, left, "");
+        LLVMValueRef rightNullity = LLVM.LLVMBuildIsNotNull(builder, right, "");
+        nullityComparison = LLVM.LLVMBuildICmp(builder, getPredicate(operator, false), leftNullity, rightNullity, "");
+        LLVMValueRef bothNotNull = LLVM.LLVMBuildAnd(builder, leftNullity, rightNullity, "");
+
+        startBlock = LLVM.LLVMGetInsertBlock(builder);
+        finalBlock = LLVM.LLVMAddBasicBlock(builder, "equality_final");
+        LLVMBasicBlockRef comparisonBlock = LLVM.LLVMAddBasicBlock(builder, "equality_comparevalues");
+
+        LLVM.LLVMBuildCondBr(builder, bothNotNull, comparisonBlock, finalBlock);
+        LLVM.LLVMPositionBuilderAtEnd(builder, comparisonBlock);
+      }
+
+      ObjectType objectType = new ObjectType(false, true, null);
+      Disambiguator equalsDisambiguator = new MethodReference(new BuiltinMethod(objectType, BuiltinMethodType.EQUALS), GenericTypeSpecialiser.IDENTITY_SPECIALISER).getDisambiguator();
+      MethodReference equalsMethodReference = type.getMethod(equalsDisambiguator);
+      if (equalsMethodReference == null)
+      {
+        throw new IllegalArgumentException("Could not find the equals() method on " + type);
+      }
+      // find a simplified version of the type, which doesn't include any of the existing type arguments, so that instead we can extract the real ones from the object's RTTI block at runtime
+      Map<Parameter, LLVMValueRef> arguments = new HashMap<Parameter, LLVMValueRef>();
+      arguments.put(equalsMethodReference.getReferencedMember().getParameters()[0], right);
+      // we don't have a TypeParameterAccessor, so we have to leave it as null - this shouldn't cause any problems, as the object type doesn't have any type parameters
+      LLVMValueRef result = typeHelper.buildMethodCall(builder, landingPadContainer, left, objectType, equalsMethodReference, arguments, null);
+      if (operator == EqualityOperator.NOT_EQUAL)
+      {
+        result = LLVM.LLVMBuildNot(builder, result, "");
+      }
+
+      if (type.canBeNullable())
+      {
+        LLVMBasicBlockRef endComparisonBlock = LLVM.LLVMGetInsertBlock(builder);
+        LLVM.LLVMBuildBr(builder, finalBlock);
+        LLVM.LLVMPositionBuilderAtEnd(builder, finalBlock);
+        LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt1Type(), "");
+        LLVMValueRef[] incomingValues = new LLVMValueRef[] {nullityComparison, result};
+        LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, endComparisonBlock};
+        LLVM.LLVMAddIncoming(phiNode, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+        return phiNode;
+      }
+      return result;
     }
     if (type instanceof PrimitiveType)
     {
@@ -4705,7 +4924,7 @@ public class CodeGenerator
         Type subType = subTypes[i];
         LLVMValueRef leftValue = LLVM.LLVMBuildExtractValue(builder, leftNotNull, i, "");
         LLVMValueRef rightValue = LLVM.LLVMBuildExtractValue(builder, rightNotNull, i, "");
-        compareResults[i] = buildEqualityCheck(builder, leftValue, rightValue, subType, operator);
+        compareResults[i] = buildEqualityCheck(builder, landingPadContainer, leftValue, rightValue, subType, operator);
       }
 
       // AND or OR the list together, using a binary tree
@@ -4721,11 +4940,11 @@ public class CodeGenerator
           }
           LLVMValueRef second = compareResults[i + multiple];
           LLVMValueRef result = null;
-          if (operator == EqualityOperator.EQUAL)
+          if (operator == EqualityOperator.EQUAL || operator == EqualityOperator.IDENTICALLY_EQUAL)
           {
             result = LLVM.LLVMBuildAnd(builder, first, second, "");
           }
-          else if (operator == EqualityOperator.NOT_EQUAL)
+          else if (operator == EqualityOperator.NOT_EQUAL || operator == EqualityOperator.NOT_IDENTICALLY_EQUAL)
           {
             result = LLVM.LLVMBuildOr(builder, first, second, "");
           }
@@ -5018,8 +5237,10 @@ public class CodeGenerator
         switch (operator)
         {
         case EQUAL:
+        case IDENTICALLY_EQUAL:
           return LLVM.LLVMBuildNot(builder, nullity, "");
         case NOT_EQUAL:
+        case NOT_IDENTICALLY_EQUAL:
           return nullity;
         default:
           throw new IllegalArgumentException("Cannot build an EqualityExpression with no EqualityOperator");
@@ -5074,15 +5295,18 @@ public class CodeGenerator
           LLVMValueRef comparisonResult = LLVM.LLVMBuildICmp(builder, getPredicate(equalityExpression.getOperator(), false), leftValue, rightValue, "");
           if (leftType.canBeNullable() || rightType.canBeNullable())
           {
-            LLVMValueRef nullityComparison = LLVM.LLVMBuildICmp(builder, getPredicate(equalityExpression.getOperator(), false), leftIsNotNull, rightIsNotNull, "");
-            if (equalityExpression.getOperator() == EqualityOperator.EQUAL)
+            LLVMValueRef bothNotNull = LLVM.LLVMBuildAnd(builder, leftIsNotNull, rightIsNotNull, "");
+            comparisonResult = LLVM.LLVMBuildAnd(builder, bothNotNull, comparisonResult, "");
+            LLVMValueRef nullityComparison;
+            if (equalityExpression.getOperator() == EqualityOperator.EQUAL || equalityExpression.getOperator() == EqualityOperator.IDENTICALLY_EQUAL)
             {
-              comparisonResult = LLVM.LLVMBuildAnd(builder, nullityComparison, comparisonResult, "");
+              nullityComparison = LLVM.LLVMBuildNot(builder, LLVM.LLVMBuildOr(builder, leftIsNotNull, rightIsNotNull, ""), "");
             }
             else
             {
-              comparisonResult = LLVM.LLVMBuildOr(builder, nullityComparison, comparisonResult, "");
+              nullityComparison = LLVM.LLVMBuildXor(builder, leftIsNotNull, rightIsNotNull, "");
             }
+            comparisonResult = LLVM.LLVMBuildOr(builder, comparisonResult, nullityComparison, "");
           }
           return typeHelper.convertTemporary(builder, landingPadContainer, comparisonResult, new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null), equalityExpression.getType(), false, typeParameterAccessor, typeParameterAccessor);
         }
@@ -5091,7 +5315,7 @@ public class CodeGenerator
       // perform a standard equality check, using buildEqualityCheck()
       left = typeHelper.convertTemporary(builder, landingPadContainer, left, leftType, comparisonType, false, typeParameterAccessor, typeParameterAccessor);
       right = typeHelper.convertTemporary(builder, landingPadContainer, right, rightType, comparisonType, false, typeParameterAccessor, typeParameterAccessor);
-      return buildEqualityCheck(builder, left, right, comparisonType, operator);
+      return buildEqualityCheck(builder, landingPadContainer, left, right, comparisonType, operator);
     }
     if (expression instanceof FieldAccessExpression)
     {

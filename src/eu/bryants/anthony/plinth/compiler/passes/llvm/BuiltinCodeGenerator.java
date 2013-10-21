@@ -13,6 +13,7 @@ import nativelib.llvm.LLVM.LLVMTypeRef;
 import nativelib.llvm.LLVM.LLVMValueRef;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
+import eu.bryants.anthony.plinth.ast.expression.EqualityExpression.EqualityOperator;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
 import eu.bryants.anthony.plinth.ast.member.Method;
@@ -22,6 +23,7 @@ import eu.bryants.anthony.plinth.ast.metadata.MethodReference.Disambiguator;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
 import eu.bryants.anthony.plinth.ast.type.ArrayType;
 import eu.bryants.anthony.plinth.ast.type.FunctionType;
+import eu.bryants.anthony.plinth.ast.type.NamedType;
 import eu.bryants.anthony.plinth.ast.type.NullType;
 import eu.bryants.anthony.plinth.ast.type.ObjectType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
@@ -115,6 +117,37 @@ public class BuiltinCodeGenerator
         return buildUnsignedToString((PrimitiveType) baseType, method, true);
       }
       throw new IllegalArgumentException("Unknown base type for a toString(uint radix) method: " + baseType);
+    case EQUALS:
+      if (baseType instanceof PrimitiveType)
+      {
+        switch (((PrimitiveType) baseType).getPrimitiveTypeType())
+        {
+        case BOOLEAN:
+          return buildBooleanEquals((PrimitiveType) baseType, method);
+        case BYTE: case SHORT: case INT: case LONG:
+        case UBYTE: case USHORT: case UINT: case ULONG:
+          return buildIntegerEquals((PrimitiveType) baseType, method);
+        case FLOAT: case DOUBLE:
+          return buildFloatingEquals((PrimitiveType) baseType, method);
+        }
+      }
+      else if (baseType instanceof ObjectType || method.getContainingTypeDefinition() instanceof CompoundDefinition)
+      {
+        return buildObjectEquals(baseType, method);
+      }
+      else if (baseType instanceof ArrayType)
+      {
+        return buildArrayEquals((ArrayType) baseType, method);
+      }
+      else if (baseType instanceof FunctionType)
+      {
+        return buildFunctionEquals((FunctionType) baseType, method);
+      }
+      else if (baseType instanceof TupleType)
+      {
+        return buildTupleEquals((TupleType) baseType, method);
+      }
+      throw new IllegalArgumentException("Unknown base type for an equals(?#object other) method: " + baseType);
     default:
       throw new IllegalArgumentException("Unknown built-in method: " + method);
     }
@@ -175,6 +208,58 @@ public class BuiltinCodeGenerator
     LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
     LLVM.LLVMSetCleanup(landingPad, true);
     LLVM.LLVMBuildResume(builder, landingPad);
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return builtinFunction;
+  }
+
+  private LLVMValueRef buildBooleanEquals(PrimitiveType baseType, BuiltinMethod method)
+  {
+    if (baseType.getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+    {
+      throw new IllegalArgumentException("A builtin boolean equals function must have the correct base type");
+    }
+
+    LLVMValueRef builtinFunction = getBuiltinMethod(method);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+    LLVMValueRef callee = LLVM.LLVMGetParam(builtinFunction, 0);
+    LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 1);
+
+    ObjectType objectType = new ObjectType(true, true, null);
+    parameter = typeHelper.convertStandardToTemporary(builder, parameter, objectType);
+
+    LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, parameter, objectType);
+    LLVMBasicBlockRef failureBlock = LLVM.LLVMAddBasicBlock(builder, "failure");
+    LLVMBasicBlockRef notNullParameterBlock = LLVM.LLVMAddBasicBlock(builder, "notNullParameter");
+    LLVM.LLVMBuildCondBr(builder, isNotNull, notNullParameterBlock, failureBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, failureBlock);
+    LLVM.LLVMBuildRet(builder, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false));
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, notNullParameterBlock);
+    LLVMValueRef rttiPointer = LLVM.LLVMBuildLoad(builder, rttiHelper.getRTTIPointer(builder, parameter), "");
+    TypeParameterAccessor nullAccessor = new TypeParameterAccessor(builder, rttiHelper);
+    LLVMValueRef isBoolean = rttiHelper.buildTypeInfoCheck(builder, rttiPointer, baseType, nullAccessor, true, false);
+
+    LLVMBasicBlockRef comparisonBlock = LLVM.LLVMAddBasicBlock(builder, "comparison");
+    LLVM.LLVMBuildCondBr(builder, isBoolean, comparisonBlock, failureBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, comparisonBlock);
+    LLVMValueRef booleanValue = typeHelper.convertTemporary(builder, landingPadContainer, parameter, objectType, baseType, false, nullAccessor, nullAccessor);
+    LLVMValueRef equal = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, callee, booleanValue, "");
+    LLVM.LLVMBuildRet(builder, equal);
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
 
     LLVM.LLVMDisposeBuilder(builder);
 
@@ -283,6 +368,119 @@ public class BuiltinCodeGenerator
     return builtinFunction;
   }
 
+  private LLVMValueRef buildIntegerEquals(PrimitiveType baseType, BuiltinMethod method)
+  {
+    if (baseType.getPrimitiveTypeType() != PrimitiveTypeType.BYTE &&
+        baseType.getPrimitiveTypeType() != PrimitiveTypeType.SHORT &&
+        baseType.getPrimitiveTypeType() != PrimitiveTypeType.INT &&
+        baseType.getPrimitiveTypeType() != PrimitiveTypeType.LONG &&
+        baseType.getPrimitiveTypeType() != PrimitiveTypeType.UBYTE &&
+        baseType.getPrimitiveTypeType() != PrimitiveTypeType.USHORT &&
+        baseType.getPrimitiveTypeType() != PrimitiveTypeType.UINT &&
+        baseType.getPrimitiveTypeType() != PrimitiveTypeType.ULONG)
+    {
+      throw new IllegalArgumentException("A builtin integer equals function must have the correct base type");
+    }
+
+    LLVMValueRef builtinFunction = getBuiltinMethod(method);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+    LLVMValueRef callee = LLVM.LLVMGetParam(builtinFunction, 0);
+    LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 1);
+
+    ObjectType objectType = new ObjectType(true, true, null);
+    parameter = typeHelper.convertStandardToTemporary(builder, parameter, objectType);
+
+    LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, parameter, objectType);
+    LLVMBasicBlockRef failureBlock = LLVM.LLVMAddBasicBlock(builder, "failure");
+    LLVMBasicBlockRef notNullParameterBlock = LLVM.LLVMAddBasicBlock(builder, "notNullParameter");
+    LLVM.LLVMBuildCondBr(builder, isNotNull, notNullParameterBlock, failureBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, failureBlock);
+    LLVM.LLVMBuildRet(builder, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false));
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, notNullParameterBlock);
+    LLVMValueRef rttiPointer = LLVM.LLVMBuildLoad(builder, rttiHelper.getRTTIPointer(builder, parameter), "");
+
+    LLVMValueRef sortIdPtr = LLVM.LLVMBuildStructGEP(builder, rttiPointer, 1, "");
+    LLVMValueRef sortIdValue = LLVM.LLVMBuildLoad(builder, sortIdPtr, "");
+    LLVMValueRef sortMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, sortIdValue, LLVM.LLVMConstInt(LLVM.LLVMInt8Type(), RTTIHelper.PRIMITIVE_SORT_ID, false), "");
+
+    LLVMBasicBlockRef checkPrimitiveIdBlock = LLVM.LLVMAddBasicBlock(builder, "checkPrimitiveId");
+    LLVM.LLVMBuildCondBr(builder, sortMatches, checkPrimitiveIdBlock, failureBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, checkPrimitiveIdBlock);
+    // this assumes that all primitive types' RTTI blocks are represented the same way
+    rttiPointer = LLVM.LLVMBuildBitCast(builder, rttiPointer, LLVM.LLVMPointerType(rttiHelper.getRTTIStructType(baseType), 0), "");
+    LLVMValueRef primitiveIdPtr = LLVM.LLVMBuildStructGEP(builder, rttiPointer, 3, "");
+    LLVMValueRef primitiveId = LLVM.LLVMBuildLoad(builder, primitiveIdPtr, "");
+    TypeParameterAccessor nullAccessor = new TypeParameterAccessor(builder, rttiHelper);
+    LLVMValueRef switchInstruction = LLVM.LLVMBuildSwitch(builder, primitiveId, failureBlock, 8);
+    // the constant 8 is a hint as to how many cases there are, and is only used for efficient allocation (it doesn't have to be correct)
+
+    for (PrimitiveTypeType primitive : PrimitiveTypeType.values())
+    {
+      if (primitive == PrimitiveTypeType.BOOLEAN || primitive.isFloating())
+      {
+        continue;
+      }
+      LLVMBasicBlockRef checkBlock = LLVM.LLVMAddBasicBlock(builder, primitive.name + "Check");
+      LLVM.LLVMAddCase(switchInstruction, LLVM.LLVMConstInt(LLVM.LLVMInt8Type(), primitive.getRunTimeId(), false), checkBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, checkBlock);
+      PrimitiveType primitiveType = new PrimitiveType(false, primitive, null);
+      LLVMValueRef convertedParameter = typeHelper.convertTemporary(builder, landingPadContainer, parameter, objectType, primitiveType, false, nullAccessor, nullAccessor);
+
+      LLVMValueRef equal;
+      if (baseType.canAssign(primitiveType))
+      {
+        LLVMValueRef left = callee;
+        LLVMValueRef right = typeHelper.convertTemporary(builder, landingPadContainer, convertedParameter, primitiveType, baseType, false, nullAccessor, nullAccessor);
+        equal = codeGenerator.buildEqualityCheck(builder, landingPadContainer, left, right, baseType, EqualityOperator.IDENTICALLY_EQUAL);
+      }
+      else if (primitiveType.canAssign(baseType))
+      {
+        LLVMValueRef left = typeHelper.convertTemporary(builder, landingPadContainer, callee, baseType, primitiveType, false, nullAccessor, nullAccessor);
+        LLVMValueRef right = convertedParameter;
+        equal = codeGenerator.buildEqualityCheck(builder, landingPadContainer, left, right, primitiveType, EqualityOperator.IDENTICALLY_EQUAL);
+      }
+      else
+      {
+        // neither can assign the other, so one of them must be signed and the other must be unsigned
+        // convert them both to a (max bitLength + 1) bit integer, and do the comparison on that
+        LLVMTypeRef comparisonType = LLVM.LLVMIntType(Math.max(baseType.getPrimitiveTypeType().getBitCount(), primitive.getBitCount()) + 1);
+        LLVMValueRef left;
+        LLVMValueRef right;
+        if (primitive.isSigned())
+        {
+          left = LLVM.LLVMBuildZExt(builder, callee, comparisonType, "");
+          right = LLVM.LLVMBuildSExt(builder, convertedParameter, comparisonType, "");
+        }
+        else
+        {
+          left = LLVM.LLVMBuildSExt(builder, callee, comparisonType, "");
+          right = LLVM.LLVMBuildZExt(builder, convertedParameter, comparisonType, "");
+        }
+        equal = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, left, right, "");
+      }
+      LLVM.LLVMBuildRet(builder, equal);
+    }
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return builtinFunction;
+  }
+
   private LLVMValueRef buildFloatingToString(PrimitiveType baseType, BuiltinMethod method)
   {
     if (baseType.getPrimitiveTypeType() != PrimitiveTypeType.FLOAT &&
@@ -308,6 +506,105 @@ public class BuiltinCodeGenerator
     LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
     LLVM.LLVMSetCleanup(landingPad, true);
     LLVM.LLVMBuildResume(builder, landingPad);
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return builtinFunction;
+  }
+
+  private LLVMValueRef buildFloatingEquals(PrimitiveType baseType, BuiltinMethod method)
+  {
+    if (baseType.getPrimitiveTypeType() != PrimitiveTypeType.FLOAT &&
+        baseType.getPrimitiveTypeType() != PrimitiveTypeType.DOUBLE)
+    {
+      throw new IllegalArgumentException("A builtin floating equals function must have the correct base type");
+    }
+
+    LLVMValueRef builtinFunction = getBuiltinMethod(method);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+    LLVMValueRef callee = LLVM.LLVMGetParam(builtinFunction, 0);
+    LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 1);
+
+    ObjectType objectType = new ObjectType(true, true, null);
+    parameter = typeHelper.convertStandardToTemporary(builder, parameter, objectType);
+
+    LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, parameter, objectType);
+    LLVMBasicBlockRef failureBlock = LLVM.LLVMAddBasicBlock(builder, "failure");
+    LLVMBasicBlockRef notNullParameterBlock = LLVM.LLVMAddBasicBlock(builder, "notNullParameter");
+    LLVM.LLVMBuildCondBr(builder, isNotNull, notNullParameterBlock, failureBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, failureBlock);
+    LLVM.LLVMBuildRet(builder, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false));
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, notNullParameterBlock);
+    LLVMValueRef rttiPointer = LLVM.LLVMBuildLoad(builder, rttiHelper.getRTTIPointer(builder, parameter), "");
+
+    LLVMValueRef sortIdPtr = LLVM.LLVMBuildStructGEP(builder, rttiPointer, 1, "");
+    LLVMValueRef sortIdValue = LLVM.LLVMBuildLoad(builder, sortIdPtr, "");
+    LLVMValueRef sortMatches = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntEQ, sortIdValue, LLVM.LLVMConstInt(LLVM.LLVMInt8Type(), RTTIHelper.PRIMITIVE_SORT_ID, false), "");
+
+    LLVMBasicBlockRef checkPrimitiveIdBlock = LLVM.LLVMAddBasicBlock(builder, "checkPrimitiveId");
+    LLVM.LLVMBuildCondBr(builder, sortMatches, checkPrimitiveIdBlock, failureBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, checkPrimitiveIdBlock);
+    // this assumes that all primitive types' RTTI blocks are represented the same way
+    rttiPointer = LLVM.LLVMBuildBitCast(builder, rttiPointer, LLVM.LLVMPointerType(rttiHelper.getRTTIStructType(baseType), 0), "");
+    LLVMValueRef primitiveIdPtr = LLVM.LLVMBuildStructGEP(builder, rttiPointer, 3, "");
+    LLVMValueRef primitiveId = LLVM.LLVMBuildLoad(builder, primitiveIdPtr, "");
+
+    TypeParameterAccessor nullAccessor = new TypeParameterAccessor(builder, rttiHelper);
+    LLVMBasicBlockRef doubleCheckBlock = LLVM.LLVMAddBasicBlock(builder, "doubleCheck");
+    LLVMBasicBlockRef floatCheckBlock = LLVM.LLVMAddBasicBlock(builder, "floatCheck");
+    LLVMValueRef switchInstruction = LLVM.LLVMBuildSwitch(builder, primitiveId, failureBlock, 2);
+    LLVM.LLVMAddCase(switchInstruction, LLVM.LLVMConstInt(LLVM.LLVMInt8Type(), PrimitiveTypeType.FLOAT.getRunTimeId(), false), floatCheckBlock);
+    LLVM.LLVMAddCase(switchInstruction, LLVM.LLVMConstInt(LLVM.LLVMInt8Type(), PrimitiveTypeType.DOUBLE.getRunTimeId(), false), doubleCheckBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, floatCheckBlock);
+    PrimitiveType floatType = new PrimitiveType(false, PrimitiveTypeType.FLOAT, null);
+    LLVMValueRef convertedFloatValue = typeHelper.convertTemporary(builder, landingPadContainer, parameter, objectType, floatType, false, nullAccessor, nullAccessor);
+    if (baseType.getPrimitiveTypeType() == PrimitiveTypeType.FLOAT)
+    {
+      LLVMValueRef left = callee;
+      LLVMValueRef right = convertedFloatValue;
+      LLVMValueRef equal = LLVM.LLVMBuildFCmp(builder, LLVM.LLVMRealPredicate.LLVMRealOEQ, left, right, "");
+      LLVM.LLVMBuildRet(builder, equal);
+    }
+    else
+    {
+      LLVMValueRef left = callee;
+      LLVMValueRef right = typeHelper.convertTemporary(builder, landingPadContainer, convertedFloatValue, floatType, baseType, false, nullAccessor, nullAccessor);
+      LLVMValueRef equal = LLVM.LLVMBuildFCmp(builder, LLVM.LLVMRealPredicate.LLVMRealOEQ, left, right, "");
+      LLVM.LLVMBuildRet(builder, equal);
+    }
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, doubleCheckBlock);
+    PrimitiveType doubleType = new PrimitiveType(false, PrimitiveTypeType.DOUBLE, null);
+    LLVMValueRef convertedDoubleValue = typeHelper.convertTemporary(builder, landingPadContainer, parameter, objectType, doubleType, false, nullAccessor, nullAccessor);
+    if (baseType.getPrimitiveTypeType() == PrimitiveTypeType.FLOAT)
+    {
+      LLVMValueRef left = typeHelper.convertTemporary(builder, landingPadContainer, callee, baseType, doubleType, false, nullAccessor, nullAccessor);
+      LLVMValueRef right = convertedDoubleValue;
+      LLVMValueRef equal = LLVM.LLVMBuildFCmp(builder, LLVM.LLVMRealPredicate.LLVMRealOEQ, left, right, "");
+      LLVM.LLVMBuildRet(builder, equal);
+    }
+    else
+    {
+      LLVMValueRef left = callee;
+      LLVMValueRef right = convertedDoubleValue;
+      LLVMValueRef equal = LLVM.LLVMBuildFCmp(builder, LLVM.LLVMRealPredicate.LLVMRealOEQ, left, right, "");
+      LLVM.LLVMBuildRet(builder, equal);
+    }
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
 
     LLVM.LLVMDisposeBuilder(builder);
 
@@ -403,6 +700,69 @@ public class BuiltinCodeGenerator
     LLVMValueRef completeString = codeGenerator.buildStringConcatenation(builder, landingPadContainer, startString, pointerString, endString);
     completeString = typeHelper.convertTemporaryToStandard(builder, completeString, SpecialTypeHandler.STRING_TYPE);
     LLVM.LLVMBuildRet(builder, completeString);
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return builtinFunction;
+  }
+
+  private LLVMValueRef buildObjectEquals(Type baseType, BuiltinMethod method)
+  {
+    if (!(baseType instanceof ObjectType || method.getContainingTypeDefinition() instanceof CompoundDefinition))
+    {
+      throw new IllegalArgumentException("A builtin object equals function must have either an object base type or be part of a compound definition");
+    }
+
+    LLVMValueRef builtinFunction = getBuiltinMethod(method);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+    LLVMValueRef callee = LLVM.LLVMGetParam(builtinFunction, 0);
+    LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 1);
+
+    ObjectType objectType = new ObjectType(true, true, null);
+    parameter = typeHelper.convertStandardToTemporary(builder, parameter, objectType);
+
+    LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, parameter, objectType);
+    LLVMBasicBlockRef failureBlock = LLVM.LLVMAddBasicBlock(builder, "failure");
+    LLVMBasicBlockRef notNullParameterBlock = LLVM.LLVMAddBasicBlock(builder, "notNullParameter");
+    LLVM.LLVMBuildCondBr(builder, isNotNull, notNullParameterBlock, failureBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, failureBlock);
+    LLVM.LLVMBuildRet(builder, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false));
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, notNullParameterBlock);
+
+    TypeDefinition containingDefinition = method.getContainingTypeDefinition();
+    if (containingDefinition instanceof CompoundDefinition)
+    {
+      Type checkType = new NamedType(false, true, true, containingDefinition);
+      TypeParameterAccessor calleeAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, containingDefinition, callee);
+      TypeParameterAccessor nullAccessor = new TypeParameterAccessor(builder, rttiHelper);
+      LLVMValueRef isInstanceOfCompound = rttiHelper.buildInstanceOfCheck(builder, landingPadContainer, parameter, new ObjectType(false, true, null), checkType, nullAccessor, calleeAccessor);
+      LLVMBasicBlockRef checkBlock = LLVM.LLVMAddBasicBlock(builder, "checkCompound");
+      LLVM.LLVMBuildCondBr(builder, isInstanceOfCompound, checkBlock, failureBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, checkBlock);
+      LLVMValueRef convertedValue = typeHelper.convertTemporary(builder, landingPadContainer, parameter, objectType, checkType, false, nullAccessor, calleeAccessor);
+      LLVMValueRef equal = codeGenerator.buildEqualityCheck(builder, landingPadContainer, callee, convertedValue, checkType, EqualityOperator.IDENTICALLY_EQUAL);
+      LLVM.LLVMBuildRet(builder, equal);
+    }
+    else
+    {
+      // note: objectType is ?#object, so we implicitly cast callee to nullable first here
+      LLVMValueRef equal = codeGenerator.buildEqualityCheck(builder, landingPadContainer, callee, parameter, objectType, EqualityOperator.IDENTICALLY_EQUAL);
+      LLVM.LLVMBuildRet(builder, equal);
+    }
 
     LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
     if (landingPadBlock != null)
@@ -554,6 +914,55 @@ public class BuiltinCodeGenerator
     return builtinFunction;
   }
 
+  private LLVMValueRef buildArrayEquals(ArrayType arrayType, BuiltinMethod method)
+  {
+    LLVMValueRef builtinFunction = getBuiltinMethod(method);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+    LLVMValueRef callee = LLVM.LLVMGetParam(builtinFunction, 0);
+    LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 1);
+
+    ObjectType objectType = new ObjectType(true, true, null);
+    parameter = typeHelper.convertStandardToTemporary(builder, parameter, objectType);
+
+    LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, parameter, objectType);
+    LLVMBasicBlockRef failureBlock = LLVM.LLVMAddBasicBlock(builder, "failure");
+    LLVMBasicBlockRef notNullParameterBlock = LLVM.LLVMAddBasicBlock(builder, "notNullParameter");
+    LLVM.LLVMBuildCondBr(builder, isNotNull, notNullParameterBlock, failureBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, failureBlock);
+    LLVM.LLVMBuildRet(builder, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false));
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, notNullParameterBlock);
+
+    LLVMValueRef parameterRTTI = LLVM.LLVMBuildLoad(builder, rttiHelper.getRTTIPointer(builder, parameter), "");
+    LLVMValueRef isInstanceOfArray = rttiHelper.buildTypeInfoCheck(builder, parameterRTTI, arrayType, null, true, false);
+
+    LLVMBasicBlockRef arrayCheckBlock = LLVM.LLVMAddBasicBlock(builder, "arrayCheck");
+    LLVM.LLVMBuildCondBr(builder, isInstanceOfArray, arrayCheckBlock, failureBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, arrayCheckBlock);
+    // convert the other array, but don't use typeHelper.convertTemporary(), as it might look for the values of type parameters, which we don't have here
+    // we already know that the other array has the same representation as this one does (since the RTTI matches exactly), so the bitcast must be safe
+    LLVMValueRef convertedParameter = LLVM.LLVMBuildBitCast(builder, parameter, typeHelper.findTemporaryType(arrayType), "");
+    LLVMValueRef equal = codeGenerator.buildEqualityCheck(builder, landingPadContainer, callee, convertedParameter, arrayType, EqualityOperator.EQUAL);
+    LLVM.LLVMBuildRet(builder, equal);
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return builtinFunction;
+  }
+
   private LLVMValueRef buildFunctionToString(Type baseType, BuiltinMethod method)
   {
     if (!(baseType instanceof FunctionType))
@@ -601,6 +1010,55 @@ public class BuiltinCodeGenerator
     LLVMValueRef completeString = codeGenerator.buildStringConcatenation(builder, landingPadContainer, llvmStartString, functionString, llvmMiddleString, calleeString, llvmEndString);
     completeString = typeHelper.convertTemporaryToStandard(builder, completeString, SpecialTypeHandler.STRING_TYPE);
     LLVM.LLVMBuildRet(builder, completeString);
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return builtinFunction;
+  }
+
+  private LLVMValueRef buildFunctionEquals(FunctionType functionType, BuiltinMethod method)
+  {
+    LLVMValueRef builtinFunction = getBuiltinMethod(method);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+    LLVMValueRef callee = LLVM.LLVMGetParam(builtinFunction, 0);
+    LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 1);
+
+    ObjectType objectType = new ObjectType(true, true, null);
+    parameter = typeHelper.convertStandardToTemporary(builder, parameter, objectType);
+
+    LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, parameter, objectType);
+    LLVMBasicBlockRef failureBlock = LLVM.LLVMAddBasicBlock(builder, "failure");
+    LLVMBasicBlockRef notNullParameterBlock = LLVM.LLVMAddBasicBlock(builder, "notNullParameter");
+    LLVM.LLVMBuildCondBr(builder, isNotNull, notNullParameterBlock, failureBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, failureBlock);
+    LLVM.LLVMBuildRet(builder, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false));
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, notNullParameterBlock);
+
+    LLVMValueRef parameterRTTI = LLVM.LLVMBuildLoad(builder, rttiHelper.getRTTIPointer(builder, parameter), "");
+    LLVMValueRef isInstanceOfFunction = rttiHelper.buildTypeInfoCheck(builder, parameterRTTI, functionType, null, true, false);
+
+    LLVMBasicBlockRef functionCheckBlock = LLVM.LLVMAddBasicBlock(builder, "functionCheck");
+    LLVM.LLVMBuildCondBr(builder, isInstanceOfFunction, functionCheckBlock, failureBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, functionCheckBlock);
+    // skip runtime type checks for this conversion, since we already know that it is the correct type, and we do not have the TypeParameterAccessors which may be required to perform convertTemporary()'s run-time checks
+    ObjectType notNullObjectType = new ObjectType(false, true, null);
+    LLVMValueRef convertedParameter = typeHelper.convertTemporary(builder, landingPadContainer, parameter, notNullObjectType, functionType, true, null, null);
+    LLVMValueRef equal = codeGenerator.buildEqualityCheck(builder, landingPadContainer, callee, convertedParameter, functionType, EqualityOperator.EQUAL);
+    LLVM.LLVMBuildRet(builder, equal);
 
     LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
     if (landingPadBlock != null)
@@ -708,6 +1166,55 @@ public class BuiltinCodeGenerator
     LLVMValueRef result = codeGenerator.buildStringConcatenation(builder, landingPadContainer, subStrings.toArray(new LLVMValueRef[subStrings.size()]));
     result = typeHelper.convertTemporaryToStandard(builder, result, SpecialTypeHandler.STRING_TYPE);
     LLVM.LLVMBuildRet(builder, result);
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return builtinFunction;
+  }
+
+  private LLVMValueRef buildTupleEquals(TupleType tupleType, BuiltinMethod method)
+  {
+    LLVMValueRef builtinFunction = getBuiltinMethod(method);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+    LLVMValueRef callee = LLVM.LLVMGetParam(builtinFunction, 0);
+    LLVMValueRef parameter = LLVM.LLVMGetParam(builtinFunction, 1);
+
+    ObjectType objectType = new ObjectType(true, true, null);
+    parameter = typeHelper.convertStandardToTemporary(builder, parameter, objectType);
+
+    LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, parameter, objectType);
+    LLVMBasicBlockRef failureBlock = LLVM.LLVMAddBasicBlock(builder, "failure");
+    LLVMBasicBlockRef notNullParameterBlock = LLVM.LLVMAddBasicBlock(builder, "notNullParameter");
+    LLVM.LLVMBuildCondBr(builder, isNotNull, notNullParameterBlock, failureBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, failureBlock);
+    LLVM.LLVMBuildRet(builder, LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 0, false));
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, notNullParameterBlock);
+
+    LLVMValueRef parameterRTTI = LLVM.LLVMBuildLoad(builder, rttiHelper.getRTTIPointer(builder, parameter), "");
+    LLVMValueRef isInstanceOfTuple = rttiHelper.buildTypeInfoCheck(builder, parameterRTTI, tupleType, null, true, false);
+
+    LLVMBasicBlockRef tupleCheckBlock = LLVM.LLVMAddBasicBlock(builder, "tupleCheck");
+    LLVM.LLVMBuildCondBr(builder, isInstanceOfTuple, tupleCheckBlock, failureBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, tupleCheckBlock);
+    // skip runtime type checks for this conversion, since we already know that it is the correct type, and we do not have the TypeParameterAccessors which may be required to perform convertTemporary()'s run-time checks
+    ObjectType notNullObjectType = new ObjectType(false, true, null);
+    LLVMValueRef convertedParameter = typeHelper.convertTemporary(builder, landingPadContainer, parameter, notNullObjectType, tupleType, true, null, null);
+    LLVMValueRef equal = codeGenerator.buildEqualityCheck(builder, landingPadContainer, callee, convertedParameter, tupleType, EqualityOperator.EQUAL);
+    LLVM.LLVMBuildRet(builder, equal);
 
     LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
     if (landingPadBlock != null)

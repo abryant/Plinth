@@ -27,6 +27,7 @@ public class ObjectType extends Type
   public static final BuiltinMethod[] OBJECT_METHODS = new BuiltinMethod[]
   {
     new BuiltinMethod(new ObjectType(false, true, null), BuiltinMethodType.TO_STRING),
+    new BuiltinMethod(new ObjectType(false, true, null), BuiltinMethodType.EQUALS),
   };
 
   static

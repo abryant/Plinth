@@ -1,0 +1,522 @@
+// Plinth Test
+// Main: Test
+// Out: primitive 1: true
+// Out: primitive 2: false
+// Out: primitive 3: true
+// Out: primitive 4: false
+// Out: primitive 5: true
+// Out: primitive 6: false
+// Out: primitive 7: true
+// Out: primitive 8: false
+// Out: primitive 9: true
+// Out: primitive 10: false
+// Out: primitive 11: true
+// Out: primitive 12: false
+// Out: primitive 13: false
+// Out: primitive 14: false
+// Out: primitive 15: true
+// Out: primitive 16: false
+// Out: primitive 17: false
+// Out: primitive 18: false
+// Out: primitive 19: true
+// Out: primitive 20: false
+// Out: primitive 21: true
+// Out: primitive 22: true
+// Out: primitive 23: false
+// Out: primitive 24: true
+// Out: primitive 25: false
+// Out: primitive 26: true
+// Out: primitive 27: false
+// Out: primitive 28: false
+// Out: primitive 29: true
+// Out: primitive 30: false
+// Out: primitive 31: true
+// Out: primitive 32: true
+// Out: primitive 33: true
+// Out: primitive 34: false
+// Out: primitive 35: false
+// Out: primitive 36: false
+// Out: primitive 37: false
+// Out: primitive 38: true
+// Out: primitive 39: true
+// Out: primitive 40: true
+// Out: primitive 41: false
+// Out: primitive 42: false
+// Out: primitive 43: true
+// Out: primitive 44: false
+// Out: primitive 45: true
+// Out: primitive 46: false
+// Out: primitive 47: true
+// Out: primitive 48: true
+// Out: primitive 49: false
+// Out: primitive 50: true
+// Out: primitive 51: false
+// Out: primitive 52: true
+// Out: primitive 53: false
+// Out: primitive 54: true
+// Out: primitive 55: false
+// Out: primitive 56: true
+// Out: primitive 57: false
+// Out: primitive 58: true
+// Out: primitive 59: false
+// Out: primitive 60: true
+// Out: primitive 61: false
+// Out: primitive 62: false
+// Out: primitive 63: true
+// Out: primitive 64: true
+// Out: primitive 65: false
+// Out: primitive 66: false
+// Out: primitive 67: true
+// Out: object 1: true
+// Out: object 2: false
+// Out: object 3: true
+// Out: object 4: false
+// Out: object 5: false
+// Out: object 6: true
+// Out: object 7: false
+// Out: object 8: true
+// Out: object 9: true
+// Out: object 10: false
+// Out: object 11: false
+// Out: object 12: true
+// Out: object 13: true
+// Out: object 14: false
+// Out: object 15: true
+// Out: object 16: false
+// Out: object 17: true
+// Out: object 18: false
+// Out: object 19: true
+// Out: object 20: false
+// Out: object 21: false
+// Out: object 22: true
+// Out: object 23: false
+// Out: object 24: true
+// Out: object 25: false
+// Out: object 26: false
+// Out: object 27: false
+// Out: object 28: true
+// Out: object 29: true
+// Out: object 30: false
+// Out: object 31: true
+// Out: object 32: true
+// Out: object 33: false
+// Out: object 34: true
+// Out: object 35: false
+// Out: object 36: false
+// Out: object 37: true
+// Out: object 38: false
+// Out: object 39: true
+// Out: compound 1: true
+// Out: compound 2: false
+// Out: compound 3: false
+// Out: compound 4: false
+// Out: compound 5: false
+// Out: compound 6: true
+// Out: compound 7: false
+// Out: compound 8: true
+// Out: compound 9: false
+// Out: compound 10: false
+// Out: compound 11: true
+// Out: compound 12: false
+// Out: compound 13: true
+// Out: compound 14: false
+// Out: compound 15: true
+// Out: compound 16: false
+// Out: compound 17: true
+// Out: array 1: true
+// Out: array 2: true
+// Out: array 3: false
+// Out: array 4: false
+// Out: array 5: false
+// Out: array 6: false
+// Out: array 7: false
+// Out: array 8: true
+// Out: array 9: false
+// Out: array 10: true
+// Out: array 11: false
+// Out: array 12: true
+// Out: array 13: false
+// Out: array 14: false
+// Out: array 15: true
+// Out: array 16: false
+// Out: array 17: true
+// Out: array 18: false
+// Out: array 19: true
+// Out: array 20: true
+// Out: array 21: false
+// Out: blank generic array: true
+// Out: function 1: true
+// Out: function 2: false
+// Out: function 3: false
+// Out: function 4: false
+// Out: function 5: true
+// Out: function 6: false
+// Out: function 7: true
+// Out: function 8: false
+// Out: function 9: false
+// Out: function 10: true
+// Out: function 11: false
+// Out: function 12: true
+// Out: function 13: true
+// Out: function 14: false
+// Out: function 15: false
+// Out: function 16: true
+// Out: function 17: false
+// Out: function 18: true
+// Out: function 19: false
+// Out: function 20: true
+// Out: tuple 1: true
+// Out: tuple 2: true
+// Out: tuple 3: true
+// Out: tuple 4: false
+// Out: tuple 5: false
+// Out: tuple 6: true
+// Out: tuple 7: false
+// Out: tuple 8: true
+// Out: tuple 9: false
+// Out: tuple 10: true
+// Out: tuple 11: false
+// Out: tuple 12: false
+// Out: tuple 13: true
+// Out: tuple 14: false
+// Out: tuple 15: true
+// Out: tuple 16: false
+// Out: tuple 17: true
+// Out: tuple 18: true
+// Out: tuple 19: false
+// Out: tuple 20: true
+// Out: tuple 21: false
+// Out: tuple 22: true
+// Out: tuple 23: false
+// Out: tuple 24: false
+// Out: tuple 25: true
+// Out: tuple 26: true
+// Out: tuple 27: false
+// Out: tuple 28: false
+// Out: tuple 29: true
+
+class Alpha
+{
+  static ?#object test;
+
+  create();
+
+  immutable boolean equals(?#object o)
+  {
+    return o === test;
+  }
+}
+
+compound holder<T>
+{
+  T value;
+  create(@value);
+}
+
+class BlankArrayTest<T>
+{
+  static ?object obj;
+  create();
+
+  void createArray()
+  {
+    obj = new [2]?T(null);
+  }
+
+  boolean testArray()
+  {
+    return obj == new [2]?T(null);
+  }
+}
+
+class Test
+{
+  static uint main([]string args)
+  {
+    testPrimitiveEquals();
+    testObjectEquals();
+    testCompoundEquals();
+    testArrayEquals();
+    testFunctionEquals();
+    testTupleEquals();
+    return 0;
+  }
+
+  static void testPrimitiveEquals()
+  {
+    stdout::println("primitive 1: " + true.equals(true));
+    stdout::println("primitive 2: " + true.equals(false));
+    stdout::println("primitive 3: " + (true == true));
+    stdout::println("primitive 4: " + (true == false));
+    stdout::println("primitive 5: " + (true === true));
+    stdout::println("primitive 6: " + (true === false));
+    stdout::println("primitive 7: " + (false != true));
+    stdout::println("primitive 8: " + (false != false));
+    stdout::println("primitive 9: " + (false !== true));
+    stdout::println("primitive 10: " + (false !== false));
+    object tr = true;
+    stdout::println("primitive 11: " + (tr == true));
+    stdout::println("primitive 12: " + (tr == false));
+    stdout::println("primitive 13: " + (tr === true));
+    stdout::println("primitive 14: " + (tr === false));
+    stdout::println("primitive 15: " + (true  == tr));
+    stdout::println("primitive 16: " + (false == tr));
+    stdout::println("primitive 17: " + (true  === tr));
+    stdout::println("primitive 18: " + (false === tr));
+
+    stdout::println("primitive 19: " + 1.equals(1));
+    stdout::println("primitive 20: " + 1.equals(2));
+    stdout::println("primitive 21: " + 256.equals(256));
+    stdout::println("primitive 22: " + 18.equals(cast<uint> 18));
+    stdout::println("primitive 23: " + (-1).equals(255));
+    stdout::println("primitive 24: " + (1 == 1));
+    stdout::println("primitive 25: " + (1 == 2));
+    stdout::println("primitive 26: " + (1 === 1));
+    stdout::println("primitive 27: " + (1 === 2));
+    stdout::println("primitive 28: " + (3 != 3));
+    stdout::println("primitive 29: " + (3 != 4));
+    stdout::println("primitive 30: " + (3 !== 3));
+    stdout::println("primitive 31: " + (3 !== 4));
+    object i5 = cast<uint> 5;
+    stdout::println("primitive 32: " + (5  == i5));
+    stdout::println("primitive 33: " + (i5 == 5));
+    stdout::println("primitive 34: " + (5  != i5));
+    stdout::println("primitive 35: " + (i5 != 5));
+    stdout::println("primitive 36: " + (5  === i5));
+    stdout::println("primitive 37: " + (i5 === 5));
+    stdout::println("primitive 38: " + (5  !== i5));
+    stdout::println("primitive 39: " + (i5 !== 5));
+    ?object n5 = cast<short> 5;
+    stdout::println("primitive 40: " + (i5 == n5));
+    stdout::println("primitive 41: " + (i5 != n5));
+    stdout::println("primitive 42: " + (i5 === n5));
+    stdout::println("primitive 43: " + (i5 !== n5));
+    stdout::println("primitive 44: " + (n5 == null));
+    stdout::println("primitive 45: " + (null != n5));
+    stdout::println("primitive 46: " + (null === n5));
+    stdout::println("primitive 47: " + (n5 !== null));
+
+    stdout::println("primitive 48: " + 1.25.equals(1.25));
+    stdout::println("primitive 49: " + 1.25.equals(1.5));
+    stdout::println("primitive 50: " + 1.1.equals(1.1));
+    stdout::println("primitive 51: " + 1.1.equals(1.3));
+    stdout::println("primitive 52: " + (1.25 == 1.25));
+    stdout::println("primitive 53: " + (1.25 == 1.5));
+    stdout::println("primitive 54: " + (1.25 === 1.25));
+    stdout::println("primitive 55: " + (1.25 === 1.5));
+    stdout::println("primitive 56: " + (-8.75 != 8.75));
+    stdout::println("primitive 57: " + (-8.75 != -8.75));
+    stdout::println("primitive 58: " + (-8.75 !== 8.75));
+    stdout::println("primitive 59: " + (-8.75 !== -8.75));
+    object f = 5.25;
+    stdout::println("primitive 60: " + (f == 5.25));
+    stdout::println("primitive 61: " + (f != 5.25));
+    stdout::println("primitive 62: " + (f === 5.25));
+    stdout::println("primitive 63: " + (f !== 5.25));
+    stdout::println("primitive 64: " + (f == cast<double> 5.25));
+    stdout::println("primitive 65: " + (cast<double> 5.25 != f));
+    stdout::println("primitive 66: " + (cast<double> 5.25 === f));
+    stdout::println("primitive 67: " + (f !== cast<double> 5.25));
+  }
+
+  static void testObjectEquals()
+  {
+    object a = new object();
+    object b = new object();
+    object c = 1;
+    object d = 1;
+    ?object n = null;
+
+    stdout::println("object 1: " + (a == a));
+    stdout::println("object 2: " + (a != a));
+    stdout::println("object 3: " + (a === a));
+    stdout::println("object 4: " + (a !== a));
+    stdout::println("object 5: " + (a == b));
+    stdout::println("object 6: " + (b != a));
+    stdout::println("object 7: " + (b === a));
+    stdout::println("object 8: " + (a !== b));
+    stdout::println("object 9: " + (c == d));
+    stdout::println("object 10: " + (d != c));
+    stdout::println("object 11: " + (d === c));
+    stdout::println("object 12: " + (c !== d));
+    stdout::println("object 13: " + (n == null));
+    stdout::println("object 14: " + (null != n));
+    stdout::println("object 15: " + (null === n));
+    stdout::println("object 16: " + (n !== null));
+    stdout::println("object 17: " + (n == n));
+    stdout::println("object 18: " + (n != n));
+    stdout::println("object 19: " + (n === n));
+    stdout::println("object 20: " + (n !== n));
+    stdout::println("object 21: " + (n == c));
+    stdout::println("object 22: " + (c != n));
+    stdout::println("object 23: " + (c === n));
+    stdout::println("object 24: " + (n !== c));
+
+    ?Alpha alpha = new Alpha();
+    ?object oAlpha = alpha;
+    stdout::println("object 25: " + (null === alpha));
+    stdout::println("object 26: " + (alpha == null));
+    Alpha::test = a;
+    stdout::println("object 27: " + (alpha == null)); // false, as it can optimise to null.equals(alpha) if it wants to
+    stdout::println("object 28: " + (alpha == a));
+    stdout::println("object 29: " + (oAlpha == a));
+    Alpha::test = b;
+    stdout::println("object 30: " + (alpha == a));
+    stdout::println("object 31: " + (alpha == b));
+
+    object h = create holder<uint>(15);
+    stdout::println("object 32: " + (h == h));
+    stdout::println("object 33: " + (h != h));
+    stdout::println("object 34: " + (h === h));
+    stdout::println("object 35: " + (h !== h));
+    object i = create holder<double>(1.8);
+    stdout::println("object 36: " + (h == i));
+    stdout::println("object 37: " + (i != h));
+    stdout::println("object 38: " + (i === h));
+    stdout::println("object 39: " + (h !== i));
+  }
+
+  static void testCompoundEquals()
+  {
+    holder<uint> u = create holder<uint>(1);
+    holder<uint> otherU = create holder<uint>(1);
+    holder<double> d = create holder<double>(1.0);
+
+    stdout::println("compound 1: " + u.equals(u));
+    stdout::println("compound 2: " + u.equals(d));
+    stdout::println("compound 3: " + u.equals(otherU));
+    stdout::println("compound 4: " + d.equals(u));
+    stdout::println("compound 5: " + u.equals(null));
+
+    stdout::println("compound 6: " + (u == u));
+    stdout::println("compound 7: " + (u != u));
+    stdout::println("compound 8: " + (u === u));
+    stdout::println("compound 9: " + (u !== u));
+    stdout::println("compound 10: " + (u == d));
+    stdout::println("compound 11: " + (d != u));
+    stdout::println("compound 12: " + (d === u));
+    stdout::println("compound 13: " + (u !== d));
+
+    holder<string> sa = create holder<string>("hi");
+    holder<string> sb = create holder<string>("h" + "i");
+    stdout::println("compound 14: " + (sa == sb));
+    stdout::println("compound 15: " + (sb != sa));
+    stdout::println("compound 16: " + (sb === sa));
+    stdout::println("compound 17: " + (sa !== sb));
+  }
+
+  static void testArrayEquals()
+  {
+    []uint uintArr = new []uint {1, 2, 3, 4, 5};
+    []uint identicalUintArr = new []uint {1, 2, 3, 4, 5};
+    []uint otherUintArr = new []uint {1, 2, 3, 4, 6};
+    []ulong ulongArr = new []ulong {1, 2, 3, 4, 5};
+    []uint sevenUints = new [7]uint(1);
+
+    stdout::println("array 1: " + uintArr.equals(uintArr));
+    stdout::println("array 2: " + uintArr.equals(identicalUintArr));
+    stdout::println("array 3: " + uintArr.equals(otherUintArr));
+    stdout::println("array 4: " + uintArr.equals(ulongArr));
+    stdout::println("array 5: " + uintArr.equals(sevenUints));
+    stdout::println("array 6: " + uintArr.equals(null));
+    stdout::println("array 7: " + uintArr.equals(5));
+
+    stdout::println("array 8: " + (uintArr == uintArr));
+    stdout::println("array 9: " + (uintArr != uintArr));
+    stdout::println("array 10: " + (uintArr === uintArr));
+    stdout::println("array 11: " + (uintArr !== uintArr));
+    stdout::println("array 12: " + (uintArr == identicalUintArr));
+    stdout::println("array 13: " + (identicalUintArr != uintArr));
+    stdout::println("array 14: " + (identicalUintArr === uintArr));
+    stdout::println("array 15: " + (uintArr !== identicalUintArr));
+    stdout::println("array 16: " + (uintArr == otherUintArr));
+    stdout::println("array 17: " + (otherUintArr != uintArr));
+    stdout::println("array 18: " + (otherUintArr === uintArr));
+    stdout::println("array 19: " + (uintArr !== otherUintArr));
+
+    []holder<uint> uintHolderArr  = new []holder<uint> {create holder<uint>(1), create holder<uint>(2)};
+    []holder<uint> otherHolderArr = new []holder<uint> {create holder<uint>(1), create holder<uint>(3)};
+    stdout::println("array 20: " + uintHolderArr.equals(uintHolderArr));
+    stdout::println("array 21: " + uintHolderArr.equals(otherHolderArr));
+
+    // this checks a weird edge case with generics:
+    // when a generic array is created, its RTTI block doesn't say what the actual type of T is
+    // so when we come to checking whether two arrays of some type which involves T are equal, we
+    // don't take into account what T actually is, so if the arrays are empty or only contain nulls,
+    // they could compare equal without being the same type
+    new BlankArrayTest<uint>().createArray();
+    boolean blankResult = new BlankArrayTest<double>().testArray();
+    stdout::println("blank generic array: " + blankResult);
+  }
+
+  static void testFunctionEquals()
+  {
+    {->void} f1 = testFunctionEquals;
+    {->void} f2 = testArrayEquals;
+
+    stdout::println("function 1: " + f1.equals(f1));
+    stdout::println("function 2: " + f1.equals(f2));
+    stdout::println("function 3: " + f1.equals(null));
+    stdout::println("function 4: " + f1.equals(5));
+
+    stdout::println("function 5: " + (f1 == f1));
+    stdout::println("function 6: " + (f1 != f1));
+    stdout::println("function 7: " + (f1 === f1));
+    stdout::println("function 8: " + (f1 !== f1));
+    stdout::println("function 9: " + (f1 == f2));
+    stdout::println("function 10: " + (f2 != f1));
+    stdout::println("function 11: " + (f2 === f1));
+    stdout::println("function 12: " + (f1 !== f2));
+    object o = testFunctionEquals;
+    stdout::println("function 13: " + (o == f1));
+    stdout::println("function 14: " + (f1 != o));
+    stdout::println("function 15: " + (f1 === o));
+    stdout::println("function 16: " + (o !== f1));
+    stdout::println("function 17: " + (o == f2));
+    stdout::println("function 18: " + (f2 != o));
+    stdout::println("function 19: " + (f2 === o));
+    stdout::println("function 20: " + (o !== f2));
+  }
+
+  static void testTupleEquals()
+  {
+    (uint, string) t1 = 1, "hi";
+    (uint, string) t2 = 1, "h" + "i";
+    (uint, string) t3 = 1, "no";
+
+    stdout::println("tuple 1: " + t1.equals(t1));
+    stdout::println("tuple 2: " + t1.equals(t2));
+    stdout::println("tuple 3: " + t2.equals(t1));
+    stdout::println("tuple 4: " + t1.equals(null));
+    stdout::println("tuple 5: " + t1.equals(5));
+
+    stdout::println("tuple 6: " + (t1 == t1));
+    stdout::println("tuple 7: " + (t1 != t1));
+    stdout::println("tuple 8: " + (t1 === t1));
+    stdout::println("tuple 9: " + (t1 !== t1));
+    stdout::println("tuple 10: " + (t1 == t2));
+    stdout::println("tuple 11: " + (t2 != t1));
+    stdout::println("tuple 12: " + (t2 === t1));
+    stdout::println("tuple 13: " + (t1 !== t2));
+    stdout::println("tuple 14: " + (t1 == t3));
+    stdout::println("tuple 15: " + (t3 != t1));
+    stdout::println("tuple 16: " + (t3 === t1));
+    stdout::println("tuple 17: " + (t1 !== t3));
+
+    object o = cast<uint> 1, "h" + "i";
+    stdout::println("tuple 18: " + (o == o));
+    stdout::println("tuple 19: " + (o != o));
+    stdout::println("tuple 20: " + (o === o));
+    stdout::println("tuple 21: " + (o !== o));
+    stdout::println("tuple 22: " + (o == t1));
+    stdout::println("tuple 23: " + (t1 != o));
+    stdout::println("tuple 24: " + (t1 === o));
+    stdout::println("tuple 25: " + (o !== t1));
+    stdout::println("tuple 26: " + (o == t2));
+    stdout::println("tuple 27: " + (t2 != o));
+    stdout::println("tuple 28: " + (t2 === o));
+    stdout::println("tuple 29: " + (o !== t2));
+  }
+}
+
+
