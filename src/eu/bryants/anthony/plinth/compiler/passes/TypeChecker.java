@@ -4318,33 +4318,48 @@ public class TypeChecker
           else
           {
             // find all of the super-types of each of the arguments, and find their common super-type
-            Set<Type> aSuperTypes = Type.findAllSuperTypes(argsA[i]);
-            Set<Type> bSuperTypes = Type.findAllSuperTypes(argsB[i]);
-            aSuperTypes.addAll(bSuperTypes);
+            Set<Type> allSuperTypes = Type.findAllSuperTypes(argsA[i]);
+            allSuperTypes.addAll(Type.findAllSuperTypes(argsB[i]));
             Type[] superTypes;
-            if (aSuperTypes.isEmpty())
+            if (allSuperTypes.isEmpty())
             {
               // there are no super-types
               superTypes = new Type[0];
             }
             else
             {
-              Iterator<Type> it = aSuperTypes.iterator();
+              Iterator<Type> it = allSuperTypes.iterator();
               Type commonSuperType = it.next();
               while (it.hasNext())
               {
                 commonSuperType = findCommonSuperType(commonSuperType, it.next());
               }
-              boolean nullable = argsA[i].canBeNullable() || argsB[i].canBeNullable() || commonSuperType.isNullable();
-              boolean explicitlyImmutable = Type.isExplicitlyDataImmutable(argsA[i]) || Type.isExplicitlyDataImmutable(argsB[i]) || Type.isExplicitlyDataImmutable(commonSuperType) ||
-                                            (argsA[i] instanceof NamedType && ((NamedType) argsA[i]).canBeExplicitlyImmutable()) ||
-                                            (argsA[i] instanceof WildcardType && ((WildcardType) argsA[i]).canBeExplicitlyImmutable()) ||
-                                            (argsB[i] instanceof NamedType && ((NamedType) argsB[i]).canBeExplicitlyImmutable()) ||
-                                            (argsB[i] instanceof WildcardType && ((WildcardType) argsB[i]).canBeExplicitlyImmutable());
-              boolean contextuallyImmutable = Type.isContextuallyDataImmutable(argsA[i]) || Type.isContextuallyDataImmutable(argsB[i]) || Type.isContextuallyDataImmutable(commonSuperType);
-              commonSuperType = Type.findTypeWithNullability(commonSuperType, nullable);
-              commonSuperType = Type.findTypeWithDataImmutability(commonSuperType, explicitlyImmutable, contextuallyImmutable);
-              superTypes = new Type[] {commonSuperType};
+              boolean validSuperType = true;
+              for (Type t : allSuperTypes)
+              {
+                if (!commonSuperType.canRuntimeAssign(t))
+                {
+                  validSuperType = false;
+                  break;
+                }
+              }
+              if (validSuperType)
+              {
+                boolean nullable = argsA[i].canBeNullable() || argsB[i].canBeNullable() || commonSuperType.isNullable();
+                boolean explicitlyImmutable = Type.isExplicitlyDataImmutable(argsA[i]) || Type.isExplicitlyDataImmutable(argsB[i]) || Type.isExplicitlyDataImmutable(commonSuperType) ||
+                                              (argsA[i] instanceof NamedType && ((NamedType) argsA[i]).canBeExplicitlyImmutable()) ||
+                                              (argsA[i] instanceof WildcardType && ((WildcardType) argsA[i]).canBeExplicitlyImmutable()) ||
+                                              (argsB[i] instanceof NamedType && ((NamedType) argsB[i]).canBeExplicitlyImmutable()) ||
+                                              (argsB[i] instanceof WildcardType && ((WildcardType) argsB[i]).canBeExplicitlyImmutable());
+                boolean contextuallyImmutable = Type.isContextuallyDataImmutable(argsA[i]) || Type.isContextuallyDataImmutable(argsB[i]) || Type.isContextuallyDataImmutable(commonSuperType);
+                commonSuperType = Type.findTypeWithNullability(commonSuperType, nullable);
+                commonSuperType = Type.findTypeWithDataImmutability(commonSuperType, explicitlyImmutable, contextuallyImmutable);
+                superTypes = new Type[] {commonSuperType};
+              }
+              else
+              {
+                superTypes = new Type[0];
+              }
             }
             // use this common super-type as the upper bound for a wildcard type argument
             resultTypes[i] = new WildcardType(false, false, false, superTypes, new Type[0], null);

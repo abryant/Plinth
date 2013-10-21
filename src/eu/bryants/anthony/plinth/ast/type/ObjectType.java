@@ -70,8 +70,6 @@ public class ObjectType extends Type
     this(nullable, explicitlyImmutable, false, lexicalPhrase);
   }
 
-
-
   /**
    * @return the explicitlyImmutable
    */
@@ -118,6 +116,16 @@ public class ObjectType extends Type
     }
 
     // providing the nullability and immutability is compatible, any type can be assigned to an object type
+    return true;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean canRuntimeAssign(Type type)
+  {
+    // object is at the top of the type system
     return true;
   }
 

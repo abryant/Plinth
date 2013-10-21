@@ -87,6 +87,31 @@ public class TupleType extends Type
    * {@inheritDoc}
    */
   @Override
+  public boolean canRuntimeAssign(Type type)
+  {
+    if (!(type instanceof TupleType))
+    {
+      return false;
+    }
+    TupleType otherType = (TupleType) type;
+    if (subTypes.length != otherType.subTypes.length)
+    {
+      return false;
+    }
+    for (int i = 0; i < subTypes.length; i++)
+    {
+      if (!subTypes[i].isRuntimeEquivalent(otherType.getSubTypes()[i]))
+      {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public boolean isEquivalent(Type type)
   {
     if (!(type instanceof TupleType))

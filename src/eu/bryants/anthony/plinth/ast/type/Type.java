@@ -67,6 +67,18 @@ public abstract class Type
   public abstract boolean canAssign(Type type);
 
   /**
+   * Checks whether the specified type can be converted to this type at run-time.
+   * This method always returns the same result as the runtime would when checking whether an object cast is possible.
+   * Specifically, it returns true if either the other type's RTTI block or one of the RTTI blocks
+   * in its type search list would match this type's RTTI block (ignoring nullability and
+   * immutability and loosely matching wildcard types).
+   * Note: this method is undefined for wildcard types, type parameters, the null type, and the void type.
+   * @param type - the type to check, cannot be a wildcard type, a type parameter, the null type, or the void type
+   * @return true if this type can assign the specified type at runtime, false otherwise
+   */
+  public abstract boolean canRuntimeAssign(Type type);
+
+  /**
    * Checks whether this type is absolutely equivalent to the specified type.
    * @param type - the type to check
    * @return true iff this type and the specified type are equivalent
@@ -366,5 +378,55 @@ public abstract class Type
       }
     }
     return superTypes;
+  }
+
+  /**
+   * Finds all of the sub-types of the specified type.
+   * If the type is a wildcard or a type parameter, then this can return a set containing multiple types.
+   * Otherwise, the set will just contain the original type.
+   * Note: this method ignores all nullability and immutability constraints that the original type may have - they should be dealt with explicitly by the caller.
+   * @param type - the type to find all of the sub-types of
+   * @return the set of all sub-types of the specified type
+   */
+  public static Set<Type> findAllSubTypes(Type type)
+  {
+    Set<TypeParameter> visitedTypeParameters = new HashSet<TypeParameter>();
+    Set<Type> subTypes = new HashSet<Type>();
+    Deque<Type> typeQueue = new LinkedList<Type>();
+    typeQueue.add(type);
+    while (!typeQueue.isEmpty())
+    {
+      Type subType = typeQueue.poll();
+      if (subType instanceof NamedType && ((NamedType) subType).getResolvedTypeParameter() != null)
+      {
+        TypeParameter typeParameter = ((NamedType) subType).getResolvedTypeParameter();
+        if (visitedTypeParameters.contains(typeParameter))
+        {
+          // since type parameters can reference each other, we need to continue here to make sure we don't infinite loop
+          // with a circular sub-type restriction (e.g. Foo<A super B, B super A>)
+          continue;
+        }
+        visitedTypeParameters.add(typeParameter);
+        // we can ignore the TypeParameter's nullability and immutability, as the caller has already checked that those properties do not conflict
+        for (Type parameterSubType : typeParameter.getSubTypes())
+        {
+          typeQueue.add(parameterSubType);
+        }
+      }
+      else if (subType instanceof WildcardType)
+      {
+        WildcardType wildcardType = (WildcardType) subType;
+        // we can ignore the Wildcard type's nullability and immutability, as the caller has already checked that those properties do not conflict
+        for (Type t : wildcardType.getSubTypes())
+        {
+          typeQueue.add(t);
+        }
+      }
+      else
+      {
+        subTypes.add(subType);
+      }
+    }
+    return subTypes;
   }
 }

@@ -101,6 +101,15 @@ public class ArrayType extends Type
    * {@inheritDoc}
    */
   @Override
+  public boolean canRuntimeAssign(Type type)
+  {
+    return type instanceof ArrayType && baseType.isRuntimeEquivalent(((ArrayType) type).getBaseType());
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public boolean isEquivalent(Type type)
   {
     return type instanceof ArrayType &&

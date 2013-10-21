@@ -354,6 +354,15 @@ public class WildcardType extends Type
   }
 
   /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean canRuntimeAssign(Type type)
+  {
+    throw new UnsupportedOperationException("canRuntimeAssign() is undefined for WildcardType");
+  }
+
+  /**
    * Checks whether this WildcardType can be assigned to the specified Type, ignoring nullability and immutability constraints.
    * This should be called by individual canAssign() methods on other Types when they don't define their own behaviour for wildcard types.
    * @param type - the Type that this wildcard is being assigned to
@@ -448,6 +457,48 @@ public class WildcardType extends Type
       if (!type.canAssign(subType))
       {
         return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Checks whether this wildcard is broader than the specified type at runtime.
+   * If the type is a single type, then it checks whether the super-types and sub-types of this
+   * wildcard encompass it using canRuntimeAssign().
+   * If the type is another wildcard type, then it checks whether the super-types and sub-types of
+   * this wildcard encompass all possible values of the other wildcard using canRuntimeAssign().
+   * @param type - the type to check
+   * @return true if this wildcard encompasses the specified type at run-time, false otherwise
+   */
+  public boolean runtimeEncompasses(Type type)
+  {
+    Set<Type> otherSuperTypes = Type.findAllSuperTypes(type);
+    for (Type superType : superTypes)
+    {
+      for (Type t : Type.findAllSubTypes(superType))
+      {
+        for (Type otherSuper : otherSuperTypes)
+        {
+          if (!t.canRuntimeAssign(otherSuper))
+          {
+            return false;
+          }
+        }
+      }
+    }
+    Set<Type> otherSubTypes = Type.findAllSubTypes(type);
+    for (Type subType : subTypes)
+    {
+      for (Type t : Type.findAllSuperTypes(subType))
+      {
+        for (Type otherSub : otherSubTypes)
+        {
+          if (!otherSub.canRuntimeAssign(t))
+          {
+            return false;
+          }
+        }
       }
     }
     return true;

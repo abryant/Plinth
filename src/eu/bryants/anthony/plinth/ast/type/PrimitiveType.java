@@ -238,6 +238,15 @@ public class PrimitiveType extends Type
    * {@inheritDoc}
    */
   @Override
+  public boolean canRuntimeAssign(Type type)
+  {
+    return type instanceof PrimitiveType && ((PrimitiveType) type).getPrimitiveTypeType() == primitiveTypeType;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public boolean isEquivalent(Type type)
   {
     return isRuntimeEquivalent(type);

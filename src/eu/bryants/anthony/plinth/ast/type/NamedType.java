@@ -549,6 +549,64 @@ public class NamedType extends Type
    * {@inheritDoc}
    */
   @Override
+  public boolean canRuntimeAssign(Type type)
+  {
+    if (resolvedTypeParameter != null)
+    {
+      throw new UnsupportedOperationException("canRuntimeAssign() is undefined for type parameters");
+    }
+    if (!(type instanceof NamedType) || ((NamedType) type).getResolvedTypeParameter() != null)
+    {
+      return false;
+    }
+    NamedType namedType = (NamedType) type;
+    TypeDefinition otherTypeDefinition = namedType.getResolvedTypeDefinition();
+    NamedType[] linearisation = otherTypeDefinition.getInheritanceLinearisation();
+    GenericTypeSpecialiser otherTypeSpecialiser = new GenericTypeSpecialiser(namedType);
+    for (NamedType t : linearisation)
+    {
+      if (resolvedTypeDefinition != t.getResolvedTypeDefinition())
+      {
+        continue;
+      }
+      NamedType superType = (NamedType) otherTypeSpecialiser.getSpecialisedType(t);
+      Type[] superTypeArguments = superType.getTypeArguments();
+      if ((typeArguments == null) != (superTypeArguments == null))
+      {
+        continue;
+      }
+      if (typeArguments == null)
+      {
+        return true;
+      }
+      if (typeArguments.length != superTypeArguments.length)
+      {
+        throw new IllegalStateException("Number of type arguments does not match for " + resolvedTypeDefinition.getQualifiedName());
+      }
+      boolean argumentsMatch = true;
+      for (int i = 0; argumentsMatch & i < typeArguments.length; ++i)
+      {
+        if (typeArguments[i] instanceof WildcardType)
+        {
+          argumentsMatch &= ((WildcardType) typeArguments[i]).runtimeEncompasses(superTypeArguments[i]);
+        }
+        else
+        {
+          argumentsMatch &= typeArguments[i].isRuntimeEquivalent(superTypeArguments[i]);
+        }
+      }
+      if (argumentsMatch)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public boolean isEquivalent(Type type)
   {
     if (resolvedTypeParameter != null)

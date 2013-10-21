@@ -178,6 +178,46 @@ public class FunctionType extends Type
    * {@inheritDoc}
    */
   @Override
+  public boolean canRuntimeAssign(Type type)
+  {
+    if (!(type instanceof FunctionType))
+    {
+      return false;
+    }
+    FunctionType otherFunction = (FunctionType) type;
+    if (!returnType.isRuntimeEquivalent(otherFunction.getReturnType()))
+    {
+      return false;
+    }
+    Type[] otherParameters = otherFunction.getParameterTypes();
+    DefaultParameter[] otherDefaultParameters = otherFunction.getDefaultParameters();
+    if (parameterTypes.length != otherParameters.length || defaultParameters.length != otherDefaultParameters.length)
+    {
+      return false;
+    }
+    for (int i = 0; i < parameterTypes.length; i++)
+    {
+      if (!parameterTypes[i].isRuntimeEquivalent(otherParameters[i]))
+      {
+        return false;
+      }
+    }
+    for (int i = 0; i < defaultParameters.length; ++i)
+    {
+      if (!defaultParameters[i].getName().equals(otherDefaultParameters[i].getName()) ||
+          !defaultParameters[i].getType().isEquivalent(otherDefaultParameters[i].getType()))
+      {
+        return false;
+      }
+    }
+    // NOTE: we don't check the thrown types in a runtime equivalence check
+    return true;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public boolean isEquivalent(Type type)
   {
     if (!(type instanceof FunctionType))

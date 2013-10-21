@@ -36,6 +36,15 @@ public class VoidType extends Type
    * {@inheritDoc}
    */
   @Override
+  public boolean canRuntimeAssign(Type type)
+  {
+    throw new UnsupportedOperationException("canRuntimeAssign() is undefined for VoidType");
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
   public boolean isEquivalent(Type type)
   {
     return isRuntimeEquivalent(type);
