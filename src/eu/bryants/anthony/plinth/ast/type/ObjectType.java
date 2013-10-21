@@ -165,7 +165,7 @@ public class ObjectType extends Type
   @Override
   public String getMangledName()
   {
-    return MANGLED_NAME;
+    return (isNullable() ? "x" : "") + (isContextuallyImmutable() ? "c" : "") + MANGLED_NAME;
   }
 
   /**
