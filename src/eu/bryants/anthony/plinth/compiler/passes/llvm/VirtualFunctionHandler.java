@@ -1587,7 +1587,7 @@ public class VirtualFunctionHandler
     LLVMTypeRef[] paramTypes = new LLVMTypeRef[0];
     LLVMTypeRef functionType = LLVM.LLVMFunctionType(returnType, C.toNativePointerArray(paramTypes, false, true), paramTypes.length, false);
     LLVMValueRef function = LLVM.LLVMAddFunction(module, mangledName, functionType);
-    LLVM.LLVMSetLinkage(function, LLVM.LLVMLinkage.LLVMPrivateLinkage);
+    LLVM.LLVMSetLinkage(function, LLVM.LLVMLinkage.LLVMLinkerPrivateLinkage);
     LLVM.LLVMSetVisibility(function, LLVM.LLVMVisibility.LLVMHiddenVisibility);
     return function;
   }
