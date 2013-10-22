@@ -18,6 +18,7 @@ import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod.BuiltinMethodType;
 import eu.bryants.anthony.plinth.ast.member.Method;
 import eu.bryants.anthony.plinth.ast.metadata.GenericTypeSpecialiser;
+import eu.bryants.anthony.plinth.ast.metadata.MemberVariable;
 import eu.bryants.anthony.plinth.ast.metadata.MethodReference;
 import eu.bryants.anthony.plinth.ast.metadata.MethodReference.Disambiguator;
 import eu.bryants.anthony.plinth.ast.misc.Parameter;
@@ -754,7 +755,48 @@ public class BuiltinCodeGenerator
 
       LLVM.LLVMPositionBuilderAtEnd(builder, checkBlock);
       LLVMValueRef convertedValue = typeHelper.convertTemporary(builder, landingPadContainer, parameter, objectType, checkType, false, nullAccessor, calleeAccessor);
-      LLVMValueRef equal = codeGenerator.buildEqualityCheck(builder, landingPadContainer, callee, convertedValue, checkType, EqualityOperator.IDENTICALLY_EQUAL);
+
+      // compare each of the member variables from the left and right values
+      // this cannot be done using buildEqualityCheck(), as using EqualityOperator.EQUAL on a compound
+      // type just calls the equals() method on that compound type, which would just recurse
+      MemberVariable[] memberVariables = ((CompoundDefinition) containingDefinition).getMemberVariables();
+      LLVMValueRef[] compareResults = new LLVMValueRef[memberVariables.length];
+      for (int i = 0; i < memberVariables.length; ++i)
+      {
+        Type variableType = memberVariables[i].getType();
+        LLVMValueRef leftField = typeHelper.getMemberPointer(builder, callee, memberVariables[i]);
+        LLVMValueRef rightField = typeHelper.getMemberPointer(builder, convertedValue, memberVariables[i]);
+        LLVMValueRef leftValue = typeHelper.convertStandardPointerToTemporary(builder, leftField, variableType);
+        LLVMValueRef rightValue = typeHelper.convertStandardPointerToTemporary(builder, rightField, variableType);
+        compareResults[i] = codeGenerator.buildEqualityCheck(builder, landingPadContainer, leftValue, rightValue, variableType, EqualityOperator.EQUAL);
+      }
+
+      // AND the list together, using a binary tree
+      int multiple = 1;
+      while (multiple < memberVariables.length)
+      {
+        for (int i = 0; i < memberVariables.length; i += 2 * multiple)
+        {
+          LLVMValueRef first = compareResults[i];
+          if (i + multiple >= memberVariables.length)
+          {
+            continue;
+          }
+          LLVMValueRef second = compareResults[i + multiple];
+          compareResults[i] = LLVM.LLVMBuildAnd(builder, first, second, "");
+        }
+        multiple *= 2;
+      }
+      LLVMValueRef equal;
+      if (memberVariables.length == 0)
+      {
+        equal = LLVM.LLVMConstInt(LLVM.LLVMInt1Type(), 1, false);
+      }
+      else
+      {
+        equal = compareResults[0];
+      }
+
       LLVM.LLVMBuildRet(builder, equal);
     }
     else

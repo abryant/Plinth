@@ -108,7 +108,7 @@
 // Out: object 39: true
 // Out: compound 1: true
 // Out: compound 2: false
-// Out: compound 3: false
+// Out: compound 3: true
 // Out: compound 4: false
 // Out: compound 5: false
 // Out: compound 6: true
@@ -119,8 +119,8 @@
 // Out: compound 11: true
 // Out: compound 12: false
 // Out: compound 13: true
-// Out: compound 14: false
-// Out: compound 15: true
+// Out: compound 14: true
+// Out: compound 15: false
 // Out: compound 16: false
 // Out: compound 17: true
 // Out: array 1: true
