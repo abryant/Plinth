@@ -4725,10 +4725,8 @@ public class CodeGenerator
             Type variableType = memberVariables[i].getType();
             LLVMValueRef leftField = typeHelper.getMemberPointer(builder, left, memberVariables[i]);
             LLVMValueRef rightField = typeHelper.getMemberPointer(builder, right, memberVariables[i]);
-            LLVMValueRef leftValue = LLVM.LLVMBuildLoad(builder, leftField, "");
-            LLVMValueRef rightValue = LLVM.LLVMBuildLoad(builder, rightField, "");
-            leftValue = typeHelper.convertStandardToTemporary(builder, leftValue, variableType);
-            rightValue = typeHelper.convertStandardToTemporary(builder, rightValue, variableType);
+            LLVMValueRef leftValue = typeHelper.convertStandardPointerToTemporary(builder, leftField, variableType);
+            LLVMValueRef rightValue = typeHelper.convertStandardPointerToTemporary(builder, rightField, variableType);
             compareResults[i] = buildEqualityCheck(builder, landingPadContainer, leftValue, rightValue, variableType, operator);
           }
 
