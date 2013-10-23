@@ -3302,6 +3302,14 @@ public class TypeHelper
     }
     if (to instanceof NamedType && ((NamedType) to).getResolvedTypeDefinition() instanceof InterfaceDefinition)
     {
+      if (skipRuntimeChecks && Type.findTypeWithNullability(from, true).isRuntimeEquivalent(Type.findTypeWithNullability(to, true)))
+      {
+        // if the only change is in the nullability, and we are skipping runtime checks, then we
+        // can just return the value passed in, since it does not change the type representation
+        // (this can help avoid certain crashes when builtin methods try to convert an interface
+        // without knowing its type arguments)
+        return value;
+      }
       LLVMValueRef objectValue = null;
       Type objectType = null;
       if (from instanceof NamedType && ((NamedType) from).getResolvedTypeDefinition() instanceof ClassDefinition)

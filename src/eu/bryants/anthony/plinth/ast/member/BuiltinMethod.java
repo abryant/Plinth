@@ -25,6 +25,7 @@ public class BuiltinMethod extends Method
     TO_STRING      (SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[0]),
     TO_STRING_RADIX(SpecialTypeHandler.STRING_TYPE, "toString", false, true, null, new Parameter[] {new NormalParameter(false, new PrimitiveType(false, PrimitiveTypeType.UINT, null), "radix", null)}),
     EQUALS(new PrimitiveType(false, PrimitiveTypeType.BOOLEAN, null), "equals", false, true, null, new Parameter[] {new NormalParameter(false, new ObjectType(true, true, null), "other", null)}),
+    HASH_CODE(new PrimitiveType(false, PrimitiveTypeType.UINT, null), "hashCode", false, true, null, new Parameter[0]),
     ;
     public final Type returnType;
     public final String methodName;

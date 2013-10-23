@@ -28,6 +28,7 @@ public class ObjectType extends Type
   {
     new BuiltinMethod(new ObjectType(false, true, null), BuiltinMethodType.TO_STRING),
     new BuiltinMethod(new ObjectType(false, true, null), BuiltinMethodType.EQUALS),
+    new BuiltinMethod(new ObjectType(false, true, null), BuiltinMethodType.HASH_CODE),
   };
 
   static

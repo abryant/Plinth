@@ -283,6 +283,10 @@ public class PrimitiveType extends Type
     {
       members.add(new MethodReference(new BuiltinMethod(notNullThis, BuiltinMethodType.EQUALS), GenericTypeSpecialiser.IDENTITY_SPECIALISER));
     }
+    if (name.equals(BuiltinMethodType.HASH_CODE.methodName))
+    {
+      members.add(new MethodReference(new BuiltinMethod(notNullThis, BuiltinMethodType.HASH_CODE), GenericTypeSpecialiser.IDENTITY_SPECIALISER));
+    }
     return members;
   }
 

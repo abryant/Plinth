@@ -69,20 +69,84 @@ immutable compound string
   }
   static string valueOf(long value)
   {
-    return "<signed-int>";
+    return valueOf(value, 10);
   }
   static string valueOf(ulong value)
   {
-    return "<unsigned-int>";
+    return valueOf(value, 10);
   }
   static string valueOf(long value, uint radix)
   {
-    return "<signed-int-radix>";
+    #[]ubyte numerals = "0123456789abcdefghijklmnopqrstuvwxyz".bytes;
+    if radix < 2 | radix > numerals.length
+    {
+      return "#RadixError";
+    }
+    if value == 0
+    {
+      return "0";
+    }
+    uint length = 0;
+    ulong abs = cast<ulong> value;
+    if value < 0
+    {
+      ++length;
+      abs = cast<ulong> -value;
+      // because of the way negative numbers are represented,
+      // even if value == long::MIN_VALUE (which cannot be negated),
+      // abs will now be the correct unsigned value
+    }
+    ulong test = abs;
+    while test != 0
+    {
+      test /= radix;
+      ++length;
+    }
+    []ubyte bytes = new [length]ubyte;
+    for (uint i = bytes.length - 1; i != 0; --i)
+    {
+      bytes[i] = numerals[cast<uint> (abs % radix)];
+      abs /= radix;
+    }
+    if value < 0
+    {
+      bytes[0] = "-".bytes[0];
+    }
+    else
+    {
+      bytes[0] = numerals[cast<uint> abs];
+    }
+    return create string(bytes);
   }
+
   static string valueOf(ulong value, uint radix)
   {
-    return "<unsigned-int-radix>";
+    #[]ubyte numerals = "0123456789abcdefghijklmnopqrstuvwxyz".bytes;
+    if radix < 2 | radix > numerals.length
+    {
+      return "#RadixError";
+    }
+    if value == 0
+    {
+      return "0";
+    }
+    uint length = 0;
+    ulong test = value;
+    while test != 0
+    {
+      test /= radix;
+      ++length;
+    }
+    []ubyte bytes = new [length]ubyte;
+    for (uint i = bytes.length - 1; i != 0; --i)
+    {
+      bytes[i] = numerals[cast<uint> (value % radix)];
+      value /= radix;
+    }
+    bytes[0] = numerals[cast<uint> value];
+    return create string(bytes);
   }
+
   static string valueOf(float value)
   {
     return "<float>";

@@ -11,7 +11,9 @@ import nativelib.llvm.LLVM.LLVMBuilderRef;
 import nativelib.llvm.LLVM.LLVMModuleRef;
 import nativelib.llvm.LLVM.LLVMTypeRef;
 import nativelib.llvm.LLVM.LLVMValueRef;
+import eu.bryants.anthony.plinth.ast.ClassDefinition;
 import eu.bryants.anthony.plinth.ast.CompoundDefinition;
+import eu.bryants.anthony.plinth.ast.InterfaceDefinition;
 import eu.bryants.anthony.plinth.ast.TypeDefinition;
 import eu.bryants.anthony.plinth.ast.expression.EqualityExpression.EqualityOperator;
 import eu.bryants.anthony.plinth.ast.member.BuiltinMethod;
@@ -31,6 +33,7 @@ import eu.bryants.anthony.plinth.ast.type.PrimitiveType;
 import eu.bryants.anthony.plinth.ast.type.PrimitiveType.PrimitiveTypeType;
 import eu.bryants.anthony.plinth.ast.type.TupleType;
 import eu.bryants.anthony.plinth.ast.type.Type;
+import eu.bryants.anthony.plinth.ast.type.WildcardType;
 import eu.bryants.anthony.plinth.compiler.passes.SpecialTypeHandler;
 
 /*
@@ -149,6 +152,37 @@ public class BuiltinCodeGenerator
         return buildTupleEquals((TupleType) baseType, method);
       }
       throw new IllegalArgumentException("Unknown base type for an equals(?#object other) method: " + baseType);
+    case HASH_CODE:
+      if (baseType instanceof PrimitiveType)
+      {
+        switch (((PrimitiveType) baseType).getPrimitiveTypeType())
+        {
+        case BOOLEAN:
+          return buildBooleanHashCode((PrimitiveType) baseType, method);
+        case BYTE: case SHORT: case INT: case LONG:
+        case UBYTE: case USHORT: case UINT: case ULONG:
+          return buildIntegerHashCode((PrimitiveType) baseType, method);
+        case FLOAT: case DOUBLE:
+          return buildFloatingHashCode((PrimitiveType) baseType, method);
+        }
+      }
+      else if (baseType instanceof ObjectType || method.getContainingTypeDefinition() instanceof CompoundDefinition)
+      {
+        return buildObjectHashCode(baseType, method);
+      }
+      else if (baseType instanceof ArrayType)
+      {
+        return buildArrayHashCode((ArrayType) baseType, method);
+      }
+      else if (baseType instanceof FunctionType)
+      {
+        return buildFunctionHashCode(method);
+      }
+      else if (baseType instanceof TupleType)
+      {
+        return buildTupleHashCode((TupleType) baseType, method);
+      }
+      throw new IllegalArgumentException("Unknown base type for a hashCode() method: " + baseType);
     default:
       throw new IllegalArgumentException("Unknown built-in method: " + method);
     }
@@ -261,6 +295,25 @@ public class BuiltinCodeGenerator
       LLVM.LLVMSetCleanup(landingPad, true);
       LLVM.LLVMBuildResume(builder, landingPad);
     }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return builtinFunction;
+  }
+
+  private LLVMValueRef buildBooleanHashCode(PrimitiveType baseType, BuiltinMethod method)
+  {
+    if (baseType.getPrimitiveTypeType() != PrimitiveTypeType.BOOLEAN)
+    {
+      throw new IllegalArgumentException("A builtin boolean equals function must have the correct base type");
+    }
+
+    LLVMValueRef builtinFunction = getBuiltinMethod(method);
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+
+    LLVMValueRef callee = LLVM.LLVMGetParam(builtinFunction, 0);
+    LLVMValueRef result = LLVM.LLVMBuildSelect(builder, callee, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 1, false), LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false), "");
+    LLVM.LLVMBuildRet(builder, result);
 
     LLVM.LLVMDisposeBuilder(builder);
 
@@ -380,7 +433,7 @@ public class BuiltinCodeGenerator
         baseType.getPrimitiveTypeType() != PrimitiveTypeType.UINT &&
         baseType.getPrimitiveTypeType() != PrimitiveTypeType.ULONG)
     {
-      throw new IllegalArgumentException("A builtin integer equals function must have the correct base type");
+      throw new IllegalArgumentException("A builtin integer equals() function must have the correct base type");
     }
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
@@ -475,6 +528,52 @@ public class BuiltinCodeGenerator
       LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
       LLVM.LLVMSetCleanup(landingPad, true);
       LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return builtinFunction;
+  }
+
+  private LLVMValueRef buildIntegerHashCode(PrimitiveType baseType, BuiltinMethod method)
+  {
+    PrimitiveTypeType baseTypeType = baseType.getPrimitiveTypeType();
+    if (baseTypeType != PrimitiveTypeType.BYTE &&
+        baseTypeType != PrimitiveTypeType.SHORT &&
+        baseTypeType != PrimitiveTypeType.INT &&
+        baseTypeType != PrimitiveTypeType.LONG &&
+        baseTypeType != PrimitiveTypeType.UBYTE &&
+        baseTypeType != PrimitiveTypeType.USHORT &&
+        baseTypeType != PrimitiveTypeType.UINT &&
+        baseTypeType != PrimitiveTypeType.ULONG)
+    {
+      throw new IllegalArgumentException("A builtin integer hashCode() function must have the correct base type");
+    }
+
+    LLVMValueRef builtinFunction = getBuiltinMethod(method);
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+
+    LLVMValueRef callee = LLVM.LLVMGetParam(builtinFunction, 0);
+    if (baseTypeType.getBitCount() == PrimitiveTypeType.UINT.getBitCount())
+    {
+      LLVM.LLVMBuildRet(builder, callee);
+    }
+    else if (baseTypeType.getBitCount() < PrimitiveTypeType.UINT.getBitCount())
+    {
+      LLVMValueRef result = LLVM.LLVMBuildZExt(builder, callee, LLVM.LLVMInt32Type(), "");
+      LLVM.LLVMBuildRet(builder, result);
+    }
+    else
+    {
+      // this is either a long or a ulong, so it has 64 bits
+      LLVMValueRef bottomHalf = LLVM.LLVMBuildTrunc(builder, callee, LLVM.LLVMInt32Type(), "");
+      LLVMValueRef topHalf = LLVM.LLVMBuildLShr(builder, callee, LLVM.LLVMConstInt(LLVM.LLVMInt64Type(), 32, false), "");
+      topHalf = LLVM.LLVMBuildTrunc(builder, topHalf, LLVM.LLVMInt32Type(), "");
+      // result = 33 * topHalf + bottomHalf = topHalf << 5 + topHalf + bottomHalf
+      LLVMValueRef shiftedTopHalf = LLVM.LLVMBuildShl(builder, topHalf, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 5, false), "");
+      LLVMValueRef result = LLVM.LLVMBuildAdd(builder, shiftedTopHalf, topHalf, "");
+      result = LLVM.LLVMBuildAdd(builder, result, bottomHalf, "");
+      LLVM.LLVMBuildRet(builder, result);
     }
 
     LLVM.LLVMDisposeBuilder(builder);
@@ -612,6 +711,41 @@ public class BuiltinCodeGenerator
     return builtinFunction;
   }
 
+  private LLVMValueRef buildFloatingHashCode(PrimitiveType baseType, BuiltinMethod method)
+  {
+    PrimitiveTypeType baseTypeType = baseType.getPrimitiveTypeType();
+    if (baseTypeType != PrimitiveTypeType.FLOAT &&
+        baseTypeType != PrimitiveTypeType.DOUBLE)
+    {
+      throw new IllegalArgumentException("A builtin floating hashCode() function must have the correct base type");
+    }
+
+    LLVMValueRef builtinFunction = getBuiltinMethod(method);
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+
+    LLVMValueRef callee = LLVM.LLVMGetParam(builtinFunction, 0);
+
+    // always work with doubles, so that float hashCode()s equal double hashCode()s given the same floating point values
+    LLVMValueRef doubleValue = callee;
+    if (baseTypeType == PrimitiveTypeType.FLOAT)
+    {
+      doubleValue = LLVM.LLVMBuildFPCast(builder, callee, LLVM.LLVMDoubleType(), "");
+    }
+    LLVMValueRef longValue = LLVM.LLVMBuildBitCast(builder, doubleValue, LLVM.LLVMInt64Type(), "");
+    LLVMValueRef bottomHalf = LLVM.LLVMBuildTrunc(builder, longValue, LLVM.LLVMInt32Type(), "");
+    LLVMValueRef topHalf = LLVM.LLVMBuildLShr(builder, longValue, LLVM.LLVMConstInt(LLVM.LLVMInt64Type(), 32, false), "");
+    topHalf = LLVM.LLVMBuildTrunc(builder, topHalf, LLVM.LLVMInt32Type(), "");
+    // result = 33 * topHalf + bottomHalf = topHalf << 5 + topHalf + bottomHalf
+    LLVMValueRef shiftedTopHalf = LLVM.LLVMBuildShl(builder, topHalf, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 5, false), "");
+    LLVMValueRef result = LLVM.LLVMBuildAdd(builder, shiftedTopHalf, topHalf, "");
+    result = LLVM.LLVMBuildAdd(builder, result, bottomHalf, "");
+    LLVM.LLVMBuildRet(builder, result);
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return builtinFunction;
+  }
+
   private LLVMValueRef buildObjectToString(Type baseType, BuiltinMethod method)
   {
     if (!(baseType instanceof ObjectType || method.getContainingTypeDefinition() instanceof CompoundDefinition))
@@ -720,7 +854,7 @@ public class BuiltinCodeGenerator
   {
     if (!(baseType instanceof ObjectType || method.getContainingTypeDefinition() instanceof CompoundDefinition))
     {
-      throw new IllegalArgumentException("A builtin object equals function must have either an object base type or be part of a compound definition");
+      throw new IllegalArgumentException("A builtin object equals() function must have either an object base type or be part of a compound definition");
     }
 
     LLVMValueRef builtinFunction = getBuiltinMethod(method);
@@ -804,6 +938,104 @@ public class BuiltinCodeGenerator
       // note: objectType is ?#object, so we implicitly cast callee to nullable first here
       LLVMValueRef equal = codeGenerator.buildEqualityCheck(builder, landingPadContainer, callee, parameter, objectType, EqualityOperator.IDENTICALLY_EQUAL);
       LLVM.LLVMBuildRet(builder, equal);
+    }
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return builtinFunction;
+  }
+
+  private LLVMValueRef buildObjectHashCode(Type baseType, BuiltinMethod method)
+  {
+    if (!(baseType instanceof ObjectType || method.getContainingTypeDefinition() instanceof CompoundDefinition))
+    {
+      throw new IllegalArgumentException("A builtin object hashCode() function must have either an object base type or be part of a compound definition");
+    }
+
+    LLVMValueRef builtinFunction = getBuiltinMethod(method);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+    LLVMValueRef callee = LLVM.LLVMGetParam(builtinFunction, 0);
+
+    TypeDefinition containingDefinition = method.getContainingTypeDefinition();
+    if (containingDefinition instanceof CompoundDefinition)
+    {
+      TypeParameterAccessor typeParameterAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, containingDefinition, callee);
+      LLVMValueRef result = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false);
+      for (MemberVariable memberVariable : ((CompoundDefinition) containingDefinition).getMemberVariables())
+      {
+        // call hashCode() on the member variable
+        Type memberType = memberVariable.getType();
+        LLVMValueRef memberPtr = typeHelper.getMemberPointer(builder, callee, memberVariable);
+        LLVMValueRef memberValue = typeHelper.convertStandardPointerToTemporary(builder, memberPtr, memberType);
+
+        Type notNullMemberType = memberType;
+        LLVMBasicBlockRef startBlock = null;
+        LLVMBasicBlockRef continuationBlock = null;
+        if (memberType.canBeNullable())
+        {
+          LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, memberValue, memberType);
+          LLVMBasicBlockRef hashCodeBlock = LLVM.LLVMAddBasicBlock(builder, "notNullMember");
+          continuationBlock = LLVM.LLVMAddBasicBlock(builder, "nullCheckContinuation");
+          startBlock = LLVM.LLVMGetInsertBlock(builder);
+          LLVM.LLVMBuildCondBr(builder, isNotNull, hashCodeBlock, continuationBlock);
+
+          LLVM.LLVMPositionBuilderAtEnd(builder, hashCodeBlock);
+          notNullMemberType = Type.findTypeWithNullability(memberType, false);
+          memberValue = typeHelper.convertTemporary(builder, landingPadContainer, memberValue, memberType, notNullMemberType, true, typeParameterAccessor, typeParameterAccessor);
+        }
+
+        Disambiguator hashCodeDisambiguator = new MethodReference(new BuiltinMethod(new ObjectType(false, false, null), BuiltinMethodType.HASH_CODE), GenericTypeSpecialiser.IDENTITY_SPECIALISER).getDisambiguator();
+        MethodReference hashCodeMethodReference = notNullMemberType.getMethod(hashCodeDisambiguator);
+        if (hashCodeMethodReference == null)
+        {
+          throw new IllegalArgumentException("Could not find the hashCode() method on " + notNullMemberType);
+        }
+        LLVMValueRef memberHashCode = typeHelper.buildMethodCall(builder, landingPadContainer, memberValue, notNullMemberType, hashCodeMethodReference, new HashMap<Parameter, LLVMValueRef>(), typeParameterAccessor);
+
+        if (memberType.canBeNullable())
+        {
+          LLVMBasicBlockRef endHashCodeBlock = LLVM.LLVMGetInsertBlock(builder);
+          LLVM.LLVMBuildBr(builder, continuationBlock);
+
+          LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+          LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt32Type(), "");
+          LLVMValueRef[] incomingValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false), memberHashCode};
+          LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, endHashCodeBlock};
+          LLVM.LLVMAddIncoming(phiNode, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+
+          memberHashCode = phiNode;
+        }
+
+        // result = result << 5 + result + memberHashCode
+        LLVMValueRef shiftedResult = LLVM.LLVMBuildShl(builder, result, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 5, false), "");
+        result = LLVM.LLVMBuildAdd(builder, shiftedResult, result, "");
+        result = LLVM.LLVMBuildAdd(builder, result, memberHashCode, "");
+      }
+      LLVM.LLVMBuildRet(builder, result);
+    }
+    else
+    {
+      // this is an object, so cast its pointer to an integer to derive the hash code
+      LLVMValueRef longValue = LLVM.LLVMBuildPtrToInt(builder, callee, LLVM.LLVMInt64Type(), "");
+      LLVMValueRef bottomHalf = LLVM.LLVMBuildTrunc(builder, longValue, LLVM.LLVMInt32Type(), "");
+      LLVMValueRef topHalf = LLVM.LLVMBuildLShr(builder, longValue, LLVM.LLVMConstInt(LLVM.LLVMInt64Type(), 32, false), "");
+      topHalf = LLVM.LLVMBuildTrunc(builder, topHalf, LLVM.LLVMInt32Type(), "");
+      // result = 33 * topHalf + bottomHalf = topHalf << 5 + topHalf + bottomHalf
+      LLVMValueRef shiftedTopHalf = LLVM.LLVMBuildShl(builder, topHalf, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 5, false), "");
+      LLVMValueRef result = LLVM.LLVMBuildAdd(builder, shiftedTopHalf, topHalf, "");
+      result = LLVM.LLVMBuildAdd(builder, result, bottomHalf, "");
+      LLVM.LLVMBuildRet(builder, result);
     }
 
     LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
@@ -1005,6 +1237,111 @@ public class BuiltinCodeGenerator
     return builtinFunction;
   }
 
+  private LLVMValueRef buildArrayHashCode(ArrayType arrayType, BuiltinMethod method)
+  {
+    LLVMValueRef builtinFunction = getBuiltinMethod(method);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+    LLVMValueRef callee = LLVM.LLVMGetParam(builtinFunction, 0);
+
+    LLVMValueRef lengthPtr = typeHelper.getArrayLengthPointer(builder, callee);
+    LLVMValueRef length = LLVM.LLVMBuildLoad(builder, lengthPtr, "");
+
+    LLVMValueRef hasElements = LLVM.LLVMBuildICmp(builder, LLVM.LLVMIntPredicate.LLVMIntNE, length, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false), "");
+    LLVMBasicBlockRef continuationBlock = LLVM.LLVMAddBasicBlock(builder, "elementHashCodeContinuation");
+    LLVMBasicBlockRef hasElementsBlock = LLVM.LLVMAddBasicBlock(builder, "findFirstElementHashCode");
+    LLVMBasicBlockRef startBlock = LLVM.LLVMGetInsertBlock(builder);
+    LLVM.LLVMBuildCondBr(builder, hasElements, hasElementsBlock, continuationBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, hasElementsBlock);
+    LLVMValueRef firstElement = typeHelper.buildRetrieveArrayElement(builder, landingPadContainer, callee, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false));
+
+    Type elementType = arrayType.getBaseType();
+    Type notNullType = elementType;
+    LLVMValueRef notNullValue = firstElement;
+    LLVMBasicBlockRef nullCheckBlock = null;
+    if (elementType.canBeNullable())
+    {
+      LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, firstElement, elementType);
+      LLVMBasicBlockRef notNullBlock = LLVM.LLVMAddBasicBlock(builder, "elementNotNull");
+      nullCheckBlock = LLVM.LLVMGetInsertBlock(builder);
+      LLVM.LLVMBuildCondBr(builder, isNotNull, notNullBlock, continuationBlock);
+
+      LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
+      notNullType = Type.findTypeWithNullability(elementType, false);
+      // skip checks on this conversion, since we have already done them
+      // also, use null TypeParameterAccessors, since we don't have our own and we're only converting from nullable to not-null
+      notNullValue = typeHelper.convertTemporary(builder, landingPadContainer, firstElement, elementType, notNullType, true, null, null);
+    }
+
+    // we don't have a TypeParameterAccessor for any type parameters in this base type, so we have
+    // to be careful about how we call the hashCode() method on this element
+    TypeParameterAccessor elementTypeParameterAccessor = null;
+    if ((notNullType instanceof ObjectType) ||
+        (notNullType instanceof NamedType && ((NamedType) notNullType).getResolvedTypeParameter() != null) ||
+        (notNullType instanceof NamedType && ((NamedType) notNullType).getResolvedTypeDefinition() instanceof ClassDefinition) ||
+        (notNullType instanceof NamedType && ((NamedType) notNullType).getResolvedTypeDefinition() instanceof InterfaceDefinition) ||
+        (notNullType instanceof WildcardType))
+    {
+      // this can be converted to object without a heap allocation, so do that and then just call its object::hashCode() method
+      // this way of calling the hashCode() method avoids trying to convert from notNullType to an interface which we don't know the type parameters for, which would be impossible
+      ObjectType objectType = new ObjectType(false, Type.canBeExplicitlyDataImmutable(notNullType), null);
+      notNullValue = typeHelper.convertTemporary(builder, landingPadContainer, notNullValue, notNullType, objectType, true, null, null);
+      notNullType = objectType;
+    }
+    else if ((notNullType instanceof NamedType && ((NamedType) notNullType).getResolvedTypeDefinition() instanceof CompoundDefinition))
+    {
+      elementTypeParameterAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, ((NamedType) notNullType).getResolvedTypeDefinition(), notNullValue);
+    }
+
+    Disambiguator hashCodeDisambiguator = new MethodReference(new BuiltinMethod(new ObjectType(false, false, null), BuiltinMethodType.HASH_CODE), GenericTypeSpecialiser.IDENTITY_SPECIALISER).getDisambiguator();
+    MethodReference hashCodeMethodReference = notNullType.getMethod(hashCodeDisambiguator);
+    if (hashCodeMethodReference == null)
+    {
+      throw new IllegalArgumentException("Could not find the hashCode() method on " + notNullType);
+    }
+    // note: elementTypeParameterAccessor may be null here, but in the cases where it is null, buildMethodCall() shouldn't need it
+    // (this is because of the conversion to object we did earlier, which ensures that the method's base type will never be an interface)
+    LLVMValueRef firstElementHashCode = typeHelper.buildMethodCall(builder, landingPadContainer, notNullValue, notNullType, hashCodeMethodReference, new HashMap<Parameter, LLVMValueRef>(), elementTypeParameterAccessor);
+
+    LLVMBasicBlockRef hashCodeBlock = LLVM.LLVMGetInsertBlock(builder);
+    LLVM.LLVMBuildBr(builder, continuationBlock);
+
+    LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+    LLVMValueRef hashCodePhi = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt32Type(), "");
+    LLVMValueRef[] incomingValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false), firstElementHashCode};
+    LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {startBlock, hashCodeBlock};
+    LLVM.LLVMAddIncoming(hashCodePhi, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+
+    if (elementType.canBeNullable())
+    {
+      LLVMValueRef[] nullCheckIncomingValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false)};
+      LLVMBasicBlockRef[] nullCheckIncomingBlocks = new LLVMBasicBlockRef[] {nullCheckBlock};
+      LLVM.LLVMAddIncoming(hashCodePhi, C.toNativePointerArray(nullCheckIncomingValues, false, true), C.toNativePointerArray(nullCheckIncomingBlocks, false, true), nullCheckIncomingValues.length);
+    }
+
+    // result = length << 5 + length + elementHashCode
+    LLVMValueRef shiftedLength = LLVM.LLVMBuildShl(builder, length, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 5, false), "");
+    LLVMValueRef result = LLVM.LLVMBuildAdd(builder, shiftedLength, length, "");
+    result = LLVM.LLVMBuildAdd(builder, result, hashCodePhi, "");
+    LLVM.LLVMBuildRet(builder, result);
+
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return builtinFunction;
+  }
+
   private LLVMValueRef buildFunctionToString(Type baseType, BuiltinMethod method)
   {
     if (!(baseType instanceof FunctionType))
@@ -1110,6 +1447,49 @@ public class BuiltinCodeGenerator
       LLVM.LLVMSetCleanup(landingPad, true);
       LLVM.LLVMBuildResume(builder, landingPad);
     }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return builtinFunction;
+  }
+
+  private LLVMValueRef buildFunctionHashCode(BuiltinMethod method)
+  {
+    LLVMValueRef builtinFunction = getBuiltinMethod(method);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+    LLVMValueRef callee = LLVM.LLVMGetParam(builtinFunction, 0);
+
+    LLVMValueRef opaquePtr = LLVM.LLVMBuildExtractValue(builder, callee, 1, "");
+    LLVMValueRef functionPtr = LLVM.LLVMBuildExtractValue(builder, callee, 2, "");
+
+    LLVMValueRef opaqueLong = LLVM.LLVMBuildPtrToInt(builder, opaquePtr, LLVM.LLVMInt64Type(), "");
+    LLVMValueRef functionLong = LLVM.LLVMBuildPtrToInt(builder, functionPtr, LLVM.LLVMInt64Type(), "");
+
+    LLVMValueRef opaqueBottomHalf = LLVM.LLVMBuildTrunc(builder, opaqueLong, LLVM.LLVMInt32Type(), "");
+    LLVMValueRef opaqueTopHalf = LLVM.LLVMBuildLShr(builder, opaqueLong, LLVM.LLVMConstInt(LLVM.LLVMInt64Type(), 32, false), "");
+    opaqueTopHalf = LLVM.LLVMBuildTrunc(builder, opaqueTopHalf, LLVM.LLVMInt32Type(), "");
+    // result = opaqueTopHalf * 33 = opaqueTopHalf << 5 + opaqueTopHalf
+    LLVMValueRef shiftedOpaqueTopHalf = LLVM.LLVMBuildShl(builder, opaqueTopHalf, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 5, false), "");
+    LLVMValueRef result = LLVM.LLVMBuildAdd(builder, shiftedOpaqueTopHalf, opaqueTopHalf, "");
+    // result = result + opaqueBottomHalf
+    result = LLVM.LLVMBuildAdd(builder, result, opaqueBottomHalf, "");
+    // result = result * 33
+    LLVMValueRef shiftedResult = LLVM.LLVMBuildShl(builder, result, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 5, false), "");
+    result = LLVM.LLVMBuildAdd(builder, shiftedResult, result, "");
+
+    LLVMValueRef functionBottomHalf = LLVM.LLVMBuildTrunc(builder, functionLong, LLVM.LLVMInt32Type(), "");
+    LLVMValueRef functionTopHalf = LLVM.LLVMBuildLShr(builder, functionLong, LLVM.LLVMConstInt(LLVM.LLVMInt64Type(), 32, false), "");
+    functionTopHalf = LLVM.LLVMBuildTrunc(builder, functionTopHalf, LLVM.LLVMInt32Type(), "");
+    // result = result + functionTopHalf
+    result = LLVM.LLVMBuildAdd(builder, result, functionTopHalf, "");
+    // result = result * 33 = result << 5 + result
+    LLVMValueRef shiftedSecondResult = LLVM.LLVMBuildShl(builder, result, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 5, false), "");
+    result = LLVM.LLVMBuildAdd(builder, shiftedSecondResult, result, "");
+    // result = result + functionBottomHalf
+    result = LLVM.LLVMBuildAdd(builder, result, functionBottomHalf, "");
+
+    LLVM.LLVMBuildRet(builder, result);
 
     LLVM.LLVMDisposeBuilder(builder);
 
@@ -1257,6 +1637,115 @@ public class BuiltinCodeGenerator
     LLVMValueRef convertedParameter = typeHelper.convertTemporary(builder, landingPadContainer, parameter, notNullObjectType, tupleType, true, null, null);
     LLVMValueRef equal = codeGenerator.buildEqualityCheck(builder, landingPadContainer, callee, convertedParameter, tupleType, EqualityOperator.EQUAL);
     LLVM.LLVMBuildRet(builder, equal);
+
+    LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
+    if (landingPadBlock != null)
+    {
+      LLVM.LLVMPositionBuilderAtEnd(builder, landingPadBlock);
+      LLVMValueRef landingPad = LLVM.LLVMBuildLandingPad(builder, typeHelper.getLandingPadType(), codeGenerator.getPersonalityFunction(), 0, "");
+      LLVM.LLVMSetCleanup(landingPad, true);
+      LLVM.LLVMBuildResume(builder, landingPad);
+    }
+
+    LLVM.LLVMDisposeBuilder(builder);
+
+    return builtinFunction;
+  }
+
+  private LLVMValueRef buildTupleHashCode(TupleType tupleType, BuiltinMethod method)
+  {
+    LLVMValueRef builtinFunction = getBuiltinMethod(method);
+
+    LLVMBuilderRef builder = LLVM.LLVMCreateFunctionBuilder(builtinFunction);
+    LandingPadContainer landingPadContainer = new LandingPadContainer(builder);
+    LLVMValueRef callee = LLVM.LLVMGetParam(builtinFunction, 0);
+
+    Type[] subTypes = tupleType.getSubTypes();
+    LLVMValueRef result = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), subTypes.length, false);
+    for (int i = 0; i < subTypes.length; ++i)
+    {
+      LLVMValueRef elementHashCode;
+      Type subType = subTypes[i];
+      if (subType instanceof NullType)
+      {
+        elementHashCode = LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false);
+      }
+      else
+      {
+        LLVMValueRef elementValue = LLVM.LLVMBuildExtractValue(builder, callee, i, "");
+
+        Type notNullSubType = subType;
+        LLVMValueRef notNullElement = elementValue;
+        LLVMBasicBlockRef nullCheckBlock = null;
+        LLVMBasicBlockRef continuationBlock = null;
+        if (subType.canBeNullable())
+        {
+          LLVMValueRef isNotNull = codeGenerator.buildNullCheck(builder, elementValue, subType);
+          continuationBlock = LLVM.LLVMAddBasicBlock(builder, "nullCheckContinuation");
+          LLVMBasicBlockRef notNullBlock = LLVM.LLVMAddBasicBlock(builder, "notNullElement");
+          nullCheckBlock = LLVM.LLVMGetInsertBlock(builder);
+          LLVM.LLVMBuildCondBr(builder, isNotNull, notNullBlock, continuationBlock);
+
+          LLVM.LLVMPositionBuilderAtEnd(builder, notNullBlock);
+          notNullSubType = Type.findTypeWithNullability(subType, false);
+          // skip checks on this conversion, since we have already done them
+          // also, use null TypeParameterAccessors, since we don't have our own and we're only converting from nullable to not-null
+          notNullElement = typeHelper.convertTemporary(builder, landingPadContainer, elementValue, subType, notNullSubType, true, null, null);
+        }
+
+        // we don't have a TypeParameterAccessor for any type parameters in this sub-type, so we have
+        // to be careful about how we call the hashCode() method on this element
+        TypeParameterAccessor elementTypeParameterAccessor = null;
+        if ((notNullSubType instanceof ObjectType) ||
+            (notNullSubType instanceof NamedType && ((NamedType) notNullSubType).getResolvedTypeParameter() != null) ||
+            (notNullSubType instanceof NamedType && ((NamedType) notNullSubType).getResolvedTypeDefinition() instanceof ClassDefinition) ||
+            (notNullSubType instanceof NamedType && ((NamedType) notNullSubType).getResolvedTypeDefinition() instanceof InterfaceDefinition) ||
+            (notNullSubType instanceof WildcardType))
+        {
+          // this can be converted to object without a heap allocation, so do that and then just call its object::hashCode() method
+          // this way of calling the hashCode() method avoids trying to convert from notNullSubType to an interface which we don't know the type parameters for, which would be impossible
+          ObjectType objectType = new ObjectType(false, Type.canBeExplicitlyDataImmutable(notNullSubType), null);
+          notNullElement = typeHelper.convertTemporary(builder, landingPadContainer, notNullElement, notNullSubType, objectType, true, null, null);
+          notNullSubType = objectType;
+        }
+        else if ((notNullSubType instanceof NamedType && ((NamedType) notNullSubType).getResolvedTypeDefinition() instanceof CompoundDefinition))
+        {
+          elementTypeParameterAccessor = new TypeParameterAccessor(builder, typeHelper, rttiHelper, ((NamedType) notNullSubType).getResolvedTypeDefinition(), notNullElement);
+        }
+
+        Disambiguator hashCodeDisambiguator = new MethodReference(new BuiltinMethod(new ObjectType(false, false, null), BuiltinMethodType.HASH_CODE), GenericTypeSpecialiser.IDENTITY_SPECIALISER).getDisambiguator();
+        MethodReference hashCodeMethodReference = notNullSubType.getMethod(hashCodeDisambiguator);
+        if (hashCodeMethodReference == null)
+        {
+          throw new IllegalArgumentException("Could not find the hashCode() method on " + notNullSubType);
+        }
+        // note: elementTypeParameterAccessor may be null here, but in the cases where it is null, buildMethodCall() shouldn't need it
+        // (this is because of the conversion to object we did earlier, which ensures that the method's base type will never be an interface)
+        elementHashCode = typeHelper.buildMethodCall(builder, landingPadContainer, notNullElement, notNullSubType, hashCodeMethodReference, new HashMap<Parameter, LLVMValueRef>(), elementTypeParameterAccessor);
+
+        if (subType.canBeNullable())
+        {
+          LLVMBasicBlockRef hashCodeBlock = LLVM.LLVMGetInsertBlock(builder);
+          LLVM.LLVMBuildBr(builder, continuationBlock);
+
+          LLVM.LLVMPositionBuilderAtEnd(builder, continuationBlock);
+          LLVMValueRef phiNode = LLVM.LLVMBuildPhi(builder, LLVM.LLVMInt32Type(), "");
+          LLVMValueRef[] incomingValues = new LLVMValueRef[] {LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 0, false), elementHashCode};
+          LLVMBasicBlockRef[] incomingBlocks = new LLVMBasicBlockRef[] {nullCheckBlock, hashCodeBlock};
+          LLVM.LLVMAddIncoming(phiNode, C.toNativePointerArray(incomingValues, false, true), C.toNativePointerArray(incomingBlocks, false, true), incomingValues.length);
+
+          elementHashCode = phiNode;
+        }
+      }
+
+      // result = result * 33 = result << 5 + result
+      LLVMValueRef shiftedResult = LLVM.LLVMBuildShl(builder, result, LLVM.LLVMConstInt(LLVM.LLVMInt32Type(), 5, false), "");
+      result = LLVM.LLVMBuildAdd(builder, shiftedResult, result, "");
+      // result = result + elementHashCode
+      result = LLVM.LLVMBuildAdd(builder, result, elementHashCode, "");
+    }
+
+    LLVM.LLVMBuildRet(builder, result);
 
     LLVMBasicBlockRef landingPadBlock = landingPadContainer.getExistingLandingPadBlock();
     if (landingPadBlock != null)

@@ -1,0 +1,120 @@
+// Plinth Test
+// Main: Test
+// Out: true: 1
+// Out: false: 0
+// Out: ubyte: 99
+// Out: byte: 157
+// Out: ushort: 65534
+// Out: short: 34291
+// Out: uint: 2147500000
+// Out: int: 2294967296
+// Out: ulong: 2147483649
+// Out: long: 2147483648
+// Out: float: 1047789568
+// Out: double: 3619579475
+// Out: object: 0
+// Out: non-custom-class: 0
+// Out: compound: 1
+// Out: custom-class: 17
+// Out: custom-interface: 23
+// Out: type-parameter: 2147483648
+// Out: bravo-array: 155
+// Out: charlie-array: 122
+// Out: empty-array: 0
+// Out: type-parameter-array: 164
+// Out: type-parameter-array: 196
+// Out: function: 0
+// Out: function-callee: 0
+// Out: tuple: 109103
+// Out: tuple-nulls: 2178
+
+compound holder<T>
+{
+  T value;
+  create(@value);
+
+  void testTypeParameter()
+  {
+    stdout::println("type-parameter: " + value?.hashCode());
+  }
+
+  void testTypeParameterArray()
+  {
+    []holder<T> arr = new [2]holder<T>(create holder<T>(value));
+    stdout::println("type-parameter-array: " + arr.hashCode());
+  }
+}
+
+class Alpha
+{
+  create();
+  immutable uint hashCode()
+  {
+    return 17;
+  }
+}
+
+interface Bravo
+{
+  immutable uint hashCode()
+  {
+    return 23;
+  }
+}
+
+class Charlie implements Bravo
+{
+  create();
+}
+
+class Delta
+{
+  create();
+}
+
+class Test
+{
+  static uint main([]string args)
+  {
+    stdout::println("true: " + true.hashCode());
+    stdout::println("false: " + false.hashCode());
+    stdout::println("ubyte: " + 99.hashCode());
+    stdout::println("byte: " + (-99).hashCode());
+    stdout::println("ushort: " + 65534.hashCode());
+    stdout::println("short: " + (-31245).hashCode());
+    stdout::println("uint: " + 2147500000.hashCode());
+    stdout::println("int: " + (-2000000000).hashCode());
+    stdout::println("ulong: " + 9223372036854775809.hashCode());
+    stdout::println("long: " + (-9223372036854775808).hashCode());
+    stdout::println("float: " + 1.25.hashCode());
+    stdout::println("double: " + 1.1.hashCode());
+
+    object obj = new object();
+    stdout::println("object: " + (obj.hashCode() ^ obj.hashCode()));
+    Delta d = new Delta();
+    stdout::println("non-custom-class: " + (d.hashCode() ^ d.hashCode()));
+    stdout::println("compound: " + create holder<uint>(1).hashCode());
+    stdout::println("custom-class: " + new Alpha().hashCode());
+    stdout::println("custom-interface: " + new Charlie().hashCode());
+    create holder<ulong>(9223372036854775808).testTypeParameter();
+
+    []?Bravo bravoArray = new []?Bravo {new Charlie(), new Charlie(), null, new Charlie()};
+    stdout::println("bravo-array: " + bravoArray.hashCode());
+    []Charlie charlieArray = new []Charlie {new Charlie(), new Charlie(), new Charlie()};
+    stdout::println("charlie-array: " + charlieArray.hashCode());
+    []uint emptyArray = new []uint {};
+    stdout::println("empty-array: " + emptyArray.hashCode());
+    create holder<ubyte>(98).testTypeParameterArray();
+    create holder<holder<string>>(create holder<string>("a")).testTypeParameterArray();
+
+    stdout::println("function: " + (main.hashCode() ^ main.hashCode()));
+    {-> uint} function = main.hashCode;
+    stdout::println("function-callee: " + (function.hashCode() ^ function.hashCode()));
+
+    stdout::println("tuple: " + (1, true, "hi").hashCode());
+    stdout::println("tuple-nulls: " + (null, cast<?uint> null).hashCode());
+
+    return 0;
+  }
+}
+
